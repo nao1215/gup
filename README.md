@@ -1,2 +1,1 @@
-# gup
-gup - Update the binary obtained by "go install"
+# gup - Update binaries installed by "go install"
