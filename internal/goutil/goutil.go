@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,6 +20,19 @@ type Package struct {
 	Name string
 	// ImportPath is import path for 'go install'
 	ImportPath string
+}
+
+// CanUseGoCmd check whether go command install in the system.
+func CanUseGoCmd() error {
+	_, err := exec.LookPath("go")
+	return err
+}
+
+// Install execute "$ go install <importPath>"
+func Install(importPath string) {
+	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
+		print.Err(err)
+	}
 }
 
 // GoPath return GOPATH environment variable.
@@ -108,5 +122,6 @@ func extractPackagePathFromHistroy(hist string) string {
 	h = r.ReplaceAllString(h, "")
 
 	h = strings.ReplaceAll(h, "\n", "")
+	h = strings.TrimSpace(h)
 	return h
 }

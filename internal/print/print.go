@@ -8,6 +8,12 @@ import (
 	"github.com/nao1215/gup/internal/cmdinfo"
 )
 
+// Info print information message at STDOUT.
+func Info(msg string) {
+	fmt.Fprintf(os.Stdout, "%s:%s: %s\n",
+		cmdinfo.Name(), color.GreenString("INFO"), msg)
+}
+
 // Warn print warning message at STDERR.
 func Warn(err interface{}) {
 	fmt.Fprintf(os.Stderr, "%s:%s: %v\n",
