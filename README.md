@@ -14,15 +14,17 @@ The information of this package path is added to the configuration file under th
 gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website] (https://go.dev/doc/install).
 
 ### Step2. Install gup
+```
 $ go install github.com/nao1215/gup@latest
-
+```
 # How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup`.  After executing the gup command, a configuration file is automatically created in `$HOME/.config/gup/gup.conf`. 
+If you update all binaries, you just run `$ gup`.  After executing the gup command, a configuration file is automatically created in `$HOME/.config/gup/gup.conf`.
+
 ```
 $ gup
 ```
-  
+
 ### Add the package path to the config file
 gup command can not obtaine all package path information from the shell history. So, you need to add the PATH information manually.  
   
