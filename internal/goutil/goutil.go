@@ -29,10 +29,11 @@ func CanUseGoCmd() error {
 }
 
 // Install execute "$ go install <importPath>"
-func Install(importPath string) {
+func Install(importPath string) error {
 	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
-		print.Err(err)
+		return errors.New("can't install " + importPath)
 	}
+	return nil
 }
 
 // GoPath return GOPATH environment variable.

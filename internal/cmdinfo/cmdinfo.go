@@ -6,7 +6,7 @@ import (
 
 const (
 	name    = "gup"
-	version = "0.0.1"
+	version = "0.1.0"
 )
 
 // Version return gup command version.

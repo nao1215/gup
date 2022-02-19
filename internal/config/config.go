@@ -45,8 +45,9 @@ func ReadConfFile() ([]goutil.Package, error) {
 			continue
 		}
 		equalIdx := strings.Index(v, "=")
-		pkg.Name = strings.TrimSpace(v[:equalIdx])
-		pkg.ImportPath = strings.TrimSpace(v[equalIdx:])
+		pkg.Name = strings.TrimSpace(v[:equalIdx-1])
+		pkg.ImportPath = strings.TrimSpace(v[equalIdx+1:])
+		pkgs = append(pkgs, pkg)
 	}
 
 	return pkgs, nil

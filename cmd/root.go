@@ -38,15 +38,24 @@ func gup(args []string) int {
 		print.Fatal(err)
 	}
 
+	// Record only successfully installed packages in the config file
+	tmp := []goutil.Package{}
 	for _, v := range pkgs {
 		if v.ImportPath == "" {
-			print.Warn(v.Name + " does not know the import path")
+			print.Warn(v.Name + ": unknown package (command) path")
+			tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
 			continue
 		}
-
-		print.Info("Start installing " + v.Name)
-		goutil.Install(v.ImportPath)
+		print.Info("Start installing: " + v.ImportPath)
+		if err := goutil.Install(v.ImportPath); err != nil {
+			print.Err(err)
+			tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: ""})
+			continue
+		}
+		print.Info("Complete installation: " + v.ImportPath)
+		tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
 	}
+	pkgs = tmp
 
 	if err := config.WriteConfFile(pkgs); err != nil {
 		print.Err(err)
