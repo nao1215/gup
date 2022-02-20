@@ -118,6 +118,7 @@ func extractInstallHistory(history []string) []string {
 func extractPackagePathFromHistroy(hist string) string {
 	r := regexp.MustCompile(`go\s+install`)
 	h := r.ReplaceAllString(hist, "")
+	h = strings.ReplaceAll(h, "- cmd: ", "")
 
 	r = regexp.MustCompile(`@.*`)
 	h = r.ReplaceAllString(h, "")
