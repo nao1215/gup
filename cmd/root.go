@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/nao1215/gup/internal/config"
-	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -38,25 +38,20 @@ func gup(args []string) int {
 		print.Fatal(err)
 	}
 
-	// Record only successfully installed packages in the config file
-	tmp := []goutil.Package{}
-	for _, v := range pkgs {
-		if v.ImportPath == "" {
-			print.Warn(v.Name + ": unknown package (command) path")
-			tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
-			continue
-		}
-		print.Info("Start installing: " + v.ImportPath)
-		if err := goutil.Install(v.ImportPath); err != nil {
-			print.Err(err)
-			tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: ""})
-			continue
-		}
-		print.Info("Complete installation: " + v.ImportPath)
-		tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
+	if len(pkgs) == 0 {
+		print.Fatal("unable to update package: no package information")
 	}
-	pkgs = tmp
 
+	pkgs, result := update(pkgs)
+	for k, v := range result {
+		if v == "Failure" {
+			print.Err(fmt.Errorf("update failure: %s ", k))
+		} else {
+			print.Info("update success: " + k)
+		}
+	}
+
+	// Record only successfully installed packages in the config file
 	if err := config.WriteConfFile(pkgs); err != nil {
 		print.Err(err)
 		return 1
@@ -64,17 +59,29 @@ func gup(args []string) int {
 	return 0
 }
 
-func getPackageInfo() ([]goutil.Package, error) {
-	var err error
-	pkgInfoFromConf := []goutil.Package{}
-
-	if file.IsFile(config.FilePath()) {
-		pkgInfoFromConf, err = config.ReadConfFile()
-		if err != nil {
-			print.Warn(err)
+func update(pkgs []goutil.Package) ([]goutil.Package, map[string]string) {
+	tmp := []goutil.Package{}
+	result := map[string]string{}
+	bar := pb.Simple.Start(len(pkgs))
+	bar.SetMaxWidth(80)
+	for _, v := range pkgs {
+		bar.Increment()
+		if v.ImportPath == "" {
+			result[v.ImportPath] = "Failure"
+			continue
 		}
+		if err := goutil.Install(v.ImportPath); err != nil {
+			result[v.ImportPath] = "Failure"
+			continue
+		}
+		tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
+		result[v.ImportPath] = "Success"
 	}
+	bar.Finish()
+	return tmp, result
+}
 
+func getPackageInfo() ([]goutil.Package, error) {
 	goBin, err := goutil.GoBin()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", "can't find installed binaries", err)
@@ -85,21 +92,5 @@ func getPackageInfo() ([]goutil.Package, error) {
 		return nil, fmt.Errorf("%s: %w", "can't get binary-paths installed by 'go install'", err)
 	}
 
-	pkgInfoFromShellHistory, err := goutil.GetPackageInformation(binList)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't get package information from shell history", err)
-	}
-
-	pkgs := []goutil.Package{}
-	for _, v := range pkgInfoFromShellHistory {
-		pkg := goutil.Package{Name: v.Name, ImportPath: v.ImportPath}
-		for _, p := range pkgInfoFromConf {
-			if p.Name == v.Name && p.ImportPath != "" {
-				pkg.ImportPath = p.ImportPath
-			}
-		}
-		pkgs = append(pkgs, pkg)
-	}
-
-	return pkgs, nil
+	return goutil.GetPackageInformation(binList), nil
 }

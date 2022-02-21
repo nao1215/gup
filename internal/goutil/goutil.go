@@ -9,9 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/nao1215/gup/internal/shell"
 )
 
 // Package is package information
@@ -50,6 +48,15 @@ func GoBin() (string, error) {
 	return filepath.Join(goPath, "bin"), nil
 }
 
+// GoVersionWithOptionM return result of "$ go version -m"
+func GoVersionWithOptionM(bin string) ([]string, error) {
+	out, err := exec.Command("go", "version", "-m", bin).Output()
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(string(out), "\n"), nil
+}
+
 // BinaryPathList return list of binary paths.
 func BinaryPathList(path string) ([]string, error) {
 	entries, err := os.ReadDir(path)
@@ -62,68 +69,40 @@ func BinaryPathList(path string) ([]string, error) {
 		if e.IsDir() {
 			print.Warn("$GOPATH/bin contains the directory")
 		} else {
-			list = append(list, e.Name())
+			list = append(list, filepath.Join(path, e.Name()))
 		}
 	}
 	return list, nil
 }
 
 // GetPackageInformation return golang package information.
-func GetPackageInformation(binList []string) ([]Package, error) {
-	historyFileList := shell.AllShellHistoryFilePath()
-
-	history := []string{}
-	for _, f := range historyFileList {
-		if !file.IsFile(f) { // exist check
+func GetPackageInformation(binList []string) []Package {
+	pkgs := []Package{}
+	for _, v := range binList {
+		out, err := GoVersionWithOptionM(v)
+		if err != nil {
+			print.Warn(fmt.Errorf("%s: %w", "can not get package path", err))
 			continue
 		}
-		l, err := file.ReadFileToList(f)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", "can't not read '"+f+"'", err)
-		}
-		history = append(history, l...)
-	}
-
-	installHist := extractInstallHistory(history)
-	pkgs := []Package{}
-	for _, b := range binList {
-		pkg := Package{}
-		pkg.Name = b
-		for _, v := range installHist {
-			if strings.Contains(v, pkg.Name) {
-				v = extractPackagePathFromHistroy(v)
-				pkg.ImportPath = v
-				break
-			}
+		path := extractPackagePath(out)
+		pkg := Package{
+			Name:       filepath.Base(v),
+			ImportPath: path,
 		}
 		pkgs = append(pkgs, pkg)
 	}
-	return pkgs, nil
+	return pkgs
 }
 
-// extractInstallHistory returns only the history of executing "go install".
-func extractInstallHistory(history []string) []string {
-	r := regexp.MustCompile(`go\s+install`)
-
-	extract := []string{}
-	for _, v := range history {
+// extractPackagePath extract package path from result of "$ go version -m".
+func extractPackagePath(lines []string) string {
+	r := regexp.MustCompile(`\s+?path`)
+	for _, v := range lines {
 		if r.MatchString(v) {
-			extract = append(extract, v)
+			v = r.ReplaceAllString(v, "")
+			v = strings.TrimSpace(v)
+			return strings.TrimRight(v, "\n")
 		}
 	}
-	return extract
-}
-
-// extractPackagePathFromHistroy extract package path from history.
-func extractPackagePathFromHistroy(hist string) string {
-	r := regexp.MustCompile(`go\s+install`)
-	h := r.ReplaceAllString(hist, "")
-	h = strings.ReplaceAll(h, "- cmd: ", "")
-
-	r = regexp.MustCompile(`@.*`)
-	h = r.ReplaceAllString(h, "")
-
-	h = strings.ReplaceAll(h, "\n", "")
-	h = strings.TrimSpace(h)
-	return h
+	return ""
 }
