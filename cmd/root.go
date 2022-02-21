@@ -13,7 +13,12 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "gup",
-	Short: "Update binaries installed by 'go install'",
+	Short: "gup command update binaries installed by 'go install'",
+	Long: `gup command update binaries installed by 'go install'
+
+If you execute '$ gup', gup gets the package path of all commands
+under $GOPATH/bin and automatically updates commans to the latest
+version.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		os.Exit(gup(args))
 	},

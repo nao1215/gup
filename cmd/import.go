@@ -15,7 +15,7 @@ var importCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		os.Exit(runImport())
 	},
-	Short: "Install command according to gup.conf",
+	Short: "Install command according to gup.conf.",
 }
 
 func init() {

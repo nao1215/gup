@@ -8,11 +8,11 @@ import (
 )
 
 var versionCmd = &cobra.Command{
-	Use: "version",
+	Use:   "version",
+	Short: "Show gup command version information",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(cmdinfo.Version())
 	},
-	Short: "Show version information",
 }
 
 func init() {
