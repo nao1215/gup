@@ -33,7 +33,7 @@ func DirPath() string {
 func ReadConfFile() ([]goutil.Package, error) {
 	contents, err := file.ReadFileToList(FilePath())
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't read gui.conf", err)
+		return nil, fmt.Errorf("%s: %w", "can't read gup.conf", err)
 	}
 
 	pkgs := []goutil.Package{}
