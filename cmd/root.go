@@ -7,6 +7,7 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/nao1215/gup/internal/slice"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,7 @@ version.`,
 
 func init() {
 	rootCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
+	rootCmd.Flags().StringSliceP("file", "f", []string{}, "specify binary name to be update (e.g.:--file=subaru,gup,go)")
 }
 
 // Execute run gup process.
@@ -39,7 +41,12 @@ func Execute() {
 func gup(cmd *cobra.Command, args []string) int {
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))
+	}
+
+	targets, err := cmd.Flags().GetStringSlice("file")
+	if err != nil {
+		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument (--file)", err))
 	}
 
 	if err := goutil.CanUseGoCmd(); err != nil {
@@ -50,6 +57,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	if err != nil {
 		print.Fatal(err)
 	}
+	pkgs = extractUserSpecifyPkg(pkgs, targets)
 
 	if len(pkgs) == 0 {
 		print.Fatal("unable to update package: no package information")
@@ -66,18 +74,20 @@ func update(pkgs []goutil.Package, dryRun bool) map[string]string {
 	bar := pb.Simple.Start(len(pkgs))
 	bar.SetMaxWidth(80)
 	for _, v := range pkgs {
-		bar.Increment()
 		if !dryRun {
 			if v.ImportPath == "" {
 				result[v.Name] = "Failure"
+				bar.Increment()
 				continue
 			}
 			if err := goutil.Install(v.ImportPath); err != nil {
 				result[v.ImportPath] = "Failure"
+				bar.Increment()
 				continue
 			}
 		}
 		result[v.ImportPath] = "Success"
+		bar.Increment()
 	}
 	bar.Finish()
 	return result
@@ -95,4 +105,28 @@ func getPackageInfo() ([]goutil.Package, error) {
 	}
 
 	return goutil.GetPackageInformation(binList), nil
+}
+
+func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Package {
+	result := []goutil.Package{}
+	tmp := []string{}
+	if len(targets) == 0 {
+		return pkgs
+	}
+
+	for _, v := range pkgs {
+		if slice.Contains(targets, v.Name) {
+			result = append(result, v)
+			tmp = append(tmp, v.Name)
+		}
+	}
+
+	if len(tmp) != len(targets) {
+		for _, target := range targets {
+			if !slice.Contains(tmp, target) {
+				print.Warn("not found '" + target + "' package in $GOPATH/bin or $GOBIN")
+			}
+		}
+	}
+	return result
 }
