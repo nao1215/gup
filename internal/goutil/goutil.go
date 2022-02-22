@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/nao1215/gup/internal/print"
@@ -106,12 +105,12 @@ func GetPackageInformation(binList []string) []Package {
 
 // extractPackagePath extract package path from result of "$ go version -m".
 func extractPackagePath(lines []string) string {
-	r := regexp.MustCompile(`\s+?path`)
 	for _, v := range lines {
-		if r.MatchString(v) {
-			v = r.ReplaceAllString(v, "")
-			v = strings.TrimSpace(v)
-			return strings.TrimRight(v, "\n")
+		vv := strings.TrimSpace(v)
+		if len(v) != len(vv) && strings.HasPrefix(vv, "path") {
+			vv = strings.TrimLeft(vv, "path")
+			vv = strings.TrimSpace(vv)
+			return strings.TrimRight(vv, "\n")
 		}
 	}
 	return ""
