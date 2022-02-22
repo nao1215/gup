@@ -110,12 +110,14 @@ func getPackageInfo() ([]goutil.Package, error) {
 func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Package {
 	result := []goutil.Package{}
 	tmp := []string{}
-	if len(targets) != 0 {
-		for _, v := range pkgs {
-			if slice.Contains(targets, v.Name) {
-				result = append(result, v)
-				tmp = append(tmp, v.Name)
-			}
+	if len(targets) == 0 {
+		return pkgs
+	}
+
+	for _, v := range pkgs {
+		if slice.Contains(targets, v.Name) {
+			result = append(result, v)
+			tmp = append(tmp, v.Name)
 		}
 	}
 
