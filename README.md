@@ -5,7 +5,7 @@
 
 # How to install
 ### Step.1 Install golang
-gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website] (https://go.dev/doc/install).
+gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
 
 ### Step2. Install gup
 ```
