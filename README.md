@@ -1,7 +1,7 @@
 [![Build](https://github.com/nao1215/gup/actions/workflows/build.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/build.yml)
 [![UnitTest](https://github.com/nao1215/gup/actions/workflows/unit_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/unit_test.yml)
 # gup - Update binaries installed by "go install"
-**gup** command update binaries installed by "go install" to the latest version. The gup command saves the command's package path (that is, \<PATH\> in `$ go install <PATH>`) in the configuration file.  
+**gup** command update binaries installed by "go install" to the latest version.
 
 # How to install
 ### Step.1 Install golang
@@ -13,7 +13,7 @@ $ go install github.com/nao1215/gup@latest
 ```
 # How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup`.  After executing the gup command, a configuration file is automatically created in `$HOME/.config/gup/gup.conf`.
+If you update all binaries, you just run `$ gup`. 
 
 ```
 $ gup
@@ -48,10 +48,18 @@ gup:INFO: update success: github.com/jesseduffield/lazygit
 gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
+### Export／Import subcommand
+You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $HOME/.config/gup/gup.conf. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
+according to the contents of gup.conf.
 
-### Import binary from configuration file
-If "$ gup" is successful, `$HOME/.config/gup/gup.conf` has been generated. gup.conf has the settings in the `$BINARY_NAME = $PATH` format. After copying gup.conf from one environment to another, run "gup import" in another environment to install the binaries according to gup.conf.
 ```
+※ Environmet A (e.g. ubuntu)
+$ gup export
+gup:INFO: Export /home/nao/.config/gup/gup.conf
+
+※ Environmet B (e.g. debian)
+$ ls /home/nao/.config/gup/gup.conf
+/home/nao/.config/gup/gup.conf
 $ gup import
 ```
 
