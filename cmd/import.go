@@ -13,16 +13,22 @@ import (
 var importCmd = &cobra.Command{
 	Use: "import",
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(runImport())
+		os.Exit(runImport(cmd, args))
 	},
 	Short: "Install command according to gup.conf.",
 }
 
 func init() {
+	importCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
 	rootCmd.AddCommand(importCmd)
 }
 
-func runImport() int {
+func runImport(cmd *cobra.Command, args []string) int {
+	dryRun, err := cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+	}
+
 	if !file.IsFile(config.FilePath()) {
 		print.Fatal(fmt.Errorf("%s is not found", config.FilePath()))
 	}
@@ -36,7 +42,7 @@ func runImport() int {
 		print.Fatal("unable to update package: no package information")
 	}
 
-	pkgs, result := update(pkgs)
+	pkgs, result := update(pkgs, dryRun)
 	for k, v := range result {
 		if v == "Failure" {
 			print.Err(fmt.Errorf("update failure: %s ", k))

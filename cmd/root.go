@@ -20,8 +20,12 @@ If you execute '$ gup', gup gets the package path of all commands
 under $GOPATH/bin and automatically updates commans to the latest
 version.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(gup(args))
+		os.Exit(gup(cmd, args))
 	},
+}
+
+func init() {
+	rootCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
 }
 
 // Execute run gup process.
@@ -33,7 +37,12 @@ func Execute() {
 
 // gup is main sequence.
 // All errors are handled in this function.
-func gup(args []string) int {
+func gup(cmd *cobra.Command, args []string) int {
+	dryRun, err := cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+	}
+
 	if err := goutil.CanUseGoCmd(); err != nil {
 		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
 	}
@@ -47,7 +56,7 @@ func gup(args []string) int {
 		print.Fatal("unable to update package: no package information")
 	}
 
-	pkgs, result := update(pkgs)
+	pkgs, result := update(pkgs, dryRun)
 	for k, v := range result {
 		if v == "Failure" {
 			print.Err(fmt.Errorf("update failure: %s ", k))
@@ -64,20 +73,22 @@ func gup(args []string) int {
 	return 0
 }
 
-func update(pkgs []goutil.Package) ([]goutil.Package, map[string]string) {
+func update(pkgs []goutil.Package, dryRun bool) ([]goutil.Package, map[string]string) {
 	tmp := []goutil.Package{}
 	result := map[string]string{}
 	bar := pb.Simple.Start(len(pkgs))
 	bar.SetMaxWidth(80)
 	for _, v := range pkgs {
 		bar.Increment()
-		if v.ImportPath == "" {
-			result[v.ImportPath] = "Failure"
-			continue
-		}
-		if err := goutil.Install(v.ImportPath); err != nil {
-			result[v.ImportPath] = "Failure"
-			continue
+		if !dryRun {
+			if v.ImportPath == "" {
+				result[v.ImportPath] = "Failure"
+				continue
+			}
+			if err := goutil.Install(v.ImportPath); err != nil {
+				result[v.ImportPath] = "Failure"
+				continue
+			}
 		}
 		tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
 		result[v.ImportPath] = "Success"
