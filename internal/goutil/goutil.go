@@ -3,6 +3,7 @@ package goutil
 import (
 	"errors"
 	"fmt"
+	"go/build"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,7 +37,11 @@ func Install(importPath string) error {
 
 // GoPath return GOPATH environment variable.
 func GoPath() string {
-	return os.Getenv("GOPATH")
+	gopath := os.Getenv("GOPATH")
+	if gopath != "" {
+		return gopath
+	}
+	return build.Default.GOPATH
 }
 
 // GoBin return $GOPATH/bin directory path.
