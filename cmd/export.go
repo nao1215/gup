@@ -35,6 +35,10 @@ func export(cmd *cobra.Command, args []string) int {
 		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
 	}
 
+	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not make config directory", err))
+	}
+
 	pkgs, err := getPackageInfo()
 	if err != nil {
 		print.Fatal(err)

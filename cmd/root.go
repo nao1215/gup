@@ -69,7 +69,7 @@ func update(pkgs []goutil.Package, dryRun bool) map[string]string {
 		bar.Increment()
 		if !dryRun {
 			if v.ImportPath == "" {
-				result[v.ImportPath] = "Failure"
+				result[v.Name] = "Failure"
 				continue
 			}
 			if err := goutil.Install(v.ImportPath); err != nil {
