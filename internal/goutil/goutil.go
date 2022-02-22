@@ -46,6 +46,11 @@ func GoPath() string {
 
 // GoBin return $GOPATH/bin directory path.
 func GoBin() (string, error) {
+	goBin := os.Getenv("GOBIN")
+	if goBin != "" {
+		return goBin, nil
+	}
+
 	goPath := GoPath()
 	if goPath == "" {
 		return "", errors.New("$GOPATH is not set")
