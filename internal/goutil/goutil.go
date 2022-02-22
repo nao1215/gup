@@ -1,13 +1,13 @@
 package goutil
 
 import (
+	"debug/buildinfo"
 	"errors"
 	"fmt"
+	"go/build"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/nao1215/gup/internal/print"
 )
@@ -36,7 +36,11 @@ func Install(importPath string) error {
 
 // GoPath return GOPATH environment variable.
 func GoPath() string {
-	return os.Getenv("GOPATH")
+	gopath := os.Getenv("GOPATH")
+	if gopath != "" {
+		return gopath
+	}
+	return build.Default.GOPATH
 }
 
 // GoBin return $GOPATH/bin directory path.
@@ -46,15 +50,6 @@ func GoBin() (string, error) {
 		return "", errors.New("$GOPATH is not set")
 	}
 	return filepath.Join(goPath, "bin"), nil
-}
-
-// GoVersionWithOptionM return result of "$ go version -m"
-func GoVersionWithOptionM(bin string) ([]string, error) {
-	out, err := exec.Command("go", "version", "-m", bin).Output()
-	if err != nil {
-		return nil, err
-	}
-	return strings.Split(string(out), "\n"), nil
 }
 
 // BinaryPathList return list of binary paths.
@@ -79,30 +74,16 @@ func BinaryPathList(path string) ([]string, error) {
 func GetPackageInformation(binList []string) []Package {
 	pkgs := []Package{}
 	for _, v := range binList {
-		out, err := GoVersionWithOptionM(v)
+		info, err := buildinfo.ReadFile(v)
 		if err != nil {
 			print.Warn(fmt.Errorf("%s: %w", "can not get package path", err))
 			continue
 		}
-		path := extractPackagePath(out)
 		pkg := Package{
 			Name:       filepath.Base(v),
-			ImportPath: path,
+			ImportPath: info.Path,
 		}
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs
-}
-
-// extractPackagePath extract package path from result of "$ go version -m".
-func extractPackagePath(lines []string) string {
-	r := regexp.MustCompile(`\s+?path`)
-	for _, v := range lines {
-		if r.MatchString(v) {
-			v = r.ReplaceAllString(v, "")
-			v = strings.TrimSpace(v)
-			return strings.TrimRight(v, "\n")
-		}
-	}
-	return ""
 }
