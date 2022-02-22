@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/cheggaaa/pb/v3"
-	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -56,25 +55,13 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Fatal("unable to update package: no package information")
 	}
 
-	pkgs, result := update(pkgs, dryRun)
-	for k, v := range result {
-		if v == "Failure" {
-			print.Err(fmt.Errorf("update failure: %s ", k))
-		} else {
-			print.Info("update success: " + k)
-		}
-	}
+	result := update(pkgs, dryRun)
+	print.InstallResult(result)
 
-	// Record only successfully installed packages in the config file
-	if err := config.WriteConfFile(pkgs); err != nil {
-		print.Err(err)
-		return 1
-	}
 	return 0
 }
 
-func update(pkgs []goutil.Package, dryRun bool) ([]goutil.Package, map[string]string) {
-	tmp := []goutil.Package{}
+func update(pkgs []goutil.Package, dryRun bool) map[string]string {
 	result := map[string]string{}
 	bar := pb.Simple.Start(len(pkgs))
 	bar.SetMaxWidth(80)
@@ -90,11 +77,10 @@ func update(pkgs []goutil.Package, dryRun bool) ([]goutil.Package, map[string]st
 				continue
 			}
 		}
-		tmp = append(tmp, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
 		result[v.ImportPath] = "Success"
 	}
 	bar.Finish()
-	return tmp, result
+	return result
 }
 
 func getPackageInfo() ([]goutil.Package, error) {
