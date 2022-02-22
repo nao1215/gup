@@ -49,6 +49,21 @@ gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
 
+### List up command name with package path and version under $GOPATH/bin
+list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
+```
+$ gup list
+       cheat: github.com/cheat/cheat/cmd/cheat@v0.0.0-20211009161301-12ffa4cb5c87
+   fyne_demo: fyne.io/fyne/v2/cmd/fyne_demo@v2.1.2
+         gal: github.com/nao1215/gal/cmd/gal@v1.2.0
+      ginkgo: github.com/onsi/ginkgo/ginkgo@v1.16.5
+  git-chglog: github.com/git-chglog/git-chglog/cmd/git-chglog@v0.15.1
+ go-licenses: github.com/google/go-licenses@v1.0.0
+  go-outline: github.com/ramya-rao-a/go-outline@v0.0.0-20210608161538-9736a4bde949
+      goagen: github.com/shogo82148/goa-v1/goagen@v1.5.12
+       goavl: github.com/nao1215/goavl@v0.3.1
+   gocredits: github.com/Songmu/gocredits/cmd/gocredits@v0.2.0
+```
 ### Update the specified binary
 If you want to update only the specified binaries, use the --file option. You specify multiple command names separated by commas.
 ```

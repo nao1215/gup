@@ -10,31 +10,33 @@ import (
 )
 
 var (
-	stdout = colorable.NewColorableStdout()
-	stderr = colorable.NewColorableStderr()
+	// Stdout is new instance of Writer which handles escape sequence for stdout.
+	Stdout = colorable.NewColorableStdout()
+	// Stderr is new instance of Writer which handles escape sequence for stderr.
+	Stderr = colorable.NewColorableStderr()
 )
 
 // Info print information message at STDOUT.
 func Info(msg string) {
-	fmt.Fprintf(stdout, "%s:%s: %s\n",
+	fmt.Fprintf(Stdout, "%s:%s: %s\n",
 		cmdinfo.Name(), color.GreenString("INFO"), msg)
 }
 
 // Warn print warning message at STDERR.
 func Warn(err interface{}) {
-	fmt.Fprintf(stderr, "%s:%s: %v\n",
+	fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name(), color.YellowString("WARN"), err)
 }
 
 // Err print error message at STDERR.
 func Err(err interface{}) {
-	fmt.Fprintf(stderr, "%s:%s: %v\n",
+	fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name(), color.HiYellowString("ERROR"), err)
 }
 
 // Fatal print dying message at STDERR.
 func Fatal(err interface{}) {
-	fmt.Fprintf(stderr, "%s:%s: %v\n",
+	fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name(), color.RedString("FATAL"), err)
 	os.Exit(1)
 }

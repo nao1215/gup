@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/nao1215/gup/internal/print"
@@ -101,6 +102,39 @@ func GetPackageInformation(binList []string) []Package {
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs
+}
+
+// GetPackageVersion return golang package version
+func GetPackageVersion(cmdName string) string {
+	goBin, err := GoBin()
+	if err != nil {
+		return "unknown"
+	}
+
+	out, err := GoVersionWithOptionM(filepath.Join(goBin, cmdName))
+	if err != nil {
+		return "unknown"
+	}
+
+	for _, v := range out {
+		vv := strings.TrimSpace(v)
+		if len(v) != len(vv) && strings.HasPrefix(vv, "mod") {
+			//         mod     github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
+			v = strings.TrimLeft(vv, "mod")
+			v = strings.TrimSpace(v)
+
+			//github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
+			r := regexp.MustCompile(`^[^\s]+(\s)`)
+			v = r.ReplaceAllString(v, "")
+
+			// v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
+			r = regexp.MustCompile(`(\s)[^\s]+$`)
+
+			// v1.0.2
+			return r.ReplaceAllString(v, "")
+		}
+	}
+	return "unknown"
 }
 
 // extractPackagePath extract package path from result of "$ go version -m".
