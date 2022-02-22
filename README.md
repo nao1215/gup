@@ -48,6 +48,16 @@ gup:INFO: update success: github.com/jesseduffield/lazygit
 gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
+
+### Update the specified binary
+If you want to update only the specified binaries, use the --file option. You specify multiple command names separated by commas.
+```
+$ gup --file=subaru,gup,ubume
+3 / 3 [----------------------------------------------------------------] 100.00%
+gup:INFO: update success: github.com/nao1215/gup
+gup:INFO: update success: github.com/nao1215/subaru
+gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
+```
 ### Export／Import subcommand
 You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $HOME/.config/gup/gup.conf. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
 according to the contents of gup.conf.
