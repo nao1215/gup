@@ -32,3 +32,14 @@ func Fatal(err interface{}) {
 		cmdinfo.Name(), color.RedString("FATAL"), err)
 	os.Exit(1)
 }
+
+// InstallResult print the result of "go install"
+func InstallResult(result map[string]string) {
+	for k, v := range result {
+		if v == "Failure" {
+			Err(fmt.Errorf("update failure: %s ", k))
+		} else {
+			Info("update success: " + k)
+		}
+	}
+}

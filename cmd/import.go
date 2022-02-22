@@ -11,11 +11,18 @@ import (
 )
 
 var importCmd = &cobra.Command{
-	Use: "import",
+	Use:   "import",
+	Short: "Install command according to gup.conf.",
+	Long: `Install command according to gup.conf.
+
+Use the export subcommand if you want to install the same golang
+binaries across multiple systems. After you create gup.conf by 
+import subcommand in another environment, you save conf-file in
+$HOME/.config/gup/gup.conf.
+Finally, you execute the export subcommand in this state.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		os.Exit(runImport(cmd, args))
 	},
-	Short: "Install command according to gup.conf.",
 }
 
 func init() {
@@ -42,19 +49,8 @@ func runImport(cmd *cobra.Command, args []string) int {
 		print.Fatal("unable to update package: no package information")
 	}
 
-	pkgs, result := update(pkgs, dryRun)
-	for k, v := range result {
-		if v == "Failure" {
-			print.Err(fmt.Errorf("update failure: %s ", k))
-		} else {
-			print.Info("update success: " + k)
-		}
-	}
+	result := update(pkgs, dryRun)
+	print.InstallResult(result)
 
-	// Record only successfully installed packages in the config file
-	if err := config.WriteConfFile(pkgs); err != nil {
-		print.Err(err)
-		return 1
-	}
 	return 0
 }
