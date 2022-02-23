@@ -1,21 +1,21 @@
 [![Build](https://github.com/nao1215/gup/actions/workflows/build.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/build.yml)
 [![UnitTest](https://github.com/nao1215/gup/actions/workflows/unit_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/unit_test.yml)
-[![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)  
-[[日本語](./doc/ja/README.md)]  
-# gup - Update binaries installed by "go install"
-**gup** command update binaries installed by "go install" to the latest version.
+[![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
+# gupとは
+**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。
 
-# How to install
-### Step.1 Install golang
-gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
+# インストール方法
+### Step.1 前準備
+現在は、" $ go install"によるインストールのみをサポートしています。そのため、golangの開発環境をシステムにインストールしていない場合、[golang公式サイト](https://go.dev/doc/install)からgolangをインストールしてください。
 
-### Step2. Install gup
+### Step2. インストール
 ```
 $ go install github.com/nao1215/gup@latest
 ```
-# How to use
-### Update all binaries
-If you update all binaries, you just run `$ gup`. 
+
+# 使用方法
+### 全てのバイナリをアップデート
+全てのバイナリをアップデートしたい場合は、`$ gup`を実行してください。
 
 ```
 $ gup
@@ -51,8 +51,8 @@ gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
 
-### List up command name with package path and version under $GOPATH/bin
-list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
+### $GOPATH/bin以下にあるバイナリ情報の一覧出力
+listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
 ```
 $ gup list
        cheat: github.com/cheat/cheat/cmd/cheat@v0.0.0-20211009161301-12ffa4cb5c87
@@ -66,8 +66,9 @@ $ gup list
        goavl: github.com/nao1215/goavl@v0.3.1
    gocredits: github.com/Songmu/gocredits/cmd/gocredits@v0.2.0
 ```
-### Update the specified binary
-If you want to update only the specified binaries, use the --file option. You specify multiple command names separated by commas.
+
+### 指定バイナリのみアップデート
+指定のバイナリのみを更新したい場合、--fileオプションを使用してください。--fileオプションでは、複数のコマンド名をカンマ区切りで指定できます。
 ```
 $ gup --file=subaru,gup,ubume
 3 / 3 [----------------------------------------------------------------] 100.00%
@@ -75,25 +76,23 @@ gup:INFO: update success: github.com/nao1215/gup
 gup:INFO: update success: github.com/nao1215/subaru
 gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
 ```
-### Export／Import subcommand
-You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $HOME/.config/gup/gup.conf. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
-according to the contents of gup.conf.
 
+### エクスポート／インポートサブコマンド
+複数のシステム間で、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリを揃えたい場合、export／importサブコマンドを使ってください。exportサブコマンドは、$HOME/.config/gup/gup.confファイルを生成し、このファイル内にはシステムにインストール済みのコマンド情報が記載されています。  
+別のシステム環境に$HOME/.config/gup/gup.confファイルを同じ階層にコピーした後、importサブコマンドを実行してください。gupコマンドは、gup.confの内容に従ってインストールを開始します。
 ```
-※ Environmet A (e.g. ubuntu)
+※ 環境A (e.g. ubuntu)
 $ gup export
 gup:INFO: Export /home/nao/.config/gup/gup.conf
 
-※ Environmet B (e.g. debian)
+※ 環境B (e.g. debian)
 $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
 ```
-
-# Contact
-If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.
-
+# 連絡先
+開発者に対して「バグ報告」や「機能の追加要望」がある場合は、コメントをください。その際、以下の連絡先を使用してください。
 - [GitHub Issue](https://github.com/nao1215/gup/issues)
 
-# LICENSE
-The gup project is licensed under the terms of [the Apache License 2.0](./LICENSE).
+# ライセンス
+gupプロジェクトは、[Apache License 2.0条文](./../../LICENSE)の下でライセンスされています。
