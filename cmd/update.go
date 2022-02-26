@@ -108,7 +108,6 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 	if len(targets) == 0 {
 		return pkgs
 	}
-
 	for _, v := range pkgs {
 		if slice.Contains(targets, v.Name) {
 			result = append(result, v)

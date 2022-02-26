@@ -53,11 +53,11 @@ gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ### 指定バイナリのみアップデート
 指定のバイナリのみを更新したい場合、updateサブコマンドに--fileオプションを付与してください。--fileオプションでは、複数のコマンド名をカンマ区切りで指定できます。
 ```
-$ gup --file=subaru,gup,ubume
-3 / 3 [----------------------------------------------------------------] 100.00%
-gup:INFO: update success: github.com/nao1215/gup
-gup:INFO: update success: github.com/nao1215/subaru
-gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
+$ gup update --file=subaru,gup,ubume
+gup:INFO : update all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [1/3] update success: github.com/nao1215/gup
+gup:INFO : [2/3] update success: github.com/nao1215/subaru
+gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume
 ```
 ### $GOPATH/bin以下にあるバイナリ情報の一覧出力
 listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
