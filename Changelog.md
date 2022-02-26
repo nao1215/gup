@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 # [0.6.0] - 2022-02-27
 ## Added
 - remove subcommand: Remove the binary under $GOPATH/bin or $GOBIN"
+
+## Changed
+- Changed to use update subcommand when updating binaries
 # [0.5.0] - 2022-02-22
 ## Added
 - list subcommand: List up command name with package path and version under $GOPATH/bin or $GOBIN
