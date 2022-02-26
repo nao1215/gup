@@ -52,6 +52,7 @@ func remove(cmd *cobra.Command, args []string) int {
 		}
 		if !force {
 			if !print.Question(fmt.Sprintf("remove %s?", target)) {
+				print.Info("cancel removal " + target)
 				continue
 			}
 		}
