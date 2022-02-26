@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
-	"github.com/cheggaaa/pb/v3"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/nao1215/gup/internal/slice"
@@ -55,35 +55,37 @@ func gup(cmd *cobra.Command, args []string) int {
 	if len(pkgs) == 0 {
 		print.Fatal("unable to update package: no package information")
 	}
-
-	result := update(pkgs, dryRun)
-	print.InstallResult(result)
-
-	return 0
+	return update(pkgs, dryRun)
 }
 
-func update(pkgs []goutil.Package, dryRun bool) map[string]string {
-	result := map[string]string{}
-	bar := pb.Simple.Start(len(pkgs))
-	bar.SetMaxWidth(80)
-	for _, v := range pkgs {
+func update(pkgs []goutil.Package, dryRun bool) int {
+	result := 0
+	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+
+	print.Info("update all binary under $GOPATH/bin or $GOBIN")
+	for i, v := range pkgs {
 		if !dryRun {
 			if v.ImportPath == "" {
-				result[v.Name] = "Failure"
-				bar.Increment()
+				print.Err(fmt.Errorf(countFmt+" update failure: %s",
+					i+1, len(pkgs), v.Name))
+				result = 1
 				continue
 			}
 			if err := goutil.Install(v.ImportPath); err != nil {
-				result[v.ImportPath] = "Failure"
-				bar.Increment()
+				print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
+					i+1, len(pkgs), err, v.ImportPath))
+				result = 1
 				continue
 			}
 		}
-		result[v.ImportPath] = "Success"
-		bar.Increment()
+		print.Info(fmt.Sprintf(countFmt+" update success: %s",
+			i+1, len(pkgs), v.ImportPath))
 	}
-	bar.Finish()
 	return result
+}
+
+func pkgDigit(pkgs []goutil.Package) string {
+	return strconv.Itoa(len(strconv.Itoa(len(pkgs))))
 }
 
 func getPackageInfo() ([]goutil.Package, error) {

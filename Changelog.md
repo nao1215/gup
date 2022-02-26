@@ -3,12 +3,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).   
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# [0.6.0] - 2022-02-27
+# [0.6.1] - 2022-02-26
+## Changed
+- Removed the progress bar being updated
+# [0.6.0] - 2022-02-26
 ## Added
 - remove subcommand: Remove the binary under $GOPATH/bin or $GOBIN"
 
 ## Changed
 - Changed to use update subcommand when updating binaries
+- Removed the progress bar being updated
 # [0.5.0] - 2022-02-22
 ## Added
 - list subcommand: List up command name with package path and version under $GOPATH/bin or $GOBIN
