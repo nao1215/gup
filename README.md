@@ -51,18 +51,19 @@ gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
 
-### List up command name with package path and version under $GOPATH/bin
-list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
-![sample](doc/img/list.png)
 ### Update the specified binary
-If you want to update only the specified binaries, use the --file option. You specify multiple command names separated by commas.
+If you want to update only the specified binaries, use update subcommand with --file option. You specify multiple command names separated by commas.
 ```
-$ gup --file=subaru,gup,ubume
+$ gup update --file=subaru,gup,ubume
 3 / 3 [----------------------------------------------------------------] 100.00%
 gup:INFO: update success: github.com/nao1215/gup
 gup:INFO: update success: github.com/nao1215/subaru
 gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
 ```
+
+### List up command name with package path and version under $GOPATH/bin
+list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
+![sample](doc/img/list.png)
 
 ### Remove the specified binary
 If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.

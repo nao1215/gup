@@ -50,14 +50,8 @@ gup:INFO: update success: github.com/jesseduffield/lazygit
 gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
-
-### $GOPATH/bin以下にあるバイナリ情報の一覧出力
-listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
-
-![sample](../img/list.png)
-
 ### 指定バイナリのみアップデート
-指定のバイナリのみを更新したい場合、--fileオプションを使用してください。--fileオプションでは、複数のコマンド名をカンマ区切りで指定できます。
+指定のバイナリのみを更新したい場合、updateサブコマンドに--fileオプションを付与してください。--fileオプションでは、複数のコマンド名をカンマ区切りで指定できます。
 ```
 $ gup --file=subaru,gup,ubume
 3 / 3 [----------------------------------------------------------------] 100.00%
@@ -65,6 +59,10 @@ gup:INFO: update success: github.com/nao1215/gup
 gup:INFO: update success: github.com/nao1215/subaru
 gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
 ```
+### $GOPATH/bin以下にあるバイナリ情報の一覧出力
+listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
+
+![sample](../img/list.png)
 
 ### 指定バイナリを削除
 \$GOPATH/bin (\$GOBIN) 以下にあるバイナリを削除する場合は、remove サブコマンドを使用してください。remove サブコマンドは、削除前に削除してよいかどうかを確認します。
