@@ -2,7 +2,7 @@
 [![UnitTest](https://github.com/nao1215/gup/actions/workflows/unit_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/unit_test.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 # gupとは
-**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。
+**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、\$GOPATH/bin (\$GOBIN) 以下にあるバイナリをするためのサブコマンドも提供しています。
 ![sample](../img/sample.png)
 # インストール方法
 ### Step.1 前準備
@@ -15,10 +15,10 @@ $ go install github.com/nao1215/gup@latest
 
 # 使用方法
 ### 全てのバイナリをアップデート
-全てのバイナリをアップデートしたい場合は、`$ gup`を実行してください。
+全てのバイナリをアップデートしたい場合は、`$ gup update`を実行してください。
 
 ```
-$ gup
+$ gup update
 29 / 29 [--------------------------------------------------------------] 100.00%
 gup:INFO: update success: github.com/nao1215/goavl
 gup:INFO: update success: github.com/uudashr/gopkgs/v2/cmd/gopkgs
@@ -64,6 +64,24 @@ $ gup --file=subaru,gup,ubume
 gup:INFO: update success: github.com/nao1215/gup
 gup:INFO: update success: github.com/nao1215/subaru
 gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
+```
+
+### 指定バイナリを削除
+\$GOPATH/bin (\$GOBIN) 以下にあるバイナリを削除する場合は、remove サブコマンドを使用してください。remove サブコマンドは、削除前に削除してよいかどうかを確認します。
+```
+$ gup remove subaru gal ubume
+gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
+gup:INFO : removed /home/nao/.go/bin/subaru
+gup:CHECK: remove /home/nao/.go/bin/gal? [Y/n] n
+gup:INFO : cancel removal /home/nao/.go/bin/gal
+gup:CHECK: remove /home/nao/.go/bin/ubume? [Y/n] Y
+gup:INFO : removed /home/nao/.go/bin/ubume
+```
+
+確認無しで削除したい場合は, --forceオプションを使用してください。
+```
+$ gup remove --force gal
+gup:INFO : removed /home/nao/.go/bin/gal
 ```
 
 ### エクスポート／インポートサブコマンド

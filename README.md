@@ -3,7 +3,7 @@
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)  
 [[日本語](./doc/ja/README.md)]  
 # gup - Update binaries installed by "go install"
-**gup** command update binaries installed by "go install" to the latest version.
+**gup** command update binaries installed by "go install" to the latest version. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN).
 ![sample](./doc/img/sample.png)
 # How to install
 ### Step.1 Install golang
@@ -15,10 +15,10 @@ $ go install github.com/nao1215/gup@latest
 ```
 # How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup`. 
+If you update all binaries, you just run `$ gup update`. 
 
 ```
-$ gup
+$ gup update
 29 / 29 [--------------------------------------------------------------] 100.00%
 gup:INFO: update success: github.com/nao1215/goavl
 gup:INFO: update success: github.com/uudashr/gopkgs/v2/cmd/gopkgs
