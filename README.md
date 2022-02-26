@@ -63,6 +63,25 @@ gup:INFO: update success: github.com/nao1215/gup
 gup:INFO: update success: github.com/nao1215/subaru
 gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
 ```
+
+### Remove the specified binary
+If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.
+```
+$ gup remove subaru gal ubume
+gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
+gup:INFO : removed /home/nao/.go/bin/subaru
+gup:CHECK: remove /home/nao/.go/bin/gal? [Y/n] n
+gup:INFO : cancel removal /home/nao/.go/bin/gal
+gup:CHECK: remove /home/nao/.go/bin/ubume? [Y/n] Y
+gup:INFO : removed /home/nao/.go/bin/ubume
+```
+
+If you want to force the removal, use the --force option.
+```
+$ gup remove --force gal
+gup:INFO : removed /home/nao/.go/bin/gal
+```
+
 ### Export／Import subcommand
 You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $HOME/.config/gup/gup.conf. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
 according to the contents of gup.conf.
