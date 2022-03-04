@@ -76,9 +76,7 @@ func BinaryPathList(path string) ([]string, error) {
 
 	list := []string{}
 	for _, e := range entries {
-		if e.IsDir() {
-			print.Warn("$GOPATH/bin or $GOBIN contains the directory")
-		} else {
+		if !e.IsDir() {
 			list = append(list, filepath.Join(path, e.Name()))
 		}
 	}

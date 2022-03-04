@@ -24,8 +24,7 @@ under $GOPATH/bin and automatically updates commans to the latest version.`,
 }
 
 func init() {
-	updateCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
-	updateCmd.Flags().StringSliceP("file", "f", []string{}, "specify binary name to be update (e.g.:--file=subaru,gup,go)")
+	updateCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	rootCmd.AddCommand(updateCmd)
 }
 
@@ -37,11 +36,6 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))
 	}
 
-	targets, err := cmd.Flags().GetStringSlice("file")
-	if err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument (--file)", err))
-	}
-
 	if err := goutil.CanUseGoCmd(); err != nil {
 		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
 	}
@@ -50,7 +44,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	if err != nil {
 		print.Fatal(err)
 	}
-	pkgs = extractUserSpecifyPkg(pkgs, targets)
+	pkgs = extractUserSpecifyPkg(pkgs, args)
 
 	if len(pkgs) == 0 {
 		print.Fatal("unable to update package: no package information")
