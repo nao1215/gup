@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).   
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.7.0] - 2022-03-04
+## Changed
+- Removed warning log "gup:WARN : $GOPATH/bin or $GOBIN contains the directory". This log is unnecessary for both developers and users.
+
 # [0.6.1] - 2022-02-26
 ## Changed
 - Removed the progress bar being updated
