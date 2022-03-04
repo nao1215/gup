@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## Changed
 - Removed warning log "gup:WARN : $GOPATH/bin or $GOBIN contains the directory". This log is unnecessary for both developers and users.
 - Changed dry run short option from -d to -n
+- Changed to be able to update the specified command without the --file option
 
 # [0.6.1] - 2022-02-26
 ## Changed

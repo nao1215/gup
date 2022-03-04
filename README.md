@@ -33,9 +33,9 @@ gup:INFO : [ 8/29] update success: github.com/shogo82148/goa-v1/goagen
 ```
 
 ### Update the specified binary
-If you want to update only the specified binaries, use update subcommand with --file option. You specify multiple command names separated by commas.
+If you want to update only the specified binaries, you specify multiple command names separated by space.
 ```
-$ gup update --file=subaru,gup,ubume
+$ gup update subaru gup ubume
 gup:INFO : update all binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/3] update success: github.com/nao1215/gup
 gup:INFO : [2/3] update success: github.com/nao1215/subaru

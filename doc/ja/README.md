@@ -51,9 +51,9 @@ gup:INFO: update success: github.com/mgechev/revive
 gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
 ```
 ### 指定バイナリのみアップデート
-指定のバイナリのみを更新したい場合、updateサブコマンドに--fileオプションを付与してください。--fileオプションでは、複数のコマンド名をカンマ区切りで指定できます。
+指定のバイナリのみを更新したい場合、updateサブコマンドに複数のコマンド名をスペース区切りで渡してください。
 ```
-$ gup update --file=subaru,gup,ubume
+$ gup update subaru gup ubume
 gup:INFO : update all binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/3] update success: github.com/nao1215/gup
 gup:INFO : [2/3] update success: github.com/nao1215/subaru
