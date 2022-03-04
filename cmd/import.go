@@ -26,7 +26,7 @@ Finally, you execute the export subcommand in this state.`,
 }
 
 func init() {
-	importCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
+	importCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	rootCmd.AddCommand(importCmd)
 }
 

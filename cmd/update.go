@@ -24,7 +24,7 @@ under $GOPATH/bin and automatically updates commans to the latest version.`,
 }
 
 func init() {
-	updateCmd.Flags().BoolP("dry-run", "d", false, "perform the trial update with no changes")
+	updateCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	updateCmd.Flags().StringSliceP("file", "f", []string{}, "specify binary name to be update (e.g.:--file=subaru,gup,go)")
 	rootCmd.AddCommand(updateCmd)
 }
