@@ -1,6 +1,8 @@
 [![Build](https://github.com/nao1215/gup/actions/workflows/build.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/build.yml)
 [![UnitTest](https://github.com/nao1215/gup/actions/workflows/unit_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/unit_test.yml)
-[![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)  
+[![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nao1215/gup)](https://goreportcard.com/report/github.com/nao1215/gup)
+![GitHub](https://img.shields.io/github/license/nao1215/gup)  
 [[日本語](./doc/ja/README.md)]  
 # gup - Update binaries installed by "go install"
 **gup** command update binaries installed by "go install" to the latest version. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN).
