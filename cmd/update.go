@@ -58,6 +58,7 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 
 	print.Info("update all binary under $GOPATH/bin or $GOBIN")
 	for i, v := range pkgs {
+		pv := goutil.NewPackageVersion(v.Name)
 		if !dryRun {
 			if v.ImportPath == "" {
 				print.Err(fmt.Errorf(countFmt+" update failure: %s",
@@ -65,15 +66,18 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 				result = 1
 				continue
 			}
+
+			pv.SetCurrentVer()
 			if err := goutil.Install(v.ImportPath); err != nil {
 				print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
 					i+1, len(pkgs), err, v.ImportPath))
 				result = 1
 				continue
 			}
+			pv.SetLatestVer()
 		}
-		print.Info(fmt.Sprintf(countFmt+" update success: %s",
-			i+1, len(pkgs), v.ImportPath))
+		print.Info(fmt.Sprintf(countFmt+" update success: %s (%s)",
+			i+1, len(pkgs), v.ImportPath, pv.CurrentToLatestStr()))
 	}
 	return result
 }

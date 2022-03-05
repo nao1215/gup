@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/nao1215/gup/internal/print"
 )
 
@@ -19,6 +20,43 @@ type Package struct {
 	Name string
 	// ImportPath is import path for 'go install'
 	ImportPath string
+}
+
+// PackageVersion is pacakge version information.
+type PackageVersion struct {
+	// Package(command) name
+	Name string
+	// Current(before update) version
+	Current string
+	// Latest(after update) version
+	Latest string
+}
+
+// NewPackageVersion return PackageVersion instance.
+func NewPackageVersion(Name string) *PackageVersion {
+	return &PackageVersion{
+		Name:    Name,
+		Current: "",
+		Latest:  "",
+	}
+}
+
+// SetCurrentVer set package current version.
+func (pv *PackageVersion) SetCurrentVer() {
+	pv.Current = GetPackageVersion(pv.Name)
+}
+
+// SetLatestVer set package latest version.
+func (pv *PackageVersion) SetLatestVer() {
+	pv.Latest = GetPackageVersion(pv.Name)
+}
+
+// CurrentToLatestStr returns string about the current version and the latest version
+func (pv *PackageVersion) CurrentToLatestStr() string {
+	if pv.Current == pv.Latest {
+		return "Already up-to-date: " + color.GreenString(pv.Latest)
+	}
+	return color.GreenString(pv.Current) + " to " + color.GreenString(pv.Latest)
 }
 
 // CanUseGoCmd check whether go command install in the system.
