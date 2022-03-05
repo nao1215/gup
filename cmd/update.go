@@ -68,7 +68,7 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 			return 1
 		}
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
-			syscall.SIGQUIT, syscall.SIGABRT, syscall.SIGKILL)
+			syscall.SIGQUIT, syscall.SIGABRT)
 		go catchSignal(signals, dryRunManager)
 	}
 
