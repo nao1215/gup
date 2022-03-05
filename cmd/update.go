@@ -55,29 +55,41 @@ func gup(cmd *cobra.Command, args []string) int {
 func update(pkgs []goutil.Package, dryRun bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+	dryRunManager := goutil.NewGoPaths()
 
 	print.Info("update all binary under $GOPATH/bin or $GOBIN")
-	for i, v := range pkgs {
-		pv := goutil.NewPackageVersion(v.Name)
-		if !dryRun {
-			if v.ImportPath == "" {
-				print.Err(fmt.Errorf(countFmt+" update failure: %s",
-					i+1, len(pkgs), v.Name))
-				result = 1
-				continue
-			}
-
-			pv.SetCurrentVer()
-			if err := goutil.Install(v.ImportPath); err != nil {
-				print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
-					i+1, len(pkgs), err, v.ImportPath))
-				result = 1
-				continue
-			}
-			pv.SetLatestVer()
+	if dryRun {
+		if err := dryRunManager.StartDryRunMode(); err != nil {
+			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
+			return 1
 		}
+	}
+
+	for i, v := range pkgs {
+		if v.ImportPath == "" {
+			print.Err(fmt.Errorf(countFmt+" update failure: %s",
+				i+1, len(pkgs), v.Name))
+			result = 1
+			continue
+		}
+
+		if err := goutil.Install(v.ImportPath); err != nil {
+			print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
+				i+1, len(pkgs), err, v.Name))
+			result = 1
+			continue
+		}
+
+		v.SetLatestVer()
 		print.Info(fmt.Sprintf(countFmt+" update success: %s (%s)",
-			i+1, len(pkgs), v.ImportPath, pv.CurrentToLatestStr()))
+			i+1, len(pkgs), v.ImportPath, v.CurrentToLatestStr()))
+	}
+
+	if dryRun {
+		if err := dryRunManager.EndDryRunMode(); err != nil {
+			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+			return 1
+		}
 	}
 	return result
 }

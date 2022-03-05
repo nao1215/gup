@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 # [0.7.1] - 2022-03-05
 ## Changed
 - When the update is completed, the version information before and after the update will be output.
+- Changed to output version information in dry run mode.
 # [0.7.0] - 2022-03-04
 ## Changed
 - Removed warning log "gup:WARN : $GOPATH/bin or $GOBIN contains the directory". This log is unnecessary for both developers and users.
