@@ -34,7 +34,7 @@ type Package struct {
 	Version *Version
 }
 
-// Version is pacakge version information.
+// Version is package version information.
 type Version struct {
 	// Current(before update) version
 	Current string
