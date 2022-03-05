@@ -1,8 +1,9 @@
 # Changelog
-All notable changes to this project will be documented in this file.  
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).   
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.7.2] - 2022-03-06
+## Changed
+- Fix: "commans" is a misspelling of "commands" (misspell) at cmd/update.go
 # [0.7.2] - 2022-03-05
 ## Changed
 - When the update is completed, the version information before and after the update will be output.
