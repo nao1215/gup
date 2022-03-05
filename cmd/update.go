@@ -3,7 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -58,11 +61,15 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 	dryRunManager := goutil.NewGoPaths()
 
 	print.Info("update all binary under $GOPATH/bin or $GOBIN")
+	signals := make(chan os.Signal, 1)
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {
 			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
 			return 1
 		}
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
+			syscall.SIGQUIT, syscall.SIGABRT, syscall.SIGKILL)
+		go catchSignal(signals, dryRunManager)
 	}
 
 	for i, v := range pkgs {
@@ -90,8 +97,23 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
 			return 1
 		}
+		close(signals)
 	}
 	return result
+}
+
+func catchSignal(c chan os.Signal, dryRunManager *goutil.GoPaths) {
+	for {
+		select {
+		case <-c:
+			if err := dryRunManager.EndDryRunMode(); err != nil {
+				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+			}
+			os.Exit(0)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func pkgDigit(pkgs []goutil.Package) string {
