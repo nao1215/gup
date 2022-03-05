@@ -20,14 +20,12 @@ If you update all binaries, you just run `$ gup update`.
 ```
 $ gup update
 gup:INFO : update all binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/29] update success: github.com/cheat/cheat/cmd/cheat
-gup:INFO : [ 2/29] update success: fyne.io/fyne/v2/cmd/fyne_demo
-gup:INFO : [ 3/29] update success: github.com/nao1215/gal/cmd/gal
-gup:INFO : [ 4/29] update success: github.com/matsuyoshi30/germanium/cmd/germanium
-gup:INFO : [ 5/29] update success: github.com/onsi/ginkgo/ginkgo
-gup:INFO : [ 6/29] update success: github.com/git-chglog/git-chglog/cmd/git-chglog
-gup:INFO : [ 7/29] update success: github.com/ramya-rao-a/go-outline
-gup:INFO : [ 8/29] update success: github.com/shogo82148/goa-v1/goagen
+gup:INFO : [ 1/30] update success: github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/30] update success: fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
+gup:INFO : [ 3/30] update success: github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
+gup:INFO : [ 4/30] update success: github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2)
+gup:INFO : [ 5/30] update success: github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5)
+gup:INFO : [ 6/30] update success: github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1)
    :
    :
 ```
@@ -37,9 +35,9 @@ If you want to update only the specified binaries, you specify multiple command 
 ```
 $ gup update subaru gup ubume
 gup:INFO : update all binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] update success: github.com/nao1215/gup
-gup:INFO : [2/3] update success: github.com/nao1215/subaru
-gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume
+gup:INFO : [1/3] update success: github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup:INFO : [2/3] update success: github.com/nao1215/subaru (Already up-to-date: v1.0.2)
+gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
 ```
 
 ### List up command name with package path and version under $GOPATH/bin

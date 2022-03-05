@@ -10,8 +10,19 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/nao1215/gup/internal/print"
 )
+
+// GoPaths has $GOBIN and $GOPATH
+type GoPaths struct {
+	// GOBIN is $GOBIN
+	GOBIN string
+	// GOPATH is $GOPATH
+	GOPATH string
+	// TmpPath is tmporary path for dry run
+	TmpPath string
+}
 
 // Package is package information
 type Package struct {
@@ -19,6 +30,101 @@ type Package struct {
 	Name string
 	// ImportPath is import path for 'go install'
 	ImportPath string
+	// Version store Package version (current and latest).
+	Version *Version
+}
+
+// Version is package version information.
+type Version struct {
+	// Current(before update) version
+	Current string
+	// Latest(after update) version
+	Latest string
+}
+
+// NewVersion return Version instance.
+func NewVersion() *Version {
+	return &Version{
+		Current: "",
+		Latest:  "",
+	}
+}
+
+// SetCurrentVer set package current version.
+func (p *Package) SetCurrentVer() {
+	p.Version.Current = GetPackageVersion(p.Name)
+}
+
+// SetLatestVer set package latest version.
+func (p *Package) SetLatestVer() {
+	p.Version.Latest = GetPackageVersion(p.Name)
+}
+
+// CurrentToLatestStr returns string about the current version and the latest version
+func (p *Package) CurrentToLatestStr() string {
+	if p.Version.Current == p.Version.Latest {
+		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
+	}
+	return color.GreenString(p.Version.Current) + " to " + color.GreenString(p.Version.Latest)
+}
+
+// NewGoPaths return GoPaths instance.
+func NewGoPaths() *GoPaths {
+	return &GoPaths{
+		GOBIN:  goBin(),
+		GOPATH: goPath(),
+	}
+}
+
+// StartDryRunMode change the GOBIN or GOPATH settings to install the binaries in the temporary directory.
+func (gp *GoPaths) StartDryRunMode() error {
+	tmpDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return err
+	}
+
+	if gp.GOBIN != "" {
+		if err := os.Setenv("GOBIN", tmpDir); err != nil {
+			return err
+		}
+	} else if gp.GOPATH != "" {
+		if err := os.Setenv("GOPATH", tmpDir); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("$GOPATH and $GOBIN is not set")
+	}
+	return nil
+}
+
+// EndDryRunMode restore the GOBIN or GOPATH settings.
+func (gp *GoPaths) EndDryRunMode() error {
+	if gp.GOBIN != "" {
+		if err := os.Setenv("GOBIN", gp.GOBIN); err != nil {
+			return err
+		}
+	} else if gp.GOPATH != "" {
+		if err := os.Setenv("GOPATH", gp.GOPATH); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("$GOPATH and $GOBIN is not set")
+	}
+
+	if err := gp.removeTmpDir(); err != nil {
+		return fmt.Errorf("%s: %w", "temporary directory for dry run remains", err)
+	}
+	return nil
+}
+
+// removeTmpDir remove tmporary directory for dry run
+func (gp *GoPaths) removeTmpDir() error {
+	if gp.TmpPath != "" {
+		if err := os.RemoveAll(gp.TmpPath); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CanUseGoCmd check whether go command install in the system.
@@ -29,14 +135,18 @@ func CanUseGoCmd() error {
 
 // Install execute "$ go install <importPath>"
 func Install(importPath string) error {
+	if importPath == "command-line-arguments" {
+		return errors.New("devel binary copied from local environment")
+	}
+
 	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
 		return errors.New("can't install " + importPath)
 	}
 	return nil
 }
 
-// GoPath return GOPATH environment variable.
-func GoPath() string {
+// goPath return GOPATH environment variable.
+func goPath() string {
 	gopath := os.Getenv("GOPATH")
 	if gopath != "" {
 		return gopath
@@ -44,14 +154,19 @@ func GoPath() string {
 	return build.Default.GOPATH
 }
 
+// goBin return GOBIN environment variable.
+func goBin() string {
+	return os.Getenv("GOBIN")
+}
+
 // GoBin return $GOPATH/bin directory path.
 func GoBin() (string, error) {
-	goBin := os.Getenv("GOBIN")
+	goBin := goBin()
 	if goBin != "" {
 		return goBin, nil
 	}
 
-	goPath := GoPath()
+	goPath := goPath()
 	if goPath == "" {
 		return "", errors.New("$GOPATH is not set")
 	}
@@ -96,7 +211,9 @@ func GetPackageInformation(binList []string) []Package {
 		pkg := Package{
 			Name:       filepath.Base(v),
 			ImportPath: path,
+			Version:    NewVersion(),
 		}
+		pkg.SetCurrentVer()
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs

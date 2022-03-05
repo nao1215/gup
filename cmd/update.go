@@ -3,7 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -55,27 +58,62 @@ func gup(cmd *cobra.Command, args []string) int {
 func update(pkgs []goutil.Package, dryRun bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+	dryRunManager := goutil.NewGoPaths()
 
 	print.Info("update all binary under $GOPATH/bin or $GOBIN")
-	for i, v := range pkgs {
-		if !dryRun {
-			if v.ImportPath == "" {
-				print.Err(fmt.Errorf(countFmt+" update failure: %s",
-					i+1, len(pkgs), v.Name))
-				result = 1
-				continue
-			}
-			if err := goutil.Install(v.ImportPath); err != nil {
-				print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
-					i+1, len(pkgs), err, v.ImportPath))
-				result = 1
-				continue
-			}
+	signals := make(chan os.Signal, 1)
+	if dryRun {
+		if err := dryRunManager.StartDryRunMode(); err != nil {
+			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
+			return 1
 		}
-		print.Info(fmt.Sprintf(countFmt+" update success: %s",
-			i+1, len(pkgs), v.ImportPath))
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP,
+			syscall.SIGQUIT, syscall.SIGABRT)
+		go catchSignal(signals, dryRunManager)
+	}
+
+	for i, v := range pkgs {
+		if v.ImportPath == "" {
+			print.Err(fmt.Errorf(countFmt+" update failure: %s",
+				i+1, len(pkgs), v.Name))
+			result = 1
+			continue
+		}
+
+		if err := goutil.Install(v.ImportPath); err != nil {
+			print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
+				i+1, len(pkgs), err, v.Name))
+			result = 1
+			continue
+		}
+
+		v.SetLatestVer()
+		print.Info(fmt.Sprintf(countFmt+" update success: %s (%s)",
+			i+1, len(pkgs), v.ImportPath, v.CurrentToLatestStr()))
+	}
+
+	if dryRun {
+		if err := dryRunManager.EndDryRunMode(); err != nil {
+			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+			return 1
+		}
+		close(signals)
 	}
 	return result
+}
+
+func catchSignal(c chan os.Signal, dryRunManager *goutil.GoPaths) {
+	for {
+		select {
+		case <-c:
+			if err := dryRunManager.EndDryRunMode(); err != nil {
+				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+			}
+			os.Exit(0)
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
 
 func pkgDigit(pkgs []goutil.Package) string {

@@ -19,45 +19,24 @@ $ go install github.com/nao1215/gup@latest
 
 ```
 $ gup update
-29 / 29 [--------------------------------------------------------------] 100.00%
-gup:INFO: update success: github.com/nao1215/goavl
-gup:INFO: update success: github.com/uudashr/gopkgs/v2/cmd/gopkgs
-gup:INFO: update success: github.com/nao1215/gup
-gup:INFO: update success: golang.org/x/tools/cmd/gorename
-gup:INFO: update success: github.com/nao1215/speaker/cmd/speaker
-gup:INFO: update success: github.com/git-chglog/git-chglog/cmd/git-chglog
-gup:INFO: update success: github.com/haya14busa/goplay/cmd/goplay
-gup:INFO: update success: github.com/pborzenkov/goupdate
-gup:INFO: update success: github.com/skanehira/pst
-gup:INFO: update success: github.com/google/go-licenses
-gup:INFO: update success: github.com/furusax0621/go-nabeatsu/cmd/nabeatsu
-gup:INFO: update success: github.com/cheat/cheat/cmd/cheat
-gup:INFO: update success: github.com/onsi/ginkgo/ginkgo
-gup:INFO: update success: github.com/nao1215/mimixbox/cmd/mimixbox
-gup:INFO: update success: github.com/nao1215/subaru
-gup:INFO: update success: github.com/nao1215/ubume/cmd/ubume
-gup:INFO: update success: github.com/nao1215/gal/cmd/gal
-gup:INFO: update success: github.com/ramya-rao-a/go-outline
-gup:INFO: update success: github.com/Songmu/gocredits/cmd/gocredits
-gup:INFO: update success: github.com/kemokemo/gomrepo
-gup:INFO: update success: golang.org/x/tools/gopls
-gup:INFO: update success: github.com/josharian/impl
-gup:INFO: update success: github.com/shogo82148/goa-v1/goagen
-gup:INFO: update success: github.com/fatih/gomodifytags
-gup:INFO: update success: github.com/cweill/gotests/gotests
-gup:INFO: update success: fyne.io/fyne/v2/cmd/fyne_demo
-gup:INFO: update success: github.com/jesseduffield/lazygit
-gup:INFO: update success: github.com/mgechev/revive
-gup:INFO: update success: honnef.co/go/tools/cmd/staticcheck
+gup:INFO : update all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [ 1/30] update success: github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/30] update success: fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
+gup:INFO : [ 3/30] update success: github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
+gup:INFO : [ 4/30] update success: github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2)
+gup:INFO : [ 5/30] update success: github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5)
+gup:INFO : [ 6/30] update success: github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1)
+   :
+   :
 ```
 ### 指定バイナリのみアップデート
 指定のバイナリのみを更新したい場合、updateサブコマンドに複数のコマンド名をスペース区切りで渡してください。
 ```
 $ gup update subaru gup ubume
 gup:INFO : update all binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] update success: github.com/nao1215/gup
-gup:INFO : [2/3] update success: github.com/nao1215/subaru
-gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume
+gup:INFO : [1/3] update success: github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup:INFO : [2/3] update success: github.com/nao1215/subaru (Already up-to-date: v1.0.2)
+gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
 ```
 ### $GOPATH/bin以下にあるバイナリ情報の一覧出力
 listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
