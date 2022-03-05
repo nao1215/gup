@@ -31,7 +31,7 @@ type Package struct {
 	// ImportPath is import path for 'go install'
 	ImportPath string
 	// Version store Package version (current and latest).
-	Version Version
+	Version *Version
 }
 
 // Version is pacakge version information.
@@ -43,8 +43,8 @@ type Version struct {
 }
 
 // NewVersion return Version instance.
-func NewVersion() Version {
-	return Version{
+func NewVersion() *Version {
+	return &Version{
 		Current: "",
 		Latest:  "",
 	}
@@ -135,6 +135,10 @@ func CanUseGoCmd() error {
 
 // Install execute "$ go install <importPath>"
 func Install(importPath string) error {
+	if importPath == "command-line-arguments" {
+		return errors.New("devel binary copied from local environment")
+	}
+
 	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
 		return errors.New("can't install " + importPath)
 	}
