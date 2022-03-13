@@ -48,5 +48,7 @@ func runImport(cmd *cobra.Command, args []string) int {
 	if len(pkgs) == 0 {
 		print.Fatal("unable to update package: no package information")
 	}
+
+	print.Info("start update based on " + config.FilePath())
 	return update(pkgs, dryRun)
 }

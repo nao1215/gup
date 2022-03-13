@@ -64,7 +64,7 @@ func validPkgInfo(pkgs []goutil.Package) []goutil.Package {
 			print.Warn("can't get '" + v.Name + "'package path information. old go version binary")
 			continue
 		}
-		result = append(result, goutil.Package{Name: v.Name, ImportPath: v.ImportPath})
+		result = append(result, goutil.Package{Name: v.Name, ImportPath: v.ImportPath, Version: v.Version})
 	}
 	return result
 }

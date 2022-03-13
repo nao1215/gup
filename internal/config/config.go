@@ -40,6 +40,7 @@ func ReadConfFile() ([]goutil.Package, error) {
 	pkgs := []goutil.Package{}
 	for _, v := range contents {
 		pkg := goutil.Package{}
+		ver := goutil.Version{Current: "<from gup.conf>", Latest: ""}
 
 		v = deleteComment(v)
 		if isBlank(v) {
@@ -48,6 +49,7 @@ func ReadConfFile() ([]goutil.Package, error) {
 		equalIdx := strings.Index(v, "=")
 		pkg.Name = strings.TrimSpace(v[:equalIdx-1])
 		pkg.ImportPath = strings.TrimSpace(v[equalIdx+1:])
+		pkg.Version = &ver
 		pkgs = append(pkgs, pkg)
 	}
 
@@ -64,6 +66,7 @@ func WriteConfFile(pkgs []goutil.Package) error {
 
 	text := ""
 	for _, v := range pkgs {
+		// lost version information
 		text = text + fmt.Sprintf("%s = %s\n", v.Name, v.ImportPath)
 	}
 
