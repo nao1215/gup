@@ -1,6 +1,9 @@
 # Changelog
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# [0.8.0] - 2022-03-18
+## Added
+- Added check subcommand: get the latest version of the binary installed by 'go install'"
 # [0.7.4] - 2022-03-13
 ## Changed
 - Fix: Bug that causes runtime error in "$ gup import"

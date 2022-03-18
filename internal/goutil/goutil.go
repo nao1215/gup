@@ -30,6 +30,8 @@ type Package struct {
 	Name string
 	// ImportPath is import path for 'go install'
 	ImportPath string
+	// ModulePath is path where go.mod is stored
+	ModulePath string
 	// Version store Package version (current and latest).
 	Version *Version
 }
@@ -62,10 +64,15 @@ func (p *Package) SetLatestVer() {
 
 // CurrentToLatestStr returns string about the current version and the latest version
 func (p *Package) CurrentToLatestStr() string {
-	if p.Version.Current == p.Version.Latest {
+	if IsAlreadyUpToDate(*p.Version) {
 		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
 	}
 	return color.GreenString(p.Version.Current) + " to " + color.GreenString(p.Version.Latest)
+}
+
+// IsAlreadyUpToDate return whether binary is already up to date or not.
+func IsAlreadyUpToDate(ver Version) bool {
+	return ver.Current == ver.Latest
 }
 
 // NewGoPaths return GoPaths instance.
@@ -133,16 +140,24 @@ func CanUseGoCmd() error {
 	return err
 }
 
-// Install execute "$ go install <importPath>"
+// Install execute "$ go install <importPath>@latest"
 func Install(importPath string) error {
 	if importPath == "command-line-arguments" {
-		return errors.New("devel binary copied from local environment")
+		return errors.New("this is devel-binary copied from local environment")
 	}
-
 	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
 		return errors.New("can't install " + importPath)
 	}
 	return nil
+}
+
+// GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest"
+func GetLatestVer(modulePath string) (string, error) {
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output()
+	if err != nil {
+		return "", errors.New("can't check " + modulePath)
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }
 
 // goPath return GOPATH environment variable.
@@ -207,10 +222,12 @@ func GetPackageInformation(binList []string) []Package {
 			print.Warn(fmt.Errorf("%s: %w", "can not get package path", err))
 			continue
 		}
-		path := extractPackagePath(out)
+		path := extractImportPath(out)
+		mod := extractModulePath(out)
 		pkg := Package{
 			Name:       filepath.Base(v),
 			ImportPath: path,
+			ModulePath: mod,
 			Version:    NewVersion(),
 		}
 		pkg.SetCurrentVer()
@@ -252,14 +269,31 @@ func GetPackageVersion(cmdName string) string {
 	return "unknown"
 }
 
-// extractPackagePath extract package path from result of "$ go version -m".
-func extractPackagePath(lines []string) string {
+// extractImportPath extract package import path from result of "$ go version -m".
+func extractImportPath(lines []string) string {
 	for _, v := range lines {
 		vv := strings.TrimSpace(v)
 		if len(v) != len(vv) && strings.HasPrefix(vv, "path") {
 			vv = strings.TrimLeft(vv, "path")
 			vv = strings.TrimSpace(vv)
 			return strings.TrimRight(vv, "\n")
+		}
+	}
+	return ""
+}
+
+// extractModulePath extract package module path from result of "$ go version -m".
+func extractModulePath(lines []string) string {
+	for _, v := range lines {
+		vv := strings.TrimSpace(v)
+		if len(v) != len(vv) && strings.HasPrefix(vv, "mod") {
+			//         mod     github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
+			v = strings.TrimLeft(vv, "mod")
+			v = strings.TrimSpace(v)
+
+			//github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
+			r := regexp.MustCompile(`(\s).*$`)
+			return r.ReplaceAllString(v, "")
 		}
 	}
 	return ""
