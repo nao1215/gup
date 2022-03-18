@@ -61,6 +61,31 @@ $ gup remove --force gal
 gup:INFO : removed /home/nao/.go/bin/gal
 ```
 
+### バイナリが最新版かどうかのチェック
+バイナリが最新版かどうかを知りたい場合は、checkサブコマンドを使用してください。checkサブコマンドは、バイナリが最新バージョンかどうかをチェックし、アップデートが必要なバイナリ名を表示します。しかし、更新はしません。
+```
+$ gup check
+gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [ 1/33] check success: github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (v2.1.3 to v2.1.4)
+   :
+gup:INFO : [33/33] check success: github.com/nao1215/ubume (Already up-to-date: v1.5.0)
+
+gup:INFO : If you want to update binaries, the following command.
+           $ gup update fyne_demo gup mimixbox 
+```
+  
+他のサブコマンドと同様、指定のバイナリのみをチェックする事もできます。
+```
+$ gup check lazygit mimixbox
+gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [1/2] check success: github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
+gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (v0.32.1 to v0.33.2)
+
+gup:INFO : If you want to update binaries, the following command.
+           $ gup update mimixbox 
+```
+
 ### エクスポート／インポートサブコマンド
 複数のシステム間で、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリを揃えたい場合、export／importサブコマンドを使ってください。exportサブコマンドは、$HOME/.config/gup/gup.confファイルを生成し、このファイル内にはシステムにインストール済みのコマンド情報が記載されています。  
 別のシステム環境に$HOME/.config/gup/gup.confファイルを同じ階層にコピーした後、importサブコマンドを実行してください。gupコマンドは、gup.confの内容に従ってインストールを開始します。

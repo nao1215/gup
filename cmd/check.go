@@ -15,7 +15,9 @@ var checkCmd = &cobra.Command{
 	Short: "Check the latest version of the binary installed by 'go install'",
 	Long: `Check the latest version of the binary installed by 'go install'
 
-check subcommand gets the latest version of the binary. However, do not update`,
+check subcommand checks if the binary is the latest version
+and displays the name of the binary that needs to be updated.
+However, do not update`,
 	Run: func(cmd *cobra.Command, args []string) {
 		os.Exit(check(cmd, args))
 	},
