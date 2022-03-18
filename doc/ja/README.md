@@ -4,6 +4,10 @@
 # gupとは
 **gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、\$GOPATH/bin (\$GOBIN) 以下にあるバイナリをするためのサブコマンドも提供しています。
 ![sample](../img/sample.png)
+
+gupコマンドはアップデートが終わった後、成功したか失敗したかをデスクトップ通知します。
+![success](..//img/notify_success.png)
+![warning](../img/notify_warning.png)
 # インストール方法
 ### Step.1 前準備
 現在は、" $ go install"によるインストールのみをサポートしています。そのため、golangの開発環境をシステムにインストールしていない場合、[golang公式サイト](https://go.dev/doc/install)からgolangをインストールしてください。

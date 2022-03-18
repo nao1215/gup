@@ -7,6 +7,11 @@
 # gup - Update binaries installed by "go install"
 **gup** command update binaries installed by "go install" to the latest version. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN).
 ![sample](./doc/img/sample.png)
+
+gup command will notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
+![success](./doc/img/notify_success.png)
+![warning](./doc/img/notify_warning.png)
+
 # How to install
 ### Step.1 Install golang
 gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
