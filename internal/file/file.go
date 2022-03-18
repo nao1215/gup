@@ -34,3 +34,9 @@ func IsFile(path string) bool {
 	stat, err := os.Stat(path)
 	return (err == nil) && (!stat.IsDir())
 }
+
+// IsDir reports whether the path exists and is a directory.
+func IsDir(path string) bool {
+	stat, err := os.Stat(path)
+	return (err == nil) && (stat.IsDir())
+}
