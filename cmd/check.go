@@ -87,7 +87,7 @@ func printUpdatablePkgInfo(pkgs []goutil.Package) {
 		p += v.Name + " "
 	}
 	fmt.Println("")
-	print.Info("If you want to update binaries, the following command.\n" +
+	print.Info("If you want to update binaries, run the following command.\n" +
 		strings.Repeat(" ", 11) +
 		"$ gup update " + p)
 }
