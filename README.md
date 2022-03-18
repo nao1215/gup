@@ -8,7 +8,7 @@
 **gup** command update binaries installed by "go install" to the latest version. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN).
 ![sample](./doc/img/sample.png)
 
-gup command will notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
+gup command will notify you on your desktop whether the update was successful or unsuccessful after the update was finished.  
 ![success](./doc/img/notify_success.png)
 ![warning](./doc/img/notify_warning.png)
 
