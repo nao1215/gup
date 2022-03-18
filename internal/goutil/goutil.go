@@ -64,10 +64,15 @@ func (p *Package) SetLatestVer() {
 
 // CurrentToLatestStr returns string about the current version and the latest version
 func (p *Package) CurrentToLatestStr() string {
-	if p.Version.Current == p.Version.Latest {
+	if IsAlreadyUpToDate(*p.Version) {
 		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
 	}
 	return color.GreenString(p.Version.Current) + " to " + color.GreenString(p.Version.Latest)
+}
+
+// IsAlreadyUpToDate return whether binary is already up to date or not.
+func IsAlreadyUpToDate(ver Version) bool {
+	return ver.Current == ver.Latest
 }
 
 // NewGoPaths return GoPaths instance.

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -44,6 +45,7 @@ func check(cmd *cobra.Command, args []string) int {
 func doCheck(pkgs []goutil.Package) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+	needUpdatePkgs := []goutil.Package{}
 
 	print.Info("check all binary under $GOPATH/bin or $GOBIN")
 	for i, v := range pkgs {
@@ -65,6 +67,27 @@ func doCheck(pkgs []goutil.Package) int {
 
 		print.Info(fmt.Sprintf(countFmt+" check success: %s (%s)",
 			i+1, len(pkgs), v.ModulePath, v.CurrentToLatestStr()))
+
+		if !goutil.IsAlreadyUpToDate(*v.Version) {
+			needUpdatePkgs = append(needUpdatePkgs, v)
+		}
 	}
+
+	printUpdatablePkgInfo(needUpdatePkgs)
 	return result
+}
+
+func printUpdatablePkgInfo(pkgs []goutil.Package) {
+	if len(pkgs) == 0 {
+		return
+	}
+
+	var p string
+	for _, v := range pkgs {
+		p += v.Name + " "
+	}
+	fmt.Println("")
+	print.Info("If you want to update binaries, the following command.\n" +
+		strings.Repeat(" ", 11) +
+		"$ gup update " + p)
 }
