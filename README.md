@@ -69,6 +69,30 @@ $ gup remove --force gal
 gup:INFO : removed /home/nao/.go/bin/gal
 ```
 
+### Check if the binary is the latest version
+If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
+```
+$ gup check
+gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [ 1/33] check success: github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (v2.1.3 to v2.1.4)
+   :
+gup:INFO : [33/33] check success: github.com/nao1215/ubume (Already up-to-date: v1.5.0)
+
+gup:INFO : If you want to update binaries, the following command.
+           $ gup update fyne_demo gup mimixbox 
+```
+  
+Like other subcommands, you can only check the specified binaries.
+```
+$ gup check lazygit mimixbox
+gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : [1/2] check success: github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
+gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (v0.32.1 to v0.33.2)
+
+gup:INFO : If you want to update binaries, the following command.
+           $ gup update mimixbox 
+```
 ### Export／Import subcommand
 You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $HOME/.config/gup/gup.conf. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
 according to the contents of gup.conf.
