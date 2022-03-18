@@ -79,6 +79,10 @@ $ ls /home/nao/.config/gup/gup.conf
 $ gup import
 ```
 
+# Contributing
+First off, thanks for taking the time to contribute! ❤️
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.  
+
 # Contact
 If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.
 
