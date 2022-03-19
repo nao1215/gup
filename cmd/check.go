@@ -68,7 +68,7 @@ func doCheck(pkgs []goutil.Package) int {
 		v.Version.Latest = latestVer
 
 		print.Info(fmt.Sprintf(countFmt+" check success: %s (%s)",
-			i+1, len(pkgs), v.ModulePath, v.CurrentToLatestStr()))
+			i+1, len(pkgs), v.ModulePath, v.VersionCheckResultStr()))
 
 		if !goutil.IsAlreadyUpToDate(*v.Version) {
 			needUpdatePkgs = append(needUpdatePkgs, v)

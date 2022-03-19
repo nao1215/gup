@@ -75,7 +75,7 @@ If you want to know if the binary is the latest version, use the check subcomman
 $ gup check
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
 gup:INFO : [ 1/33] check success: github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
-gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (v2.1.3 to v2.1.4)
+gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4)
    :
 gup:INFO : [33/33] check success: github.com/nao1215/ubume (Already up-to-date: v1.5.0)
 
@@ -88,7 +88,7 @@ Like other subcommands, you can only check the specified binaries.
 $ gup check lazygit mimixbox
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/2] check success: github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
-gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (v0.32.1 to v0.33.2)
+gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2)
 
 gup:INFO : If you want to update binaries, the following command.
            $ gup update mimixbox 

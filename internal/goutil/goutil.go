@@ -70,6 +70,14 @@ func (p *Package) CurrentToLatestStr() string {
 	return color.GreenString(p.Version.Current) + " to " + color.GreenString(p.Version.Latest)
 }
 
+// VersionCheckResultStr returns string about command version check.
+func (p *Package) VersionCheckResultStr() string {
+	if IsAlreadyUpToDate(*p.Version) {
+		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
+	}
+	return "current: " + color.GreenString(p.Version.Current) + ", latest: " + color.GreenString(p.Version.Latest)
+}
+
 // IsAlreadyUpToDate return whether binary is already up to date or not.
 func IsAlreadyUpToDate(ver Version) bool {
 	return ver.Current == ver.Latest
