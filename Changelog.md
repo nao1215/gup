@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file. The format 
 # [0.9.1] - 2022-03-19
 ## Changed 
 - Changed the message at the time of update was incorrect, so the message was corrected.
-
+- Changed version check result message to user-friendly one.
 # [0.9.0] - 2022-03-18
 ## Added
 - Added desktop notification: gup command will notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
