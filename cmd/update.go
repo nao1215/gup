@@ -61,7 +61,7 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
 
-	print.Info("update all binary under $GOPATH/bin or $GOBIN")
+	print.Info("update binary under $GOPATH/bin or $GOBIN")
 	signals := make(chan os.Signal, 1)
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {

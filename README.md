@@ -26,7 +26,7 @@ If you update all binaries, you just run `$ gup update`.
 
 ```
 $ gup update
-gup:INFO : update all binary under $GOPATH/bin or $GOBIN
+gup:INFO : update binary under $GOPATH/bin or $GOBIN
 gup:INFO : [ 1/30] update success: github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
 gup:INFO : [ 2/30] update success: fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
 gup:INFO : [ 3/30] update success: github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
@@ -41,7 +41,7 @@ gup:INFO : [ 6/30] update success: github.com/git-chglog/git-chglog/cmd/git-chgl
 If you want to update only the specified binaries, you specify multiple command names separated by space.
 ```
 $ gup update subaru gup ubume
-gup:INFO : update all binary under $GOPATH/bin or $GOBIN
+gup:INFO : update binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/3] update success: github.com/nao1215/gup (v0.7.0 to v0.7.1)
 gup:INFO : [2/3] update success: github.com/nao1215/subaru (Already up-to-date: v1.0.2)
 gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
@@ -73,7 +73,7 @@ gup:INFO : removed /home/nao/.go/bin/gal
 If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
 ```
 $ gup check
-gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : check binary under $GOPATH/bin or $GOBIN
 gup:INFO : [ 1/33] check success: github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
 gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (v2.1.3 to v2.1.4)
    :
@@ -86,7 +86,7 @@ gup:INFO : If you want to update binaries, the following command.
 Like other subcommands, you can only check the specified binaries.
 ```
 $ gup check lazygit mimixbox
-gup:INFO : check all binary under $GOPATH/bin or $GOBIN
+gup:INFO : check binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/2] check success: github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
 gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (v0.32.1 to v0.33.2)
 

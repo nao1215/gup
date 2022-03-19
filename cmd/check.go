@@ -49,7 +49,7 @@ func doCheck(pkgs []goutil.Package) int {
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	needUpdatePkgs := []goutil.Package{}
 
-	print.Info("check all binary under $GOPATH/bin or $GOBIN")
+	print.Info("check binary under $GOPATH/bin or $GOBIN")
 	for i, v := range pkgs {
 		if v.ModulePath == "" {
 			print.Err(fmt.Errorf(countFmt+" check failure: %s",
