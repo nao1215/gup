@@ -42,17 +42,6 @@ func Fatal(err interface{}) {
 	os.Exit(1)
 }
 
-// InstallResult print the result of "go install"
-func InstallResult(result map[string]string) {
-	for k, v := range result {
-		if v == "Failure" {
-			Err(fmt.Errorf("update failure: %s ", k))
-		} else {
-			Info("update success: " + k)
-		}
-	}
-}
-
 // Question displays the question in the terminal and receives an answer from the user.
 func Question(ask string) bool {
 	var response string
