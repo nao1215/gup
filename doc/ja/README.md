@@ -2,7 +2,7 @@
 [![UnitTest](https://github.com/nao1215/gup/actions/workflows/unit_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/unit_test.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 # gupとは
-**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、\$GOPATH/bin (\$GOBIN) 以下にあるバイナリをするためのサブコマンドも提供しています。クロスプラットホームソフトであり、Windows, Mac, Linux で動作します。日本語版のみ、[Zenn](https://zenn.dev/articles/aef3fe318848d6/edit)に補足記事があります。
+**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、すべてのバイナリを並列にアップデートするので、非常に高速です。\$GOPATH/bin (\$GOBIN) 以下にあるバイナリを操作するためのサブコマンドも提供しています。クロスプラットホームソフトであり、Windows, Mac, Linux で動作します。日本語版のみ、[Zenn](https://zenn.dev/articles/aef3fe318848d6/edit)に補足記事があります。
 ![sample](../img/sample.png)
 
 gupコマンドはアップデートが終わった後、成功したか失敗したかをデスクトップ通知します。  
@@ -24,12 +24,12 @@ $ go install github.com/nao1215/gup@latest
 ```
 $ gup update
 gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/30] update success: github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
-gup:INFO : [ 2/30] update success: fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
-gup:INFO : [ 3/30] update success: github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
-gup:INFO : [ 4/30] update success: github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2)
-gup:INFO : [ 5/30] update success: github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5)
-gup:INFO : [ 6/30] update success: github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1)
+gup:INFO : [ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
+gup:INFO : [ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
+gup:INFO : [ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2)
+gup:INFO : [ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5)
+gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1)
    :
    :
 ```
@@ -38,9 +38,9 @@ gup:INFO : [ 6/30] update success: github.com/git-chglog/git-chglog/cmd/git-chgl
 ```
 $ gup update subaru gup ubume
 gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] update success: github.com/nao1215/gup (v0.7.0 to v0.7.1)
-gup:INFO : [2/3] update success: github.com/nao1215/subaru (Already up-to-date: v1.0.2)
-gup:INFO : [3/3] update success: github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
+gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2)
+gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
 ```
 ### $GOPATH/bin以下にあるバイナリ情報の一覧出力
 listサブコマンドは、$GOPATH/bin（もしくは$GOBIN）以下にあるバイナリの情報を表示します。表示内容は、コマンド名、パッケージパス、コマンドバージョンです。
@@ -70,10 +70,10 @@ gup:INFO : removed /home/nao/.go/bin/gal
 ```
 $ gup check
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/33] check success: github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
-gup:INFO : [ 2/33] check success: fyne.io/fyne/v2 (current:v2.1.3, latest:v2.1.4)
+gup:INFO : [ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
+gup:INFO : [ 2/33] fyne.io/fyne/v2 (current:v2.1.3, latest:v2.1.4)
    :
-gup:INFO : [33/33] check success: github.com/nao1215/ubume (Already up-to-date: v1.5.0)
+gup:INFO : [33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0)
 
 gup:INFO : If you want to update binaries, the following command.
            $ gup update fyne_demo gup mimixbox 
@@ -83,8 +83,8 @@ gup:INFO : If you want to update binaries, the following command.
 ```
 $ gup check lazygit mimixbox
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/2] check success: github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
-gup:INFO : [2/2] check success: github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2)
+gup:INFO : [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
+gup:INFO : [2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2)
 
 gup:INFO : If you want to update binaries, the following command.
            $ gup update mimixbox 
