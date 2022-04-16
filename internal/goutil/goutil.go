@@ -151,10 +151,10 @@ func CanUseGoCmd() error {
 // Install execute "$ go install <importPath>@latest"
 func Install(importPath string) error {
 	if importPath == "command-line-arguments" {
-		return errors.New("this is devel-binary copied from local environment")
+		return errors.New("is devel-binary copied from local environment")
 	}
 	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
-		return errors.New("can't install " + importPath)
+		return fmt.Errorf("can't install %s: %w", importPath, err)
 	}
 	return nil
 }
