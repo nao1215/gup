@@ -5,8 +5,9 @@
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)  
 [[日本語](./doc/ja/README.md)]  
   
-![demo](./doc/img/demo.gif)
-# gup - Update binaries installed by "go install"
+# gup - Update binaries installed by "go install"  
+![demo](./doc/img/demo.gif)  
+  
 **gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.  
   
 ![sample](./doc/img/sample.png)
