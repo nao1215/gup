@@ -107,6 +107,15 @@ $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
 ```
+
+### シェル補完ファイルの自動生成 (bash, zsh, fish)
+gupコマンドは、bash、zsh、fish向けのシェル補完ファイルを自動生成します。ユーザーがgupを実行した後、シェル補完ファイルがシステムに存在しない場合は、自動生成処理を開始します。シェル補完を有効にするには、シェルを再起動してください。
+```
+$ gup 
+gup:INFO : create bash-completion file: /home/nao/.bash_completion
+gup:INFO : create fish-completion file: /home/nao/.config/fish/completions/gup.fish
+gup:INFO : create zsh-completion file: /home/nao/.zsh/completion/_gup
+```
 # 連絡先
 開発者に対して「バグ報告」や「機能の追加要望」がある場合は、コメントをください。その際、以下の連絡先を使用してください。
 - [GitHub Issue](https://github.com/nao1215/gup/issues)
