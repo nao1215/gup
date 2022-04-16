@@ -53,20 +53,18 @@ func doCheck(pkgs []goutil.Package) int {
 	ch := make(chan updateResult)
 	checker := func(p goutil.Package, result chan updateResult) {
 		var err error
-		var latestVer string
-
 		if p.ModulePath == "" {
 			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
-
+			var latestVer string
 			latestVer, err = goutil.GetLatestVer(p.ModulePath)
 			if err != nil {
 				err = fmt.Errorf(" %s %w", p.Name, err)
 			}
-		}
-		p.Version.Latest = latestVer
-		if !goutil.IsAlreadyUpToDate(*p.Version) {
-			needUpdatePkgs = append(needUpdatePkgs, p)
+			p.Version.Latest = latestVer
+			if !goutil.IsAlreadyUpToDate(*p.Version) {
+				needUpdatePkgs = append(needUpdatePkgs, p)
+			}
 		}
 
 		r := updateResult{
