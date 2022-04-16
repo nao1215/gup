@@ -56,6 +56,11 @@ func gup(cmd *cobra.Command, args []string) int {
 	return update(pkgs, dryRun)
 }
 
+type updateResult struct {
+	pkg goutil.Package
+	err error
+}
+
 func update(pkgs []goutil.Package, dryRun bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
@@ -74,24 +79,40 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 		go catchSignal(signals, dryRunManager)
 	}
 
-	for i, v := range pkgs {
-		if v.ImportPath == "" {
-			print.Err(fmt.Errorf(countFmt+" update failure: %s",
-				i+1, len(pkgs), v.Name))
-			result = 1
-			continue
+	ch := make(chan updateResult)
+	updater := func(p goutil.Package, result chan updateResult) {
+		var err error
+		if p.ImportPath == "" {
+			err = fmt.Errorf(" %s", p.Name)
+		} else {
+			if err = goutil.Install(p.ImportPath); err != nil {
+				err = fmt.Errorf(" %w: %s", err, p.Name)
+			}
 		}
 
-		if err := goutil.Install(v.ImportPath); err != nil {
-			print.Err(fmt.Errorf(countFmt+" update failure: %w: %s",
-				i+1, len(pkgs), err, v.Name))
-			result = 1
-			continue
+		p.SetLatestVer()
+		r := updateResult{
+			pkg: p,
+			err: err,
 		}
+		result <- r
+	}
 
-		v.SetLatestVer()
-		print.Info(fmt.Sprintf(countFmt+" update success: %s (%s)",
-			i+1, len(pkgs), v.ImportPath, v.CurrentToLatestStr()))
+	// update all package
+	for _, v := range pkgs {
+		go updater(v, ch)
+	}
+
+	// print result
+	for i := 0; i < len(pkgs); i++ {
+		v := <-ch
+		if v.err == nil {
+			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
+				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+		} else {
+			result = 1
+			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
+		}
 	}
 
 	if dryRun {
