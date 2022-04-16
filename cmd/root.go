@@ -93,7 +93,11 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
 	}
 	print.Info("create zsh-completion file: " + path)
 
-	const zshFpath = "fpath=(~/.zsh/completion $fpath)"
+	const zshFpath = `
+# setting for gup command (auto generate)
+fpath=(~/.zsh/completion $fpath)
+autoload -Uz compinit && compinit -i
+`
 	zshrcPath := completion.ZshrcPath()
 	if !file.IsFile(zshrcPath) {
 		fp, err := os.OpenFile(zshrcPath, os.O_RDWR|os.O_CREATE, 0664)
@@ -102,6 +106,7 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
 			return
 		}
 		defer fp.Close()
+
 		if _, err := fp.WriteString(zshFpath); err != nil {
 			print.Err(fmt.Errorf("can not add zsh $fpath in .zshrc: %w", err))
 			return
@@ -180,7 +185,7 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 	}
 
 	currentZshCompletion := new(bytes.Buffer)
-	if err := cmd.GenFishCompletion(currentZshCompletion, false); err != nil {
+	if err := cmd.GenZshCompletion(currentZshCompletion); err != nil {
 		return false
 	}
 
