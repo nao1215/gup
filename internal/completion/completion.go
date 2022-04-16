@@ -9,7 +9,7 @@ import (
 
 // BashCompletionFilePath return bash-completion file path.
 func BashCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".config", "bash_completion_", cmdinfo.Name())
+	return filepath.Join(os.Getenv("HOME"), ".bash_completion")
 }
 
 // FishCompletionFilePath return fish-completion file path.

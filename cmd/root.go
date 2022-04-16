@@ -46,16 +46,37 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 	}
 
 	path := completion.BashCompletionFilePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0775); err != nil {
-		print.Err(fmt.Errorf("can not create bash-completion file: %w", err))
+	bashCompletion := new(bytes.Buffer)
+	cmd.GenBashCompletion(bashCompletion)
+
+	if !file.IsFile(path) {
+		fp, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
+		if err != nil {
+			print.Err(fmt.Errorf("can not create .bash_completion: %w", err))
+			return
+		}
+		defer fp.Close()
+
+		if _, err := fp.WriteString(bashCompletion.String()); err != nil {
+			print.Err(fmt.Errorf("can not write .bash_completion %w", err))
+		}
+		print.Info("create bash-completion file: " + path)
 		return
 	}
 
-	if err := cmd.GenBashCompletionFile(path); err != nil {
-		print.Err(fmt.Errorf("can not create bash-completion file: %w", err))
+	fp, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0664)
+	if err != nil {
+		print.Err(fmt.Errorf("can not append .bash_completion for gup: %w", err))
 		return
 	}
-	print.Info("create bash-completion file: " + path)
+	defer fp.Close()
+
+	if _, err := fp.WriteString(bashCompletion.String()); err != nil {
+		print.Err(fmt.Errorf("can not append .bash_completion for gup: %w", err))
+		return
+	}
+
+	print.Info("append bash-completion for gup: " + path)
 }
 
 func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
@@ -109,8 +130,8 @@ autoload -Uz compinit && compinit -i
 
 		if _, err := fp.WriteString(zshFpath); err != nil {
 			print.Err(fmt.Errorf("can not add zsh $fpath in .zshrc: %w", err))
-			return
 		}
+		return
 	}
 
 	zshrc, err := ioutil.ReadFile(zshrcPath)
@@ -137,20 +158,22 @@ autoload -Uz compinit && compinit -i
 }
 
 func existSameBashCompletionFile(cmd *cobra.Command) bool {
-	path := completion.BashCompletionFilePath()
-	if !file.IsFile(path) {
+	if !file.IsFile(completion.BashCompletionFilePath()) {
+		return false
+	}
+	return hasSameBashCompletionContent(cmd)
+}
+
+func hasSameBashCompletionContent(cmd *cobra.Command) bool {
+	bashCompletionFileInLocal, err := ioutil.ReadFile(completion.BashCompletionFilePath())
+	if err != nil {
+		print.Err(fmt.Errorf("can not read .bash_completion: %w", err))
 		return false
 	}
 
 	currentBashCompletion := new(bytes.Buffer)
 	cmd.GenBashCompletion(currentBashCompletion)
-
-	bashCompletionInLocal, err := ioutil.ReadFile(path)
-	if err != nil {
-		return false
-	}
-
-	if bytes.Compare(currentBashCompletion.Bytes(), bashCompletionInLocal) != 0 {
+	if !strings.Contains(string(bashCompletionFileInLocal), currentBashCompletion.String()) {
 		return false
 	}
 	return true
