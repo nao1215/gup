@@ -50,28 +50,46 @@ func doCheck(pkgs []goutil.Package) int {
 	needUpdatePkgs := []goutil.Package{}
 
 	print.Info("check binary under $GOPATH/bin or $GOBIN")
-	for i, v := range pkgs {
-		if v.ModulePath == "" {
-			print.Err(fmt.Errorf(countFmt+" check failure: %s",
-				i+1, len(pkgs), v.Name))
-			result = 1
-			continue
+	ch := make(chan updateResult)
+	checker := func(p goutil.Package, result chan updateResult) {
+		var err error
+		var latestVer string
+
+		if p.ModulePath == "" {
+			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
+		} else {
+
+			latestVer, err = goutil.GetLatestVer(p.ModulePath)
+			if err != nil {
+				err = fmt.Errorf(" %s %w", p.Name, err)
+			}
+		}
+		p.Version.Latest = latestVer
+		if !goutil.IsAlreadyUpToDate(*p.Version) {
+			needUpdatePkgs = append(needUpdatePkgs, p)
 		}
 
-		latestVer, err := goutil.GetLatestVer(v.ModulePath)
-		if err != nil {
-			print.Err(fmt.Errorf(countFmt+" check failure: %w",
-				i+1, len(pkgs), err))
-			result = 1
-			continue
+		r := updateResult{
+			pkg: p,
+			err: err,
 		}
-		v.Version.Latest = latestVer
+		result <- r
+	}
 
-		print.Info(fmt.Sprintf(countFmt+" check success: %s (%s)",
-			i+1, len(pkgs), v.ModulePath, v.VersionCheckResultStr()))
+	// check all package
+	for _, v := range pkgs {
+		go checker(v, ch)
+	}
 
-		if !goutil.IsAlreadyUpToDate(*v.Version) {
-			needUpdatePkgs = append(needUpdatePkgs, v)
+	// print result
+	for i := 0; i < len(pkgs); i++ {
+		v := <-ch
+		if v.err == nil {
+			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
+				i+1, len(pkgs), v.pkg.ModulePath, v.pkg.VersionCheckResultStr()))
+		} else {
+			result = 1
+			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
 		}
 	}
 
