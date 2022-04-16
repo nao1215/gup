@@ -83,10 +83,10 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 	updater := func(p goutil.Package, result chan updateResult) {
 		var err error
 		if p.ImportPath == "" {
-			err = fmt.Errorf(" update failure: %s", p.Name)
+			err = fmt.Errorf(" %s", p.Name)
 		} else {
 			if err = goutil.Install(p.ImportPath); err != nil {
-				err = fmt.Errorf(" update failure: %w: %s", err, p.Name)
+				err = fmt.Errorf(" %w: %s", err, p.Name)
 			}
 		}
 
@@ -107,7 +107,7 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 	for i := 0; i < len(pkgs); i++ {
 		v := <-ch
 		if v.err == nil {
-			print.Info(fmt.Sprintf(countFmt+" update success: %s (%s)",
+			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
 				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
 		} else {
 			result = 1
