@@ -83,10 +83,10 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 	updater := func(p goutil.Package, result chan updateResult) {
 		var err error
 		if p.ImportPath == "" {
-			err = fmt.Errorf(" %s", p.Name)
+			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
 			if err = goutil.Install(p.ImportPath); err != nil {
-				err = fmt.Errorf(" %w: %s", err, p.Name)
+				err = fmt.Errorf(" %s %w", p.Name, err)
 			}
 		}
 

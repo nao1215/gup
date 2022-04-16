@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file. The format 
 ## Changed
 - Parallelized update process
 - Simplified messages during the update process
+- Improved error messages
 # [0.9.1] - 2022-03-19
 ## Changed 
 - Changed the message at the time of update was incorrect, so the message was corrected.
