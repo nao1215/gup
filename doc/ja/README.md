@@ -9,7 +9,7 @@ gupコマンドはアップデートが終わった後、成功したか失敗�
 ![success](..//img/notify_success.png)
 ![warning](../img/notify_warning.png)
 # インストール方法
-### Step.1 前準備
+### Step1. 前準備
 現在は、" $ go install"によるインストールのみをサポートしています。そのため、golangの開発環境をシステムにインストールしていない場合、[golang公式サイト](https://go.dev/doc/install)からgolangをインストールしてください。
 
 ### Step2. インストール
