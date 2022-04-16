@@ -3,9 +3,11 @@ All notable changes to this project will be documented in this file. The format 
 
 # [0.9.3] - 2022-04-16
 ## Changed
-- Parallelized update process
-- Simplified messages during the update process
-- Improved error messages
+- Parallelized update subcommand process
+- Parallelized check subcommand process
+- Simplified messages during the update/check process
+- Display the latest version after an update in an easily recognizable color
+- Improved error messages.
 # [0.9.1] - 2022-03-19
 ## Changed 
 - Changed the message at the time of update was incorrect, so the message was corrected.
