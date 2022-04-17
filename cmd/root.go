@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,7 +137,7 @@ autoload -Uz compinit && compinit -i
 		return
 	}
 
-	zshrc, err := ioutil.ReadFile(zshrcPath)
+	zshrc, err := os.ReadFile(zshrcPath)
 	if err != nil {
 		print.Err(fmt.Errorf("can not read .zshrc: %w", err))
 		return
@@ -169,7 +168,7 @@ func existSameBashCompletionFile(cmd *cobra.Command) bool {
 }
 
 func hasSameBashCompletionContent(cmd *cobra.Command) bool {
-	bashCompletionFileInLocal, err := ioutil.ReadFile(completion.BashCompletionFilePath())
+	bashCompletionFileInLocal, err := os.ReadFile(completion.BashCompletionFilePath())
 	if err != nil {
 		print.Err(fmt.Errorf("can not read .bash_completion: %w", err))
 		return false
@@ -196,7 +195,7 @@ func isSameFishCompletionFile(cmd *cobra.Command) bool {
 		return false
 	}
 
-	fishCompletionInLocal, err := ioutil.ReadFile(path)
+	fishCompletionInLocal, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
@@ -218,7 +217,7 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 		return false
 	}
 
-	zshCompletionInLocal, err := ioutil.ReadFile(path)
+	zshCompletionInLocal, err := os.ReadFile(path)
 	if err != nil {
 		return false
 	}
