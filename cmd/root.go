@@ -117,6 +117,10 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
 	}
 	print.Info("create zsh-completion file: " + path)
 
+	appendFpathAtZshrcIfNeeded()
+}
+
+func appendFpathAtZshrcIfNeeded() {
 	const zshFpath = `
 # setting for gup command (auto generate)
 fpath=(~/.zsh/completion $fpath)
