@@ -62,6 +62,7 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 
 		if _, err := fp.WriteString(bashCompletion.String()); err != nil {
 			print.Err(fmt.Errorf("can not write .bash_completion %w", err))
+			return
 		}
 		print.Info("create bash-completion file: " + path)
 		return
