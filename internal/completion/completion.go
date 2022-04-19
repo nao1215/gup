@@ -113,7 +113,7 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
 
 func appendFpathAtZshrcIfNeeded() {
 	const zshFpath = `
-# setting for mkgoprj command (auto generate)
+# setting for gup command (auto generate)
 fpath=(~/.zsh/completion $fpath)
 autoload -Uz compinit && compinit -i
 `
