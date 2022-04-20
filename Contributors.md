@@ -1,6 +1,6 @@
 |        NAME        |        EMAIL         | +(APPEND) | -(DELETE) |
 |--------------------|----------------------|-----------|-----------|
-| CHIKAMATSU Naohiro | n.chika156@gmail.com |      2664 |         0 |
+| CHIKAMATSU Naohiro | n.chika156@gmail.com |      2663 |         0 |
  Naohiro | n.chika156@gmail.com                              |      4618 |      1244 |
 | Yasuhiro Matsumoto | mattn.jp@gmail.com                                |        19 |        32 |
 | matsuyoshi         | sfbgwm30@gmail.com                                |         5 |         6 |
