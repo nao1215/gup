@@ -7,10 +7,12 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  contributors:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -20,10 +22,10 @@ jobs:
       - name: Generate Contributors
         run: |
           go install github.com/nao1215/contributor@latest
-          contributor --file
           git remote set-url origin https://github-actions:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          contributor --file
           git add .; \
           git commit -m "Update Contributors List"; \
           git push origin HEAD:${GITHUB_REF};
