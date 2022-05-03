@@ -8,7 +8,7 @@
 # gup - Update binaries installed by "go install"  
 ![demo](./doc/img/demo.gif)  
   
-**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.  
+**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux. [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats.  
   
 ![sample](./doc/img/sample.png)
 
