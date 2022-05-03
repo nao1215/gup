@@ -5,7 +5,7 @@
 # gupとは  
 ![demo](../img/demo.gif)  
   
-**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、すべてのバイナリを並列にアップデートするので、非常に高速です。\$GOPATH/bin (\$GOBIN) 以下にあるバイナリを操作するためのサブコマンドも提供しています。クロスプラットホームソフトであり、Windows, Mac, Linux で動作します。日本語版のみ、[Zenn](https://zenn.dev/articles/aef3fe318848d6/edit)に補足記事があります。
+**gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、すべてのバイナリを並列にアップデートするので、非常に高速です。\$GOPATH/bin (\$GOBIN) 以下にあるバイナリを操作するためのサブコマンドも提供しています。クロスプラットホームソフトであり、Windows, Mac, Linux で動作します。日本語版のみ、[Zenn](https://zenn.dev/nao1215/articles/aef3fe318848d6)に補足記事があります。
   
 ![sample](../img/sample.png)
 
