@@ -24,6 +24,10 @@ gup command only supports installation with `$ go install`. If you does not have
 ```
 $ go install github.com/nao1215/gup@latest
 ```
+
+If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
+
+
 # How to use
 ### Update all binaries
 If you update all binaries, you just run `$ gup update`. 
