@@ -1,6 +1,7 @@
 .PHONY: build test clean vet fmt chkfmt
 
 APP         = gup
+VERSION     = $(shell git describe --tags --abbrev=0)
 GO          = go
 GO_BUILD    = $(GO) build
 GO_FORMAT   = $(GO) fmt
@@ -14,6 +15,7 @@ GOOS        = linux
 GOARCH      = amd64
 GO_PKGROOT  = ./...
 GO_PACKAGES = $(shell $(GO_LIST) $(GO_PKGROOT))
+GO_LDFLAGS  = -ldflags '-X github.com/nao1215/gup/internal/cmdinfo.Version=${VERSION}'
 
 build:  ## Build binary
 	env GO111MODULE=on GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) $(GO_LDFLAGS) -o $(APP) main.go

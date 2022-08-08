@@ -246,12 +246,12 @@ func bashCompletionFilePath() string {
 
 // fishCompletionFilePath return fish-completion file path.
 func fishCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name()+".fish")
+	return filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
 }
 
 // zshCompletionFilePath return zsh-completion file path.
 func zshCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name())
+	return filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
 }
 
 // zshrcPath return .zshrc path.
