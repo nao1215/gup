@@ -20,25 +20,25 @@ var (
 // Info print information message at STDOUT.
 func Info(msg string) {
 	fmt.Fprintf(Stdout, "%s:%s: %s\n",
-		cmdinfo.Name(), color.GreenString("INFO "), msg)
+		cmdinfo.Name, color.GreenString("INFO "), msg)
 }
 
 // Warn print warning message at STDERR.
 func Warn(err interface{}) {
 	fmt.Fprintf(Stderr, "%s:%s: %v\n",
-		cmdinfo.Name(), color.YellowString("WARN "), err)
+		cmdinfo.Name, color.YellowString("WARN "), err)
 }
 
 // Err print error message at STDERR.
 func Err(err interface{}) {
 	fmt.Fprintf(Stderr, "%s:%s: %v\n",
-		cmdinfo.Name(), color.HiYellowString("ERROR"), err)
+		cmdinfo.Name, color.HiYellowString("ERROR"), err)
 }
 
 // Fatal print dying message at STDERR.
 func Fatal(err interface{}) {
 	fmt.Fprintf(Stderr, "%s:%s: %v\n",
-		cmdinfo.Name(), color.RedString("FATAL"), err)
+		cmdinfo.Name, color.RedString("FATAL"), err)
 	os.Exit(1)
 }
 
@@ -47,7 +47,7 @@ func Question(ask string) bool {
 	var response string
 
 	fmt.Fprintf(Stdout, "%s:%s: %s",
-		cmdinfo.Name(), color.GreenString("CHECK"), ask+" [Y/n] ")
+		cmdinfo.Name, color.GreenString("CHECK"), ask+" [Y/n] ")
 	_, err := fmt.Scanln(&response)
 	if err != nil {
 		// If user input only enter.

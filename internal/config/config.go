@@ -26,9 +26,9 @@ func DirPath() string {
 		// current directory. The .config directory path is displayed
 		// when reporting the completion of the export subcommand.
 		// So, user notices that the output destination is strange.
-		return filepath.Join(os.Getenv("HOME"), ".config", cmdinfo.Name())
+		return filepath.Join(os.Getenv("HOME"), ".config", cmdinfo.Name)
 	}
-	return filepath.Join(home, ".config", cmdinfo.Name())
+	return filepath.Join(home, ".config", cmdinfo.Name)
 }
 
 // ReadConfFile return contents of configuration-file (package information)

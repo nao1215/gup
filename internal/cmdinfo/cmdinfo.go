@@ -2,20 +2,23 @@ package cmdinfo
 
 import (
 	"fmt"
+	"runtime/debug"
 )
 
-const (
-	name    = "gup"
-	version = "0.10.3"
-)
+// Version value is set by ldflags
+var Version string
 
-// Version return gup command version.
-func Version() string {
-	return fmt.Sprintf("%s version %s (under Apache License version 2.0)",
-		Name(), version)
-}
+// Name is command name
+const Name = "gup"
 
-// Name return command name.
-func Name() string {
-	return name
+// GetVersion return gup command version.
+// Version global variable is set by ldflags.
+func GetVersion() string {
+	version := "unknown"
+	if Version != "" {
+		version = Version
+	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		version = buildInfo.Main.Version
+	}
+	return fmt.Sprintf("%s version %s (under Apache License version 2.0)", Name, version)
 }
