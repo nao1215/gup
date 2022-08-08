@@ -8,7 +8,9 @@
 # gup - Update binaries installed by "go install"  
 ![demo](./doc/img/demo.gif)  
   
-**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux. [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats.  
+**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.   
+  
+If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
   
 ![sample](./doc/img/sample.png)
 
@@ -17,16 +19,15 @@ gup command will notify you on your desktop whether the update was successful or
 ![warning](./doc/img/notify_warning.png)
 
 # How to install
-### Step1. Install golang
-gup command only supports installation with `$ go install`. If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
-
-### Step2. Install gup
+### Use "go install"
+If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
 ```
 $ go install github.com/nao1215/gup@latest
 ```
 
-If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
-
+### Install from Package or Binary
+[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
+  
 
 # How to use
 ### Update all binaries
