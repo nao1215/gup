@@ -7,19 +7,23 @@
   
 **gup**コマンドは、"go install"でインストールしたバイナリを最新版にアップデートします。gupは、すべてのバイナリを並列にアップデートするので、非常に高速です。\$GOPATH/bin (\$GOBIN) 以下にあるバイナリを操作するためのサブコマンドも提供しています。クロスプラットホームソフトであり、Windows, Mac, Linux で動作します。日本語版のみ、[Zenn](https://zenn.dev/nao1215/articles/aef3fe318848d6)に補足記事があります。
   
+oh-my-zshを使っている場合は、`gup`はエイリアス設定されています。エイリアスは、 `gup - git pull --rebase`です。gupの実行時は、oh-my-zshのエイリアスを使わないでください（例： $ \gup update）
+
 ![sample](../img/sample.png)
 
 gupコマンドはアップデートが終わった後、成功したか失敗したかをデスクトップ通知します。  
 ![success](..//img/notify_success.png)
 ![warning](../img/notify_warning.png)
 # インストール方法
-### Step1. 前準備
-現在は、" $ go install"によるインストールのみをサポートしています。そのため、golangの開発環境をシステムにインストールしていない場合、[golang公式サイト](https://go.dev/doc/install)からgolangをインストールしてください。
+### "go install"を用いた場合
+golangの開発環境をシステムにインストールしていない場合、[golang公式サイト](https://go.dev/doc/install)からgolangをインストールしてください。
 
-### Step2. インストール
 ```
 $ go install github.com/nao1215/gup@latest
 ```
+
+### パッケージもしくはバイナリからインストールする場合
+[リリースページ](https://github.com/nao1215/gup/releases) には、.deb、.rpm、.apk形式のパッケージがあります。ただし、gupコマンドは内部的にgoコマンドに依存しているため、gokangのインストールが必要です。
 
 # 使用方法
 ### 全てのバイナリをアップデート
