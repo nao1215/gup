@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
@@ -44,6 +46,13 @@ func remove(cmd *cobra.Command, args []string) int {
 
 	result := 0
 	for _, v := range args {
+		// In Windows, $GOEXE is set to the ".exe" extension.
+		// The user-specified command name (arguments) may not have an extension.
+		execSuffix := os.Getenv("GOEXE")
+		if runtime.GOOS == "windows" && !strings.HasSuffix(v, execSuffix) {
+			v += execSuffix
+		}
+
 		target := filepath.Join(gobin, v)
 		if !file.IsFile(target) {
 			print.Err(fmt.Errorf("no such file or directory: %s", target))
