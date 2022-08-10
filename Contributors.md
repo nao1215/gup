@@ -1,7 +1,7 @@
 |        NAME        |                       EMAIL                       | +(APPEND) | -(DELETE) |
 |--------------------|---------------------------------------------------|-----------|-----------|
-| CHIKAMATSU Naohiro | n.chika156@gmail.com                              |      4685 |      1265 |
-| nao1215            | nao1215@users.noreply.github.com                  |        20 |        12 |
+| CHIKAMATSU Naohiro | n.chika156@gmail.com                              |      4737 |      1334 |
+| nao1215            | nao1215@users.noreply.github.com                  |        22 |        13 |
 | Yasuhiro Matsumoto | mattn.jp@gmail.com                                |        19 |        32 |
 | matsuyoshi         | sfbgwm30@gmail.com                                |         5 |         6 |
 | Akimo              | qiuyuantahai5@gmail.com                           |         1 |         1 |
