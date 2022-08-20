@@ -11,8 +11,8 @@ GO_TEST     = $(GO) test -v
 GO_TOOL     = $(GO) tool
 GO_VET      = $(GO) vet
 GO_DEP      = $(GO) mod
-GOOS        = linux
-GOARCH      = amd64
+GOOS        = ""
+GOARCH      = ""
 GO_PKGROOT  = ./...
 GO_PACKAGES = $(shell $(GO_LIST) $(GO_PKGROOT))
 GO_LDFLAGS  = -ldflags '-X github.com/nao1215/gup/internal/cmdinfo.Version=${VERSION}'
