@@ -80,6 +80,7 @@ func Test_check(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
+			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if !strings.Contains(got[len(got)-2], "subaru") {
@@ -128,6 +129,7 @@ func Test_check_not_use_go_cmd(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{
@@ -206,6 +208,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
+			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {
