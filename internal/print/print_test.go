@@ -45,10 +45,6 @@ func TestInfo(t *testing.T) {
 			Stdout = orgStdout
 			Stderr = orgStderr
 
-			if err != nil {
-				return
-			}
-
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
 			if err != nil {
@@ -96,10 +92,6 @@ func TestWarn(t *testing.T) {
 			Stdout = orgStdout
 			Stderr = orgStderr
 
-			if err != nil {
-				return
-			}
-
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
 			if err != nil {
@@ -146,10 +138,6 @@ func TestErr(t *testing.T) {
 			pw.Close()
 			Stdout = orgStdout
 			Stderr = orgStderr
-
-			if err != nil {
-				return
-			}
 
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
@@ -205,10 +193,6 @@ func TestFatal(t *testing.T) {
 			pw.Close()
 			Stdout = orgStdout
 			Stderr = orgStderr
-
-			if err != nil {
-				return
-			}
 
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
