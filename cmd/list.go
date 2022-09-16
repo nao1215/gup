@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/fatih/color"
@@ -16,7 +15,7 @@ var listCmd = &cobra.Command{
 	Short: "List up command name with package path and version under $GOPATH/bin or $GOBIN",
 	Long:  `List up command name with package path and version under $GOPATH/bin or $GOBIN`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(list(cmd, args))
+		OsExit(list(cmd, args))
 	},
 }
 
@@ -26,16 +25,19 @@ func init() {
 
 func list(cmd *cobra.Command, args []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		return 1
 	}
 
 	pkgs, err := getPackageInfo()
 	if err != nil {
-		print.Fatal(err)
+		print.Err(err)
+		return 1
 	}
 
 	if len(pkgs) == 0 {
-		print.Fatal("unable to list up package: no package information")
+		print.Err("unable to list up package: no package information")
+		return 1
 	}
 	printPackageList(pkgs)
 

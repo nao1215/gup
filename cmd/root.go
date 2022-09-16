@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/nao1215/gup/internal/assets"
 	"github.com/nao1215/gup/internal/completion"
 	"github.com/nao1215/gup/internal/print"
@@ -13,6 +15,9 @@ var rootCmd = &cobra.Command{
 	Short: `gup command update binaries installed by 'go install'.
 If you update all binaries, just run '$ gup update'`,
 }
+
+// OsExit is wrapper for  os.Exit(). It's for unit test.
+var OsExit = os.Exit
 
 // Execute run gup process.
 func Execute() {

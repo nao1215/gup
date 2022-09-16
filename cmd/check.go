@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/nao1215/gup/internal/goutil"
@@ -19,7 +18,7 @@ check subcommand checks if the binary is the latest version
 and displays the name of the binary that needs to be updated.
 However, do not update`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(check(cmd, args))
+		OsExit(check(cmd, args))
 	},
 }
 

@@ -2,8 +2,14 @@
 package cmd
 
 import (
+	"bytes"
+	"io"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/print"
 )
 
 func TestExecute(t *testing.T) {
@@ -25,5 +31,122 @@ func TestExecute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			Execute()
 		})
+	}
+}
+
+func TestExecute_Version(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		stdout []string
+	}{
+		{
+			name:   "success",
+			args:   []string{"gup", "version"},
+			stdout: []string{"gup version  (under Apache License version 2.0)", ""},
+		},
+	}
+	for _, tt := range tests {
+		orgStdout := os.Stdout
+		orgStderr := os.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = pw
+		os.Stderr = pw
+
+		os.Args = tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			Execute()
+		})
+		pw.Close()
+		os.Stdout = orgStdout
+		os.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		if diff := cmp.Diff(tt.stdout, got); diff != "" {
+			t.Errorf("value is mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
+func TestExecute_List(t *testing.T) {
+	tests := []struct {
+		name   string
+		gobin  string
+		args   []string
+		stdout []string
+	}{
+		{
+			name:  "success",
+			gobin: "./testdata/check_success",
+			args:  []string{"gup", "list"},
+			stdout: []string{
+				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
+				"posixer: github.com/nao1215/posixer@v0.1.0",
+				" subaru: github.com/nao1215/subaru@v1.0.0",
+			},
+		},
+	}
+	for _, tt := range tests {
+		oldGoBin := os.Getenv("GOBIN")
+		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		OsExit = func(code int) {}
+		defer func() {
+			OsExit = os.Exit
+		}()
+
+		orgStdout := print.Stdout
+		orgStderr := print.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		print.Stdout = pw
+		print.Stderr = pw
+
+		os.Args = tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			Execute()
+		})
+		pw.Close()
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		count := 0
+		for _, g := range got {
+			for _, w := range tt.stdout {
+				if g == w {
+					count++
+				}
+			}
+		}
+		if count != 3 {
+			t.Errorf("value is mismatch. want=3 got=%d", count)
+		}
 	}
 }
