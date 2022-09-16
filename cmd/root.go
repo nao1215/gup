@@ -1,3 +1,4 @@
+// Package cmd define subcommands provided by the gup command
 package cmd
 
 import (

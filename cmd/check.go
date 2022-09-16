@@ -29,17 +29,20 @@ func init() {
 
 func check(cmd *cobra.Command, args []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		return 1
 	}
 
 	pkgs, err := getPackageInfo()
 	if err != nil {
-		print.Fatal(err)
+		print.Err(err)
+		return 1
 	}
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 
 	if len(pkgs) == 0 {
-		print.Fatal("unable to check package: no package information")
+		print.Err("unable to check package: no package information")
+		return 1
 	}
 	return doCheck(pkgs)
 }
