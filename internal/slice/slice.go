@@ -1,8 +1,9 @@
+// Package slice defines functions to manipulate the slice
 package slice
 
 import "reflect"
 
-// Contains return whether list has elem.
+// Contains returns whether the list has the elements specified in the argument.
 func Contains(list interface{}, elem interface{}) bool {
 	rvList := reflect.ValueOf(list)
 
