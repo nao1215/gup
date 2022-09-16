@@ -164,62 +164,6 @@ func Test_check_gobin_is_empty(t *testing.T) {
 				"",
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			oldGoBin := os.Getenv("GOBIN")
-			if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-				t.Fatal(err)
-			}
-			defer func() {
-				if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-					t.Fatal(err)
-				}
-			}()
-
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
-
-			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
-				t.Errorf("check() = %v, want %v", got, tt.want)
-			}
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
-			got := strings.Split(buf.String(), "\n")
-
-			if diff := cmp.Diff(tt.stderr, got); diff != "" {
-				t.Errorf("value is mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func Test_check_gobin_env_is_empty(t *testing.T) {
-	type args struct {
-		cmd  *cobra.Command
-		args []string
-	}
-	tests := []struct {
-		name   string
-		gobin  string
-		args   args
-		want   int
-		stderr []string
-	}{
 		{
 			name:  "$GOBIN is empty",
 			gobin: "no_exist_dir",
