@@ -80,7 +80,14 @@ func (p *Package) VersionCheckResultStr() string {
 
 // IsAlreadyUpToDate return whether binary is already up to date or not.
 func IsAlreadyUpToDate(ver Version) bool {
-	return ver.Current == ver.Latest
+	if ver.Current == ver.Latest {
+		return true
+	}
+
+	return strings.Compare(
+		strings.TrimLeft(ver.Current, "v"),
+		strings.TrimLeft(ver.Latest, "v"),
+	) >= 0
 }
 
 // NewGoPaths return GoPaths instance.
