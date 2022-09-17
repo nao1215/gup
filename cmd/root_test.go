@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/print"
 )
 
@@ -148,5 +149,71 @@ func TestExecute_List(t *testing.T) {
 		if count != 3 {
 			t.Errorf("value is mismatch. want=3 got=%d", count)
 		}
+	}
+}
+
+func TestExecute_Remove_Force(t *testing.T) {
+	tests := []struct {
+		name   string
+		gobin  string
+		args   []string
+		stdout []string
+	}{
+		{
+			name:   "success",
+			gobin:  "./testdata/delete",
+			args:   []string{"gup", "remove", "-f", "posixer"},
+			stdout: []string{},
+		},
+	}
+
+	if err := os.MkdirAll("./testdata/delete", 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	newFile, err := os.Create("./testdata/delete/posixer")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldFile, err := os.Open("./testdata/check_success/posixer")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = io.Copy(newFile, oldFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range tests {
+		oldGoBin := os.Getenv("GOBIN")
+		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		OsExit = func(code int) {}
+		defer func() {
+			OsExit = os.Exit
+		}()
+
+		os.Args = tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			Execute()
+		})
+
+		if file.IsFile("./testdata/delete/posixer") {
+			t.Errorf("failed to remove posixer command")
+		}
+	}
+
+	err = os.Remove("./testdata/delete")
+	if err != nil {
+		t.Fatal(err)
 	}
 }

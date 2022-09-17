@@ -20,7 +20,7 @@ var removeCmd = &cobra.Command{
 If you want to specify multiple binaries at once, separate them with space.
 [e.g.] gup remove a_cmd b_cmd c_cmd`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(remove(cmd, args))
+		OsExit(remove(cmd, args))
 	},
 }
 
@@ -31,17 +31,20 @@ func init() {
 
 func remove(cmd *cobra.Command, args []string) int {
 	if len(args) == 0 {
-		print.Fatal("No command name specified")
+		print.Err("No command name specified")
+		return 1
 	}
 
 	force, err := cmd.Flags().GetBool("force")
 	if err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument (--force)", err))
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--force)", err))
+		return 1
 	}
 
 	gobin, err := goutil.GoBin()
 	if err != nil {
-		print.Fatal(err)
+		print.Err(err)
+		return 1
 	}
 
 	result := 0
