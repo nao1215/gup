@@ -53,6 +53,19 @@ func Test_remove(t *testing.T) {
 				"",
 			},
 		},
+		{
+			name: "argument parse error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--force): flag accessed but not defined: force",
+				"",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,7 +88,9 @@ func Test_remove(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			tt.args.cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
+			if tt.name != "argument parse error" {
+				tt.args.cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
+			}
 			if got := remove(tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("remove() = %v, want %v", got, tt.want)
 			}
