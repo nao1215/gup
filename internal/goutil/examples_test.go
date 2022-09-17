@@ -3,11 +3,16 @@ package goutil_test
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/goutil"
 )
+
+// ============================================================================
+//  Tests for public functions
+// ============================================================================
 
 func ExampleBinaryPathList() {
 	// Get list of files in the current directory
@@ -204,4 +209,127 @@ func ExampleNewVersion() {
 
 	fmt.Println("Example NewVersion: OK")
 	// Output: Example NewVersion: OK
+}
+
+// ============================================================================
+//  Tests for public methods
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+//  Type: GoPaths
+// ----------------------------------------------------------------------------
+
+func ExampleGoPaths_StartDryRunMode() {
+	gh := goutil.NewGoPaths()
+
+	// StartDryRunMode starts dry run mode. In dry run mode, GoPaths will temporarily
+	// change the OS env variables of GOBIN or GOPATH. The original values will be
+	// restored when the `EndDryRunMode` method is called.
+	if err := gh.StartDryRunMode(); err != nil {
+		log.Fatalf("example GoPaths.StartDryRunMode failed to start dry mode: %s", err.Error())
+	}
+
+	onDryRunMode := []string{
+		os.Getenv("GOBIN"),
+		os.Getenv("GOPATH"),
+	}
+
+	// End dry run mode.
+	if err := gh.EndDryRunMode(); err != nil {
+		log.Fatalf("example GoPaths.StartDryRunMode failed to end dry mode: %s", err.Error())
+	}
+
+	offDryRunMode := []string{
+		os.Getenv("GOBIN"),
+		os.Getenv("GOPATH"),
+	}
+
+	if cmp.Equal(onDryRunMode, offDryRunMode) {
+		log.Fatal("example GoPaths.StartDryRunMode failed. dry run mode did not change to temp dir")
+	}
+
+	fmt.Println("Example GoPaths.StartDryRunMode: OK")
+	// Output: Example GoPaths.StartDryRunMode: OK
+}
+
+// ----------------------------------------------------------------------------
+//  Type: Package
+// ----------------------------------------------------------------------------
+
+func ExamplePackage_CurrentToLatestStr() {
+	// Set the paths of the target binary
+	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
+	if len(packages) == 0 {
+		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
+	}
+
+	// test with the first package found
+	pkgInfo := packages[0]
+
+	wantContain := "Already up-to-date"
+	got := pkgInfo.CurrentToLatestStr()
+
+	if !strings.Contains(got, wantContain) {
+		log.Fatalf(
+			"example Package.CurrentToLatestStr failed. \nwant contain: %s\n got: %s",
+			wantContain, got,
+		)
+	}
+
+	fmt.Println("Example Package.CurrentToLatestStr: OK")
+	// Output: Example Package.CurrentToLatestStr: OK
+}
+
+func ExamplePackage_SetLatestVer() {
+	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
+	if len(packages) == 0 {
+		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
+	}
+
+	// test with the first package found
+	pkgInfo := packages[0]
+
+	// By default, the Latest field of Package object is empty
+	before := pkgInfo.Version.Latest
+
+	// Execute method and update the Version.Latest field
+	pkgInfo.SetLatestVer()
+
+	// After calling SetLatestVer, the Latest field should be updated with the latest
+	// version or `unknown` if the latest version is not found.
+	after := pkgInfo.Version.Latest
+
+	// Require the field to be updated
+	if before == after {
+		log.Fatalf(
+			"example Package.SetLatestVer failed. The latest version is not updated. before: %s, after: %s",
+			before, after,
+		)
+	}
+
+	fmt.Println("Example Package.SetLatestVer: OK")
+	// Output: Example Package.SetLatestVer: OK
+}
+
+func ExamplePackage_VersionCheckResultStr() {
+	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
+	if len(packages) == 0 {
+		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
+	}
+
+	// test with the first package found
+	pkgInfo := packages[0]
+
+	wantContain := "Already up-to-date"
+	got := pkgInfo.VersionCheckResultStr()
+
+	if !strings.Contains(got, wantContain) {
+		log.Fatalf(
+			"example Package.VersionCheckResultStr failed. \nwant contain: %s\n got: %s",
+			wantContain, got,
+		)
+	}
+
+	fmt.Println("Example Package.VersionCheckResultStr: OK")
+	// Output: Example Package.VersionCheckResultStr: OK
 }
