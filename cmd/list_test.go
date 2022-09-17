@@ -118,7 +118,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			print.Stderr = pw
 
 			if got := list(tt.args.cmd, tt.args.args); got != tt.want {
-				t.Errorf("check() = %v, want %v", got, tt.want)
+				t.Errorf("list() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
 			print.Stdout = orgStdout
