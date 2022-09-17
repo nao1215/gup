@@ -38,6 +38,70 @@ func TestExecute(t *testing.T) {
 	}
 }
 
+func TestExecute_Check(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		stdout []string
+	}{
+		{
+			name:   "success",
+			args:   []string{"gup", "check"},
+			stdout: []string{"", ""},
+		},
+	}
+	for _, tt := range tests {
+		oldGoBin := os.Getenv("GOBIN")
+		if err := os.Setenv("GOBIN", "./testdata/check_success"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		orgStdout := print.Stdout
+		orgStderr := print.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		print.Stdout = pw
+		print.Stderr = pw
+
+		OsExit = func(code int) {}
+		defer func() {
+			OsExit = os.Exit
+		}()
+
+		os.Args = tt.args
+
+		Execute()
+		pw.Close()
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		if !strings.Contains(got[len(got)-2], "subaru") {
+			t.Errorf("subaru package is not included in the update target: %s", got[len(got)-2])
+		}
+		if !strings.Contains(got[len(got)-2], "posixer") {
+			t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
+		}
+		if !strings.Contains(got[len(got)-2], "gal") {
+			t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
+		}
+	}
+}
+
 func TestExecute_Version(t *testing.T) {
 	tests := []struct {
 		name   string
