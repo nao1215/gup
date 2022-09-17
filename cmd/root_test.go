@@ -460,3 +460,189 @@ func TestExecute_Import(t *testing.T) {
 		}
 	*/
 }
+
+func TestExecute_Update(t *testing.T) {
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
+
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.IsDir(gobin) {
+		if err := os.Rename(gobin, gobin+".backup"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if file.IsDir(gobin + ".backup") {
+				os.RemoveAll(gobin)
+				if err := os.Rename(gobin+".backup", gobin); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
+
+		if err := os.MkdirAll(gobin, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		in, err := os.Open("./testdata/check_success/gal")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer in.Close()
+
+		out, err := os.Create(filepath.Join(gobin, "gal"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	defer func() {
+		os.RemoveAll("./testdata/.config/fish")
+		os.RemoveAll("./testdata/.zsh")
+		os.RemoveAll("./testdata/.zshrc")
+		os.RemoveAll("./testdata/.bash_completion")
+		os.RemoveAll("./testdata/.config/gup/assets")
+		os.RemoveAll("./testdata/go")
+		os.RemoveAll("./testdata/.cache")
+	}()
+
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	os.Args = []string{"gup", "update"}
+	Execute()
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
+
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer pr.Close()
+	got := strings.Split(buf.String(), "\n")
+
+	contain := false
+	for _, v := range got {
+		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gal/cmd/gal") {
+			contain = true
+		}
+	}
+	if !contain {
+		t.Errorf("failed to update gal command")
+	}
+}
+
+func TestExecute_Update_DryRun(t *testing.T) {
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
+
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.IsDir(gobin) {
+		if err := os.Rename(gobin, gobin+".backup"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if file.IsDir(gobin + ".backup") {
+				os.RemoveAll(gobin)
+				if err := os.Rename(gobin+".backup", gobin); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
+
+		if err := os.MkdirAll(gobin, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		in, err := os.Open("./testdata/check_success/gal")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer in.Close()
+
+		out, err := os.Create(filepath.Join(gobin, "gal"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	defer func() {
+		os.RemoveAll("./testdata/.config/fish")
+		os.RemoveAll("./testdata/.zsh")
+		os.RemoveAll("./testdata/.zshrc")
+		os.RemoveAll("./testdata/.bash_completion")
+		os.RemoveAll("./testdata/.config/gup/assets")
+		os.RemoveAll("./testdata/go")
+		os.RemoveAll("./testdata/.cache")
+	}()
+
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	os.Args = []string{"gup", "update", "--dry-run"}
+	Execute()
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
+
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer pr.Close()
+	got := strings.Split(buf.String(), "\n")
+
+	contain := false
+	for _, v := range got {
+		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gal/cmd/gal") {
+			contain = true
+		}
+	}
+	if !contain {
+		t.Errorf("failed to update gal command")
+	}
+}
