@@ -84,13 +84,13 @@ func Test_check(t *testing.T) {
 			got := strings.Split(buf.String(), "\n")
 
 			if !strings.Contains(got[len(got)-2], "subaru") {
-				t.Errorf("subaru package is not included in the update target: %s", got[len(got)-1])
+				t.Errorf("subaru package is not included in the update target: %s", got[len(got)-2])
 			}
 			if !strings.Contains(got[len(got)-2], "posixer") {
-				t.Errorf("posixer package is not included in the update target: %s", got[len(got)-1])
+				t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
 			}
 			if !strings.Contains(got[len(got)-2], "gal") {
-				t.Errorf("gal package is not included in the update target: %s", got[len(got)-1])
+				t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
 			}
 		})
 	}

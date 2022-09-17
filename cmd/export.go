@@ -22,7 +22,7 @@ placed gup.conf in the same path hierarchy on another system,
 you execute import subcommand. gup start the installation 
 according to the contents of gup.conf.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(export(cmd, args))
+		OsExit(export(cmd, args))
 	},
 }
 
@@ -32,21 +32,25 @@ func init() {
 
 func export(cmd *cobra.Command, args []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		return 1
 	}
 
 	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not make config directory", err))
+		return 1
 	}
 
 	pkgs, err := getPackageInfo()
 	if err != nil {
-		print.Fatal(err)
+		print.Err(err)
+		return 1
 	}
 	pkgs = validPkgInfo(pkgs)
 
 	if len(pkgs) == 0 {
-		print.Fatal("no package information")
+		print.Err("no package information")
+		return 1
 	}
 
 	if err := config.WriteConfFile(pkgs); err != nil {
