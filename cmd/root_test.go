@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/print"
 )
@@ -215,5 +216,76 @@ func TestExecute_Remove_Force(t *testing.T) {
 	err = os.Remove("./testdata/delete")
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExecute_Export(t *testing.T) {
+	tests := []struct {
+		name   string
+		gobin  string
+		args   []string
+		stdout []string
+	}{
+		{
+			name:   "success",
+			gobin:  "./testdata/check_success",
+			args:   []string{"gup", "export"},
+			stdout: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		oldGoBin := os.Getenv("GOBIN")
+		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		OsExit = func(code int) {}
+		defer func() {
+			OsExit = os.Exit
+		}()
+
+		doBackup := false
+		if file.IsFile(config.FilePath()) {
+			if err := os.Rename(config.FilePath(), config.FilePath()+".backup"); err != nil {
+				t.Fatal(err)
+			}
+			doBackup = true
+		}
+		defer func() {
+			if doBackup {
+				if err := os.Rename(config.FilePath()+".backup", config.FilePath()); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}()
+
+		os.Args = tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			Execute()
+		})
+
+		if !file.IsFile(config.FilePath()) {
+			t.Errorf(config.FilePath() + " does not exist. failed to generate")
+			continue
+		}
+
+		got, err := os.ReadFile(config.FilePath())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := `gal = github.com/nao1215/gal/cmd/gal
+posixer = github.com/nao1215/posixer
+subaru = github.com/nao1215/subaru
+`
+		if string(got) != want {
+			t.Errorf("mismatch: want=%s, got=%s", want, string(got))
+		}
 	}
 }
