@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -109,12 +110,9 @@ func Test_export(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "",
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can not make config directory: mkdir /.config: permission denied",
-				"",
-			},
+			gobin:  "",
+			want:   1,
+			stderr: []string{},
 		},
 		{
 			name: "not exist gobin directory",
@@ -158,7 +156,7 @@ func Test_export(t *testing.T) {
 
 			if tt.name == "can not make .config directory" {
 				oldHome := os.Getenv("HOME")
-				if err := os.Setenv("HOME", "/"); err != nil {
+				if err := os.Setenv("HOME", "/root"); err != nil {
 					t.Fatal(err)
 				}
 				defer func() {
@@ -192,8 +190,14 @@ func Test_export(t *testing.T) {
 			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
-			if diff := cmp.Diff(tt.stderr, got); diff != "" {
-				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			if tt.name != "can not make .config directory" {
+				if diff := cmp.Diff(tt.stderr, got); diff != "" {
+					t.Errorf("value is mismatch (-want +got):\n%s", diff)
+				}
+			} else {
+				if file.IsFile("/.config") {
+					t.Errorf("permissions are incomplete because '/.config' was created")
+				}
 			}
 		})
 	}
