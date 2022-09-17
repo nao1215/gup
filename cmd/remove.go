@@ -31,7 +31,7 @@ func init() {
 
 func remove(cmd *cobra.Command, args []string) int {
 	if len(args) == 0 {
-		print.Err("No command name specified")
+		print.Err("no command name specified")
 		return 1
 	}
 
