@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
@@ -21,7 +20,7 @@ import subcommand in another environment, you save conf-file in
 $HOME/.config/gup/gup.conf.
 Finally, you execute the export subcommand in this state.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Exit(runImport(cmd, args))
+		OsExit(runImport(cmd, args))
 	},
 }
 
@@ -33,20 +32,24 @@ func init() {
 func runImport(cmd *cobra.Command, args []string) int {
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
-		print.Fatal(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+		return 1
 	}
 
 	if !file.IsFile(config.FilePath()) {
-		print.Fatal(fmt.Errorf("%s is not found", config.FilePath()))
+		print.Err(fmt.Errorf("%s is not found", config.FilePath()))
+		return 1
 	}
 
 	pkgs, err := config.ReadConfFile()
 	if err != nil {
-		print.Fatal(err)
+		print.Err(err)
+		return 1
 	}
 
 	if len(pkgs) == 0 {
-		print.Fatal("unable to update package: no package information")
+		print.Err("unable to update package: no package information")
+		return 1
 	}
 
 	print.Info("start update based on " + config.FilePath())

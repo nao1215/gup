@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
+	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 )
 
@@ -288,4 +290,109 @@ subaru = github.com/nao1215/subaru
 			t.Errorf("mismatch: want=%s, got=%s", want, string(got))
 		}
 	}
+}
+
+func TestExecute_Import(t *testing.T) {
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
+
+	oldHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", "./testdata"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Setenv("HOME", oldHome); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.IsFile(filepath.Join(gobin, "posixer")) {
+		if err := os.Rename(filepath.Join(gobin, "posixer"), filepath.Join(gobin, "posixer")+".backup"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Rename(filepath.Join(gobin, "posixer")+".backup", filepath.Join(gobin, "posixer")); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+
+	if file.IsFile(filepath.Join(gobin, "subaru")) {
+		if err := os.Rename(filepath.Join(gobin, "subaru"), filepath.Join(gobin, "subaru")+".backup"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Rename(filepath.Join(gobin, "subaru")+".backup", filepath.Join(gobin, "subaru")); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+
+	if file.IsFile(filepath.Join(gobin, "gal")) {
+		if err := os.Rename(filepath.Join(gobin, "gal"), filepath.Join(gobin, "gal")+".backup"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Rename(filepath.Join(gobin, "gal")+".backup", filepath.Join(gobin, "gal")); err != nil {
+				t.Fatal(err)
+			}
+		}()
+	}
+
+	defer func() {
+		os.RemoveAll("./testdata/.config/fish")
+		os.RemoveAll("./testdata/.zsh")
+		os.RemoveAll("./testdata/.zshrc")
+		os.RemoveAll("./testdata/.bash_completion")
+		os.RemoveAll("./testdata/.config/gup/assets")
+		os.RemoveAll("./testdata/go")
+		os.RemoveAll("./testdata/.cache")
+	}()
+
+	os.Args = []string{"gup", "import"}
+	Execute()
+
+	if !file.IsFile("./testdata/.zsh/completion/_gup") {
+		t.Errorf("not install .zsh/completion/_gup")
+	}
+
+	if !file.IsFile("./testdata/.config/fish/completions/gup.fish") {
+		t.Errorf("not install .config/fish/completions/gup.fish")
+	}
+
+	if !file.IsFile("./testdata/.bash_completion") {
+		t.Errorf("not install .bash_completion")
+	}
+
+	if !file.IsFile("./testdata/.zshrc") {
+		t.Errorf("not install .bash_completion")
+	}
+
+	if !file.IsFile("./testdata/.config/gup/assets/information.png") {
+		t.Errorf("not install .config/gup/assets/information.png")
+	}
+
+	if !file.IsFile("./testdata/.config/gup/assets/warning.png") {
+		t.Errorf("not install .config/gup/assets/warning.png")
+	}
+
+	/*
+		if !file.IsFile(filepath.Join(gobin, "gal")) {
+			t.Errorf("not import gal command: %s", filepath.Join(gobin, "gal"))
+		}
+
+		if !file.IsFile(filepath.Join(gobin, "posixer")) {
+			t.Errorf("not import posixer command: %s", filepath.Join(gobin, "posixer"))
+		}
+
+		if !file.IsFile(filepath.Join(gobin, "subaru")) {
+			t.Errorf("not import subaru command: %s", filepath.Join(gobin, "subaru"))
+		}
+	*/
 }
