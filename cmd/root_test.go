@@ -227,23 +227,23 @@ func TestExecute_List(t *testing.T) {
 }
 
 func TestExecute_Remove_Force(t *testing.T) {
-	tests := []struct {
+	type test struct {
 		name   string
 		gobin  string
 		args   []string
 		stdout []string
-	}{
-		{
-			name:   "success",
-			gobin:  filepath.Join("testdata", "delete"),
-			args:   []string{"gup", "remove", "-f", "posixer"},
-			stdout: []string{},
-		},
 	}
+	tests := []test{}
 
 	src := ""
 	dest := ""
 	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
+			name:   "success",
+			gobin:  filepath.Join("testdata", "delete_force"),
+			args:   []string{"gup", "remove", "-f", "posixer"},
+			stdout: []string{},
+		})
 		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -256,6 +256,12 @@ func TestExecute_Remove_Force(t *testing.T) {
 		src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
 		dest = filepath.Join("testdata", "delete_force", "posixer.exe")
 	} else {
+		tests = append(tests, test{
+			name:   "success",
+			gobin:  filepath.Join("testdata", "delete"),
+			args:   []string{"gup", "remove", "-f", "posixer"},
+			stdout: []string{},
+		})
 		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -641,6 +647,8 @@ func TestExecute_Update_DryRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		in.Close()
+		out.Close()
 
 		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
