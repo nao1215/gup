@@ -469,28 +469,30 @@ func TestExecute_Import(t *testing.T) {
 	os.Args = []string{"gup", "import"}
 	Execute()
 
-	if !file.IsFile(filepath.Join("testdata", ".zsh", "completion", "_gup")) {
-		t.Errorf("not install " + filepath.Join("testdata", ".zsh", "completion", "_gup"))
-	}
+	if runtime.GOOS != "windows" {
+		if !file.IsFile(filepath.Join("testdata", ".zsh", "completion", "_gup")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".zsh", "completion", "_gup"))
+		}
 
-	if !file.IsFile(filepath.Join("testdata", ".config", "fish", "completions", "gup.fish")) {
-		t.Errorf("not install " + filepath.Join("testdata", ".config", "fish", "completions", "gup.fish"))
-	}
+		if !file.IsFile(filepath.Join("testdata", ".config", "fish", "completions", "gup.fish")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "fish", "completions", "gup.fish"))
+		}
 
-	if !file.IsFile(filepath.Join("testdata", ".bash_completion")) {
-		t.Errorf("not install " + filepath.Join("testdata", ".bash_completion"))
-	}
+		if !file.IsFile(filepath.Join("testdata", ".bash_completion")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".bash_completion"))
+		}
 
-	if !file.IsFile("testdata/.zshrc") {
-		t.Errorf("not install .bash_completion")
-	}
+		if !file.IsFile("testdata/.zshrc") {
+			t.Errorf("not install .bash_completion")
+		}
 
-	if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "information.png")) {
-		t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "information.png"))
-	}
+		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "information.png")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "information.png"))
+		}
 
-	if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "warning.png")) {
-		t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
+		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "warning.png")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
+		}
 	}
 
 	/*

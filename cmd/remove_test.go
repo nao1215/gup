@@ -284,7 +284,7 @@ func Test_removeLoop(t *testing.T) {
 			}
 			defer funcDefer()
 
-			if tt.name == "windows environment and suffix is mismatch" {
+			if runtime.GOOS != "windows" && tt.name == "windows environment and suffix is mismatch" {
 				GOOS = "windows"
 				defer func() { GOOS = runtime.GOOS }()
 
@@ -302,7 +302,7 @@ func Test_removeLoop(t *testing.T) {
 				t.Errorf("removeLoop() = %v, want %v", got, tt.want)
 			}
 
-			if tt.name == "delete cancel" && !file.IsFile("testdata/delete/posixer") {
+			if tt.name == "delete cancel" && !file.IsFile(dest) {
 				t.Errorf("input no, however posixer command is deleted")
 			}
 		})
@@ -315,7 +315,7 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	t.Helper()
 
 	oldOsStdin := os.Stdin
-	tmpFile, err := os.CreateTemp(t.TempDir(), "morrigan_")
+	tmpFile, err := os.CreateTemp(t.TempDir(), t.Name())
 
 	if err != nil {
 		return nil, err
