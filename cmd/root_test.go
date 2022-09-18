@@ -473,20 +473,6 @@ func TestExecute_Import(t *testing.T) {
 			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
 		}
 	}
-
-	/*
-		if !file.IsFile(filepath.Join(gobin, "gal")) {
-			t.Errorf("not import gal command: %s", filepath.Join(gobin, "gal"))
-		}
-
-		if !file.IsFile(filepath.Join(gobin, "posixer")) {
-			t.Errorf("not import posixer command: %s", filepath.Join(gobin, "posixer"))
-		}
-
-		if !file.IsFile(filepath.Join(gobin, "subaru")) {
-			t.Errorf("not import subaru command: %s", filepath.Join(gobin, "subaru"))
-		}
-	*/
 }
 
 func TestExecute_Update(t *testing.T) {
@@ -621,10 +607,10 @@ func TestExecute_Update_DryRun(t *testing.T) {
 		targetPath := ""
 		binName := ""
 		if runtime.GOOS == "windows" {
-			binName = "gal.exe"
+			binName = "posixer.exe"
 			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
 		} else {
-			binName = "gal"
+			binName = "posixer"
 			targetPath = filepath.Join("testdata", "check_success", binName)
 		}
 		in, err := os.Open(targetPath)
@@ -684,11 +670,11 @@ func TestExecute_Update_DryRun(t *testing.T) {
 
 	contain := false
 	for _, v := range got {
-		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gal/cmd/gal") {
+		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/posixer") {
 			contain = true
 		}
 	}
 	if !contain {
-		t.Errorf("failed to update gal command")
+		t.Errorf("failed to update posixer command")
 	}
 }
