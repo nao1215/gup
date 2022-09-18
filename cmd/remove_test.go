@@ -41,19 +41,6 @@ func Test_remove(t *testing.T) {
 			},
 		},
 		{
-			name: "delete taget binary does not exist",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{"test"},
-			},
-			gobin: "not_exist",
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: no such file or directory: not_exist/test",
-				"",
-			},
-		},
-		{
 			name: "argument parse error",
 			args: args{
 				cmd:  &cobra.Command{},
@@ -67,6 +54,49 @@ func Test_remove(t *testing.T) {
 			},
 		},
 	}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: no such file or directory: not_exist\test",
+				"",
+			},
+		})
+	} else {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: no such file or directory: not_exist/test",
+				"",
+			},
+		})
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldGoBin := os.Getenv("GOBIN")

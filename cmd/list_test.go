@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -48,9 +49,13 @@ func Test_list_not_found_go_command(t *testing.T) {
 		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
-		want := []string{
-			`gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`,
-			"",
+		want := []string{}
+		if runtime.GOOS == "windows" {
+			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
+			want = append(want, "")
+		} else {
+			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`)
+			want = append(want, "")
 		}
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
@@ -80,7 +85,32 @@ func Test_list_gobin_is_empty(t *testing.T) {
 				"",
 			},
 		},
-		{
+	}
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name   string
+			gobin  string
+			args   args
+			want   int
+			stderr []string
+		}{
+			name:  "$GOBIN is empty",
+			gobin: "no_exist_dir",
+			args:  args{},
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: can't get binary-paths installed by 'go install': open no_exist_dir: The system cannot find the file specified.",
+				"",
+			},
+		})
+	} else {
+		tests = append(tests, struct {
+			name   string
+			gobin  string
+			args   args
+			want   int
+			stderr []string
+		}{
 			name:  "$GOBIN is empty",
 			gobin: "no_exist_dir",
 			args:  args{},
@@ -89,7 +119,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 				"gup:ERROR: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
 				"",
 			},
-		},
+		})
 	}
 
 	if err := os.Mkdir("./testdata/empty_dir", 0755); err != nil {
