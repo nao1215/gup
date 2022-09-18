@@ -207,12 +207,15 @@ func Test_removeLoop(t *testing.T) {
 		force  bool
 		target []string
 	}
-	tests := []struct {
+
+	type test struct {
 		name  string
 		args  args
 		input string
 		want  int
-	}{
+	}
+
+	tests := []test{
 		{
 			name: "windows environment and suffix is mismatch",
 			args: args{
@@ -223,7 +226,31 @@ func Test_removeLoop(t *testing.T) {
 			input: "y",
 			want:  1,
 		},
-		{
+	}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
+			name: "interactive question: input 'y'",
+			args: args{
+				gobin:  filepath.Join("testdata", "delete"),
+				force:  false,
+				target: []string{"posixer.exe"},
+			},
+			input: "y",
+			want:  0,
+		})
+		tests = append(tests, test{
+			name: "delete cancel",
+			args: args{
+				gobin:  filepath.Join("testdata", "delete"),
+				force:  false,
+				target: []string{"posixer.exe"},
+			},
+			input: "n",
+			want:  0,
+		})
+	} else {
+		tests = append(tests, test{
 			name: "interactive question: input 'y'",
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
@@ -232,8 +259,8 @@ func Test_removeLoop(t *testing.T) {
 			},
 			input: "y",
 			want:  0,
-		},
-		{
+		})
+		tests = append(tests, test{
 			name: "delete cancel",
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
@@ -242,7 +269,7 @@ func Test_removeLoop(t *testing.T) {
 			},
 			input: "n",
 			want:  0,
-		},
+		})
 	}
 
 	for _, tt := range tests {
