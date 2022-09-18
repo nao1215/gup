@@ -34,7 +34,7 @@ func Test_remove(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "no use",
+			gobin: "no_use",
 			want:  1,
 			stderr: []string{
 				"gup:ERROR: no command name specified",
@@ -302,7 +302,7 @@ func Test_removeLoop(t *testing.T) {
 				t.Errorf("removeLoop() = %v, want %v", got, tt.want)
 			}
 
-			if tt.name == "delete cancel" && !file.IsFile("./testdata/delete/posixer") {
+			if tt.name == "delete cancel" && !file.IsFile("testdata/delete/posixer") {
 				t.Errorf("input no, however posixer command is deleted")
 			}
 		})

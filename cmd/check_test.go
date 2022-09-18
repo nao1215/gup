@@ -29,7 +29,7 @@ func Test_check(t *testing.T) {
 	}{
 		{
 			name:   "not go install command in $GOBIN",
-			gobin:  "./testdata/check_fail",
+			gobin:  filepath.Join("testdata", "check_fail"),
 			args:   args{},
 			want:   1,
 			stdout: []string{},
@@ -62,7 +62,7 @@ func Test_check(t *testing.T) {
 			stdout []string
 		}{
 			name:  "detect old version command",
-			gobin: "./testdata/check_success",
+			gobin: filepath.Join("testdata", "check_success"),
 			args:  args{},
 			want:  0,
 			stdout: []string{
@@ -185,7 +185,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 	}{
 		{
 			name:  "gobin is empty",
-			gobin: "./testdata/empty_dir",
+			gobin: filepath.Join("testdata", "empty_dir"),
 			args:  args{},
 			want:  1,
 			stderr: []string{
@@ -231,7 +231,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 		})
 	}
 
-	if err := os.Mkdir("./testdata/empty_dir", 0755); err != nil {
+	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -277,7 +277,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 		})
 	}
 
-	err := os.Remove("./testdata/empty_dir")
+	err := os.Remove(filepath.Join("testdata", "empty_dir"))
 	if err != nil {
 		t.Fatal(err)
 	}

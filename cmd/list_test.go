@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -77,7 +78,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 	}{
 		{
 			name:  "gobin is empty",
-			gobin: "./testdata/empty_dir",
+			gobin: filepath.Join("testdata", "empty_dir"),
 			args:  args{},
 			want:  1,
 			stderr: []string{
@@ -122,7 +123,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		})
 	}
 
-	if err := os.Mkdir("./testdata/empty_dir", 0755); err != nil {
+	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -168,7 +169,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		})
 	}
 
-	err := os.Remove("./testdata/empty_dir")
+	err := os.Remove(filepath.Join("testdata", "empty_dir"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
@@ -126,7 +127,7 @@ func Test_export(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "testdata/text",
+			gobin: filepath.Join("testdata", "text"),
 			want:  1,
 			stderr: []string{
 				"gup:WARN : can't get 'dummy.txt'package path information. old go version binary",
@@ -150,7 +151,7 @@ func Test_export(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "testdata/dummy",
+			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
 				"gup:ERROR: can't get binary-paths installed by 'go install': open testdata/dummy: The system cannot find the file specified.",
@@ -171,7 +172,7 @@ func Test_export(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "testdata/dummy",
+			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
 				"gup:ERROR: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
@@ -194,7 +195,7 @@ func Test_export(t *testing.T) {
 
 			if tt.name == "can not make .config directory" {
 				oldHome := os.Getenv("HOME")
-				if err := os.Setenv("HOME", "/root"); err != nil {
+				if err := os.Setenv("HOME", filepath.Join("/", "root")); err != nil {
 					t.Fatal(err)
 				}
 				defer func() {
@@ -233,7 +234,7 @@ func Test_export(t *testing.T) {
 					t.Errorf("value is mismatch (-want +got):\n%s", diff)
 				}
 			} else {
-				if file.IsFile("/.config") {
+				if file.IsFile(filepath.Join("/", ".config")) {
 					t.Errorf("permissions are incomplete because '/.config' was created")
 				}
 			}

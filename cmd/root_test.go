@@ -167,12 +167,12 @@ func TestExecute_List(t *testing.T) {
 			args   []string
 			stdout []string
 		}{
-			name:  "success",
+			name:  "check success in windows",
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
-				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
-				"posixer: github.com/nao1215/posixer@v0.1.0",
+				"    gal.exe: github.com/nao1215/gal/cmd/gal@v1.1.1",
+				"posixer.exe: github.com/nao1215/posixer@v0.1.0",
 			},
 		})
 	} else {
@@ -182,7 +182,7 @@ func TestExecute_List(t *testing.T) {
 			args   []string
 			stdout []string
 		}{
-			name:  "success",
+			name:  "check success in nix family",
 			gobin: filepath.Join("testdata", "check_success"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
@@ -256,13 +256,13 @@ func TestExecute_Remove_Force(t *testing.T) {
 	}{
 		{
 			name:   "success",
-			gobin:  "./testdata/delete",
+			gobin:  filepath.Join("testdata", "delete"),
 			args:   []string{"gup", "remove", "-f", "posixer"},
 			stdout: []string{},
 		},
 	}
 
-	if err := os.MkdirAll("./testdata/delete", 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -312,12 +312,12 @@ func TestExecute_Remove_Force(t *testing.T) {
 			Execute()
 		})
 
-		if file.IsFile("./testdata/delete/posixer") {
+		if file.IsFile(filepath.Join(dest)) {
 			t.Errorf("failed to remove posixer command")
 		}
 	}
 
-	err = os.RemoveAll("./testdata/delete")
+	err = os.RemoveAll(filepath.Join("testdata", "delete"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,17 +325,41 @@ func TestExecute_Remove_Force(t *testing.T) {
 
 func TestExecute_Export(t *testing.T) {
 	tests := []struct {
-		name   string
-		gobin  string
-		args   []string
-		stdout []string
-	}{
-		{
-			name:   "success",
-			gobin:  "./testdata/check_success",
-			args:   []string{"gup", "export"},
-			stdout: []string{},
-		},
+		name  string
+		gobin string
+		args  []string
+		want  string
+	}{}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name  string
+			gobin string
+			args  []string
+			want  string
+		}{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
+			args:  []string{"gup", "export"},
+			want: `gal.exe = github.com/nao1215/gal/cmd/gal
+posixer.exe = github.com/nao1215/posixer
+`,
+		})
+	} else {
+		tests = append(tests, struct {
+			name  string
+			gobin string
+			args  []string
+			want  string
+		}{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success"),
+			args:  []string{"gup", "export"},
+			want: `gal = github.com/nao1215/gal/cmd/gal
+posixer = github.com/nao1215/posixer
+subaru = github.com/nao1215/subaru
+`,
+		})
 	}
 
 	for _, tt := range tests {
@@ -384,12 +408,8 @@ func TestExecute_Export(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		want := `gal = github.com/nao1215/gal/cmd/gal
-posixer = github.com/nao1215/posixer
-subaru = github.com/nao1215/subaru
-`
-		if string(got) != want {
-			t.Errorf("mismatch: want=%s, got=%s", want, string(got))
+		if string(got) != tt.want {
+			t.Errorf("mismatch: want=%s, got=%s", tt.want, string(got))
 		}
 	}
 }
@@ -401,7 +421,7 @@ func TestExecute_Import(t *testing.T) {
 	}()
 
 	oldHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", "./testdata"); err != nil {
+	if err := os.Setenv("HOME", "testdata"); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -425,17 +445,6 @@ func TestExecute_Import(t *testing.T) {
 		}()
 	}
 
-	if file.IsFile(filepath.Join(gobin, "subaru")) {
-		if err := os.Rename(filepath.Join(gobin, "subaru"), filepath.Join(gobin, "subaru")+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "subaru")+".backup", filepath.Join(gobin, "subaru")); err != nil {
-				t.Fatal(err)
-			}
-		}()
-	}
-
 	if file.IsFile(filepath.Join(gobin, "gal")) {
 		if err := os.Rename(filepath.Join(gobin, "gal"), filepath.Join(gobin, "gal")+".backup"); err != nil {
 			t.Fatal(err)
@@ -448,40 +457,40 @@ func TestExecute_Import(t *testing.T) {
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	os.Args = []string{"gup", "import"}
 	Execute()
 
-	if !file.IsFile("./testdata/.zsh/completion/_gup") {
-		t.Errorf("not install .zsh/completion/_gup")
+	if !file.IsFile(filepath.Join("testdata", ".zsh", "completion", "_gup")) {
+		t.Errorf("not install " + filepath.Join("testdata", ".zsh", "completion", "_gup"))
 	}
 
-	if !file.IsFile("./testdata/.config/fish/completions/gup.fish") {
-		t.Errorf("not install .config/fish/completions/gup.fish")
+	if !file.IsFile(filepath.Join("testdata", ".config", "fish", "completions", "gup.fish")) {
+		t.Errorf("not install " + filepath.Join("testdata", ".config", "fish", "completions", "gup.fish"))
 	}
 
-	if !file.IsFile("./testdata/.bash_completion") {
+	if !file.IsFile(filepath.Join("testdata", ".bash_completion")) {
+		t.Errorf("not install " + filepath.Join("testdata", ".bash_completion"))
+	}
+
+	if !file.IsFile("testdata/.zshrc") {
 		t.Errorf("not install .bash_completion")
 	}
 
-	if !file.IsFile("./testdata/.zshrc") {
-		t.Errorf("not install .bash_completion")
+	if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "information.png")) {
+		t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "information.png"))
 	}
 
-	if !file.IsFile("./testdata/.config/gup/assets/information.png") {
-		t.Errorf("not install .config/gup/assets/information.png")
-	}
-
-	if !file.IsFile("./testdata/.config/gup/assets/warning.png") {
-		t.Errorf("not install .config/gup/assets/warning.png")
+	if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "warning.png")) {
+		t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
 	}
 
 	/*
@@ -526,13 +535,22 @@ func TestExecute_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		in, err := os.Open("./testdata/check_success/gal")
+		targetPath := ""
+		binName := ""
+		if runtime.GOOS == "windows" {
+			binName = "gal.exe"
+			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+		} else {
+			binName = "gal"
+			targetPath = filepath.Join("testdata", "check_success", binName)
+		}
+		in, err := os.Open(targetPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(filepath.Join(gobin, "gal"))
+		out, err := os.Create(filepath.Join(gobin, binName))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -543,19 +561,19 @@ func TestExecute_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	orgStdout := print.Stdout
@@ -619,13 +637,22 @@ func TestExecute_Update_DryRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		in, err := os.Open("./testdata/check_success/gal")
+		targetPath := ""
+		binName := ""
+		if runtime.GOOS == "windows" {
+			binName = "gal.exe"
+			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+		} else {
+			binName = "gal"
+			targetPath = filepath.Join("testdata", "check_success", binName)
+		}
+		in, err := os.Open(targetPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(filepath.Join(gobin, "gal"))
+		out, err := os.Create(filepath.Join(gobin, binName))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -636,19 +663,19 @@ func TestExecute_Update_DryRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	orgStdout := print.Stdout
