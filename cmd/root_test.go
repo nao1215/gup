@@ -138,35 +138,28 @@ func TestExecute_Version(t *testing.T) {
 }
 
 func TestExecute_List(t *testing.T) {
-	tests := []struct {
+	type test struct {
 		name   string
 		gobin  string
 		args   []string
 		stdout []string
-	}{}
+		want   int
+	}
+	tests := []test{}
 
 	if runtime.GOOS == "windows" {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   []string
-			stdout []string
-		}{
+		tests = append(tests, test{
 			name:  "check success in windows",
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
-				"    gal.exe: github.com/nao1215/gal/cmd/gal@v1.1.1",
-				"posixer.exe: github.com/nao1215/posixer@v0.1.0",
+				"github.com/nao1215/gal/cmd/gal",
+				"github.com/nao1215/posixer",
 			},
+			want: 2,
 		})
 	} else {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   []string
-			stdout []string
-		}{
+		tests = append(tests, test{
 			name:  "check success in nix family",
 			gobin: filepath.Join("testdata", "check_success"),
 			args:  []string{"gup", "list"},
@@ -175,6 +168,7 @@ func TestExecute_List(t *testing.T) {
 				"posixer: github.com/nao1215/posixer@v0.1.0",
 				" subaru: github.com/nao1215/subaru@v1.0.0",
 			},
+			want: 3,
 		})
 	}
 	for _, tt := range tests {
@@ -221,13 +215,13 @@ func TestExecute_List(t *testing.T) {
 		count := 0
 		for _, g := range got {
 			for _, w := range tt.stdout {
-				if g == w {
+				if strings.Contains(g, w) {
 					count++
 				}
 			}
 		}
-		if count != 3 {
-			t.Errorf("value is mismatch. want=3 got=%d", count)
+		if count != tt.want {
+			t.Errorf("value is mismatch. want=%d got=%d", tt.want, count)
 		}
 	}
 }
