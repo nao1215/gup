@@ -169,16 +169,6 @@ func Test_check_gobin_is_empty(t *testing.T) {
 				"",
 			},
 		},
-		{
-			name:  "$GOBIN is empty",
-			gobin: "no_exist_dir",
-			args:  args{},
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
-				"",
-			},
-		},
 	}
 
 	if runtime.GOOS == "windows" {

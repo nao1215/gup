@@ -71,7 +71,7 @@ func Test_remove(t *testing.T) {
 			gobin: "not_exist",
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: no such file or directory: not_exist\test",
+				`gup:ERROR: no such file or directory: not_exist\test`,
 				"",
 			},
 		})
