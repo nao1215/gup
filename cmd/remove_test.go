@@ -321,7 +321,7 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 		tmpFile, e = os.CreateTemp(t.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
 	} else {
 		// See https://github.com/golang/go/issues/51442
-		tmpFile, err = os.CreateTemp(os.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
+		tmpFile, e = os.CreateTemp(os.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
 	}
 	if e != nil {
 		return nil, e
