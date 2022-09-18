@@ -250,12 +250,22 @@ func Test_removeLoop(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			newFile, err := os.Create("./testdata/delete/posixer")
+			src := ""
+			dest := ""
+			if runtime.GOOS == "windows" {
+				src = "./testdata/check_success_for_windows/posixer.exe"
+				dest = "./testdata/delete/posixer.exe"
+			} else {
+				src = "./testdata/check_success/posixer"
+				dest = "./testdata/delete/posixer"
+
+			}
+			newFile, err := os.Create(dest)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			oldFile, err := os.Open("./testdata/check_success/posixer")
+			oldFile, err := os.Open(src)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -265,7 +275,7 @@ func Test_removeLoop(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() {
-				os.Remove("./testdata/delete/posixer")
+				os.Remove(dest)
 			}()
 
 			funcDefer, err := mockStdin(t, tt.input)
