@@ -5,6 +5,7 @@ import (
 	"go/build"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -215,7 +216,7 @@ func Test_removeLoop(t *testing.T) {
 		{
 			name: "windows environment and suffix is mismatch",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
@@ -225,7 +226,7 @@ func Test_removeLoop(t *testing.T) {
 		{
 			name: "interactive question: input 'y'",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
@@ -235,7 +236,7 @@ func Test_removeLoop(t *testing.T) {
 		{
 			name: "delete cancel",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
@@ -246,19 +247,18 @@ func Test_removeLoop(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := os.MkdirAll("./testdata/delete", 0755); err != nil {
+			if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
 				t.Fatal(err)
 			}
 
 			src := ""
 			dest := ""
 			if runtime.GOOS == "windows" {
-				src = "./testdata/check_success_for_windows/posixer.exe"
-				dest = "./testdata/delete/posixer.exe"
+				src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
+				dest = filepath.Join("testdata", "delete", "posixer.exe")
 			} else {
-				src = "./testdata/check_success/posixer"
-				dest = "./testdata/delete/posixer"
-
+				src = filepath.Join("testdata", "check_success", "posixer")
+				dest = filepath.Join("testdata", "delete", "posixer")
 			}
 			newFile, err := os.Create(dest)
 			if err != nil {

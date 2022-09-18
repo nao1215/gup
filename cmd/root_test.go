@@ -55,9 +55,9 @@ func TestExecute_Check(t *testing.T) {
 
 		gobinDir := ""
 		if runtime.GOOS == "windows" {
-			gobinDir = "./testdata/check_success_for_windows"
+			gobinDir = filepath.Join("testdata", "check_success_for_windows")
 		} else {
-			gobinDir = "./testdata/check_success"
+			gobinDir = filepath.Join("testdata", "check_success")
 		}
 
 		oldGoBin := os.Getenv("GOBIN")
@@ -168,7 +168,7 @@ func TestExecute_List(t *testing.T) {
 			stdout []string
 		}{
 			name:  "success",
-			gobin: "./testdata/check_success_for_windows",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
 				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
@@ -183,7 +183,7 @@ func TestExecute_List(t *testing.T) {
 			stdout []string
 		}{
 			name:  "success",
-			gobin: "./testdata/check_success",
+			gobin: filepath.Join("testdata", "check_success"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
 				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
@@ -269,11 +269,11 @@ func TestExecute_Remove_Force(t *testing.T) {
 	src := ""
 	dest := ""
 	if runtime.GOOS == "windows" {
-		src = "./testdata/check_success_for_windows/posixer.exe"
-		dest = "./testdata/delete/posixer.exe"
+		src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
+		dest = filepath.Join("testdata", "delete", "posixer.exe")
 	} else {
-		src = "./testdata/check_success/posixer"
-		dest = "./testdata/delete/posixer"
+		src = filepath.Join("testdata", "check_success", "posixer")
+		dest = filepath.Join("testdata", "delete", "posixer")
 	}
 
 	newFile, err := os.Create(dest)

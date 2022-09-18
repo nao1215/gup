@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -44,7 +45,7 @@ func Test_check(t *testing.T) {
 			stdout []string
 		}{
 			name:  "detect old version command",
-			gobin: "./testdata/check_success_for_windows",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
 			args:  args{},
 			want:  0,
 			stdout: []string{
