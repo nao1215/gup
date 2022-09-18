@@ -283,6 +283,8 @@ func TestExecute_Remove_Force(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	oldFile.Close()
+	newFile.Close()
 
 	for _, tt := range tests {
 		oldGoBin := os.Getenv("GOBIN")

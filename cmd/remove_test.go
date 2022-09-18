@@ -304,6 +304,8 @@ func Test_removeLoop(t *testing.T) {
 			defer func() {
 				os.Remove(dest)
 			}()
+			oldFile.Close()
+			newFile.Close()
 
 			funcDefer, err := mockStdin(t, tt.input)
 			if err != nil {
