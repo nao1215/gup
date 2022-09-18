@@ -21,55 +21,17 @@ func Test_check(t *testing.T) {
 		args []string
 	}
 	tests := []struct {
-		name   string
-		gobin  string
-		args   args
-		want   int
-		stdout []string
+		name  string
+		gobin string
+		args  args
+		want  int
 	}{
 		{
-			name:   "not go install command in $GOBIN",
-			gobin:  filepath.Join("testdata", "check_fail"),
-			args:   args{},
-			want:   1,
-			stdout: []string{},
+			name:  "not go install command in $GOBIN",
+			gobin: filepath.Join("testdata", "check_fail"),
+			args:  args{},
+			want:  1,
 		},
-	}
-
-	if runtime.GOOS == "windows" {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stdout []string
-		}{
-			name:  "detect old version command",
-			gobin: filepath.Join("testdata", "check_success_for_windows"),
-			args:  args{},
-			want:  0,
-			stdout: []string{
-				"           $ gup update gal posixer ",
-				"",
-			},
-		})
-	} else {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stdout []string
-		}{
-			name:  "detect old version command",
-			gobin: filepath.Join("testdata", "check_success"),
-			args:  args{},
-			want:  0,
-			stdout: []string{
-				"           $ gup update subaru gal posixer ",
-				"",
-			},
-		})
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -40,71 +40,56 @@ func TestExecute(t *testing.T) {
 }
 
 func TestExecute_Check(t *testing.T) {
-	tests := []struct {
-		name   string
-		args   []string
-		stdout []string
-	}{
-		{
-			name:   "success",
-			args:   []string{"gup", "check"},
-			stdout: []string{"", ""},
-		},
+	gobinDir := ""
+	if runtime.GOOS == "windows" {
+		gobinDir = filepath.Join("testdata", "check_success_for_windows")
+	} else {
+		gobinDir = filepath.Join("testdata", "check_success")
 	}
-	for _, tt := range tests {
 
-		gobinDir := ""
-		if runtime.GOOS == "windows" {
-			gobinDir = filepath.Join("testdata", "check_success_for_windows")
-		} else {
-			gobinDir = filepath.Join("testdata", "check_success")
-		}
-
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", gobinDir); err != nil {
+	oldGoBin := os.Getenv("GOBIN")
+	if err := os.Setenv("GOBIN", gobinDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Setenv("GOBIN", oldGoBin); err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+	}()
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
 
-		OsExit = func(code int) {}
-		defer func() {
-			OsExit = os.Exit
-		}()
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
 
-		os.Args = tt.args
+	os.Args = []string{"gup", "check"}
+	Execute()
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
 
-		Execute()
-		pw.Close()
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer pr.Close()
+	got := strings.Split(buf.String(), "\n")
 
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
-
-		if !strings.Contains(got[len(got)-2], "posixer") {
-			t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
-		}
-		if !strings.Contains(got[len(got)-2], "gal") {
-			t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
-		}
+	if !strings.Contains(got[len(got)-2], "posixer") {
+		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
+	}
+	if !strings.Contains(got[len(got)-2], "gal") {
+		t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
 	}
 }
 
