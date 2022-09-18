@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -51,8 +52,16 @@ func TestExecute_Check(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+
+		gobinDir := ""
+		if runtime.GOOS == "windows" {
+			gobinDir = "./testdata/check_success_for_windows"
+		} else {
+			gobinDir = "./testdata/check_success"
+		}
+
 		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", "./testdata/check_success"); err != nil {
+		if err := os.Setenv("GOBIN", gobinDir); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
@@ -90,9 +99,6 @@ func TestExecute_Check(t *testing.T) {
 		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
-		if !strings.Contains(got[len(got)-2], "subaru") {
-			t.Errorf("subaru package is not included in the update target: %s", got[len(got)-2])
-		}
 		if !strings.Contains(got[len(got)-2], "posixer") {
 			t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
 		}
@@ -152,8 +158,30 @@ func TestExecute_List(t *testing.T) {
 		gobin  string
 		args   []string
 		stdout []string
-	}{
-		{
+	}{}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name   string
+			gobin  string
+			args   []string
+			stdout []string
+		}{
+			name:  "success",
+			gobin: "./testdata/check_success_for_windows",
+			args:  []string{"gup", "list"},
+			stdout: []string{
+				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
+				"posixer: github.com/nao1215/posixer@v0.1.0",
+			},
+		})
+	} else {
+		tests = append(tests, struct {
+			name   string
+			gobin  string
+			args   []string
+			stdout []string
+		}{
 			name:  "success",
 			gobin: "./testdata/check_success",
 			args:  []string{"gup", "list"},
@@ -162,7 +190,7 @@ func TestExecute_List(t *testing.T) {
 				"posixer: github.com/nao1215/posixer@v0.1.0",
 				" subaru: github.com/nao1215/subaru@v1.0.0",
 			},
-		},
+		})
 	}
 	for _, tt := range tests {
 		oldGoBin := os.Getenv("GOBIN")
@@ -238,12 +266,22 @@ func TestExecute_Remove_Force(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newFile, err := os.Create("./testdata/delete/posixer")
+	src := ""
+	dest := ""
+	if runtime.GOOS == "windows" {
+		src = "./testdata/check_success_for_windows/posixer.exe"
+		dest = "./testdata/delete/posixer.exe"
+	} else {
+		src = "./testdata/check_success/posixer"
+		dest = "./testdata/delete/posixer"
+	}
+
+	newFile, err := os.Create(dest)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	oldFile, err := os.Open("./testdata/check_success/posixer")
+	oldFile, err := os.Open(src)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +317,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 		}
 	}
 
-	err = os.Remove("./testdata/delete")
+	err = os.RemoveAll("./testdata/delete")
 	if err != nil {
 		t.Fatal(err)
 	}
