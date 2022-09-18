@@ -146,7 +146,8 @@ func ExampleInstall() {
 	// Install installs an executable from a Go package.
 	err := goutil.Install("example.com/unknown_user/unknown_package")
 
-	// If the package is not found or invalid, Install returns an error
+	// If the package is not found or invalid, Install returns an error.
+	// In this case it should be an error.
 	if err == nil {
 		log.Fatal("example Install failed. non existing/invalid package should return error")
 	}
