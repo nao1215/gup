@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -293,10 +294,16 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	t.Helper()
 
 	oldOsStdin := os.Stdin
-	tmpFile, err := os.CreateTemp(t.TempDir(), "morrigan_")
-
-	if err != nil {
-		return nil, err
+	var tmpFile *os.File
+	var e error
+	if runtime.GOOS != "windows" {
+		tmpFile, e = os.CreateTemp(t.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
+	} else {
+		// See https://github.com/golang/go/issues/51442
+		tmpFile, e = os.CreateTemp(os.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
+	}
+	if e != nil {
+		return nil, e
 	}
 
 	content := []byte(dummyInput)

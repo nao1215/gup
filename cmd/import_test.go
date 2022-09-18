@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ func Test_runImport(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			home: "./testdata/empty_conf",
+			home: filepath.Join("testdata", "empty_conf"),
 			want: 1,
 		},
 		{
@@ -51,7 +52,7 @@ func Test_runImport(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			home: "./testdata/can_not_read_conf",
+			home: filepath.Join("testdata", "can_not_read_conf"),
 			want: 1,
 		},
 	}

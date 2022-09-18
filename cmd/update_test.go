@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -178,10 +179,15 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
-		want := []string{
-			`gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`,
-			"",
+		want := []string{}
+		if runtime.GOOS == "windows" {
+			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
+			want = append(want, "")
+		} else {
+			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`)
+			want = append(want, "")
 		}
+
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
 		}

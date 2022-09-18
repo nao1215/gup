@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -39,66 +40,56 @@ func TestExecute(t *testing.T) {
 }
 
 func TestExecute_Check(t *testing.T) {
-	tests := []struct {
-		name   string
-		args   []string
-		stdout []string
-	}{
-		{
-			name:   "success",
-			args:   []string{"gup", "check"},
-			stdout: []string{"", ""},
-		},
+	gobinDir := ""
+	if runtime.GOOS == "windows" {
+		gobinDir = filepath.Join("testdata", "check_success_for_windows")
+	} else {
+		gobinDir = filepath.Join("testdata", "check_success")
 	}
-	for _, tt := range tests {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", "./testdata/check_success"); err != nil {
+
+	oldGoBin := os.Getenv("GOBIN")
+	if err := os.Setenv("GOBIN", gobinDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Setenv("GOBIN", oldGoBin); err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+	}()
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
 
-		OsExit = func(code int) {}
-		defer func() {
-			OsExit = os.Exit
-		}()
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
 
-		os.Args = tt.args
+	os.Args = []string{"gup", "check"}
+	Execute()
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
 
-		Execute()
-		pw.Close()
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer pr.Close()
+	got := strings.Split(buf.String(), "\n")
 
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
-
-		if !strings.Contains(got[len(got)-2], "subaru") {
-			t.Errorf("subaru package is not included in the update target: %s", got[len(got)-2])
-		}
-		if !strings.Contains(got[len(got)-2], "posixer") {
-			t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
-		}
-		if !strings.Contains(got[len(got)-2], "gal") {
-			t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
-		}
+	if !strings.Contains(got[len(got)-2], "posixer") {
+		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
+	}
+	if !strings.Contains(got[len(got)-2], "gal") {
+		t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
 	}
 }
 
@@ -147,22 +138,38 @@ func TestExecute_Version(t *testing.T) {
 }
 
 func TestExecute_List(t *testing.T) {
-	tests := []struct {
+	type test struct {
 		name   string
 		gobin  string
 		args   []string
 		stdout []string
-	}{
-		{
-			name:  "success",
-			gobin: "./testdata/check_success",
+		want   int
+	}
+	tests := []test{}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
+			name:  "check success in windows",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
+			args:  []string{"gup", "list"},
+			stdout: []string{
+				"github.com/nao1215/gal/cmd/gal",
+				"github.com/nao1215/posixer",
+			},
+			want: 2,
+		})
+	} else {
+		tests = append(tests, test{
+			name:  "check success in nix family",
+			gobin: filepath.Join("testdata", "check_success"),
 			args:  []string{"gup", "list"},
 			stdout: []string{
 				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
 				"posixer: github.com/nao1215/posixer@v0.1.0",
 				" subaru: github.com/nao1215/subaru@v1.0.0",
 			},
-		},
+			want: 3,
+		})
 	}
 	for _, tt := range tests {
 		oldGoBin := os.Getenv("GOBIN")
@@ -208,42 +215,72 @@ func TestExecute_List(t *testing.T) {
 		count := 0
 		for _, g := range got {
 			for _, w := range tt.stdout {
-				if g == w {
+				if strings.Contains(g, w) {
 					count++
 				}
 			}
 		}
-		if count != 3 {
-			t.Errorf("value is mismatch. want=3 got=%d", count)
+		if count != tt.want {
+			t.Errorf("value is mismatch. want=%d got=%d", tt.want, count)
 		}
 	}
 }
 
 func TestExecute_Remove_Force(t *testing.T) {
-	tests := []struct {
+	type test struct {
 		name   string
 		gobin  string
 		args   []string
 		stdout []string
-	}{
-		{
+	}
+	tests := []test{}
+
+	src := ""
+	dest := ""
+	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
 			name:   "success",
-			gobin:  "./testdata/delete",
+			gobin:  filepath.Join("testdata", "delete_force"),
+			args:   []string{"gup", "remove", "-f", "posixer.exe"},
+			stdout: []string{},
+		})
+		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			err := os.RemoveAll(filepath.Join("testdata", "delete_force"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+		src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
+		dest = filepath.Join("testdata", "delete_force", "posixer.exe")
+	} else {
+		tests = append(tests, test{
+			name:   "success",
+			gobin:  filepath.Join("testdata", "delete"),
 			args:   []string{"gup", "remove", "-f", "posixer"},
 			stdout: []string{},
-		},
+		})
+		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			err := os.RemoveAll(filepath.Join("testdata", "delete"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
+		src = filepath.Join("testdata", "check_success", "posixer")
+		dest = filepath.Join("testdata", "delete", "posixer")
 	}
 
-	if err := os.MkdirAll("./testdata/delete", 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	newFile, err := os.Create("./testdata/delete/posixer")
+	newFile, err := os.Create(dest)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	oldFile, err := os.Open("./testdata/check_success/posixer")
+	oldFile, err := os.Open(src)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,6 +289,8 @@ func TestExecute_Remove_Force(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	oldFile.Close()
+	newFile.Close()
 
 	for _, tt := range tests {
 		oldGoBin := os.Getenv("GOBIN")
@@ -274,30 +313,49 @@ func TestExecute_Remove_Force(t *testing.T) {
 			Execute()
 		})
 
-		if file.IsFile("./testdata/delete/posixer") {
+		if file.IsFile(filepath.Join(dest)) {
 			t.Errorf("failed to remove posixer command")
 		}
-	}
-
-	err = os.Remove("./testdata/delete")
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 
 func TestExecute_Export(t *testing.T) {
 	tests := []struct {
-		name   string
-		gobin  string
-		args   []string
-		stdout []string
-	}{
-		{
-			name:   "success",
-			gobin:  "./testdata/check_success",
-			args:   []string{"gup", "export"},
-			stdout: []string{},
-		},
+		name  string
+		gobin string
+		args  []string
+		want  string
+	}{}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name  string
+			gobin string
+			args  []string
+			want  string
+		}{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
+			args:  []string{"gup", "export"},
+			want: `gal.exe = github.com/nao1215/gal/cmd/gal
+posixer.exe = github.com/nao1215/posixer
+`,
+		})
+	} else {
+		tests = append(tests, struct {
+			name  string
+			gobin string
+			args  []string
+			want  string
+		}{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success"),
+			args:  []string{"gup", "export"},
+			want: `gal = github.com/nao1215/gal/cmd/gal
+posixer = github.com/nao1215/posixer
+subaru = github.com/nao1215/subaru
+`,
+		})
 	}
 
 	for _, tt := range tests {
@@ -346,12 +404,8 @@ func TestExecute_Export(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		want := `gal = github.com/nao1215/gal/cmd/gal
-posixer = github.com/nao1215/posixer
-subaru = github.com/nao1215/subaru
-`
-		if string(got) != want {
-			t.Errorf("mismatch: want=%s, got=%s", want, string(got))
+		if string(got) != tt.want {
+			t.Errorf("mismatch: want=%s, got=%s", tt.want, string(got))
 		}
 	}
 }
@@ -363,7 +417,7 @@ func TestExecute_Import(t *testing.T) {
 	}()
 
 	oldHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", "./testdata"); err != nil {
+	if err := os.Setenv("HOME", "testdata"); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -387,78 +441,55 @@ func TestExecute_Import(t *testing.T) {
 		}()
 	}
 
-	if file.IsFile(filepath.Join(gobin, "subaru")) {
-		if err := os.Rename(filepath.Join(gobin, "subaru"), filepath.Join(gobin, "subaru")+".backup"); err != nil {
+	if file.IsFile(filepath.Join(gobin, "posixer")) {
+		if err := os.Rename(filepath.Join(gobin, "posixer"), filepath.Join(gobin, "posixer")+".backup"); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "subaru")+".backup", filepath.Join(gobin, "subaru")); err != nil {
-				t.Fatal(err)
-			}
-		}()
-	}
-
-	if file.IsFile(filepath.Join(gobin, "gal")) {
-		if err := os.Rename(filepath.Join(gobin, "gal"), filepath.Join(gobin, "gal")+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "gal")+".backup", filepath.Join(gobin, "gal")); err != nil {
+			if err := os.Rename(filepath.Join(gobin, "posixer")+".backup", filepath.Join(gobin, "posixer")); err != nil {
 				t.Fatal(err)
 			}
 		}()
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	os.Args = []string{"gup", "import"}
 	Execute()
 
-	if !file.IsFile("./testdata/.zsh/completion/_gup") {
-		t.Errorf("not install .zsh/completion/_gup")
-	}
-
-	if !file.IsFile("./testdata/.config/fish/completions/gup.fish") {
-		t.Errorf("not install .config/fish/completions/gup.fish")
-	}
-
-	if !file.IsFile("./testdata/.bash_completion") {
-		t.Errorf("not install .bash_completion")
-	}
-
-	if !file.IsFile("./testdata/.zshrc") {
-		t.Errorf("not install .bash_completion")
-	}
-
-	if !file.IsFile("./testdata/.config/gup/assets/information.png") {
-		t.Errorf("not install .config/gup/assets/information.png")
-	}
-
-	if !file.IsFile("./testdata/.config/gup/assets/warning.png") {
-		t.Errorf("not install .config/gup/assets/warning.png")
-	}
-
-	/*
-		if !file.IsFile(filepath.Join(gobin, "gal")) {
-			t.Errorf("not import gal command: %s", filepath.Join(gobin, "gal"))
+	if runtime.GOOS != "windows" {
+		if !file.IsFile(filepath.Join("testdata", ".zsh", "completion", "_gup")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".zsh", "completion", "_gup"))
 		}
 
-		if !file.IsFile(filepath.Join(gobin, "posixer")) {
-			t.Errorf("not import posixer command: %s", filepath.Join(gobin, "posixer"))
+		if !file.IsFile(filepath.Join("testdata", ".config", "fish", "completions", "gup.fish")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "fish", "completions", "gup.fish"))
 		}
 
-		if !file.IsFile(filepath.Join(gobin, "subaru")) {
-			t.Errorf("not import subaru command: %s", filepath.Join(gobin, "subaru"))
+		if !file.IsFile(filepath.Join("testdata", ".bash_completion")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".bash_completion"))
 		}
-	*/
+
+		if !file.IsFile("testdata/.zshrc") {
+			t.Errorf("not install .bash_completion")
+		}
+
+		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "information.png")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "information.png"))
+		}
+
+		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "warning.png")) {
+			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
+		}
+	}
 }
 
 func TestExecute_Update(t *testing.T) {
@@ -488,36 +519,46 @@ func TestExecute_Update(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		in, err := os.Open("./testdata/check_success/gal")
+		targetPath := ""
+		binName := ""
+		if runtime.GOOS == "windows" {
+			binName = "gal.exe"
+			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+		} else {
+			binName = "gal"
+			targetPath = filepath.Join("testdata", "check_success", binName)
+		}
+		in, err := os.Open(targetPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(filepath.Join(gobin, "gal"))
+		out, err := os.Create(filepath.Join(gobin, binName))
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer out.Close()
 
 		_, err = io.Copy(out, in)
 		if err != nil {
 			t.Fatal(err)
 		}
+		in.Close()
+		out.Close()
 
-		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	orgStdout := print.Stdout
@@ -581,13 +622,22 @@ func TestExecute_Update_DryRun(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		in, err := os.Open("./testdata/check_success/gal")
+		targetPath := ""
+		binName := ""
+		if runtime.GOOS == "windows" {
+			binName = "posixer.exe"
+			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+		} else {
+			binName = "posixer"
+			targetPath = filepath.Join("testdata", "check_success", binName)
+		}
+		in, err := os.Open(targetPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer in.Close()
 
-		out, err := os.Create(filepath.Join(gobin, "gal"))
+		out, err := os.Create(filepath.Join(gobin, binName))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -597,20 +647,22 @@ func TestExecute_Update_DryRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		in.Close()
+		out.Close()
 
-		if err = os.Chmod(filepath.Join(gobin, "gal"), 0777); err != nil {
+		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	defer func() {
-		os.RemoveAll("./testdata/.config/fish")
-		os.RemoveAll("./testdata/.zsh")
-		os.RemoveAll("./testdata/.zshrc")
-		os.RemoveAll("./testdata/.bash_completion")
-		os.RemoveAll("./testdata/.config/gup/assets")
-		os.RemoveAll("./testdata/go")
-		os.RemoveAll("./testdata/.cache")
+		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
+		os.RemoveAll(filepath.Join("testdata", ".zsh"))
+		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
+		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
+		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
+		os.RemoveAll(filepath.Join("testdata", "go"))
+		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
 	orgStdout := print.Stdout
@@ -638,11 +690,11 @@ func TestExecute_Update_DryRun(t *testing.T) {
 
 	contain := false
 	for _, v := range got {
-		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gal/cmd/gal") {
+		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/posixer") {
 			contain = true
 		}
 	}
 	if !contain {
-		t.Errorf("failed to update gal command")
+		t.Errorf("failed to update posixer command")
 	}
 }

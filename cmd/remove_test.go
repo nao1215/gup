@@ -5,6 +5,7 @@ import (
 	"go/build"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -33,23 +34,10 @@ func Test_remove(t *testing.T) {
 				cmd:  &cobra.Command{},
 				args: []string{},
 			},
-			gobin: "no use",
+			gobin: "no_use",
 			want:  1,
 			stderr: []string{
 				"gup:ERROR: no command name specified",
-				"",
-			},
-		},
-		{
-			name: "delete taget binary does not exist",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{"test"},
-			},
-			gobin: "not_exist",
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: no such file or directory: not_exist/test",
 				"",
 			},
 		},
@@ -67,6 +55,49 @@ func Test_remove(t *testing.T) {
 			},
 		},
 	}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				`gup:ERROR: no such file or directory: not_exist\test`,
+				"",
+			},
+		})
+	} else {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: no such file or directory: not_exist/test",
+				"",
+			},
+		})
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldGoBin := os.Getenv("GOBIN")
@@ -176,56 +207,92 @@ func Test_removeLoop(t *testing.T) {
 		force  bool
 		target []string
 	}
-	tests := []struct {
+
+	type test struct {
 		name  string
 		args  args
 		input string
 		want  int
-	}{
+	}
+
+	tests := []test{
 		{
 			name: "windows environment and suffix is mismatch",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
 			input: "y",
 			want:  1,
 		},
-		{
+	}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
 			name: "interactive question: input 'y'",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
+				force:  false,
+				target: []string{"posixer.exe"},
+			},
+			input: "y",
+			want:  0,
+		})
+		tests = append(tests, test{
+			name: "delete cancel",
+			args: args{
+				gobin:  filepath.Join("testdata", "delete"),
+				force:  false,
+				target: []string{"posixer.exe"},
+			},
+			input: "n",
+			want:  0,
+		})
+	} else {
+		tests = append(tests, test{
+			name: "interactive question: input 'y'",
+			args: args{
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
 			input: "y",
 			want:  0,
-		},
-		{
+		})
+		tests = append(tests, test{
 			name: "delete cancel",
 			args: args{
-				gobin:  "./testdata/delete",
+				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
 				target: []string{"posixer"},
 			},
 			input: "n",
 			want:  0,
-		},
+		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := os.MkdirAll("./testdata/delete", 0755); err != nil {
+			if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
 				t.Fatal(err)
 			}
 
-			newFile, err := os.Create("./testdata/delete/posixer")
+			src := ""
+			dest := ""
+			if runtime.GOOS == "windows" {
+				src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
+				dest = filepath.Join("testdata", "delete", "posixer.exe")
+			} else {
+				src = filepath.Join("testdata", "check_success", "posixer")
+				dest = filepath.Join("testdata", "delete", "posixer")
+			}
+			newFile, err := os.Create(dest)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			oldFile, err := os.Open("./testdata/check_success/posixer")
+			oldFile, err := os.Open(src)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -235,8 +302,10 @@ func Test_removeLoop(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() {
-				os.Remove("./testdata/delete/posixer")
+				os.Remove(dest)
 			}()
+			oldFile.Close()
+			newFile.Close()
 
 			funcDefer, err := mockStdin(t, tt.input)
 			if err != nil {
@@ -244,7 +313,7 @@ func Test_removeLoop(t *testing.T) {
 			}
 			defer funcDefer()
 
-			if tt.name == "windows environment and suffix is mismatch" {
+			if runtime.GOOS != "windows" && tt.name == "windows environment and suffix is mismatch" {
 				GOOS = "windows"
 				defer func() { GOOS = runtime.GOOS }()
 
@@ -262,7 +331,7 @@ func Test_removeLoop(t *testing.T) {
 				t.Errorf("removeLoop() = %v, want %v", got, tt.want)
 			}
 
-			if tt.name == "delete cancel" && !file.IsFile("./testdata/delete/posixer") {
+			if tt.name == "delete cancel" && !file.IsFile(dest) {
 				t.Errorf("input no, however posixer command is deleted")
 			}
 		})
@@ -275,10 +344,16 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	t.Helper()
 
 	oldOsStdin := os.Stdin
-	tmpFile, err := os.CreateTemp(t.TempDir(), "morrigan_")
-
-	if err != nil {
-		return nil, err
+	var tmpFile *os.File
+	var e error
+	if runtime.GOOS != "windows" {
+		tmpFile, e = os.CreateTemp(t.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
+	} else {
+		// See https://github.com/golang/go/issues/51442
+		tmpFile, e = os.CreateTemp(os.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
+	}
+	if e != nil {
+		return nil, e
 	}
 
 	content := []byte(dummyInput)
