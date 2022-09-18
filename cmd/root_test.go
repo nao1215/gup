@@ -241,7 +241,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 		tests = append(tests, test{
 			name:   "success",
 			gobin:  filepath.Join("testdata", "delete_force"),
-			args:   []string{"gup", "remove", "-f", "posixer"},
+			args:   []string{"gup", "remove", "-f", "posixer.exe"},
 			stdout: []string{},
 		})
 		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0755); err != nil {
