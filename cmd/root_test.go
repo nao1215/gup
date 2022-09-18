@@ -241,16 +241,30 @@ func TestExecute_Remove_Force(t *testing.T) {
 		},
 	}
 
-	if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
-		t.Fatal(err)
-	}
-
 	src := ""
 	dest := ""
 	if runtime.GOOS == "windows" {
+		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			err := os.RemoveAll(filepath.Join("testdata", "delete_force"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
 		src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
-		dest = filepath.Join("testdata", "delete", "posixer.exe")
+		dest = filepath.Join("testdata", "delete_force", "posixer.exe")
 	} else {
+		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			err := os.RemoveAll(filepath.Join("testdata", "delete"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
 		src = filepath.Join("testdata", "check_success", "posixer")
 		dest = filepath.Join("testdata", "delete", "posixer")
 	}
@@ -294,11 +308,6 @@ func TestExecute_Remove_Force(t *testing.T) {
 		if file.IsFile(filepath.Join(dest)) {
 			t.Errorf("failed to remove posixer command")
 		}
-	}
-
-	err = os.RemoveAll(filepath.Join("testdata", "delete"))
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 
