@@ -435,12 +435,12 @@ func TestExecute_Import(t *testing.T) {
 		}()
 	}
 
-	if file.IsFile(filepath.Join(gobin, "gal")) {
-		if err := os.Rename(filepath.Join(gobin, "gal"), filepath.Join(gobin, "gal")+".backup"); err != nil {
+	if file.IsFile(filepath.Join(gobin, "posixer")) {
+		if err := os.Rename(filepath.Join(gobin, "posixer"), filepath.Join(gobin, "posixer")+".backup"); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "gal")+".backup", filepath.Join(gobin, "gal")); err != nil {
+			if err := os.Rename(filepath.Join(gobin, "posixer")+".backup", filepath.Join(gobin, "posixer")); err != nil {
 				t.Fatal(err)
 			}
 		}()
@@ -532,12 +532,13 @@ func TestExecute_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer out.Close()
 
 		_, err = io.Copy(out, in)
 		if err != nil {
 			t.Fatal(err)
 		}
+		in.Close()
+		out.Close()
 
 		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 			t.Fatal(err)
