@@ -293,7 +293,7 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	t.Helper()
 
 	oldOsStdin := os.Stdin
-	tmpFile, err := os.CreateTemp(t.TempDir(), t.Name())
+	tmpFile, err := os.CreateTemp(t.TempDir(), strings.Replace(t.Name(), "/", "_", -1))
 
 	if err != nil {
 		return nil, err
