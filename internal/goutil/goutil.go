@@ -1,7 +1,6 @@
 package goutil
 
 import (
-	"errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -12,6 +11,19 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/pkg/errors"
+)
+
+// Internal variables to mock/monkey-patch behaviors in tests.
+var (
+	// goExe is the executable name for the go command.
+	goExe = "go"
+	// keyGoBin is the key name of the env variable for "GOBIN".
+	keyGoBin = "GOBIN"
+	// keyGoPath is the key name of the env variable for "GOPATH".
+	keyGoPath = "GOPATH"
+	// osMkdirTemp is a copy of os.MkdirTemp to ease testing.
+	osMkdirTemp = os.MkdirTemp
 )
 
 // GoPaths has $GOBIN and $GOPATH
@@ -100,18 +112,27 @@ func NewGoPaths() *GoPaths {
 
 // StartDryRunMode change the GOBIN or GOPATH settings to install the binaries in the temporary directory.
 func (gp *GoPaths) StartDryRunMode() error {
-	tmpDir, err := os.MkdirTemp("", "")
+	tmpDir, err := osMkdirTemp("", "")
 	if err != nil {
 		return err
 	}
 
 	if gp.GOBIN != "" {
-		if err := os.Setenv("GOBIN", tmpDir); err != nil {
-			return err
+		if err := os.Setenv(keyGoBin, tmpDir); err != nil {
+			// Wrap error to avoid OS dependent error message during testing.
+			return errors.Wrapf(
+				err,
+				"failed to set GOBIN to env variable. key: %v, value: %v",
+				keyGoBin, tmpDir,
+			)
 		}
 	} else if gp.GOPATH != "" {
-		if err := os.Setenv("GOPATH", tmpDir); err != nil {
-			return err
+		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
+			return errors.Wrapf(
+				err,
+				"failed to set GOPATH to env variable. key: %v, value: %v",
+				keyGoPath, tmpDir,
+			)
 		}
 	} else {
 		return errors.New("$GOPATH and $GOBIN is not set")
@@ -122,19 +143,28 @@ func (gp *GoPaths) StartDryRunMode() error {
 // EndDryRunMode restore the GOBIN or GOPATH settings.
 func (gp *GoPaths) EndDryRunMode() error {
 	if gp.GOBIN != "" {
-		if err := os.Setenv("GOBIN", gp.GOBIN); err != nil {
-			return err
+		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
+			// Wrap error to avoid OS dependent error message during testing.
+			return errors.Wrapf(
+				err,
+				"failed to set GOBIN to env variable. key: %v, value: %v",
+				keyGoBin, gp.GOBIN,
+			)
 		}
 	} else if gp.GOPATH != "" {
-		if err := os.Setenv("GOPATH", gp.GOPATH); err != nil {
-			return err
+		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
+			return errors.Wrapf(
+				err,
+				"failed to set GOPATH to env variable. key: %v, value: %v",
+				keyGoPath, gp.GOPATH,
+			)
 		}
 	} else {
 		return errors.New("$GOPATH and $GOBIN is not set")
 	}
 
 	if err := gp.removeTmpDir(); err != nil {
-		return fmt.Errorf("%s: %w", "temporary directory for dry run remains", err)
+		return errors.Wrap(err, "temporary directory for dry run remains")
 	}
 	return nil
 }
@@ -151,7 +181,7 @@ func (gp *GoPaths) removeTmpDir() error {
 
 // CanUseGoCmd check whether go command install in the system.
 func CanUseGoCmd() error {
-	_, err := exec.LookPath("go")
+	_, err := exec.LookPath(goExe)
 	return err
 }
 
@@ -160,7 +190,7 @@ func Install(importPath string) error {
 	if importPath == "command-line-arguments" {
 		return errors.New("is devel-binary copied from local environment")
 	}
-	if err := exec.Command("go", "install", importPath+"@latest").Run(); err != nil {
+	if err := exec.Command(goExe, "install", importPath+"@latest").Run(); err != nil {
 		return fmt.Errorf("can't install %s: %w", importPath, err)
 	}
 	return nil
@@ -168,7 +198,7 @@ func Install(importPath string) error {
 
 // GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest"
 func GetLatestVer(modulePath string) (string, error) {
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output()
+	out, err := exec.Command(goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output()
 	if err != nil {
 		return "", errors.New("can't check " + modulePath)
 	}
@@ -177,7 +207,7 @@ func GetLatestVer(modulePath string) (string, error) {
 
 // goPath return GOPATH environment variable.
 func goPath() string {
-	gopath := os.Getenv("GOPATH")
+	gopath := os.Getenv(keyGoPath)
 	if gopath != "" {
 		return gopath
 	}
@@ -186,7 +216,7 @@ func goPath() string {
 
 // goBin return GOBIN environment variable.
 func goBin() string {
-	return os.Getenv("GOBIN")
+	return os.Getenv(keyGoBin)
 }
 
 // GoBin return $GOPATH/bin directory path.
@@ -205,7 +235,7 @@ func GoBin() (string, error) {
 
 // GoVersionWithOptionM return result of "$ go version -m"
 func GoVersionWithOptionM(bin string) ([]string, error) {
-	out, err := exec.Command("go", "version", "-m", bin).Output()
+	out, err := exec.Command(goExe, "version", "-m", bin).Output()
 	if err != nil {
 		return nil, err
 	}
