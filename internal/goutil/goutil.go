@@ -1,7 +1,6 @@
 package goutil
 
 import (
-	"errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/pkg/errors"
 )
 
 // Internal variables to mock/monkey-patch behaviors in tests.
@@ -119,11 +119,20 @@ func (gp *GoPaths) StartDryRunMode() error {
 
 	if gp.GOBIN != "" {
 		if err := os.Setenv(keyGoBin, tmpDir); err != nil {
-			return err
+			// Wrap error to avoid OS dependent error message during testing.
+			return errors.Wrapf(
+				err,
+				"failed to set GOBIN to env variable. key: %v, value: %v",
+				keyGoBin, tmpDir,
+			)
 		}
 	} else if gp.GOPATH != "" {
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
-			return err
+			return errors.Wrapf(
+				err,
+				"failed to set GOPATH to env variable. key: %v, value: %v",
+				keyGoPath, tmpDir,
+			)
 		}
 	} else {
 		return errors.New("$GOPATH and $GOBIN is not set")
@@ -135,18 +144,27 @@ func (gp *GoPaths) StartDryRunMode() error {
 func (gp *GoPaths) EndDryRunMode() error {
 	if gp.GOBIN != "" {
 		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
-			return err
+			// Wrap error to avoid OS dependent error message during testing.
+			return errors.Wrapf(
+				err,
+				"failed to set GOBIN to env variable. key: %v, value: %v",
+				keyGoBin, gp.GOBIN,
+			)
 		}
 	} else if gp.GOPATH != "" {
 		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
-			return err
+			return errors.Wrapf(
+				err,
+				"failed to set GOPATH to env variable. key: %v, value: %v",
+				keyGoPath, gp.GOPATH,
+			)
 		}
 	} else {
 		return errors.New("$GOPATH and $GOBIN is not set")
 	}
 
 	if err := gp.removeTmpDir(); err != nil {
-		return fmt.Errorf("%s: %w", "temporary directory for dry run remains", err)
+		return errors.Wrap(err, "temporary directory for dry run remains")
 	}
 	return nil
 }

@@ -17,7 +17,7 @@ import (
 // ============================================================================
 
 func TestBinaryPathList_non_existing_path(t *testing.T) {
-	dummyPath := filepath.Join("/non", "existing", "path")
+	dummyPath := filepath.Join("non", "existing", "path")
 	list, err := BinaryPathList(dummyPath)
 
 	// Require to be error
@@ -195,7 +195,6 @@ func TestGoBin_golden(t *testing.T) {
 func Test_goPath_get_from_build_default_gopath(t *testing.T) {
 	// Backup and defer restore
 	oldKeyGoPath := keyGoPath
-
 	defer func() {
 		keyGoPath = oldKeyGoPath
 	}()
@@ -205,9 +204,8 @@ func Test_goPath_get_from_build_default_gopath(t *testing.T) {
 	keyGoPath = t.Name()
 
 	// Assert to be equal
-	want := os.Getenv("HOME") + "/go"
+	want := build.Default.GOPATH
 	got := goPath()
-
 	if want != got {
 		t.Errorf("goPath() should return default GOPATH. got: %v, want: %v", got, want)
 	}
@@ -333,13 +331,13 @@ func TestGoPaths_EndDryRunMode_fail_if_key_not_set(t *testing.T) {
 		},
 		{
 			name:         "case GOBIN is not empty",
-			expectErrMsg: "invalid argument",
+			expectErrMsg: "failed to set GOBIN to env variable",
 			reasonErr:    "it should be error if field GOBIN is not empty but env key is not set",
 			tmpGOBIN:     "dummy", tmpGOPATH: "",
 		},
 		{
 			name:         "case GOPATH is not empty",
-			expectErrMsg: "invalid argument",
+			expectErrMsg: "failed to set GOPATH to env variable",
 			reasonErr:    "it should be error if field GOPATH is not empty but env key is not set",
 			tmpGOBIN:     "", tmpGOPATH: "dummy",
 		},
@@ -382,7 +380,7 @@ func TestGoPaths_EndDryRunMode_fail_to_remove_temp_dir(t *testing.T) {
 	}()
 
 	gp := GoPaths{
-		GOBIN:   "dummy/",
+		GOBIN:   "dummy",
 		GOPATH:  "",
 		TmpPath: ".", // os.RemoveAll(".") will fail
 	}
@@ -464,13 +462,13 @@ func TestGoPaths_StartDryRunMode_fail_if_key_not_set(t *testing.T) {
 		},
 		{
 			name:         "case GOBIN is not empty",
-			expectErrMsg: "invalid argument",
+			expectErrMsg: "failed to set GOBIN to env variable",
 			reasonErr:    "it should be error if field GOBIN is not empty but env key is not set",
 			tmpGOBIN:     "dummy", tmpGOPATH: "",
 		},
 		{
 			name:         "case GOPATH is not empty",
-			expectErrMsg: "invalid argument",
+			expectErrMsg: "failed to set GOPATH to env variable",
 			reasonErr:    "it should be error if field GOPATH is not empty but env key is not set",
 			tmpGOBIN:     "", tmpGOPATH: "dummy",
 		},

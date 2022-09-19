@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,11 +70,21 @@ func ExampleGetPackageInformation() {
 		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
 	}
 
+	// Expected package information on Linux and macOS
 	want := []string{
 		"gal",
 		"github.com/nao1215/gal/cmd/gal",
 		"github.com/nao1215/gal",
 	}
+
+	// On Windows, paths are missing
+	if runtime.GOOS == "windows" {
+		want = []string{
+			"gal", "", "",
+		}
+	}
+
+	// Actual package information
 	got := []string{
 		pkgInfo[0].Name,
 		pkgInfo[0].ImportPath,
@@ -82,7 +94,7 @@ func ExampleGetPackageInformation() {
 	if cmp.Equal(got, want) {
 		fmt.Println("Example GetPackageInformation: OK")
 	} else {
-		log.Fatalf("example GetPackageInformation failed. got: %v, want: %v", got, want)
+		log.Fatalf("example GetPackageInformation failed. got: %#v, want: %#v", got, want)
 	}
 	// Output: Example GetPackageInformation: OK
 }
@@ -125,7 +137,12 @@ func ExampleGoBin() {
 func ExampleGoVersionWithOptionM() {
 	// GoVersionWithOptionM returns the embedded module version information of
 	// the executable. `gal` in this case.
-	modInfo, err := goutil.GoVersionWithOptionM("../../cmd/testdata/check_success/gal")
+	pathFileBin := filepath.Join("..", "..", "cmd", "testdata", "check_success", "gal")
+	if runtime.GOOS == "windows" {
+		pathFileBin = filepath.Join("..", "..", "cmd", "testdata", "check_success_for_windows", "gal.exe")
+	}
+
+	modInfo, err := goutil.GoVersionWithOptionM(pathFileBin)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -138,7 +155,6 @@ func ExampleGoVersionWithOptionM() {
 			break
 		}
 	}
-
 	// Output: Example GoVersionWithOptionM: OK
 }
 
