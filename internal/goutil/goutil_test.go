@@ -6,6 +6,7 @@ import (
 	"go/build"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -94,6 +95,39 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 	got := tmpBuff.String()
 	if !strings.Contains(got, wantContain) {
 		t.Errorf("it should print error message '%v'. got: %v", wantContain, got)
+	}
+}
+
+func TestGetPackageVersion_golden(t *testing.T) {
+	// Backaup and defer restore
+	oldKeyGoBin := keyGoBin
+	defer func() {
+		keyGoBin = oldKeyGoBin
+	}()
+
+	// Prepare the path of go binary module for testing
+	nameDirCheckSuccess := "check_success"
+	nameFileBin := "gal"
+	want := "v1.1.1"
+
+	if runtime.GOOS == "windows" {
+		nameDirCheckSuccess = "check_success_for_windows"
+		nameFileBin = "gal.exe"
+		want = "(devel)"
+	}
+
+	pathDirBin := filepath.Join("..", "..", "cmd", "testdata", nameDirCheckSuccess)
+
+	// Mock the search directory path of go module binaries
+	t.Setenv("GOBINTMP", pathDirBin)
+	keyGoBin = "GOBINTMP"
+
+	// Get the package version of specified module
+	got := GetPackageVersion(nameFileBin)
+
+	// Require to get the expected version of go module binary
+	if want != got {
+		t.Fatalf("GetPackageVersion() should return %v. got: %v", want, got)
 	}
 }
 
