@@ -65,23 +65,27 @@ func ExampleGetLatestVer() {
 }
 
 func ExampleGetPackageInformation() {
-	pkgInfo := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
+	// Prepare the path of go binary module for the example
+	nameDirCheckSuccess := "check_success"
+	nameFileBin := "gal"
+
+	if runtime.GOOS == "windows" {
+		nameDirCheckSuccess = "check_success_for_windows"
+		nameFileBin = "gal.exe" // remember the extension
+	}
+
+	pathFileBin := filepath.Join("..", "..", "cmd", "testdata", nameDirCheckSuccess, nameFileBin)
+
+	pkgInfo := goutil.GetPackageInformation([]string{pathFileBin})
 	if pkgInfo == nil {
 		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
 	}
 
 	// Expected package information on Linux and macOS
 	want := []string{
-		"gal",
+		nameFileBin,
 		"github.com/nao1215/gal/cmd/gal",
 		"github.com/nao1215/gal",
-	}
-
-	// On Windows, paths are missing
-	if runtime.GOOS == "windows" {
-		want = []string{
-			"gal", "", "",
-		}
 	}
 
 	// Actual package information
@@ -99,8 +103,9 @@ func ExampleGetPackageInformation() {
 	// Output: Example GetPackageInformation: OK
 }
 
-func ExampleGetPackageVersion() {
+func ExampleGetPackageVersion_unknown() {
 	// GetPackageVersion returns the version of the package installed via `go install`.
+	// In this example, we specify a package that is not installed.
 	got := goutil.GetPackageVersion("gup_dummy")
 
 	// Non existing binary returns "unknown"
