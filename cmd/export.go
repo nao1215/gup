@@ -56,15 +56,13 @@ func export(cmd *cobra.Command, args []string) int {
 	}
 
 	if output {
-		if err := outputConfig(pkgs); err != nil {
-			print.Err(err)
-			return 1
-		}
+		err = outputConfig(pkgs)
 	} else {
-		if err := writeConfigFile(pkgs); err != nil {
-			print.Err(err)
-			return 1
-		}
+		err = writeConfigFile(pkgs)
+	}
+	if err != nil {
+		print.Err(err)
+		return 1
 	}
 	return 0
 }
