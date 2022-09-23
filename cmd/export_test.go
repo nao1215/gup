@@ -175,7 +175,7 @@ func Test_export(t *testing.T) {
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open " + filepath.Join("testdata", "dummy") + ": no such file or directory",
+				"gup:ERROR: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
 				"",
 			},
 		})
@@ -241,4 +241,40 @@ func Test_export(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_export_parse_error(t *testing.T) {
+	t.Run("parse argument error", func(t *testing.T) {
+		orgStdout := print.Stdout
+		orgStderr := print.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		print.Stdout = pw
+		print.Stderr = pw
+
+		if got := export(&cobra.Command{}, []string{}); got != 1 {
+			t.Errorf("export() = %v, want %v", got, 1)
+		}
+		pw.Close()
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		want := []string{
+			"gup:ERROR: can not parse command line argument: flag accessed but not defined: output",
+			"",
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("value is mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
