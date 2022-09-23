@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -277,4 +278,33 @@ func Test_export_parse_error(t *testing.T) {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func Test_writeConfigFile(t *testing.T) {
+	type args struct {
+		pkgs []goutil.Package
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "failed to open config file",
+			args: args{
+				pkgs: []goutil.Package{},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.ConfigFileName = ""
+			defer func() { config.ConfigFileName = "gup.conf" }()
+
+			if err := writeConfigFile(tt.args.pkgs); (err != nil) != tt.wantErr {
+				t.Errorf("writeConfigFile() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

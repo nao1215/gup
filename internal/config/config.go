@@ -13,9 +13,12 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 )
 
+// ConfigFileName is gup command configuration file
+var ConfigFileName = "gup.conf"
+
 // FilePath return configuration-file path.
 func FilePath() string {
-	return filepath.Join(DirPath(), "gup.conf")
+	return filepath.Join(DirPath(), ConfigFileName)
 }
 
 // DirPath return directory path that store configuration-file.
