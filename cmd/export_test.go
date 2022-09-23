@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -175,7 +176,7 @@ func Test_export(t *testing.T) {
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open " + filepath.Join("testdata", "dummy") + ": no such file or directory",
+				"gup:ERROR: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
 				"",
 			},
 		})
@@ -214,6 +215,7 @@ func Test_export(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
+			tt.args.cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
 			if got := export(tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("export() = %v, want %v", got, tt.want)
 			}
@@ -237,6 +239,71 @@ func Test_export(t *testing.T) {
 				if file.IsFile(filepath.Join("/", ".config")) {
 					t.Errorf("permissions are incomplete because '/.config' was created")
 				}
+			}
+		})
+	}
+}
+
+func Test_export_parse_error(t *testing.T) {
+	t.Run("parse argument error", func(t *testing.T) {
+		orgStdout := print.Stdout
+		orgStderr := print.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		print.Stdout = pw
+		print.Stderr = pw
+
+		if got := export(&cobra.Command{}, []string{}); got != 1 {
+			t.Errorf("export() = %v, want %v", got, 1)
+		}
+		pw.Close()
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		want := []string{
+			"gup:ERROR: can not parse command line argument: flag accessed but not defined: output",
+			"",
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("value is mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func Test_writeConfigFile(t *testing.T) {
+	type args struct {
+		pkgs []goutil.Package
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "failed to open config file",
+			args: args{
+				pkgs: []goutil.Package{},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.ConfigFileName = ""
+			defer func() { config.ConfigFileName = "gup.conf" }()
+
+			if err := writeConfigFile(tt.args.pkgs); (err != nil) != tt.wantErr {
+				t.Errorf("writeConfigFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
