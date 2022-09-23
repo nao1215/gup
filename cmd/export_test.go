@@ -214,6 +214,7 @@ func Test_export(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
+			tt.args.cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
 			if got := export(tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("export() = %v, want %v", got, tt.want)
 			}
