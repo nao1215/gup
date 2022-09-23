@@ -410,6 +410,85 @@ subaru = github.com/nao1215/subaru
 	}
 }
 
+func TestExecute_Export_WithOutputOption(t *testing.T) {
+	type test struct {
+		name  string
+		gobin string
+		args  []string
+		want  []string
+	}
+
+	tests := []test{}
+	if runtime.GOOS == "windows" {
+		tests = append(tests, test{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success_for_windows"),
+			args:  []string{"gup", "export", "--output"},
+			want: []string{
+				"gal.exe = github.com/nao1215/gal/cmd/gal",
+				"posixer.exe = github.com/nao1215/posixer",
+				""},
+		})
+	} else {
+		tests = append(tests, test{
+			name:  "success",
+			gobin: filepath.Join("testdata", "check_success"),
+			args:  []string{"gup", "export", "--output"},
+			want: []string{
+				"gal = github.com/nao1215/gal/cmd/gal",
+				"posixer = github.com/nao1215/posixer",
+				"subaru = github.com/nao1215/subaru",
+				""},
+		})
+	}
+
+	for _, tt := range tests {
+		oldGoBin := os.Getenv("GOBIN")
+		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
+				t.Fatal(err)
+			}
+		}()
+
+		OsExit = func(code int) {}
+		defer func() {
+			OsExit = os.Exit
+		}()
+
+		orgStdout := os.Stdout
+		orgStderr := os.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = pw
+		os.Stderr = pw
+
+		os.Args = tt.args
+		t.Run(tt.name, func(t *testing.T) {
+			Execute()
+		})
+		pw.Close()
+		os.Stdout = orgStdout
+		os.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		if diff := cmp.Diff(tt.want, got); diff != "" {
+			t.Errorf("value is mismatch (-want +got):\n%s", diff)
+		}
+	}
+}
+
 func TestExecute_Import(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() {
