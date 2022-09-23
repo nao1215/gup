@@ -58,20 +58,14 @@ func ReadConfFile() ([]goutil.Package, error) {
 }
 
 // WriteConfFile write package information at configuration-file.
-func WriteConfFile(pkgs []goutil.Package) error {
-	file, err := os.Create(FilePath())
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", "can't update", FilePath(), err)
-	}
-	defer file.Close()
-
+func WriteConfFile(file *os.File, pkgs []goutil.Package) error {
 	text := ""
 	for _, v := range pkgs {
 		// lost version information
 		text = text + fmt.Sprintf("%s = %s\n", v.Name, v.ImportPath)
 	}
 
-	_, err = file.Write(([]byte)(text))
+	_, err := file.Write(([]byte)(text))
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", "can't update", FilePath(), err)
 	}

@@ -27,6 +27,7 @@ according to the contents of gup.conf.`,
 }
 
 func init() {
+	exportCmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
 	rootCmd.AddCommand(exportCmd)
 }
 
@@ -36,8 +37,9 @@ func export(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
-		print.Err(fmt.Errorf("%s: %w", "can not make config directory", err))
+	output, err := cmd.Flags().GetBool("output")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument", err))
 		return 1
 	}
 
@@ -53,12 +55,40 @@ func export(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	if err := config.WriteConfFile(pkgs); err != nil {
-		print.Err(err)
-		return 1
+	if output {
+		if err := outputConfig(pkgs); err != nil {
+			print.Err(err)
+			return 1
+		}
+	} else {
+		if err := writeConfigFile(pkgs); err != nil {
+			print.Err(err)
+			return 1
+		}
+	}
+	return 0
+}
+
+func writeConfigFile(pkgs []goutil.Package) error {
+	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
+		return fmt.Errorf("%s: %w", "can not make config directory", err)
+	}
+
+	file, err := os.Create(config.FilePath())
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", "can't update", config.FilePath(), err)
+	}
+	defer file.Close()
+
+	if err := config.WriteConfFile(file, pkgs); err != nil {
+		return err
 	}
 	print.Info("Export " + config.FilePath())
-	return 0
+	return nil
+}
+
+func outputConfig(pkgs []goutil.Package) error {
+	return config.WriteConfFile(os.Stdout, pkgs)
 }
 
 func validPkgInfo(pkgs []goutil.Package) []goutil.Package {
