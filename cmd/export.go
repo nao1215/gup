@@ -39,7 +39,7 @@ func export(cmd *cobra.Command, args []string) int {
 
 	output, err := cmd.Flags().GetBool("output")
 	if err != nil {
-		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--output)", err))
 		return 1
 	}
 
