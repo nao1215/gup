@@ -271,7 +271,7 @@ func Test_export_parse_error(t *testing.T) {
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{
-			"gup:ERROR: can not parse command line argument: flag accessed but not defined: output",
+			"gup:ERROR: can not parse command line argument (--output): flag accessed but not defined: output",
 			"",
 		}
 		if diff := cmp.Diff(want, got); diff != "" {
