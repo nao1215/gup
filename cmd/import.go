@@ -26,22 +26,29 @@ Finally, you execute the export subcommand in this state.`,
 
 func init() {
 	importCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+	updateCmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 	rootCmd.AddCommand(importCmd)
 }
 
 func runImport(cmd *cobra.Command, args []string) int {
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
-		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument", err))
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))
 		return 1
 	}
 
-	if !file.IsFile(config.FilePath()) {
-		print.Err(fmt.Errorf("%s is not found", config.FilePath()))
+	confFile, err := cmd.Flags().GetString("input")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--input)", err))
 		return 1
 	}
 
-	pkgs, err := config.ReadConfFile()
+	if !file.IsFile(confFile) {
+		print.Err(fmt.Errorf("%s is not found", confFile))
+		return 1
+	}
+
+	pkgs, err := config.ReadConfFile(confFile)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -52,6 +59,6 @@ func runImport(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	print.Info("start update based on " + config.FilePath())
+	print.Info("start update based on " + confFile)
 	return update(pkgs, dryRun)
 }
