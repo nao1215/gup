@@ -56,8 +56,6 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 			print.Err(fmt.Errorf("can not close .bash_completion %w", err))
 			return
 		}
-
-		print.Info("create bash-completion file: " + path)
 		return
 	}
 
@@ -76,8 +74,6 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 		print.Err(fmt.Errorf("can not close .bash_completion: %w", err))
 		return
 	}
-
-	print.Info("append bash-completion: " + path)
 }
 
 func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
@@ -95,7 +91,6 @@ func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
 		print.Err(fmt.Errorf("can not create fish-completion file: %w", err))
 		return
 	}
-	print.Info("create fish-completion file: " + path)
 }
 
 func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
@@ -113,8 +108,6 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
 		print.Err(fmt.Errorf("can not create zsh-completion file: %w", err))
 		return
 	}
-	print.Info("create zsh-completion file: " + path)
-
 	appendFpathAtZshrcIfNeeded()
 }
 

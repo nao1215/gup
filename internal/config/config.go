@@ -2,6 +2,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,10 +36,10 @@ func DirPath() string {
 }
 
 // ReadConfFile return contents of configuration-file (package information)
-func ReadConfFile() ([]goutil.Package, error) {
-	contents, err := file.ReadFileToList(FilePath())
+func ReadConfFile(path string) ([]goutil.Package, error) {
+	contents, err := file.ReadFileToList(path)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't read gup.conf", err)
+		return nil, fmt.Errorf("can't read %s: %w", path, err)
 	}
 
 	pkgs := []goutil.Package{}
@@ -50,6 +51,12 @@ func ReadConfFile() ([]goutil.Package, error) {
 		if isBlank(v) {
 			continue
 		}
+
+		// Check if the package name and package path are included
+		if len(strings.Split(v, "=")) != 2 {
+			return nil, errors.New(path + " is not gup.conf file")
+		}
+
 		equalIdx := strings.Index(v, "=")
 		pkg.Name = strings.TrimSpace(v[:equalIdx-1])
 		pkg.ImportPath = strings.TrimSpace(v[equalIdx+1:])

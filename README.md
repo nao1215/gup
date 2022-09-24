@@ -110,14 +110,23 @@ You use the export／import subcommand if you want to install the same golang bi
 according to the contents of gup.conf.
 
 ```
-※ Environmet A (e.g. ubuntu)
+※ Environments A (e.g. ubuntu)
 $ gup export
 gup:INFO: Export /home/nao/.config/gup/gup.conf
 
-※ Environmet B (e.g. debian)
+※ Environments B (e.g. debian)
 $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
+```
+  
+Alternatively, export subcommand print package information (it's same as gup.conf) that you want to export at STDOUT if you use --output option. import subcommand can also specify the gup.conf file path if you use --input option.
+```
+※ Environments A (e.g. ubuntu)
+$ gup export --output > gup.conf
+
+※ Environments B (e.g. debian)
+$ gup import --input=gup.conf
 ```
 
 ### Auto-generate shell completion file (for bash, zsh, fish)
