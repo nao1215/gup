@@ -489,46 +489,32 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	}
 }
 
-func TestExecute_Import(t *testing.T) {
+func TestExecute_Import_WithInputOption(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
-	}()
-
-	oldHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", "testdata"); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", oldHome); err != nil {
-			t.Fatal(err)
-		}
 	}()
 
 	gobin, err := goutil.GoBin()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsFile(filepath.Join(gobin, "posixer")) {
-		if err := os.Rename(filepath.Join(gobin, "posixer"), filepath.Join(gobin, "posixer")+".backup"); err != nil {
+	if file.IsDir(gobin) {
+		if err := os.Rename(gobin, gobin+".backup"); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "posixer")+".backup", filepath.Join(gobin, "posixer")); err != nil {
-				t.Fatal(err)
+			if file.IsDir(gobin + ".backup") {
+				os.RemoveAll(gobin)
+				if err := os.Rename(gobin+".backup", gobin); err != nil {
+					t.Fatal(err)
+				}
 			}
 		}()
-	}
 
-	if file.IsFile(filepath.Join(gobin, "posixer")) {
-		if err := os.Rename(filepath.Join(gobin, "posixer"), filepath.Join(gobin, "posixer")+".backup"); err != nil {
+		if err := os.MkdirAll(gobin, 0755); err != nil {
 			t.Fatal(err)
 		}
-		defer func() {
-			if err := os.Rename(filepath.Join(gobin, "posixer")+".backup", filepath.Join(gobin, "posixer")); err != nil {
-				t.Fatal(err)
-			}
-		}()
 	}
 
 	defer func() {
@@ -541,33 +527,104 @@ func TestExecute_Import(t *testing.T) {
 		os.RemoveAll(filepath.Join("testdata", ".cache"))
 	}()
 
-	os.Args = []string{"gup", "import"}
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	confFile := "testdata/gup_config/nix.conf"
+	if runtime.GOOS == "windows" {
+		confFile = "testdata/gup_config/windows.conf"
+	}
+	os.Args = []string{"gup", "import", "-i", confFile}
 	Execute()
 
-	if runtime.GOOS != "windows" {
-		if !file.IsFile(filepath.Join("testdata", ".zsh", "completion", "_gup")) {
-			t.Errorf("not install " + filepath.Join("testdata", ".zsh", "completion", "_gup"))
-		}
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
 
-		if !file.IsFile(filepath.Join("testdata", ".config", "fish", "completions", "gup.fish")) {
-			t.Errorf("not install " + filepath.Join("testdata", ".config", "fish", "completions", "gup.fish"))
-		}
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Error(err)
+	}
+	defer pr.Close()
+	got := strings.Split(buf.String(), "\n")
 
-		if !file.IsFile(filepath.Join("testdata", ".bash_completion")) {
-			t.Errorf("not install " + filepath.Join("testdata", ".bash_completion"))
+	contain := false
+	for _, v := range got {
+		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gup") {
+			contain = true
 		}
+	}
 
-		if !file.IsFile("testdata/.zshrc") {
-			t.Errorf("not install .bash_completion")
-		}
+	if !contain {
+		t.Error("failed import")
+	}
+}
 
-		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "information.png")) {
-			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "information.png"))
-		}
+func TestExecute_Import_WithBadInputFile(t *testing.T) {
+	tests := []struct {
+		name      string
+		inputFile string
+		want      []string
+	}{
+		{
+			name:      "specify not exist file",
+			inputFile: "not_exist_file_path",
+			want: []string{
+				"gup:ERROR: not_exist_file_path is not found",
+				"",
+			},
+		},
+		{
+			name:      "specify empty file",
+			inputFile: "testdata/gup_config/empty.conf",
+			want: []string{
+				"gup:ERROR: unable to import package: no package information",
+				"",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OsExit = func(code int) {}
+			defer func() {
+				OsExit = os.Exit
+			}()
 
-		if !file.IsFile(filepath.Join("testdata", ".config", "gup", "assets", "warning.png")) {
-			t.Errorf("not install " + filepath.Join("testdata", ".config", "gup", "assets", "warning.png"))
-		}
+			orgStdout := print.Stdout
+			orgStderr := print.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			print.Stdout = pw
+			print.Stderr = pw
+
+			os.Args = []string{"gup", "import", "-i", tt.inputFile}
+			Execute()
+
+			pw.Close()
+			print.Stdout = orgStdout
+			print.Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			defer pr.Close()
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

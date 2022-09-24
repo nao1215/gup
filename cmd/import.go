@@ -55,7 +55,7 @@ func runImport(cmd *cobra.Command, args []string) int {
 	}
 
 	if len(pkgs) == 0 {
-		print.Err("unable to update package: no package information")
+		print.Err("unable to import package: no package information")
 		return 1
 	}
 
