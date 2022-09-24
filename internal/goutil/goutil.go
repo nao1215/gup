@@ -1,6 +1,7 @@
 package goutil
 
 import (
+	"bytes"
 	"fmt"
 	"go/build"
 	"os"
@@ -190,8 +191,14 @@ func Install(importPath string) error {
 	if importPath == "command-line-arguments" {
 		return errors.New("is devel-binary copied from local environment")
 	}
-	if err := exec.Command(goExe, "install", importPath+"@latest").Run(); err != nil {
-		return fmt.Errorf("can't install %s: %w", importPath, err)
+
+	var stderr bytes.Buffer
+	cmd := exec.Command(goExe, "install", importPath+"@latest")
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("can't install %s:\n%s", importPath, stderr.String())
 	}
 	return nil
 }
