@@ -26,7 +26,7 @@ Finally, you execute the export subcommand in this state.`,
 
 func init() {
 	importCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-	updateCmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
+	importCmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 	rootCmd.AddCommand(importCmd)
 }
 
