@@ -119,6 +119,15 @@ $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
 ```
+  
+Alternatively, export subcommand print package information (it's same as gup.conf) that you want to export at STDOUT if you use --output option. import subcommand can also specify the gup.conf file path if you use --input option.
+```
+※ Environmet A (e.g. ubuntu)
+$ gup export --output > gup.conf
+
+※ Environmet B (e.g. debian)
+$ gup import --input=gup.conf
+```
 
 ### Auto-generate shell completion file (for bash, zsh, fish)
 gup command automatically generates shell completion files for bash, zsh, and fish. After the user executes gup, if the shell completion file does not exist in the system, the auto-generation process will begin. To activate the completion feature, restart the shell.
