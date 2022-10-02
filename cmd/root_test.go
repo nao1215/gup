@@ -812,18 +812,36 @@ func TestExecute_Completion(t *testing.T) {
 		Execute()
 
 		bash := filepath.Join(os.Getenv("HOME"), ".bash_completion")
-		if !file.IsFile(bash) {
-			t.Errorf("not generate %s", bash)
+		if runtime.GOOS == "windows" {
+			if file.IsFile(bash) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", bash)
+			}
+		} else {
+			if !file.IsFile(bash) {
+				t.Errorf("failed to generate %s", bash)
+			}
 		}
 
 		fish := filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
-		if !file.IsFile(fish) {
-			t.Errorf("not generate %s", fish)
+		if runtime.GOOS == "windows" {
+			if file.IsFile(fish) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", fish)
+			}
+		} else {
+			if !file.IsFile(fish) {
+				t.Errorf("failed to generate %s", fish)
+			}
 		}
 
 		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
-		if !file.IsFile(zsh) {
-			t.Errorf("not generate %s", zsh)
+		if runtime.GOOS == "windows" {
+			if file.IsFile(zsh) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", zsh)
+			}
+		} else {
+			if !file.IsFile(zsh) {
+				t.Errorf("failed to generate  %s", zsh)
+			}
 		}
 	})
 }
