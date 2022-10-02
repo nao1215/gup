@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
@@ -803,4 +804,26 @@ func TestExecute_Update_DryRun(t *testing.T) {
 	if !contain {
 		t.Errorf("failed to update posixer command")
 	}
+}
+
+func TestExecute_Completion(t *testing.T) {
+	t.Run("generate completion file", func(t *testing.T) {
+		os.Args = []string{"gup", "completion"}
+		Execute()
+
+		bash := filepath.Join(os.Getenv("HOME"), ".bash_completion")
+		if !file.IsFile(bash) {
+			t.Errorf("not generate %s", bash)
+		}
+
+		fish := filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
+		if !file.IsFile(fish) {
+			t.Errorf("not generate %s", fish)
+		}
+
+		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
+		if !file.IsFile(zsh) {
+			t.Errorf("not generate %s", zsh)
+		}
+	})
 }
