@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
@@ -517,16 +518,6 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
-
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
 	pr, pw, err := os.Pipe()
@@ -687,16 +678,6 @@ func TestExecute_Update(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
-
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
 	pr, pw, err := os.Pipe()
@@ -791,16 +772,6 @@ func TestExecute_Update_DryRun(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
-
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
 	pr, pw, err := os.Pipe()
@@ -833,4 +804,44 @@ func TestExecute_Update_DryRun(t *testing.T) {
 	if !contain {
 		t.Errorf("failed to update posixer command")
 	}
+}
+
+func TestExecute_Completion(t *testing.T) {
+	t.Run("generate completion file", func(t *testing.T) {
+		os.Args = []string{"gup", "completion"}
+		Execute()
+
+		bash := filepath.Join(os.Getenv("HOME"), ".bash_completion")
+		if runtime.GOOS == "windows" {
+			if file.IsFile(bash) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", bash)
+			}
+		} else {
+			if !file.IsFile(bash) {
+				t.Errorf("failed to generate %s", bash)
+			}
+		}
+
+		fish := filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
+		if runtime.GOOS == "windows" {
+			if file.IsFile(fish) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", fish)
+			}
+		} else {
+			if !file.IsFile(fish) {
+				t.Errorf("failed to generate %s", fish)
+			}
+		}
+
+		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
+		if runtime.GOOS == "windows" {
+			if file.IsFile(zsh) {
+				t.Errorf("generate %s, however shell completion file is not generated on Windows", zsh)
+			}
+		} else {
+			if !file.IsFile(zsh) {
+				t.Errorf("failed to generate  %s", zsh)
+			}
+		}
+	})
 }

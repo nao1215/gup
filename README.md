@@ -129,11 +129,11 @@ $ gup export --output > gup.conf
 $ gup import --input=gup.conf
 ```
 
-### Auto-generate shell completion file (for bash, zsh, fish)
-gup command automatically generates shell completion files for bash, zsh, and fish. After the user executes gup, if the shell completion file does not exist in the system, the auto-generation process will begin. To activate the completion feature, restart the shell.
+### Generate shell completion file (for bash, zsh, fish)
+completion subcommand generates shell completion files for bash, zsh, and fish. If the shell completion file does not exist in the system, the generation process will begin. To activate the completion feature, restart the shell.
 
 ```
-$ gup 
+$ gup completion
 gup:INFO : create bash-completion file: /home/nao/.bash_completion
 gup:INFO : create fish-completion file: /home/nao/.config/fish/completions/gup.fish
 gup:INFO : create zsh-completion file: /home/nao/.zsh/completion/_gup
