@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/nao1215/gup/internal/assets"
-	"github.com/nao1215/gup/internal/completion"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -22,8 +21,6 @@ var OsExit = os.Exit
 // Execute run gup process.
 func Execute() {
 	assets.DeployIconIfNeeded()
-	completion.DeployShellCompletionFileIfNeeded(rootCmd)
-
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	if err := rootCmd.Execute(); err != nil {
 		print.Err(err)
