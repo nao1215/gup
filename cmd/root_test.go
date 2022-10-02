@@ -517,16 +517,6 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
-
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
 	pr, pw, err := os.Pipe()
@@ -687,16 +677,6 @@ func TestExecute_Update(t *testing.T) {
 		}
 	}
 
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
-
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
 	pr, pw, err := os.Pipe()
@@ -790,16 +770,6 @@ func TestExecute_Update_DryRun(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-
-	defer func() {
-		os.RemoveAll(filepath.Join("testdata", ".config", "fish"))
-		os.RemoveAll(filepath.Join("testdata", ".zsh"))
-		os.RemoveAll(filepath.Join("testdata", ".zshrc"))
-		os.RemoveAll(filepath.Join("testdata", ".bash_completion"))
-		os.RemoveAll(filepath.Join("testdata", ".config", "gup", "assets"))
-		os.RemoveAll(filepath.Join("testdata", "go"))
-		os.RemoveAll(filepath.Join("testdata", ".cache"))
-	}()
 
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
