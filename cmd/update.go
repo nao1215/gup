@@ -156,7 +156,7 @@ func catchSignal(c chan os.Signal, dryRunManager *goutil.GoPaths) {
 			if err := dryRunManager.EndDryRunMode(); err != nil {
 				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
 			}
-			os.Exit(0)
+			OsExit(0)
 		default:
 			time.Sleep(1 * time.Second)
 		}
