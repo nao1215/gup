@@ -100,15 +100,7 @@ func Test_remove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldGoBin := os.Getenv("GOBIN")
-			if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-				t.Fatal(err)
-			}
-			defer func() {
-				if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-					t.Fatal(err)
-				}
-			}()
+			t.Setenv("GOBIN", tt.gobin)
 
 			orgStdout := print.Stdout
 			orgStderr := print.Stderr
@@ -145,25 +137,9 @@ func Test_remove(t *testing.T) {
 }
 
 func Test_remove_gobin_is_empty(t *testing.T) {
-	t.Run("GOPATH and GOBIN", func(t *testing.T) {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", ""); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
-
-		if err := os.Setenv("GOPATH", ""); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOPATH", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+	t.Run("GOPATH and GOBIN is empty", func(t *testing.T) {
+		t.Setenv("GOBIN", "")
+		t.Setenv("GOPATH", "")
 
 		oldBuildGopath := build.Default.GOPATH
 		build.Default.GOPATH = ""
@@ -316,15 +292,7 @@ func Test_removeLoop(t *testing.T) {
 			if runtime.GOOS != "windows" && tt.name == "windows environment and suffix is mismatch" {
 				GOOS = "windows"
 				defer func() { GOOS = runtime.GOOS }()
-
-				if err := os.Setenv("GOEXE", ".exe"); err != nil {
-					t.Fatal(err)
-				}
-				defer func() {
-					if err := os.Setenv("GOEXE", ""); err != nil {
-						t.Fatal(err)
-					}
-				}()
+				t.Setenv("GOEXE", ".exe")
 			}
 
 			if got := removeLoop(tt.args.gobin, tt.args.force, tt.args.target); got != tt.want {

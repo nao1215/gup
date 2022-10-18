@@ -157,15 +157,7 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 
 func Test_update_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
-		oldPATH := os.Getenv("PATH")
-		if err := os.Setenv("PATH", ""); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("PATH", oldPATH); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("PATH", "")
 
 		orgStdout := print.Stdout
 		orgStderr := print.Stderr
