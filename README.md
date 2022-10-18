@@ -18,10 +18,6 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
   
 ![sample](./doc/img/sample.png)
 
-gup command will notify you on your desktop whether the update was successful or unsuccessful after the update was finished.  
-![success](./doc/img/notify_success.png)
-![warning](./doc/img/notify_warning.png)
-
 # How to install
 ### Use "go install"
 If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
@@ -139,6 +135,14 @@ gup:INFO : create bash-completion file: /home/nao/.bash_completion
 gup:INFO : create fish-completion file: /home/nao/.config/fish/completions/gup.fish
 gup:INFO : create zsh-completion file: /home/nao/.zsh/completion/_gup
 ```
+
+### Desktop notification
+If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.  
+```
+$ gup update --notify
+```
+![success](./doc/img/notify_success.png)
+![warning](./doc/img/notify_warning.png)
 
 # Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
