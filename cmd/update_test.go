@@ -27,7 +27,7 @@ func Test_gup(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "paser argument error",
+			name: "paser --dry-run argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -38,11 +38,25 @@ func Test_gup(t *testing.T) {
 				"",
 			},
 		},
+		{
+			name: "paser --notify argument error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--notify): flag accessed but not defined: notify",
+				"",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name != "paser argument error" {
+			if tt.name != "paser --dry-run argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+			} else if tt.name != "paser --notify argument error" {
+				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
 
 			OsExit = func(code int) {}

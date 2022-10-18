@@ -51,13 +51,31 @@ func Test_runImport_Error(t *testing.T) {
 				"",
 			},
 		},
+		{
+			name: "argument parse error (--notify)",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			home: "",
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--notify): flag accessed but not defined: notify",
+				"",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.name == "argument parse error (--dry-run)" {
 				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
+				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			} else if tt.name == "argument parse error (--input)" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+			} else if tt.name == "argument parse error (--notify)" {
+				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 			}
 
 			orgStdout := print.Stdout
