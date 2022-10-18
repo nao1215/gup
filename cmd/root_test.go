@@ -712,7 +712,7 @@ func TestExecute_Update(t *testing.T) {
 	}
 }
 
-func TestExecute_Update_DryRun(t *testing.T) {
+func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -781,7 +781,7 @@ func TestExecute_Update_DryRun(t *testing.T) {
 	print.Stdout = pw
 	print.Stderr = pw
 
-	os.Args = []string{"gup", "update", "--dry-run"}
+	os.Args = []string{"gup", "update", "--dry-run", "--notify"}
 	Execute()
 	pw.Close()
 	print.Stdout = orgStdout
