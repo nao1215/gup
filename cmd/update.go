@@ -134,14 +134,19 @@ func update(pkgs []goutil.Package, dryRun, notification bool) int {
 		close(signals)
 	}
 
-	if notification {
+	desktopNotifyIfNeeded(result, notification)
+
+	return result
+}
+
+func desktopNotifyIfNeeded(result int, enable bool) {
+	if enable {
 		if result == 0 {
 			notify.Info("gup", "All update success")
 		} else {
 			notify.Warn("gup", "Some package can't update")
 		}
 	}
-	return result
 }
 
 func catchSignal(c chan os.Signal, dryRunManager *goutil.GoPaths) {

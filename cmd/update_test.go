@@ -208,3 +208,35 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 		}
 	})
 }
+
+func Test_desktopNotifyIfNeeded(t *testing.T) {
+	type args struct {
+		result int
+		enable bool
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "Notify update success",
+			args: args{
+				result: 0,
+				enable: true,
+			},
+		},
+
+		{
+			name: "Notify update fail",
+			args: args{
+				result: 1,
+				enable: true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desktopNotifyIfNeeded(tt.args.result, tt.args.enable)
+		})
+	}
+}
