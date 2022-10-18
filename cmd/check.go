@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -49,6 +50,7 @@ func check(cmd *cobra.Command, args []string) int {
 func doCheck(pkgs []goutil.Package) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+	var mu sync.Mutex
 	needUpdatePkgs := []goutil.Package{}
 
 	print.Info("check binary under $GOPATH/bin or $GOBIN")
@@ -65,7 +67,9 @@ func doCheck(pkgs []goutil.Package) int {
 			}
 			p.Version.Latest = latestVer
 			if !goutil.IsAlreadyUpToDate(*p.Version) {
+				mu.Lock()
 				needUpdatePkgs = append(needUpdatePkgs, p)
+				mu.Unlock()
 			}
 		}
 

@@ -47,16 +47,7 @@ func TestExecute_Check(t *testing.T) {
 	} else {
 		gobinDir = filepath.Join("testdata", "check_success")
 	}
-
-	oldGoBin := os.Getenv("GOBIN")
-	if err := os.Setenv("GOBIN", gobinDir); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	t.Setenv("GOBIN", gobinDir)
 
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
@@ -173,15 +164,7 @@ func TestExecute_List(t *testing.T) {
 		})
 	}
 	for _, tt := range tests {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("GOBIN", tt.gobin)
 
 		OsExit = func(code int) {}
 		defer func() {
@@ -294,15 +277,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 	newFile.Close()
 
 	for _, tt := range tests {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("GOBIN", tt.gobin)
 
 		OsExit = func(code int) {}
 		defer func() {
@@ -360,15 +335,7 @@ subaru = github.com/nao1215/subaru
 	}
 
 	for _, tt := range tests {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("GOBIN", tt.gobin)
 
 		OsExit = func(code int) {}
 		defer func() {
@@ -444,15 +411,7 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		oldGoBin := os.Getenv("GOBIN")
-		if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("GOBIN", tt.gobin)
 
 		OsExit = func(code int) {}
 		defer func() {
@@ -712,7 +671,7 @@ func TestExecute_Update(t *testing.T) {
 	}
 }
 
-func TestExecute_Update_DryRun(t *testing.T) {
+func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -781,7 +740,7 @@ func TestExecute_Update_DryRun(t *testing.T) {
 	print.Stdout = pw
 	print.Stderr = pw
 
-	os.Args = []string{"gup", "update", "--dry-run"}
+	os.Args = []string{"gup", "update", "--dry-run", "--notify"}
 	Execute()
 	pw.Close()
 	print.Stdout = orgStdout

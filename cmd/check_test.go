@@ -35,15 +35,7 @@ func Test_check(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldGoBin := os.Getenv("GOBIN")
-			if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-				t.Fatal(err)
-			}
-			defer func() {
-				if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-					t.Fatal(err)
-				}
-			}()
+			t.Setenv("GOBIN", tt.gobin)
 
 			orgStdout := print.Stdout
 			orgStderr := print.Stderr
@@ -85,15 +77,7 @@ func Test_check(t *testing.T) {
 
 func Test_check_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
-		oldPATH := os.Getenv("PATH")
-		if err := os.Setenv("PATH", ""); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if err := os.Setenv("PATH", oldPATH); err != nil {
-				t.Fatal(err)
-			}
-		}()
+		t.Setenv("PATH", "")
 
 		orgStdout := print.Stdout
 		orgStderr := print.Stderr
@@ -199,15 +183,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			oldGoBin := os.Getenv("GOBIN")
-			if err := os.Setenv("GOBIN", tt.gobin); err != nil {
-				t.Fatal(err)
-			}
-			defer func() {
-				if err := os.Setenv("GOBIN", oldGoBin); err != nil {
-					t.Fatal(err)
-				}
-			}()
+			t.Setenv("GOBIN", tt.gobin)
 
 			orgStdout := print.Stdout
 			orgStderr := print.Stderr
