@@ -164,6 +164,7 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 
 		cmd := &cobra.Command{}
 		cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+		cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 		if got := gup(cmd, []string{}); got != 1 {
 			t.Errorf("gup() = %v, want %v", got, 1)
 		}

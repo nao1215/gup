@@ -29,6 +29,7 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 
 func init() {
 	updateCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+	updateCmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	rootCmd.AddCommand(updateCmd)
 }
 
@@ -38,6 +39,12 @@ func gup(cmd *cobra.Command, args []string) int {
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))
+		return 1
+	}
+
+	notify, err := cmd.Flags().GetBool("notify")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--notify)", err))
 		return 1
 	}
 
@@ -57,7 +64,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err("unable to update package: no package information")
 		return 1
 	}
-	return update(pkgs, dryRun)
+	return update(pkgs, dryRun, notify)
 }
 
 type updateResult struct {
@@ -65,7 +72,7 @@ type updateResult struct {
 	err error
 }
 
-func update(pkgs []goutil.Package, dryRun bool) int {
+func update(pkgs []goutil.Package, dryRun, notification bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -127,10 +134,12 @@ func update(pkgs []goutil.Package, dryRun bool) int {
 		close(signals)
 	}
 
-	if result == 0 {
-		notify.Info("gup", "All update success")
-	} else {
-		notify.Warn("gup", "Some package can't update")
+	if notification {
+		if result == 0 {
+			notify.Info("gup", "All update success")
+		} else {
+			notify.Warn("gup", "Some package can't update")
+		}
 	}
 	return result
 }
