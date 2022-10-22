@@ -513,7 +513,7 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 	}
 
 	if !contain {
-		t.Error("failed import")
+		t.Errorf("failed import. output=%v", got)
 	}
 }
 
@@ -667,7 +667,7 @@ func TestExecute_Update(t *testing.T) {
 		}
 	}
 	if !contain {
-		t.Errorf("failed to update gal command")
+		t.Errorf("failed to update gal command: output=%v", got)
 	}
 }
 
@@ -761,7 +761,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		}
 	}
 	if !contain {
-		t.Errorf("failed to update posixer command")
+		t.Errorf("failed to update posixer command: output=%v", got)
 	}
 }
 
