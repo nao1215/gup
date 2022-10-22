@@ -88,4 +88,4 @@ jobs:
             useradd action
             export GOCACHE=/tmp/go-cache
             export GOPATH=/tmp/go-path
-           su action -c '/opt/ooce/go-1.18/bin/go test ./...'
+            su action -c '/opt/ooce/go-1.18/bin/go test ./...'
