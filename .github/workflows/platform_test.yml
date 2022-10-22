@@ -40,7 +40,7 @@ jobs:
         uses: vmactions/freebsd-vm@v0.2.0
         with:
           usesh: true
-          prepare: pkg install -y go
+          prepare: pkg install -y go gcc gmake
           run: |
             pw user add -n action -m
             su action -c 'go test -race ./...'
@@ -54,7 +54,7 @@ jobs:
         id: test
         uses: vmactions/openbsd-vm@v0.0.6
         with:
-          prepare: pkg_add go
+          prepare: pkg_add go gcc gmake
           run: |
             useradd -mG wheel action
             su action -c 'go test ./...'
@@ -68,7 +68,7 @@ jobs:
         id: test
         uses: vmactions/netbsd-vm@v0.0.4
         with:
-          prepare: pkg_add go
+          prepare: pkg_add go gcc gmake
           run: |
             useradd -mG wheel action
             su action -c 'go118 test ./...'
