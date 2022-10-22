@@ -42,12 +42,12 @@ jobs:
           usesh: true
           prepare: pkg install -y go
           run: |
-            go mod download
-            go test -race -v ./...
+            pw user add -n action -m
+            su action -c 'go test -race ./...'
 
   testOpenBSD:
     runs-on: macos-12
-    name: UNit test (openbsd, 1.18)
+    name: Unit test (openbsd, 1.18)
     steps:
       - uses: actions/checkout@v3
       - name: test (openbsd, 1.18)
@@ -56,8 +56,8 @@ jobs:
         with:
           prepare: pkg_add go
           run: |
-            go mod download
-            go test -v ./...
+            useradd -mG wheel action
+            su action -c 'go test ./...'
 
   testNetBSD:
     runs-on: macos-12
@@ -70,8 +70,8 @@ jobs:
         with:
           prepare: pkg_add go
           run: |
-            go mod download
-            go test -v ./...
+            useradd -mG wheel action
+            su action -c 'go118 test ./...'
 
   testillumos:
     runs-on: macos-12
@@ -85,5 +85,7 @@ jobs:
           prepare: |
             pkg install go-118
           run: |
-            go mod download
-            go test -v ./...
+          useradd action
+          export GOCACHE=/tmp/go-cache
+          export GOPATH=/tmp/go-path
+          su action -c '/opt/ooce/go-1.18/bin/go test ./...'
