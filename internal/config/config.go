@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/adrg/xdg"
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
@@ -23,16 +24,9 @@ func FilePath() string {
 }
 
 // DirPath return directory path that store configuration-file.
+// Default path is $HOME/.config/gup.
 func DirPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		// If $HOME is empty, .config directory can be created in the
-		// current directory. The .config directory path is displayed
-		// when reporting the completion of the export subcommand.
-		// So, user notices that the output destination is strange.
-		return filepath.Join(os.Getenv("HOME"), ".config", cmdinfo.Name)
-	}
-	return filepath.Join(home, ".config", cmdinfo.Name)
+	return filepath.Join(xdg.ConfigHome, cmdinfo.Name)
 }
 
 // ReadConfFile return contents of configuration-file (package information)
