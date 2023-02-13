@@ -3,6 +3,7 @@ module github.com/nao1215/gup
 go 1.18
 
 require (
+	github.com/adrg/xdg v0.4.0
 	github.com/fatih/color v1.14.1
 	github.com/gen2brain/beeep v0.0.0-20220909211152-5a9ec94374f6
 	github.com/google/go-cmp v0.5.9
@@ -12,6 +13,7 @@ require (
 )
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect

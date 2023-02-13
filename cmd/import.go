@@ -17,7 +17,7 @@ var importCmd = &cobra.Command{
 Use the export subcommand if you want to install the same golang
 binaries across multiple systems. After you create gup.conf by 
 import subcommand in another environment, you save conf-file in
-$HOME/.config/gup/gup.conf.
+$XDG_CONFIG_HOME/.config/gup/gup.conf (e.g. $HOME/.config/gup/gup.conf.)
 Finally, you execute the export subcommand in this state.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		OsExit(runImport(cmd, args))

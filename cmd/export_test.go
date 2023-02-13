@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/adrg/xdg"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
@@ -179,14 +180,10 @@ func Test_export(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
 			if tt.name == "can not make .config directory" {
-				oldHome := os.Getenv("HOME")
-				if err := os.Setenv("HOME", filepath.Join("/", "root")); err != nil {
-					t.Fatal(err)
-				}
+				oldHome := xdg.ConfigHome
+				xdg.ConfigHome = filepath.Join("/", "root")
 				defer func() {
-					if err := os.Setenv("HOME", oldHome); err != nil {
-						t.Fatal(err)
-					}
+					xdg.ConfigHome = oldHome
 				}()
 			}
 
