@@ -84,7 +84,7 @@ func updateGolang(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	print.Info(fmt.Sprintf("backup original /usr/local/go as /usr/local/go.backup"))
+	print.Info("backup original /usr/local/go as /usr/local/go.backup")
 	if err := renameIfDirExists("/usr/local/go", "/usr/local/go.backup"); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "failed to backup old /usr/local/go", err))
 		return 1
