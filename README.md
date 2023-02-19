@@ -25,6 +25,12 @@ If you does not have the golang development environment installed on your system
 $ go install github.com/nao1215/gup@latest
 ```
 
+### For Mac user
+```
+$ brew tap nao1215/tap
+$ brew install nao1215/tap/gup
+```
+
 ### Install from Package or Binary
 [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
   
