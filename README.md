@@ -150,6 +150,28 @@ $ gup update --notify
 ![success](./doc/img/notify_success.png)
 ![warning](./doc/img/notify_warning.png)
 
+### Experimental: install or update golang (only support *NIX/Mac)
+update-go subcommand update golang if golang installed in /usr/local/go
+is not up-to-date. If golang is not on the system, gup will not install
+the latest version of golang in /usr/local/go.  
+  
+update-go subcommand is an experimental feature. In the future, update-go
+may be removed or become a another command.
+```
+$ sudo gup update-go
+gup:INFO : current=1.19.6, latest=1.20.1
+gup:INFO : download go1.20.1.linux-amd64.tar.gz at current directory
+gup:INFO : [compare sha256 checksum]
+gup:INFO :  expect: 000a5b1fca4f75895f78befeb2eecf10bfff3c428597f3f1e69133b63b911b02
+gup:INFO :  got   : 000a5b1fca4f75895f78befeb2eecf10bfff3c428597f3f1e69133b63b911b02
+gup:INFO : backup original /usr/local/go as /usr/local/go.backup
+gup:INFO : start extract go1.20.1.linux-amd64.tar.gz at /usr/local/go
+gup:INFO : delete backup (/usr/local/go.backup)
+gup:INFO : delete go1.20.1.linux-amd64.tar.gz
+gup:INFO : success to update golang (version 1.20.1)
+```
+
+
 # Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
 Contributions are not only related to development. For example, GitHub Star motivates me to develop!
