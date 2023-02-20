@@ -203,7 +203,10 @@ func fetchGolangTarball(tarballName string) error {
 	}
 	defer tarball.Close()
 
-	_, err = io.Copy(tarball, resp.Body)
+	progress := NewProgress(resp.ContentLength)
+	defer progress.Finish()
+
+	_, err = io.Copy(tarball, io.TeeReader(resp.Body, progress))
 	if err != nil {
 		return err
 	}
@@ -308,4 +311,34 @@ func recovery(targetPath, backupPath string) error {
 		return err
 	}
 	return nil
+}
+
+type Progress struct {
+	Total   int64
+	Current int64
+}
+
+func NewProgress(total int64) *Progress {
+	return &Progress{
+		Total:   total,
+		Current: 0,
+	}
+}
+
+func (p *Progress) Write(data []byte) (n int, err error) {
+	n = len(data)
+	p.Current += int64(n)
+	p.Show()
+	return
+}
+
+func (p *Progress) Show() {
+	if p.Total == 0 {
+		return
+	}
+	fmt.Printf("\rDownloading... %d/%d kB (%d%%)", p.Current/1000, p.Total/1000, (p.Current*100)/p.Total)
+}
+
+func (p *Progress) Finish() {
+	fmt.Println()
 }
