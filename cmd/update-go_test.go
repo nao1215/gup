@@ -36,3 +36,22 @@ func Test_golangTarballChecksums(t *testing.T) {
 		})
 	}
 }
+
+func TestProgress(t *testing.T) {
+	total := int64(1024 * 1024) // 1MB
+	progress := NewProgress(total)
+
+	t.Run("Write should update current and show progress", func(t *testing.T) {
+		data := make([]byte, 1024) // 1KB
+		n, err := progress.Write(data)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if n != len(data) {
+			t.Errorf("Unexpected write size. Want %d, got %d", len(data), n)
+		}
+		if progress.Current != int64(len(data)) {
+			t.Errorf("Unexpected current value. Want %d, got %d", len(data), progress.Current)
+		}
+	})
+}
