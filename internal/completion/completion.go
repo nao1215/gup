@@ -60,7 +60,6 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 
 	if err := fp.Close(); err != nil {
 		print.Err(fmt.Errorf("can not close .bash_completion %w", err))
-		return
 	}
 	return
 }
