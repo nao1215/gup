@@ -41,40 +41,28 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 		return
 	}
 
-	if !file.IsFile(path) {
-		fp, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
-		if err != nil {
-			print.Err(fmt.Errorf("can not open .bash_completion: %w", err))
+	if !file.IsDir(path) {
+		if err := os.MkdirAll(filepath.Dir(path), 0775); err != nil {
+			print.Err(fmt.Errorf("can not create bash-completion file: %w", err))
 			return
 		}
-
-		if _, err := fp.WriteString(bashCompletion.String()); err != nil {
-			print.Err(fmt.Errorf("can not write .bash_completion %w", err))
-			return
-		}
-
-		if err := fp.Close(); err != nil {
-			print.Err(fmt.Errorf("can not close .bash_completion %w", err))
-			return
-		}
-		return
 	}
-
-	fp, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0664)
+	fp, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0664)
 	if err != nil {
 		print.Err(fmt.Errorf("can not open .bash_completion: %w", err))
 		return
 	}
 
 	if _, err := fp.WriteString(bashCompletion.String()); err != nil {
-		print.Err(fmt.Errorf("can not append .bash_completion: %w", err))
+		print.Err(fmt.Errorf("can not write .bash_completion %w", err))
 		return
 	}
 
 	if err := fp.Close(); err != nil {
-		print.Err(fmt.Errorf("can not close .bash_completion: %w", err))
+		print.Err(fmt.Errorf("can not close .bash_completion %w", err))
 		return
 	}
+	return
 }
 
 func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
@@ -235,7 +223,7 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 
 // bashCompletionFilePath return bash-completion file path.
 func bashCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".bash_completion")
+	return filepath.Join(os.Getenv("HOME"), ".bash_completions.d", cmdinfo.Name)
 }
 
 // fishCompletionFilePath return fish-completion file path.
