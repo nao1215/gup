@@ -222,7 +222,7 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 
 // bashCompletionFilePath return bash-completion file path.
 func bashCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".bash_completions.d", cmdinfo.Name)
+	return filepath.Join(os.Getenv("HOME"), ".bash_completion.d", cmdinfo.Name)
 }
 
 // fishCompletionFilePath return fish-completion file path.
