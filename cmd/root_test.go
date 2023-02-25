@@ -770,7 +770,7 @@ func TestExecute_Completion(t *testing.T) {
 		os.Args = []string{"gup", "completion"}
 		Execute()
 
-		bash := filepath.Join(os.Getenv("HOME"), ".bash_completions.d", cmdinfo.Name)
+		bash := filepath.Join(os.Getenv("HOME"), ".bash_completion.d", cmdinfo.Name)
 		if runtime.GOOS == "windows" {
 			if file.IsFile(bash) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", bash)
