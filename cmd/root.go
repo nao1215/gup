@@ -22,6 +22,8 @@ var OsExit = os.Exit
 func Execute() {
 	assets.DeployIconIfNeeded()
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	rootCmd.SilenceUsage = true
+	rootCmd.SilenceErrors = true
 	if err := rootCmd.Execute(); err != nil {
 		print.Err(err)
 	}
