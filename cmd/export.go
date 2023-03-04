@@ -10,22 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var exportCmd = &cobra.Command{
-	Use:   "export",
-	Short: "Export the binary names under $GOPATH/bin and their path info. to gup.conf.",
-	Long: `Export the binary names under $GOPATH/bin and their path info. to gup.conf.
-
-Use the export subcommand if you want to install the same golang
-binaries across multiple systems. By default, this sub-command 
-exports the file to $XDG_CONFIG_HOME/.config/gup/gup.conf (e.g. $HOME/.config/gup/gup.conf.) 
-After you have placed gup.conf in the same path hierarchy on
-another system, you execute import subcommand. gup start the
-installation according to the contents of gup.conf.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		OsExit(export(cmd, args))
-	},
-}
-
 func newExportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
