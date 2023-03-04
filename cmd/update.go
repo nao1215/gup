@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/nao1215/gup/internal/print"
 	"github.com/nao1215/gup/internal/slice"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/semaphore"
 )
 
 func newUpdateCmd() *cobra.Command {
@@ -21,14 +24,15 @@ func newUpdateCmd() *cobra.Command {
 		Short: "Update binaries installed by 'go install'",
 		Long: `Update binaries installed by 'go install'
 	
-	If you execute '$ gup update', gup gets the package path of all commands
-	under $GOPATH/bin and automatically updates commands to the latest version.`,
+If you execute '$ gup update', gup gets the package path of all commands
+under $GOPATH/bin and automatically updates commands to the latest version.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(gup(cmd, args))
 		},
 	}
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
 }
@@ -36,6 +40,11 @@ func newUpdateCmd() *cobra.Command {
 // gup is main sequence.
 // All errors are handled in this function.
 func gup(cmd *cobra.Command, args []string) int {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		return 1
+	}
+
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))
@@ -48,8 +57,9 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	if err := goutil.CanUseGoCmd(); err != nil {
-		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+	cpus, err := cmd.Flags().GetInt("jobs")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--jobs)", err))
 		return 1
 	}
 
@@ -64,7 +74,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err("unable to update package: no package information")
 		return 1
 	}
-	return update(pkgs, dryRun, notify)
+	return update(pkgs, dryRun, notify, cpus)
 }
 
 type updateResult struct {
@@ -72,7 +82,7 @@ type updateResult struct {
 	err error
 }
 
-func update(pkgs []goutil.Package, dryRun, notification bool) int {
+func update(pkgs []goutil.Package, dryRun, notification bool, cpus int) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -91,7 +101,18 @@ func update(pkgs []goutil.Package, dryRun, notification bool) int {
 	}
 
 	ch := make(chan updateResult)
-	updater := func(p goutil.Package, result chan updateResult) {
+	weighted := semaphore.NewWeighted(int64(cpus))
+	updater := func(ctx context.Context, p goutil.Package, result chan updateResult) {
+		if err := weighted.Acquire(ctx, 1); err != nil {
+			r := updateResult{
+				pkg: p,
+				err: err,
+			}
+			result <- r
+			return
+		}
+		defer weighted.Release(1)
+
 		var err error
 		if p.ImportPath == "" {
 			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
@@ -110,8 +131,9 @@ func update(pkgs []goutil.Package, dryRun, notification bool) int {
 	}
 
 	// update all package
+	ctx := context.Background()
 	for _, v := range pkgs {
-		go updater(v, ch)
+		go updater(ctx, v, ch)
 	}
 
 	// print result

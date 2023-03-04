@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/file"
@@ -28,6 +29,7 @@ Finally, you execute the export subcommand in this state.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
+	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
 }
@@ -51,6 +53,12 @@ func runImport(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	cpus, err := cmd.Flags().GetInt("jobs")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--jobs)", err))
+		return 1
+	}
+
 	if !file.IsFile(confFile) {
 		print.Err(fmt.Errorf("%s is not found", confFile))
 		return 1
@@ -68,5 +76,5 @@ func runImport(cmd *cobra.Command, args []string) int {
 	}
 
 	print.Info("start update based on " + confFile)
-	return update(pkgs, dryRun, notify)
+	return update(pkgs, dryRun, notify, cpus)
 }

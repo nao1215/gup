@@ -1,17 +1,20 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/semaphore"
 )
 
 func newCheckCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check the latest version of the binary installed by 'go install'",
 		Long: `Check the latest version of the binary installed by 'go install'
@@ -23,11 +26,21 @@ However, do not update`,
 			OsExit(check(cmd, args))
 		},
 	}
+
+	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+
+	return cmd
 }
 
 func check(cmd *cobra.Command, args []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
+		return 1
+	}
+
+	cpus, err := cmd.Flags().GetInt("jobs")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--jobs)", err))
 		return 1
 	}
 
@@ -42,10 +55,10 @@ func check(cmd *cobra.Command, args []string) int {
 		print.Err("unable to check package: no package information")
 		return 1
 	}
-	return doCheck(pkgs)
+	return doCheck(pkgs, cpus)
 }
 
-func doCheck(pkgs []goutil.Package) int {
+func doCheck(pkgs []goutil.Package, cpus int) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	var mu sync.Mutex
@@ -53,7 +66,18 @@ func doCheck(pkgs []goutil.Package) int {
 
 	print.Info("check binary under $GOPATH/bin or $GOBIN")
 	ch := make(chan updateResult)
-	checker := func(p goutil.Package, result chan updateResult) {
+	weighted := semaphore.NewWeighted(int64(cpus))
+	checker := func(ctx context.Context, p goutil.Package, result chan updateResult) {
+		if err := weighted.Acquire(ctx, 1); err != nil {
+			r := updateResult{
+				pkg: p,
+				err: err,
+			}
+			result <- r
+			return
+		}
+		defer weighted.Release(1)
+
 		var err error
 		if p.ModulePath == "" {
 			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
@@ -79,8 +103,9 @@ func doCheck(pkgs []goutil.Package) int {
 	}
 
 	// check all package
+	ctx := context.Background()
 	for _, v := range pkgs {
-		go checker(v, ch)
+		go checker(ctx, v, ch)
 	}
 
 	// print result
