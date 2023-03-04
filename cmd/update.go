@@ -15,22 +15,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "Update binaries installed by 'go install'",
-	Long: `Update binaries installed by 'go install'
+func newUpdateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update binaries installed by 'go install'",
+		Long: `Update binaries installed by 'go install'
+	
+	If you execute '$ gup update', gup gets the package path of all commands
+	under $GOPATH/bin and automatically updates commands to the latest version.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			OsExit(gup(cmd, args))
+		},
+	}
+	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 
-If you execute '$ gup update', gup gets the package path of all commands
-under $GOPATH/bin and automatically updates commands to the latest version.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		OsExit(gup(cmd, args))
-	},
-}
-
-func init() {
-	updateCmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-	updateCmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-	rootCmd.AddCommand(updateCmd)
+	return cmd
 }
 
 // gup is main sequence.

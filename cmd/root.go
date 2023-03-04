@@ -24,6 +24,16 @@ func Execute() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
+
+	rootCmd.AddCommand(newCheckCmd())
+	rootCmd.AddCommand(newCompletionCmd())
+	rootCmd.AddCommand(newExportCmd())
+	rootCmd.AddCommand(newImportCmd())
+	rootCmd.AddCommand(newListCmd())
+	rootCmd.AddCommand(newRemoveCmd())
+	rootCmd.AddCommand(newUpdateCmd())
+	rootCmd.AddCommand(newVersionCmd())
+
 	if err := rootCmd.Execute(); err != nil {
 		print.Err(err)
 	}

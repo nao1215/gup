@@ -10,21 +10,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Check the latest version of the binary installed by 'go install'",
-	Long: `Check the latest version of the binary installed by 'go install'
+func newCheckCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "check",
+		Short: "Check the latest version of the binary installed by 'go install'",
+		Long: `Check the latest version of the binary installed by 'go install'
 
 check subcommand checks if the binary is the latest version
 and displays the name of the binary that needs to be updated.
 However, do not update`,
-	Run: func(cmd *cobra.Command, args []string) {
-		OsExit(check(cmd, args))
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(checkCmd)
+		Run: func(cmd *cobra.Command, args []string) {
+			OsExit(check(cmd, args))
+		},
+	}
 }
 
 func check(cmd *cobra.Command, args []string) int {

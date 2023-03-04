@@ -10,17 +10,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List up command name with package path and version under $GOPATH/bin or $GOBIN",
-	Long:  `List up command name with package path and version under $GOPATH/bin or $GOBIN`,
-	Run: func(cmd *cobra.Command, args []string) {
-		OsExit(list(cmd, args))
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(listCmd)
+func newListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List up command name with package path and version under $GOPATH/bin or $GOBIN",
+		Long:  `List up command name with package path and version under $GOPATH/bin or $GOBIN`,
+		Run: func(cmd *cobra.Command, args []string) {
+			OsExit(list(cmd, args))
+		},
+	}
 }
 
 func list(cmd *cobra.Command, args []string) int {
