@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -70,12 +71,15 @@ func Test_runImport_Error(t *testing.T) {
 			if tt.name == "argument parse error (--dry-run)" {
 				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+				tt.args.cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 			} else if tt.name == "argument parse error (--input)" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+				tt.args.cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 			} else if tt.name == "argument parse error (--notify)" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
+				tt.args.cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 			}
 
 			orgStdout := print.Stdout

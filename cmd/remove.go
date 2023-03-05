@@ -13,20 +13,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var removeCmd = &cobra.Command{
-	Use:   "remove",
-	Short: "Remove the binary under $GOPATH/bin or $GOBIN",
-	Long: `Remove command in $GOPATH/bin or $GOBIN.
+func newRemoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Remove the binary under $GOPATH/bin or $GOBIN",
+		Long: `Remove command in $GOPATH/bin or $GOBIN.
 If you want to specify multiple binaries at once, separate them with space.
 [e.g.] gup remove a_cmd b_cmd c_cmd`,
-	Run: func(cmd *cobra.Command, args []string) {
-		OsExit(remove(cmd, args))
-	},
-}
+		Run: func(cmd *cobra.Command, args []string) {
+			OsExit(remove(cmd, args))
+		},
+	}
+	cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
 
-func init() {
-	removeCmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
-	rootCmd.AddCommand(removeCmd)
+	return cmd
 }
 
 func remove(cmd *cobra.Command, args []string) int {

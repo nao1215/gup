@@ -7,14 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Show " + cmdinfo.Name + " command version information",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(cmdinfo.GetVersion())
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(versionCmd)
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show " + cmdinfo.Name + " command version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(cmdinfo.GetVersion())
+		},
+	}
 }

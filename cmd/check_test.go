@@ -46,7 +46,9 @@ func Test_check(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
+			cmd := &cobra.Command{}
+			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -194,7 +196,9 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
+			cmd := &cobra.Command{}
+			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
