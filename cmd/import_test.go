@@ -65,6 +65,19 @@ func Test_runImport_Error(t *testing.T) {
 				"",
 			},
 		},
+		{
+			name: "argument parse error (--jobs)",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			home: "",
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--jobs): flag accessed but not defined: jobs",
+				"",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,6 +93,10 @@ func Test_runImport_Error(t *testing.T) {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 				tt.args.cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			} else if tt.name == "argument parse error (--jobs)" {
+				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
+				tt.args.cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
+				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
 
 			orgStdout := print.Stdout
