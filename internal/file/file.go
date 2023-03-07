@@ -2,6 +2,7 @@ package file
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"os"
 )
@@ -13,7 +14,11 @@ func ReadFileToList(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
 
 	r := bufio.NewReader(f)
 	for {

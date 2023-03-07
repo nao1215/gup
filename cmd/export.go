@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -76,7 +77,11 @@ func writeConfigFile(pkgs []goutil.Package) error {
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", "can't update", config.FilePath(), err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
 
 	if err := config.WriteConfFile(file, pkgs); err != nil {
 		return err
