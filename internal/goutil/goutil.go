@@ -193,7 +193,7 @@ func Install(importPath string) error {
 	}
 
 	var stderr bytes.Buffer
-	cmd := exec.Command(goExe, "install", importPath+"@latest")
+	cmd := exec.Command(goExe, "install", importPath+"@latest") //#nosec
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
@@ -205,7 +205,7 @@ func Install(importPath string) error {
 
 // GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest"
 func GetLatestVer(modulePath string) (string, error) {
-	out, err := exec.Command(goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output()
+	out, err := exec.Command(goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output() //#nosec
 	if err != nil {
 		return "", errors.New("can't check " + modulePath)
 	}
