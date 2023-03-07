@@ -5,12 +5,13 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 // ReadFileToList convert file content to string list.
 func ReadFileToList(path string) ([]string, error) {
 	var strList []string
-	f, err := os.Open(path)
+	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}
