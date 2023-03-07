@@ -20,20 +20,20 @@ var warningIcon []byte
 // DeployIconIfNeeded make icon file for notification.
 func DeployIconIfNeeded() {
 	if !file.IsDir(assetsDirPath()) {
-		if err := os.MkdirAll(assetsDirPath(), 0750); err != nil {
+		if err := os.MkdirAll(assetsDirPath(), file.FileModeCreatingDir); err != nil {
 			print.Err(fmt.Errorf("%s: %w", "can not make assets directory", err))
 			return
 		}
 	}
 
 	if !file.IsFile(InfoIconPath()) {
-		err := os.WriteFile(InfoIconPath(), inforIcon, 0600)
+		err := os.WriteFile(InfoIconPath(), inforIcon, file.FileModeCreatingFile)
 		if err != nil {
 			print.Warn(err)
 		}
 	}
 	if !file.IsFile(WarningIconPath()) {
-		err := os.WriteFile(WarningIconPath(), warningIcon, 0600)
+		err := os.WriteFile(WarningIconPath(), warningIcon, file.FileModeCreatingFile)
 		if err != nil {
 			print.Warn(err)
 		}

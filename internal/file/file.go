@@ -4,8 +4,16 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+)
+
+const (
+	// FileModeCreatingDir is used for creating directory
+	FileModeCreatingDir fs.FileMode = 0750
+	// FileModeCreatingFile is used for creating directory
+	FileModeCreatingFile fs.FileMode = 0600
 )
 
 // ReadFileToList convert file content to string list.
