@@ -69,7 +69,7 @@ func export(cmd *cobra.Command, args []string) int {
 }
 
 func writeConfigFile(pkgs []goutil.Package) error {
-	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
+	if err := os.MkdirAll(config.DirPath(), 0750); err != nil {
 		return fmt.Errorf("%s: %w", "can not make config directory", err)
 	}
 
