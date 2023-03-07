@@ -2,7 +2,6 @@ package file
 
 import (
 	"bufio"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
@@ -25,7 +24,9 @@ func ReadFileToList(path string) ([]string, error) {
 	}
 	defer func() {
 		if closeErr := f.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = closeErr // overwrite error
 		}
 	}()
 

@@ -1,6 +1,6 @@
 module github.com/nao1215/gup
 
-go 1.20
+go 1.18
 
 require (
 	github.com/adrg/xdg v0.4.0
