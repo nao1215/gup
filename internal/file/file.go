@@ -3,17 +3,32 @@ package file
 import (
 	"bufio"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
+)
+
+const (
+	// FileModeCreatingDir is used for creating directory
+	FileModeCreatingDir fs.FileMode = 0750
+	// FileModeCreatingFile is used for creating directory
+	FileModeCreatingFile fs.FileMode = 0600
 )
 
 // ReadFileToList convert file content to string list.
 func ReadFileToList(path string) ([]string, error) {
 	var strList []string
-	f, err := os.Open(path)
+	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = closeErr // overwrite error
+		}
+	}()
 
 	r := bufio.NewReader(f)
 	for {

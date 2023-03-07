@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/nao1215/gup/internal/config"
+	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -68,7 +69,7 @@ func export(cmd *cobra.Command, args []string) int {
 }
 
 func writeConfigFile(pkgs []goutil.Package) error {
-	if err := os.MkdirAll(config.DirPath(), 0775); err != nil {
+	if err := os.MkdirAll(config.DirPath(), file.FileModeCreatingDir); err != nil {
 		return fmt.Errorf("%s: %w", "can not make config directory", err)
 	}
 
@@ -76,7 +77,13 @@ func writeConfigFile(pkgs []goutil.Package) error {
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", "can't update", config.FilePath(), err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = closeErr // overwrite error
+		}
+	}()
 
 	if err := config.WriteConfFile(file, pkgs); err != nil {
 		return err

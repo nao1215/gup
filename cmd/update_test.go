@@ -50,12 +50,29 @@ func Test_gup(t *testing.T) {
 				"",
 			},
 		},
+		{
+			name: "paser --jobs argument error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--jobs): flag accessed but not defined: jobs",
+				"",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name != "paser --dry-run argument error" {
+			if tt.name == "paser --dry-run argument error" {
+				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
+			} else if tt.name == "paser --notify argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-			} else if tt.name != "paser --notify argument error" {
+				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
+			} else if tt.name == "paser --jobs argument error" {
+				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
 
