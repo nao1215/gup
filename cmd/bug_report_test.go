@@ -37,6 +37,7 @@ func TestBugReport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		wantBytes = bytes.ReplaceAll(wantBytes, []byte("\r\n"), []byte("\n"))
 
 		if diff := cmp.Diff(strings.TrimSpace(string(gotBytes)), strings.TrimSpace(string(wantBytes))); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
