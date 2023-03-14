@@ -16,9 +16,8 @@ import (
 func TestBug(t *testing.T) {
 	b := bytes.NewBufferString("")
 
-	copyRootCmd := *rootCmd
+	copyRootCmd := newRootCmd()
 
-	copyRootCmd.AddCommand(newBugReportCmd())
 	copyRootCmd.SetOut(b)
 	copyRootCmd.SetArgs([]string{"bug-report", "--help"})
 
