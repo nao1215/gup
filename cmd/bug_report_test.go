@@ -31,6 +31,7 @@ func TestBugReport(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		gotBytes = bytes.ReplaceAll(gotBytes, []byte("\r\n"), []byte("\n"))
 
 		wantBytes, err := os.ReadFile(filepath.Join("testdata", "bug_report", "bug_report.txt"))
 		if err != nil {
