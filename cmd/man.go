@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,7 @@ func newManCmd() *cobra.Command {
 	return cmd
 }
 
-func man(cmd *cobra.Command, args []string) int {
+func man(cmd *cobra.Command, args []string) int { //nolint
 	if err := generateManpages(); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not generate man-pages", err))
 		return 1
@@ -48,7 +47,13 @@ func generateManpages() error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = removeErr // overwrite error
+		}
+	}()
 
 	err = doc.GenManTree(newRootCmd(), header, tmpDir)
 	if err != nil {
@@ -61,9 +66,9 @@ func generateManpages() error {
 	}
 
 	for _, file := range manFiles {
-		in, err := os.Open(file)
+		in, err := os.Open(filepath.Clean(file))
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		defer func() {
 			if closeErr := in.Close(); closeErr != nil {
