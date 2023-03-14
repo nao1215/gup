@@ -1,32 +1,23 @@
 ---
 name: Bug report
 about: Create a report to help us improve
-title: "[BUG] XXX"
+title: "[BUG Report] XXX"
 labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## gup version**
+v0.y.z
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Description (About the problem)
+A clear description of the bug encountered.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Steps to reproduce
+Steps to reproduce the bug.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+## Expected behavior
+Expected behavior.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. Ubuntu]
- - Go Version [e.g. 1.17]
- - Application Version [e.g. 1.0.1]
-
-**Additional context**
-Add any other context about the problem here.
+## Additional details**
+Any other useful data to share.

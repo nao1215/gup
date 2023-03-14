@@ -33,6 +33,7 @@ func Execute() {
 	rootCmd.AddCommand(newRemoveCmd())
 	rootCmd.AddCommand(newUpdateCmd())
 	rootCmd.AddCommand(newVersionCmd())
+	rootCmd.AddCommand(newBugReportCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		print.Err(err)
