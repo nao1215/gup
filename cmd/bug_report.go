@@ -20,7 +20,7 @@ func newBugReportCmd() *cobra.Command {
 	}
 }
 
-func bugReport(cmd *cobra.Command, args []string) int {
+func bugReport(cmd *cobra.Command, args []string) int { //nolint
 	var buf bytes.Buffer
 
 	const (
