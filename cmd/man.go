@@ -28,14 +28,14 @@ func newManCmd() *cobra.Command {
 }
 
 func man(cmd *cobra.Command, args []string) int { //nolint
-	if err := generateManpages(); err != nil {
+	if err := generateManpages(filepath.Join("/", "usr", "share", "man", "man1")); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not generate man-pages", err))
 		return 1
 	}
 	return 0
 }
 
-func generateManpages() error {
+func generateManpages(dst string) error {
 	now := time.Now()
 	header := &doc.GenManHeader{
 		Title:   `gup - Update binaries installed by 'go install'`,
@@ -65,6 +65,10 @@ func generateManpages() error {
 		return err
 	}
 
+	return copyManpages(manFiles, dst)
+}
+
+func copyManpages(manFiles []string, dst string) error {
 	for _, file := range manFiles {
 		in, err := os.Open(filepath.Clean(file))
 		if err != nil {
@@ -78,7 +82,7 @@ func generateManpages() error {
 			}
 		}()
 
-		out, err := os.Create(filepath.Join("/", "usr", "share", "man", "man1", filepath.Base(file)+".gz"))
+		out, err := os.Create(filepath.Join(dst, filepath.Base(file)+".gz"))
 		if err != nil {
 			return err
 		}
@@ -106,6 +110,5 @@ func generateManpages() error {
 			return err
 		}
 	}
-
 	return nil
 }
