@@ -1,0 +1,10 @@
+bug-report opens the default browser to start a bug report which will include useful system information.
+
+Usage:
+  gup bug-report [flags]
+
+Examples:
+   gup bug-report
+
+Flags:
+  -h, --help   help for bug-report

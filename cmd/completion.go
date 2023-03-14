@@ -12,7 +12,7 @@ func newCompletionCmd() *cobra.Command {
 		Long: `Create shell completion files (bash, fish, zsh) for the gup command
 if it is not already on the system`,
 		Run: func(cmd *cobra.Command, args []string) {
-			completion.DeployShellCompletionFileIfNeeded(rootCmd)
+			completion.DeployShellCompletionFileIfNeeded(newRootCmd())
 		},
 	}
 }

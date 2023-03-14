@@ -132,6 +132,23 @@ $ gup export --output > gup.conf
 $ gup import --input=gup.conf
 ```
 
+### Generate man-pages (for linux, mac)
+man subcommand generates man-pages under /usr/share/man/man1.
+```
+$ sudo gup man
+gup:INFO : Generate /usr/share/man/man1/gup-bug-report.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-check.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-completion.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-export.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-import.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-list.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-man.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-remove.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-update.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup-version.1.gz
+gup:INFO : Generate /usr/share/man/man1/gup.1.gz
+```
+
 ### Generate shell completion file (for bash, zsh, fish)
 completion subcommand generates shell completion files for bash, zsh, and fish. If the shell completion file does not exist in the system, the generation process will begin. To activate the completion feature, restart the shell.
 
