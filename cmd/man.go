@@ -69,8 +69,12 @@ func generateManpages(dst string) error {
 }
 
 func copyManpages(manFiles []string, dst string) error {
+	dst = filepath.Clean(dst)
+
 	for _, file := range manFiles {
-		in, err := os.Open(filepath.Clean(file))
+		file = filepath.Clean(file)
+
+		in, err := os.Open(file)
 		if err != nil {
 			return err
 		}
