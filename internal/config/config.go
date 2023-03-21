@@ -2,8 +2,10 @@
 package config
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/nao1215/gup/internal/cmdinfo"
-	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 )
 
@@ -31,7 +32,7 @@ func DirPath() string {
 
 // ReadConfFile return contents of configuration-file (package information)
 func ReadConfFile(path string) ([]goutil.Package, error) {
-	contents, err := file.ReadFileToList(path)
+	contents, err := readFileToList(path)
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s: %w", path, err)
 	}
@@ -85,4 +86,33 @@ func isBlank(line string) bool {
 func deleteComment(line string) string {
 	r := regexp.MustCompile(`#./*`)
 	return r.ReplaceAllString(line, "")
+}
+
+// readFileToList convert file content to string list.
+func readFileToList(path string) ([]string, error) {
+	var strList []string
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = closeErr // overwrite error
+		}
+	}()
+
+	r := bufio.NewReader(f)
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if err == io.EOF && len(line) == 0 {
+			break
+		}
+		strList = append(strList, line)
+	}
+	return strList, nil
 }

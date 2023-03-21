@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/config"
-	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -32,7 +32,7 @@ installation according to the contents of gup.conf.`,
 	return cmd
 }
 
-func export(cmd *cobra.Command, args []string) int {
+func export(cmd *cobra.Command, _ []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
 		return 1
