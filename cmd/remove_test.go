@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nao1215/gup/internal/file"
+	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )

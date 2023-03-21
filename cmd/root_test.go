@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/config"
-	"github.com/nao1215/gup/internal/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 )
