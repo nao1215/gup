@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/print"
 )
 
@@ -19,7 +20,7 @@ import (
 
 func TestBinaryPathList_non_existing_path(t *testing.T) {
 	dummyPath := filepath.Join("non", "existing", "path")
-	list, err := BinaryPathList(dummyPath)
+	list, err := BinaryPathList(filepath.Clean(dummyPath))
 
 	// Require to be error
 	if err == nil {
@@ -36,6 +37,21 @@ func TestBinaryPathList_non_existing_path(t *testing.T) {
 	got := err.Error()
 	if !strings.Contains(got, wantContain) {
 		t.Errorf("it should return error with message '%v'. got: %v", wantContain, got)
+	}
+}
+
+// Unit test for [BUG Report] Ignore .DS_Store files on macOS #81
+// https://github.com/nao1215/gup/issues/81
+func TestBinaryPathList_exclusion(t *testing.T) {
+	dummyPath := "testdata"
+	got, err := BinaryPathList(filepath.Clean(dummyPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{filepath.Join(dummyPath, "normal.txt")}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("value is mismatch (-want +got):\n%s", diff)
 	}
 }
 

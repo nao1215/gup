@@ -40,7 +40,7 @@ Expected behavior.
 Any other useful data to share.
 `
 	)
-	buf.WriteString(fmt.Sprintf("## gup version**\n%s\n\n", cmd.Version))
+	buf.WriteString(fmt.Sprintf("## gup version\n%s\n\n", cmd.Version))
 	buf.WriteString(description)
 	buf.WriteString(toReproduce)
 	buf.WriteString(expectedBehavior)
