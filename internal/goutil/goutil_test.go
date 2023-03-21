@@ -43,13 +43,13 @@ func TestBinaryPathList_non_existing_path(t *testing.T) {
 // Unit test for [BUG Report] Ignore .DS_Store files on macOS #81
 // https://github.com/nao1215/gup/issues/81
 func TestBinaryPathList_exclusion(t *testing.T) {
-	dummyPath := filepath.Join("testdata")
+	dummyPath := "testdata"
 	got, err := BinaryPathList(filepath.Clean(dummyPath))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want := []string{filepath.Join("testdata", "normal.txt")}
+	want := []string{filepath.Join(dummyPath, "normal.txt")}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("value is mismatch (-want +got):\n%s", diff)
 	}
