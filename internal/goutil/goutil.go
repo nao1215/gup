@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/pkg/errors"
 )
@@ -258,9 +259,15 @@ func BinaryPathList(path string) ([]string, error) {
 
 	list := []string{}
 	for _, e := range entries {
-		if !e.IsDir() {
-			list = append(list, filepath.Join(path, e.Name()))
+		if e.IsDir() {
+			continue
 		}
+
+		path := filepath.Join(path, e.Name())
+		if file.IsHiddenFile(path) {
+			continue
+		}
+		list = append(list, path)
 	}
 	return list, nil
 }
