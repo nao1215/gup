@@ -181,6 +181,12 @@ If you would like to send comments such as "find a bug" or "request for addition
 
 - [GitHub Issue](https://github.com/nao1215/gup/issues)
 
+You can use the bug-report subcommand to send a bug report.
+```
+$ gup bug-report
+※ Open GitHub issue page by your default browser
+```
+
 # LICENSE
 The gup project is licensed under the terms of [the Apache License 2.0](./LICENSE).
 
