@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +24,7 @@ func newUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update binaries installed by 'go install'",
 		Long: `Update binaries installed by 'go install'
-	
+
 If you execute '$ gup update', gup gets the package path of all commands
 under $GOPATH/bin and automatically updates commands to the latest version.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -32,6 +33,7 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 	}
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
+	cmd.Flags().StringP("exclude", "e", "", "specify binaries which should not be updated separated using ',' without spaces as a delimiter")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
@@ -68,13 +70,34 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err(err)
 		return 1
 	}
+
+	exclude, err := cmd.Flags().GetString("exclude")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--exclude)", err))
+		return 1
+	}
+
 	pkgs = extractUserSpecifyPkg(pkgs, args)
+
+	pkgs = excludePkgs(exclude, pkgs)
 
 	if len(pkgs) == 0 {
 		print.Err("unable to update package: no package information")
 		return 1
 	}
 	return update(pkgs, dryRun, notify, cpus)
+}
+
+func excludePkgs(exclude string, pkgs []goutil.Package) []goutil.Package {
+	excludelist := strings.Split(exclude, ",")
+
+	for i := len(pkgs) - 1; i >= 0; i-- {
+		if slice.Contains(excludelist, pkgs[i].Name) {
+			pkgs = append(pkgs[:i], pkgs[i+1:]...)
+		}
+	}
+
+	return pkgs
 }
 
 type updateResult struct {

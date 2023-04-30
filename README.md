@@ -1,4 +1,4 @@
-[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)  
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![Build](https://github.com/nao1215/gup/actions/workflows/build.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/build.yml)
 [![MultiVersionUnitTest](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml)
 [![PlatformTests](https://github.com/nao1215/gup/actions/workflows/platform_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/platform_test.yml)
@@ -6,16 +6,16 @@
 [![codecov](https://codecov.io/gh/nao1215/gup/branch/main/graph/badge.svg?token=DNV3TRMRCJ)](https://codecov.io/gh/nao1215/gup)
 [![Go Reference](https://pkg.go.dev/badge/github.com/nao1215/gup.svg)](https://pkg.go.dev/github.com/nao1215/gup)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nao1215/gup)](https://goreportcard.com/report/github.com/nao1215/gup)
-![GitHub](https://img.shields.io/github/license/nao1215/gup)  
-[[日本語](./doc/ja/README.md)]  
-  
-# gup - Update binaries installed by "go install"  
-![demo](./doc/img/demo.gif)  
-  
-**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.   
-  
+![GitHub](https://img.shields.io/github/license/nao1215/gup)
+[[日本語](./doc/ja/README.md)]
+
+# gup - Update binaries installed by "go install"
+![demo](./doc/img/demo.gif)
+
+**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
+
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
-  
+
 ![sample](./doc/img/sample.png)
 
 # How to install
@@ -33,11 +33,11 @@ $ brew install nao1215/tap/gup
 
 ### Install from Package or Binary
 [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
-  
+
 
 # How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup update`. 
+If you update all binaries, you just run `$ gup update`.
 
 ```
 $ gup update
@@ -56,6 +56,17 @@ gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-t
 If you want to update only the specified binaries, you specify multiple command names separated by space.
 ```
 $ gup update subaru gup ubume
+gup:INFO : update binary under $GOPATH/bin or $GOBIN
+gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2)
+gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
+```
+
+### Exclude binaries during gup update
+If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
+Also works in combination with --dry-run
+```
+$ gup update -e gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
 gup:INFO : update binary under $GOPATH/bin or $GOBIN
 gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1)
 gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2)
@@ -95,9 +106,9 @@ gup:INFO : [ 2/33] fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4)
 gup:INFO : [33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0)
 
 gup:INFO : If you want to update binaries, the following command.
-           $ gup update fyne_demo gup mimixbox 
+           $ gup update fyne_demo gup mimixbox
 ```
-  
+
 Like other subcommands, you can only check the specified binaries.
 ```
 $ gup check lazygit mimixbox
@@ -106,10 +117,10 @@ gup:INFO : [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
 gup:INFO : [2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2)
 
 gup:INFO : If you want to update binaries, the following command.
-           $ gup update mimixbox 
+           $ gup update mimixbox
 ```
 ### Export／Import subcommand
-You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $XDG_CONFIG_HOME/gup/gup.conf. If you want to know [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), see this link. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation 
+You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $XDG_CONFIG_HOME/gup/gup.conf. If you want to know [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), see this link. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation
 according to the contents of gup.conf.
 
 ```
@@ -122,7 +133,7 @@ $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
 ```
-  
+
 Alternatively, export subcommand print package information (it's same as gup.conf) that you want to export at STDOUT if you use --output option. import subcommand can also specify the gup.conf file path if you use --input option.
 ```
 ※ Environments A (e.g. ubuntu)
@@ -160,7 +171,7 @@ gup:INFO : create zsh-completion file: /home/nao/.zsh/completion/_gup
 ```
 
 ### Desktop notification
-If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.  
+If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
 ```
 $ gup update --notify
 ```

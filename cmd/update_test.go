@@ -172,6 +172,95 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 	}
 }
 
+func Test_excludeUserSpecifiedPkg(t *testing.T) {
+	type args struct {
+		pkgs    []goutil.Package
+		exclude string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []goutil.Package
+	}{
+		{
+			name: "find user specify package",
+			args: args{
+				pkgs: []goutil.Package{
+					{
+						Name: "pkg1",
+					},
+					{
+						Name: "pkg2",
+					},
+					{
+						Name: "pkg3",
+					},
+				},
+				exclude: "pkg1,pkg3",
+			},
+			want: []goutil.Package{
+				{
+					Name: "pkg2",
+				},
+			},
+		},
+		{
+			name: "find user specify package",
+			args: args{
+				pkgs: []goutil.Package{
+					{
+						Name: "pkg1",
+					},
+					{
+						Name: "pkg2",
+					},
+					{
+						Name: "pkg3",
+					},
+				},
+				exclude: "pkg1,pkg2",
+			},
+			want: []goutil.Package{
+				{
+					Name: "pkg3",
+				},
+			},
+		},
+		{
+			name: "find user specify package",
+			args: args{
+				pkgs: []goutil.Package{
+					{
+						Name: "pkg1",
+					},
+					{
+						Name: "pkg2",
+					},
+					{
+						Name: "pkg3",
+					},
+				},
+				exclude: "pkg1",
+			},
+			want: []goutil.Package{
+				{
+					Name: "pkg2",
+				},
+				{
+					Name: "pkg3",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := excludePkgs(tt.args.exclude, tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_update_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
