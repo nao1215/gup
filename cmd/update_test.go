@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -165,8 +164,9 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := extractUserSpecifyPkg(tt.args.pkgs, tt.args.targets); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
+			got := extractUserSpecifyPkg(tt.args.pkgs, tt.args.targets)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -253,8 +253,9 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := excludePkgs(tt.args.excludePkgList, tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
+			got := excludePkgs(tt.args.excludePkgList, tt.args.pkgs)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

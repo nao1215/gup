@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -105,8 +104,9 @@ func Test_validPkgInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := validPkgInfo(tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("validPkgInfo() = %v, want %v", got, tt.want)
+			got := validPkgInfo(tt.args.pkgs)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
