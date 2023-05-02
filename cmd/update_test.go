@@ -174,8 +174,8 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 
 func Test_excludeUserSpecifiedPkg(t *testing.T) {
 	type args struct {
-		pkgs    []goutil.Package
-		exclude string
+		pkgs           []goutil.Package
+		excludePkgList []string
 	}
 	tests := []struct {
 		name string
@@ -196,7 +196,7 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 						Name: "pkg3",
 					},
 				},
-				exclude: "pkg1,pkg3",
+				excludePkgList: []string{"pkg1", "pkg3"},
 			},
 			want: []goutil.Package{
 				{
@@ -205,7 +205,7 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			},
 		},
 		{
-			name: "find user specify package",
+			name: "find user specify package (exclude all package)",
 			args: args{
 				pkgs: []goutil.Package{
 					{
@@ -218,31 +218,30 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 						Name: "pkg3",
 					},
 				},
-				exclude: "pkg1,pkg2",
+				excludePkgList: []string{"pkg1", "pkg2", "pkg3"},
+			},
+			want: []goutil.Package{},
+		},
+		{
+			name: "If the excluded package does not exist",
+			args: args{
+				pkgs: []goutil.Package{
+					{
+						Name: "pkg1",
+					},
+					{
+						Name: "pkg2",
+					},
+					{
+						Name: "pkg3",
+					},
+				},
+				excludePkgList: []string{"pkg4"},
 			},
 			want: []goutil.Package{
 				{
-					Name: "pkg3",
+					Name: "pkg1",
 				},
-			},
-		},
-		{
-			name: "find user specify package",
-			args: args{
-				pkgs: []goutil.Package{
-					{
-						Name: "pkg1",
-					},
-					{
-						Name: "pkg2",
-					},
-					{
-						Name: "pkg3",
-					},
-				},
-				exclude: "pkg1",
-			},
-			want: []goutil.Package{
 				{
 					Name: "pkg2",
 				},
@@ -254,7 +253,7 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := excludePkgs(tt.args.exclude, tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
+			if got := excludePkgs(tt.args.excludePkgList, tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
 			}
 		})
