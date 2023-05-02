@@ -27,7 +27,7 @@ func Test_CheckOption(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "paser --jobs argument error",
+			name: "parser --jobs argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},

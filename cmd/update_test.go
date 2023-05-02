@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -27,7 +26,7 @@ func Test_gup(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "paser --dry-run argument error",
+			name: "parser --dry-run argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -39,7 +38,7 @@ func Test_gup(t *testing.T) {
 			},
 		},
 		{
-			name: "paser --notify argument error",
+			name: "parser --notify argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -51,7 +50,7 @@ func Test_gup(t *testing.T) {
 			},
 		},
 		{
-			name: "paser --jobs argument error",
+			name: "parser --jobs argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -65,13 +64,13 @@ func Test_gup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name == "paser --dry-run argument error" {
+			if tt.name == "parser --dry-run argument error" {
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "paser --notify argument error" {
+			} else if tt.name == "parser --notify argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "paser --jobs argument error" {
+			} else if tt.name == "parser --jobs argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
@@ -165,8 +164,9 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := extractUserSpecifyPkg(tt.args.pkgs, tt.args.targets); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
+			got := extractUserSpecifyPkg(tt.args.pkgs, tt.args.targets)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -174,8 +174,8 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 
 func Test_excludeUserSpecifiedPkg(t *testing.T) {
 	type args struct {
-		pkgs    []goutil.Package
-		exclude string
+		pkgs           []goutil.Package
+		excludePkgList []string
 	}
 	tests := []struct {
 		name string
@@ -196,7 +196,7 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 						Name: "pkg3",
 					},
 				},
-				exclude: "pkg1,pkg3",
+				excludePkgList: []string{"pkg1", "pkg3"},
 			},
 			want: []goutil.Package{
 				{
@@ -205,7 +205,7 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			},
 		},
 		{
-			name: "find user specify package",
+			name: "find user specify package (exclude all package)",
 			args: args{
 				pkgs: []goutil.Package{
 					{
@@ -218,31 +218,30 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 						Name: "pkg3",
 					},
 				},
-				exclude: "pkg1,pkg2",
+				excludePkgList: []string{"pkg1", "pkg2", "pkg3"},
+			},
+			want: []goutil.Package{},
+		},
+		{
+			name: "If the excluded package does not exist",
+			args: args{
+				pkgs: []goutil.Package{
+					{
+						Name: "pkg1",
+					},
+					{
+						Name: "pkg2",
+					},
+					{
+						Name: "pkg3",
+					},
+				},
+				excludePkgList: []string{"pkg4"},
 			},
 			want: []goutil.Package{
 				{
-					Name: "pkg3",
+					Name: "pkg1",
 				},
-			},
-		},
-		{
-			name: "find user specify package",
-			args: args{
-				pkgs: []goutil.Package{
-					{
-						Name: "pkg1",
-					},
-					{
-						Name: "pkg2",
-					},
-					{
-						Name: "pkg3",
-					},
-				},
-				exclude: "pkg1",
-			},
-			want: []goutil.Package{
 				{
 					Name: "pkg2",
 				},
@@ -254,8 +253,9 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := excludePkgs(tt.args.exclude, tt.args.pkgs); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("extractUserSpecifyPkg() = %v, want %v", got, tt.want)
+			got := excludePkgs(tt.args.excludePkgList, tt.args.pkgs)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

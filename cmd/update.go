@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -33,7 +32,7 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 	}
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-	cmd.Flags().StringP("exclude", "e", "", "specify binaries which should not be updated separated using ',' without spaces as a delimiter")
+	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated separated using ',' without spaces as a delimiter")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
@@ -71,33 +70,32 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	exclude, err := cmd.Flags().GetString("exclude")
+	excludePkgList, err := cmd.Flags().GetStringSlice("exclude")
 	if err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--exclude)", err))
 		return 1
 	}
 
 	pkgs = extractUserSpecifyPkg(pkgs, args)
-
-	pkgs = excludePkgs(exclude, pkgs)
+	pkgs = excludePkgs(excludePkgList, pkgs)
 
 	if len(pkgs) == 0 {
-		print.Err("unable to update package: no package information")
+		print.Err("unable to update package: no package information or no package under $GOBIN")
 		return 1
 	}
 	return update(pkgs, dryRun, notify, cpus)
 }
 
-func excludePkgs(exclude string, pkgs []goutil.Package) []goutil.Package {
-	excludelist := strings.Split(exclude, ",")
-
-	for i := len(pkgs) - 1; i >= 0; i-- {
-		if slice.Contains(excludelist, pkgs[i].Name) {
-			pkgs = append(pkgs[:i], pkgs[i+1:]...)
+func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
+	packageList := []goutil.Package{}
+	for _, v := range pkgs {
+		if slice.Contains(excludePkgList, v.Name) {
+			print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
+			continue
 		}
+		packageList = append(packageList, v)
 	}
-
-	return pkgs
+	return packageList
 }
 
 type updateResult struct {
