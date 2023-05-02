@@ -31,7 +31,7 @@ func Test_ExportOption(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "paser --output argument error",
+			name: "parser --output argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},

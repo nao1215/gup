@@ -27,7 +27,7 @@ func Test_gup(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "paser --dry-run argument error",
+			name: "parser --dry-run argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -39,7 +39,7 @@ func Test_gup(t *testing.T) {
 			},
 		},
 		{
-			name: "paser --notify argument error",
+			name: "parser --notify argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -51,7 +51,7 @@ func Test_gup(t *testing.T) {
 			},
 		},
 		{
-			name: "paser --jobs argument error",
+			name: "parser --jobs argument error",
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -65,13 +65,13 @@ func Test_gup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name == "paser --dry-run argument error" {
+			if tt.name == "parser --dry-run argument error" {
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "paser --notify argument error" {
+			} else if tt.name == "parser --notify argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "paser --jobs argument error" {
+			} else if tt.name == "parser --jobs argument error" {
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
