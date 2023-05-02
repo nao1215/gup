@@ -80,7 +80,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	pkgs = excludePkgs(excludePkgList, pkgs)
 
 	if len(pkgs) == 0 {
-		print.Err("unable to update package: no package information")
+		print.Err("unable to update package: no package information or no package under $GOBIN")
 		return 1
 	}
 	return update(pkgs, dryRun, notify, cpus)
@@ -90,6 +90,7 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Packag
 	packageList := []goutil.Package{}
 	for _, v := range pkgs {
 		if slice.Contains(excludePkgList, v.Name) {
+			print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
 			continue
 		}
 		packageList = append(packageList, v)
