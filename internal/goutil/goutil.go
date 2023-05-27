@@ -207,7 +207,7 @@ func InstallMainOrMaster(importPath string) error {
 		} else if strings.Contains(masterErr.Error(), "unknown revision master") {
 			return fmt.Errorf("%s\n%w", errMsg, mainErr)
 		}
-		return fmt.Errorf("%s\n%w\n%w", errMsg, mainErr, masterErr)
+		return fmt.Errorf("%s\n%s\n%w", errMsg, mainErr.Error(), masterErr)
 	}
 	return nil
 }
