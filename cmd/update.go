@@ -13,8 +13,8 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/nao1215/gup/internal/slice"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -32,7 +32,9 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 	}
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated separated using ',' without spaces as a delimiter")
+	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
+	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
+	// cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
@@ -76,6 +78,26 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	mainPkgNames, err := cmd.Flags().GetStringSlice("main")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--main)", err))
+		return 1
+	}
+
+	/*
+		mainAll, err := cmd.Flags().GetBool("main-all")
+		if err != nil {
+			print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--main-all)", err))
+			return 1
+		}
+		if mainAll {
+			mainPkgNames = make([]string, len(pkgs))
+			for _, v := range pkgs {
+				mainPkgNames = append(mainPkgNames, v.Name)
+			}
+		}
+	*/
+
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 	pkgs = excludePkgs(excludePkgList, pkgs)
 
@@ -83,13 +105,13 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err("unable to update package: no package information or no package under $GOBIN")
 		return 1
 	}
-	return update(pkgs, dryRun, notify, cpus)
+	return update(pkgs, dryRun, notify, cpus, mainPkgNames)
 }
 
 func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
 	packageList := []goutil.Package{}
 	for _, v := range pkgs {
-		if slice.Contains(excludePkgList, v.Name) {
+		if slices.Contains(excludePkgList, v.Name) {
 			print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
 			continue
 		}
@@ -103,7 +125,10 @@ type updateResult struct {
 	err error
 }
 
-func update(pkgs []goutil.Package, dryRun, notification bool, cpus int) int {
+// update updates all packages.
+// If dryRun is true, it does not update.
+// If notification is true, it notifies the result of update.
+func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, mainPkgNames []string) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -138,8 +163,14 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int) int {
 		if p.ImportPath == "" {
 			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
-			if err = goutil.Install(p.ImportPath); err != nil {
-				err = fmt.Errorf(" %s %w", p.Name, err)
+			if slices.Contains(mainPkgNames, p.Name) {
+				if err = goutil.InstallMainOrMaster(p.ImportPath); err != nil {
+					err = fmt.Errorf(" %s %w", p.Name, err)
+				}
+			} else {
+				if err = goutil.InstallLatest(p.ImportPath); err != nil {
+					err = fmt.Errorf(" %s %w", p.Name, err)
+				}
 			}
 		}
 
@@ -231,7 +262,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 		return pkgs
 	}
 	for _, v := range pkgs {
-		if slice.Contains(targets, v.Name) {
+		if slices.Contains(targets, v.Name) {
 			result = append(result, v)
 			tmp = append(tmp, v.Name)
 		}
@@ -239,7 +270,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 
 	if len(tmp) != len(targets) {
 		for _, target := range targets {
-			if !slice.Contains(tmp, target) {
+			if !slices.Contains(tmp, target) {
 				print.Warn("not found '" + target + "' package in $GOPATH/bin or $GOBIN")
 			}
 		}

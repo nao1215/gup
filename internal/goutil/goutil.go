@@ -187,14 +187,39 @@ func CanUseGoCmd() error {
 	return err
 }
 
-// Install execute "$ go install <importPath>@latest"
-func Install(importPath string) error {
+// InstallLatest execute "$ go install <importPath>@latest"
+func InstallLatest(importPath string) error {
+	return install(importPath, "latest")
+}
+
+// InstallMainOrMaster execute "$ go install <importPath>@main" or "$ go install <importPath>@master"
+func InstallMainOrMaster(importPath string) error {
+	mainErr := install(importPath, "main")
+	if mainErr != nil {
+		// Previous error is "invalid version: unknown revision main". Not return this error.
+		masterErr := install(importPath, "master")
+		if masterErr == nil {
+			return nil
+		}
+		const errMsg = "cannot update with @master or @main using the 'gup'. please update manually."
+		if strings.Contains(mainErr.Error(), "unknown revision main") {
+			return fmt.Errorf("%s\n%w", errMsg, masterErr)
+		} else if strings.Contains(masterErr.Error(), "unknown revision master") {
+			return fmt.Errorf("%s\n%w", errMsg, mainErr)
+		}
+		return fmt.Errorf("%s\n%s\n%w", errMsg, mainErr.Error(), masterErr)
+	}
+	return nil
+}
+
+// install execute "$ go install <importPath>@<version>"
+func install(importPath, version string) error {
 	if importPath == "command-line-arguments" {
 		return errors.New("is devel-binary copied from local environment")
 	}
 
 	var stderr bytes.Buffer
-	cmd := exec.Command(goExe, "install", importPath+"@latest") //#nosec
+	cmd := exec.Command(goExe, "install", fmt.Sprintf("%s@%s", importPath, version)) //#nosec
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()

@@ -165,7 +165,7 @@ func ExampleGoVersionWithOptionM() {
 
 func ExampleInstall() {
 	// Install installs an executable from a Go package.
-	err := goutil.Install("example.com/unknown_user/unknown_package")
+	err := goutil.InstallLatest("example.com/unknown_user/unknown_package")
 
 	// If the package is not found or invalid, Install returns an error.
 	// In this case it should be an error.

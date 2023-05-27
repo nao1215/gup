@@ -262,7 +262,7 @@ func Test_goPath_get_from_build_default_gopath(t *testing.T) {
 }
 
 func TestInstall_arg_is_command_line_arguments(t *testing.T) {
-	err := Install("command-line-arguments")
+	err := InstallLatest("command-line-arguments")
 
 	// Require to be error
 	if err == nil {
@@ -277,7 +277,7 @@ func TestInstall_arg_is_command_line_arguments(t *testing.T) {
 	}
 }
 
-func TestInstall_golden(t *testing.T) {
+func TestInstallLatest_golden(t *testing.T) {
 	// Backup and defer restore
 	OldGoExe := goExe
 	defer func() {
@@ -290,7 +290,28 @@ func TestInstall_golden(t *testing.T) {
 	// actual `go install <package>` command but `echo install <package>`.
 	goExe = "echo"
 
-	err := Install("github.com/nao1215/gup")
+	err := InstallLatest("github.com/nao1215/gup")
+
+	// Require to be no error
+	if err != nil {
+		t.Fatalf("it should not return error. got: %v", err)
+	}
+}
+
+func TestInstallMaster_golden(t *testing.T) {
+	// Backup and defer restore
+	OldGoExe := goExe
+	defer func() {
+		goExe = OldGoExe
+	}()
+
+	// Mock the `go` to `echo` command to print instead of executing go.
+	//
+	// This will succeed executing via `exec.Command` and will not execute the
+	// actual `go install <package>` command but `echo install <package>`.
+	goExe = "echo"
+
+	err := InstallMainOrMaster("github.com/nao1215/gup")
 
 	// Require to be no error
 	if err != nil {

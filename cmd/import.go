@@ -76,5 +76,5 @@ func runImport(cmd *cobra.Command, args []string) int {
 	}
 
 	print.Info("start update based on " + confFile)
-	return update(pkgs, dryRun, notify, cpus)
+	return update(pkgs, dryRun, notify, cpus, []string{})
 }
