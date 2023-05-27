@@ -13,7 +13,6 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/nao1215/gup/internal/slice"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
@@ -112,7 +111,7 @@ func gup(cmd *cobra.Command, args []string) int {
 func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
 	packageList := []goutil.Package{}
 	for _, v := range pkgs {
-		if slice.Contains(excludePkgList, v.Name) {
+		if slices.Contains(excludePkgList, v.Name) {
 			print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
 			continue
 		}
@@ -263,7 +262,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 		return pkgs
 	}
 	for _, v := range pkgs {
-		if slice.Contains(targets, v.Name) {
+		if slices.Contains(targets, v.Name) {
 			result = append(result, v)
 			tmp = append(tmp, v.Name)
 		}
@@ -271,7 +270,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 
 	if len(tmp) != len(targets) {
 		for _, target := range targets {
-			if !slice.Contains(tmp, target) {
+			if !slices.Contains(tmp, target) {
 				print.Warn("not found '" + target + "' package in $GOPATH/bin or $GOBIN")
 			}
 		}
