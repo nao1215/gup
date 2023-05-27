@@ -35,7 +35,7 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
 	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
-	cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
+	//cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 
 	return cmd
@@ -85,17 +85,19 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	mainAll, err := cmd.Flags().GetBool("main-all")
-	if err != nil {
-		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--main-all)", err))
-		return 1
-	}
-	if mainAll {
-		mainPkgNames = make([]string, len(pkgs))
-		for _, v := range pkgs {
-			mainPkgNames = append(mainPkgNames, v.Name)
+	/*
+		mainAll, err := cmd.Flags().GetBool("main-all")
+		if err != nil {
+			print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--main-all)", err))
+			return 1
 		}
-	}
+		if mainAll {
+			mainPkgNames = make([]string, len(pkgs))
+			for _, v := range pkgs {
+				mainPkgNames = append(mainPkgNames, v.Name)
+			}
+		}
+	*/
 
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 	pkgs = excludePkgs(excludePkgList, pkgs)
