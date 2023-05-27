@@ -66,11 +66,13 @@ gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
 If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
 Also works in combination with --dry-run
 ```
-$ gup update -e gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
-gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1)
-gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2)
-gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
+$ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
+```
+
+### Update binaries with @main or @master
+If you want to update binaries with @master or @main, you can specify the -m or --master option.
+```
+$ gup update --main=gup,lazygit,sqly
 ```
 
 ### List up command name with package path and version under $GOPATH/bin
