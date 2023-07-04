@@ -18,7 +18,7 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 
 ![sample](./doc/img/sample.png)
 
-# How to install
+## How to install
 ### Use "go install"
 If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
 ```
@@ -35,7 +35,7 @@ $ brew install nao1215/tap/gup
 [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
 
 
-# How to use
+## How to use
 ### Update all binaries
 If you update all binaries, you just run `$ gup update`.
 
@@ -180,16 +180,13 @@ $ gup update --notify
 ![success](./doc/img/notify_success.png)
 ![warning](./doc/img/notify_warning.png)
 
-### Deprecated: install or update golang (only support *NIX/Mac)
-The update-go subcommand was removed in v0.18.0. We created a another project called ["golling"](https://github.com/nao1215/golling) command that has the same functionality as update-go subcommand.
 
-
-# Contributing
+## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
 Contributions are not only related to development. For example, GitHub Star motivates me to develop!
 [![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
 
-# Contact
+## Contact
 If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.
 
 - [GitHub Issue](https://github.com/nao1215/gup/issues)
@@ -200,6 +197,6 @@ $ gup bug-report
 ※ Open GitHub issue page by your default browser
 ```
 
-# LICENSE
+## LICENSE
 The gup project is licensed under the terms of [the Apache License 2.0](./LICENSE).
 
