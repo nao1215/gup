@@ -6,3 +6,8 @@ updates:
       interval: daily
       time: "20:00"
     open-pull-requests-limit: 10
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"

@@ -1,4 +1,4 @@
-name: PlatformTests
+name: WindowsMacLinuxTest
 
 on:
   workflow_dispatch:

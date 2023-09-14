@@ -1,0 +1,25 @@
+name: FreeBSDTest
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-12
+    name: A job to run test in FreeBSD
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test in FreeBSD
+        id: test
+        uses: vmactions/freebsd-vm@v0
+        with:
+          usesh: true
+          run: |
+            pkg install -y go
+            ls -al 
+            go mod download
+            go test -race -v ./...

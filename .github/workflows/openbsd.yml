@@ -1,0 +1,31 @@
+name: OpenBSDTest
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os.host }}
+    strategy:
+      matrix:
+        os:
+          - name: openbsd
+            architecture: x86-64
+            version: "7.3"
+            host: macos-12
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Test on ${{ matrix.os.name }}
+        uses: cross-platform-actions/action@v0.15.0
+        with:
+          operating_system: ${{ matrix.os.name }}
+          architecture: ${{ matrix.os.architecture }}
+          version: ${{ matrix.os.version }}
+          shell: bash
+          memory: 5G
+          cpu_count: 4
+          run: |
+            sudo pkg_add go
+            go mod download
+            go test -race -v ./...

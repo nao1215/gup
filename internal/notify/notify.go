@@ -1,3 +1,5 @@
+//go:build !dragonfly
+
 package notify
 
 import (

@@ -1,9 +1,12 @@
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
-[![Build](https://github.com/nao1215/gup/actions/workflows/build.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/build.yml)
 [![MultiVersionUnitTest](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml)
-[![PlatformTests](https://github.com/nao1215/gup/actions/workflows/platform_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/platform_test.yml)
+[![LinuxMacWindowsTests](https://github.com/nao1215/gup/actions/workflows/platform_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/platform_test.yml)
+[![FreeBSDTest](https://github.com/nao1215/gup/actions/workflows/freebsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/freebsd.yml)
+[![OpenBSDTest](https://github.com/nao1215/gup/actions/workflows/openbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/openbsd.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 [![codecov](https://codecov.io/gh/nao1215/gup/branch/main/graph/badge.svg?token=DNV3TRMRCJ)](https://codecov.io/gh/nao1215/gup)
+[![vuluncheck](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml)
+[![gosec](https://github.com/nao1215/gup/actions/workflows/security.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/security.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/nao1215/gup.svg)](https://pkg.go.dev/github.com/nao1215/gup)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nao1215/gup)](https://goreportcard.com/report/github.com/nao1215/gup)
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)
@@ -17,6 +20,15 @@
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
 ![sample](./doc/img/sample.png)
+
+## Supported OS (unit testing with GitHub Actions)
+- Linux
+- Mac
+- Windows
+- FreeBSD
+- OpenBSD
+
+The gup command may work in a NetBSD, DragonflyBSD environment, but we have not been able to run Unit Test with GitHub Actions. Therefore, it is removed from the supported operating systems.
 
 ## How to install
 ### Use "go install"
