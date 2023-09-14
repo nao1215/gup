@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Test on ${{ matrix.os.name }}
-        uses: cross-platform-actions/action@v0.15.0
+        uses: cross-platform-actions/action@v0.19.0
         with:
           operating_system: ${{ matrix.os.name }}
           architecture: ${{ matrix.os.architecture }}
