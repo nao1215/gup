@@ -19,6 +19,6 @@ jobs:
         with:
           usesh: true
           run: |
-            pkg install go
+            pkg install -y go
             go mod download
             go test -race -v ./...
