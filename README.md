@@ -23,6 +23,15 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 
 ![sample](./doc/img/sample.png)
 
+## Supported OS (unit testing with GitHub Actions)
+- Linux
+- Mac
+- Windows
+- FreeBSD
+- OpenBSD
+- NetBSD
+- DragonflyBSD
+
 ## How to install
 ### Use "go install"
 If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
