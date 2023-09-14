@@ -26,6 +26,7 @@ jobs:
           memory: 5G
           cpu_count: 4
           run: |
-            su -m root -c "pkg_add go"
+            su -
+            pkg_add go
             go mod download
             go test -race -v ./...
