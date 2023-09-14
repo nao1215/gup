@@ -16,11 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: "go.mod"
-
       - name: Test on ${{ matrix.os.name }}
         uses: cross-platform-actions/action@v0.15.0
         with:
@@ -31,5 +26,6 @@ jobs:
           memory: 5G
           cpu_count: 4
           run: |
+            sudo pkg_add go
             go mod download
             go test -race -v ./...
