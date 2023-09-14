@@ -3,8 +3,6 @@
 [![LinuxMacWindowsTests](https://github.com/nao1215/gup/actions/workflows/platform_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/platform_test.yml)
 [![FreeBSDTest](https://github.com/nao1215/gup/actions/workflows/freebsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/freebsd.yml)
 [![OpenBSDTest](https://github.com/nao1215/gup/actions/workflows/openbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/openbsd.yml)
-[![NetBSDTest](https://github.com/nao1215/gup/actions/workflows/netbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/netbsd.yml)
-[![DragonflyBSDTest](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 [![codecov](https://codecov.io/gh/nao1215/gup/branch/main/graph/badge.svg?token=DNV3TRMRCJ)](https://codecov.io/gh/nao1215/gup)
 [![vuluncheck](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml)
@@ -29,8 +27,8 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 - Windows
 - FreeBSD
 - OpenBSD
-- NetBSD
-- DragonflyBSD
+
+The gup command may work in a NetBSD, DragonflyBSD environment, but we have not been able to run Unit Test with GitHub Actions. Therefore, it is removed from the supported operating systems.
 
 ## How to install
 ### Use "go install"

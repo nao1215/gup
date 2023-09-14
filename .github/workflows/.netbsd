@@ -25,8 +25,6 @@ jobs:
           shell: bash
           memory: 5G
           cpu_count: 4
-          # https://github.com/nao1215/gup/actions/runs/6187637369/job/16797908744?pr=97
-          # go: github.com/adrg/xdg@v0.4.0: Get "https://proxy.golang.org/github.com/adrg/xdg/@v/v0.4.0.mod": tls: failed to verify certificate: x509: certificate signed by unknown authority
           run: |
             sudo pkgin -y install go
             /usr/pkg/go120/bin/go mod download
