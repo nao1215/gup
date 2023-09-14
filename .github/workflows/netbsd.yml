@@ -26,6 +26,6 @@ jobs:
           memory: 5G
           cpu_count: 4
           run: |
-            su -m root -c "pkgin install go"
+            su -m root -c "pkgin -y install go"
             go mod download
             go test -race -v ./...
