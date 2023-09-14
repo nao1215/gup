@@ -1,4 +1,4 @@
-name: FreeBSD, OpenBSD, NetBSD Test
+name: NetBSD Test
 
 on: [push]
 
@@ -8,16 +8,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - name: freebsd
-            architecture: x86-64
-            version: "13.2"
-            host: macos-12
-
-          - name: openbsd
-            architecture: x86-64
-            version: "7.3"
-            host: macos-12
-
           - name: netbsd
             architecture: x86-64
             version: "9.3"
@@ -36,6 +26,6 @@ jobs:
           memory: 5G
           cpu_count: 4
           run: |
-            pkg install -y go
+            pkgin install go
             go mod download
             go test -race -v ./...
