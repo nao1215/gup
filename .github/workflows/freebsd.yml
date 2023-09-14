@@ -1,4 +1,4 @@
-name: FreeBSD Unit Test
+name: FreeBSDTest
 
 on:
   workflow_dispatch:
@@ -20,5 +20,6 @@ jobs:
           usesh: true
           run: |
             pkg install -y go
+            ls -al 
             go mod download
             go test -race -v ./...

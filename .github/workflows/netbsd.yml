@@ -1,4 +1,4 @@
-name: NetBSD Test
+name: NetBSDTest
 
 on: [push]
 
@@ -27,6 +27,5 @@ jobs:
           cpu_count: 4
           run: |
             sudo pkgin -y install go
-            find /usr/pkg -name go
-            /usr/pkg/go/bin/go mod download
-            /usr/pkg/go/bin/go test -race -v ./...
+            /usr/pkg/go120/bin/go mod download
+            /usr/pkg/go120/bin/go test -race -v ./...
