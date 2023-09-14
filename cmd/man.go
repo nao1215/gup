@@ -86,7 +86,7 @@ func copyManpages(manFiles []string, dst string) error {
 			}
 		}()
 
-		out, err := os.Create(filepath.Join(dst, filepath.Base(file)+".gz"))
+		out, err := os.Create(filepath.Clean(filepath.Join(dst, fmt.Sprintf("%s%s", filepath.Base(file), ".gz"))))
 		if err != nil {
 			return err
 		}
