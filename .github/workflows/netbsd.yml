@@ -27,5 +27,6 @@ jobs:
           cpu_count: 4
           run: |
             sudo pkgin -y install go ca-certificates mozilla-rootcerts
+            sudo /usr/pkg/sbin/mozilla-rootcerts install
             /usr/pkg/go120/bin/go mod download
             /usr/pkg/go120/bin/go test -race -v ./...
