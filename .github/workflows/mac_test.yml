@@ -1,0 +1,31 @@
+name: MacUnitTest
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit_test:
+    name: Unit test (mac)
+
+    strategy:
+      matrix:
+        platform: [macos-latest]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1"
+          check-latest: true
+
+      - name: Run unit test
+        run: |
+          go mod download
+          go test -race -v ./...

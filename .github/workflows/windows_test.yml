@@ -1,4 +1,4 @@
-name: WindowsMacLinuxTest
+name: WindowsUnitTest
 
 on:
   workflow_dispatch:
@@ -9,11 +9,11 @@ on:
 
 jobs:
   unit_test:
-    name: Unit test
+    name: Unit test (windows)
 
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [windows-latest]
 
     runs-on: ${{ matrix.platform }}
 
