@@ -7,7 +7,7 @@ jobs:
     runs-on: macos-12
     name: A job to run test in DragonflyBSD
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Test in DragonflyBSD
         id: test
         uses: vmactions/dragonflybsd-vm@v0
