@@ -5,6 +5,7 @@
 [![LinuxUnitTest](https://github.com/nao1215/gup/actions/workflows/linux_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/linux_test.yml)
 [![FreeBSDTest](https://github.com/nao1215/gup/actions/workflows/freebsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/freebsd.yml)
 [![OpenBSDTest](https://github.com/nao1215/gup/actions/workflows/openbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/openbsd.yml)
+[![NetBSDTest](https://github.com/nao1215/gup/actions/workflows/netbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/netbsd.yml)
 [![DragonflyBSDTest](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 ![Coverage](https://raw.githubusercontent.com/nao1215/octocovs-central-repo/main/badges/nao1215/gup/coverage.svg)
@@ -30,9 +31,8 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 - Windows
 - FreeBSD
 - OpenBSD
+- NetBSD
 - DragonflyBSD
-
-The gup command may work in a NetBSD environment, but we have not been able to run Unit Test with GitHub Actions. Therefore, it is removed from the supported operating systems.
 
 ## How to install
 ### Use "go install"
