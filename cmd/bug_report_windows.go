@@ -7,5 +7,5 @@ import (
 )
 
 func openBrowser(targetURL string) bool {
-	return exec.Command("cmd", "/C", "start", "msedge", targetURL).Start() == nil
+	return exec.Command("rundll32.exe", "url,OpenURL", targetURL).Start() == nil
 }
