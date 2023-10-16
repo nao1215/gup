@@ -339,3 +339,25 @@ func Test_desktopNotifyIfNeeded(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractUserSpecifyPkg(t *testing.T) {
+	pkgs := []goutil.Package{
+		{Name: "pkg1"},
+		{Name: "pkg2.exe"},
+		{Name: "pkg3"},
+	}
+	targets := []string{"pkg1", "pkg2.exe"}
+	if runtime.GOOS == "windows" {
+		targets = []string{"pkg1", "pkg2"}
+	}
+
+	expected := []goutil.Package{
+		{Name: "pkg1"},
+		{Name: "pkg2.exe"},
+	}
+	actual := extractUserSpecifyPkg(pkgs, targets)
+
+	if diff := cmp.Diff(actual, expected); diff != "" {
+		t.Errorf("value is mismatch (-actual +expected):\n%s", diff)
+	}
+}
