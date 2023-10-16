@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -261,10 +262,25 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 	if len(targets) == 0 {
 		return pkgs
 	}
+
+	if runtime.GOOS == "windows" {
+		for i, target := range targets {
+			if strings.HasSuffix(strings.ToLower(target), ".exe") {
+				targets[i] = target[:len(target)-4]
+			}
+		}
+	}
+
 	for _, v := range pkgs {
-		if slices.Contains(targets, v.Name) {
+		pkg := v.Name
+		if runtime.GOOS == "windows" {
+			if strings.HasSuffix(strings.ToLower(pkg), ".exe") {
+				pkg = pkg[:len(pkg)-4]
+			}
+		}
+		if slices.Contains(targets, pkg) {
 			result = append(result, v)
-			tmp = append(tmp, v.Name)
+			tmp = append(tmp, pkg)
 		}
 	}
 
