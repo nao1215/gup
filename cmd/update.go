@@ -85,20 +85,6 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	/*
-		mainAll, err := cmd.Flags().GetBool("main-all")
-		if err != nil {
-			print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--main-all)", err))
-			return 1
-		}
-		if mainAll {
-			mainPkgNames = make([]string, len(pkgs))
-			for _, v := range pkgs {
-				mainPkgNames = append(mainPkgNames, v.Name)
-			}
-		}
-	*/
-
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 	pkgs = excludePkgs(excludePkgList, pkgs)
 
@@ -266,7 +252,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 	if runtime.GOOS == "windows" {
 		for i, target := range targets {
 			if strings.HasSuffix(strings.ToLower(target), ".exe") {
-				targets[i] = target[:len(target)-4]
+				targets[i] = strings.TrimSuffix(strings.ToLower(target), ".exe")
 			}
 		}
 	}
@@ -275,7 +261,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 		pkg := v.Name
 		if runtime.GOOS == "windows" {
 			if strings.HasSuffix(strings.ToLower(pkg), ".exe") {
-				pkg = pkg[:len(pkg)-4]
+				pkg = strings.TrimSuffix(strings.ToLower(pkg), ".exe")
 			}
 		}
 		if slices.Contains(targets, pkg) {
