@@ -3,10 +3,6 @@
 [![WindowsUnitTest](https://github.com/nao1215/gup/actions/workflows/windows_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/windows_test.yml)
 [![MacUnitTest](https://github.com/nao1215/gup/actions/workflows/mac_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/mac_test.yml)
 [![LinuxUnitTest](https://github.com/nao1215/gup/actions/workflows/linux_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/linux_test.yml)
-[![FreeBSDTest](https://github.com/nao1215/gup/actions/workflows/freebsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/freebsd.yml)
-[![OpenBSDTest](https://github.com/nao1215/gup/actions/workflows/openbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/openbsd.yml)
-[![NetBSDTest](https://github.com/nao1215/gup/actions/workflows/netbsd.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/netbsd.yml)
-[![DragonflyBSDTest](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/dragonfly.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 ![Coverage](https://raw.githubusercontent.com/nao1215/octocovs-central-repo/main/badges/nao1215/gup/coverage.svg)
 [![vuluncheck](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/govulncheck.yml)
@@ -29,10 +25,6 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 - Linux
 - Mac
 - Windows
-- FreeBSD
-- OpenBSD
-- NetBSD
-- DragonflyBSD
 
 ## How to install
 ### Use "go install"
