@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Test in DragonflyBSD
         id: test
-        uses: vmactions/dragonflybsd-vm@v0
+        uses: vmactions/dragonflybsd-vm@v1
         with:
           usesh: true
           prepare: |
