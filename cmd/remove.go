@@ -15,8 +15,9 @@ import (
 
 func newRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remove",
-		Short: "Remove the binary under $GOPATH/bin or $GOBIN",
+		Use:     "remove",
+		Aliases: []string{"rm"},
+		Short:   "Remove the binary under $GOPATH/bin or $GOBIN",
 		Long: `Remove command in $GOPATH/bin or $GOBIN.
 If you want to specify multiple binaries at once, separate them with space.
 [e.g.] gup remove a_cmd b_cmd c_cmd`,
