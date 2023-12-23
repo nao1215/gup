@@ -15,6 +15,69 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "KEINOS",
+      "name": "KEINOS",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11840938?v=4",
+      "profile": "https://qiita.com/KEINOS",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "mattn",
+      "name": "mattn",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10111?v=4",
+      "profile": "https://mattn.kaoriya.net/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "jlec",
+      "name": "Justin Lecher",
+      "avatar_url": "https://avatars.githubusercontent.com/u/79732?v=4",
+      "profile": "https://jlec.de/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "lincolnthalles",
+      "name": "Lincoln Nogueira",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7476810?v=4",
+      "profile": "https://github.com/lincolnthalles",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "matsuyoshi30",
+      "name": "Masaya Watanabe",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16238709?v=4",
+      "profile": "https://github.com/matsuyoshi30",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "memreflect",
+      "name": "memreflect",
+      "avatar_url": "https://avatars.githubusercontent.com/u/59116123?v=4",
+      "profile": "https://github.com/memreflect",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Akimon658",
+      "name": "Akimo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/81888693?v=4",
+      "profile": "https://github.com/Akimon658",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
