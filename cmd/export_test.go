@@ -186,7 +186,7 @@ func Test_export(t *testing.T) {
 			gobin: filepath.Join("testdata", "text"),
 			want:  1,
 			stderr: []string{
-				"gup:WARN : can't get 'dummy.txt'package path information. old go version binary",
+				"gup:WARN : could not read Go build info from " + filepath.Join("testdata", "text", "dummy.txt") + ": unrecognized file format",
 				"gup:ERROR: no package information",
 				"",
 			},
