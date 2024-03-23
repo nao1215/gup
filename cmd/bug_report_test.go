@@ -54,7 +54,7 @@ func Test_bugReport(t *testing.T) {
 	wantReturnVal := 0
 	gotReturnVal := bugReport(cmd, nil, func(s string) bool {
 		if !strings.Contains(s, "v0.0.0") {
-			t.Errorf("bug report does not contain version number: %s", s)
+			t.Errorf("Expected bug report to contain version number 'v0.0.0', but got: %s", s)
 		}
 		return true
 	})
