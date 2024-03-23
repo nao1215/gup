@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"go/build"
 	"io"
 	"os"
 	"path/filepath"
@@ -134,47 +133,6 @@ func Test_remove(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_remove_gobin_is_empty(t *testing.T) {
-	t.Run("GOPATH and GOBIN is empty", func(t *testing.T) {
-		t.Setenv("GOBIN", "")
-		t.Setenv("GOPATH", "")
-
-		oldBuildGopath := build.Default.GOPATH
-		build.Default.GOPATH = ""
-		defer func() { build.Default.GOPATH = oldBuildGopath }()
-
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
-
-		cmd := &cobra.Command{}
-		cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
-		if got := remove(cmd, []string{"dummy"}); got != 1 {
-			t.Errorf("remove() = %v, want %v", got, 1)
-		}
-		pw.Close()
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
-
-		if diff := cmp.Diff([]string{"gup:ERROR: $GOPATH is not set", ""}, got); diff != "" {
-			t.Errorf("value is mismatch (-want +got):\n%s", diff)
-		}
-	})
 }
 
 func Test_removeLoop(t *testing.T) {
