@@ -55,24 +55,6 @@ func TestBinaryPathList_exclusion(t *testing.T) {
 	}
 }
 
-func Test_extractImportPath_no_import_paths_to_extract(t *testing.T) {
-	// Assert to be empty
-	got := extractImportPath([]string{})
-
-	if got != "" {
-		t.Errorf("extractImportPath() should return empty string. got: %v", got)
-	}
-}
-
-func Test_extractModulePath_no_module_paths_to_extract(t *testing.T) {
-	// Assert to be empty
-	got := extractModulePath([]string{})
-
-	if got != "" {
-		t.Errorf("extractModulePath() should return empty string. got: %v", got)
-	}
-}
-
 func TestGetLatestVer_unknown_module(t *testing.T) {
 	out, err := GetLatestVer(".")
 
@@ -107,7 +89,7 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 	}
 
 	// Assert to contain the expected error message
-	wantContain := "can not get package path"
+	wantContain := "could not read Go build info"
 	got := tmpBuff.String()
 	if !strings.Contains(got, wantContain) {
 		t.Errorf("it should print error message '%v'. got: %v", wantContain, got)
