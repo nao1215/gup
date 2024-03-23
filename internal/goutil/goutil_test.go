@@ -3,7 +3,6 @@ package goutil
 import (
 	"bytes"
 	"errors"
-	"go/build"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -135,13 +134,13 @@ func TestGetPackageVersion_getting_error_from_gobin(t *testing.T) {
 	t.Setenv("GOPATH", "")
 
 	// Backup and defer restore
-	oldBuildDefaultGOPATH := build.Default.GOPATH
+	oldKeyGoPath := keyGoPath
 	defer func() {
-		build.Default.GOPATH = oldBuildDefaultGOPATH
+		keyGoPath = oldKeyGoPath
 	}()
 
 	// Mock the value
-	build.Default.GOPATH = ""
+	keyGoPath = t.Name()
 
 	// Setting GOBIN, GOPATH and build.Default.GOPATH to empty string
 	// should be an error internally and return "unknown" as a version.
@@ -179,13 +178,13 @@ func TestGoBin_gobin_and_gopath_is_empty(t *testing.T) {
 	t.Setenv("GOPATH", "")
 
 	// Backup and defer restore
-	oldBuildDefaultGOPATH := build.Default.GOPATH
+	oldKeyGoPath := keyGoPath
 	defer func() {
-		build.Default.GOPATH = oldBuildDefaultGOPATH
+		keyGoPath = oldKeyGoPath
 	}()
 
 	// Mock the value
-	build.Default.GOPATH = ""
+	keyGoPath = t.Name()
 
 	wantContain := "$GOPATH is not set"
 	result, got := GoBin()
@@ -221,25 +220,6 @@ func TestGoBin_golden(t *testing.T) {
 	// Assert to be equal
 	if want != got {
 		t.Errorf("GoBin() should return %v. got: %v", want, got)
-	}
-}
-
-func Test_goPath_get_from_build_default_gopath(t *testing.T) {
-	// Backup and defer restore
-	oldKeyGoPath := keyGoPath
-	defer func() {
-		keyGoPath = oldKeyGoPath
-	}()
-
-	// Mock the private global variable.
-	// os.Getenv() in the goPath() shuld return empty since it doesn't exist.
-	keyGoPath = t.Name()
-
-	// Assert to be equal
-	want := build.Default.GOPATH
-	got := goPath()
-	if want != got {
-		t.Errorf("goPath() should return default GOPATH. got: %v, want: %v", got, want)
 	}
 }
 

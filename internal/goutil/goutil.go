@@ -244,6 +244,10 @@ func goPath() string {
 	if gopath != "" {
 		return gopath
 	}
+	out, err := exec.Command(goExe, "env", keyGoPath).Output()
+	if err == nil {
+		return strings.TrimSpace(string(out))
+	}
 	return build.Default.GOPATH
 }
 
