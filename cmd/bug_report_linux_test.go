@@ -8,6 +8,7 @@ import (
 )
 
 func Test_openBrowser(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("skipping test on non-linux system")
 	}

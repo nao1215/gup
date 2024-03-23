@@ -44,3 +44,21 @@ func TestBugReport(t *testing.T) {
 		}
 	})
 }
+
+func Test_bugReport(t *testing.T) {
+	t.Parallel()
+
+	cmd := newBugReportCmd()
+	cmd.Version = "v0.0.0"
+
+	wantReturnVal := 0
+	gotReturnVal := bugReport(cmd, nil, func(s string) bool {
+		if !strings.Contains(s, "v0.0.0") {
+			t.Errorf("bug report does not contain version number: %s", s)
+		}
+		return true
+	})
+	if gotReturnVal != wantReturnVal {
+		t.Errorf("bugReport() = %d; want %d", gotReturnVal, wantReturnVal)
+	}
+}

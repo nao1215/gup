@@ -15,12 +15,16 @@ func newBugReportCmd() *cobra.Command {
 		Long:    "bug-report opens the default browser to start a bug report which will include useful system information.",
 		Example: "   gup bug-report",
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(bugReport(cmd, args))
+			OsExit(bugReport(cmd, args, openBrowser))
 		},
 	}
 }
 
-func bugReport(cmd *cobra.Command, args []string) int { //nolint
+// openBrowserFunc is a function that opens a browser to the specified URL.
+type openBrowserFunc func(string) bool
+
+// bugReport opens the default browser to start a bug report which will include useful system information.
+func bugReport(cmd *cobra.Command, _ []string, openBrowser openBrowserFunc) int { //nolint
 	var buf bytes.Buffer
 
 	const (
