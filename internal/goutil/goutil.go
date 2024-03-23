@@ -2,12 +2,12 @@ package goutil
 
 import (
 	"bytes"
+	"debug/buildinfo"
 	"fmt"
 	"go/build"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -266,15 +266,6 @@ func GoBin() (string, error) {
 	return filepath.Join(goPath, "bin"), nil
 }
 
-// GoVersionWithOptionM return result of "$ go version -m"
-func GoVersionWithOptionM(bin string) ([]string, error) {
-	out, err := exec.Command(goExe, "version", "-m", bin).Output()
-	if err != nil {
-		return nil, err
-	}
-	return strings.Split(string(out), "\n"), nil
-}
-
 // BinaryPathList return list of binary paths.
 func BinaryPathList(path string) ([]string, error) {
 	entries, err := os.ReadDir(path)
@@ -301,17 +292,15 @@ func BinaryPathList(path string) ([]string, error) {
 func GetPackageInformation(binList []string) []Package {
 	pkgs := []Package{}
 	for _, v := range binList {
-		out, err := GoVersionWithOptionM(v)
+		info, err := buildinfo.ReadFile(v)
 		if err != nil {
-			print.Warn(fmt.Errorf("%s: %w", "can not get package path", err))
+			print.Warn(err)
 			continue
 		}
-		path := extractImportPath(out)
-		mod := extractModulePath(out)
 		pkg := Package{
 			Name:       filepath.Base(v),
-			ImportPath: path,
-			ModulePath: mod,
+			ImportPath: info.Path,
+			ModulePath: info.Main.Path,
 			Version:    NewVersion(),
 		}
 		pkg.SetCurrentVer()
@@ -326,59 +315,9 @@ func GetPackageVersion(cmdName string) string {
 	if err != nil {
 		return "unknown"
 	}
-
-	out, err := GoVersionWithOptionM(filepath.Join(goBin, cmdName))
+	info, err := buildinfo.ReadFile(filepath.Join(goBin, cmdName))
 	if err != nil {
 		return "unknown"
 	}
-
-	for _, v := range out {
-		vv := strings.TrimSpace(v)
-		if len(v) != len(vv) && strings.HasPrefix(vv, "mod") {
-			//         mod     github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
-			v = strings.TrimLeft(vv, "mod")
-			v = strings.TrimSpace(v)
-
-			//github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
-			r := regexp.MustCompile(`^[^\s]+(\s)`)
-			v = r.ReplaceAllString(v, "")
-
-			// v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
-			r = regexp.MustCompile(`(\s)[^\s]+$`)
-
-			// v1.0.2
-			return r.ReplaceAllString(v, "")
-		}
-	}
-	return "unknown"
-}
-
-// extractImportPath extract package import path from result of "$ go version -m".
-func extractImportPath(lines []string) string {
-	for _, v := range lines {
-		vv := strings.TrimSpace(v)
-		if len(v) != len(vv) && strings.HasPrefix(vv, "path") {
-			vv = strings.TrimLeft(vv, "path")
-			vv = strings.TrimSpace(vv)
-			return strings.TrimRight(vv, "\n")
-		}
-	}
-	return ""
-}
-
-// extractModulePath extract package module path from result of "$ go version -m".
-func extractModulePath(lines []string) string {
-	for _, v := range lines {
-		vv := strings.TrimSpace(v)
-		if len(v) != len(vv) && strings.HasPrefix(vv, "mod") {
-			//         mod     github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
-			v = strings.TrimLeft(vv, "mod")
-			v = strings.TrimSpace(v)
-
-			//github.com/nao1215/subaru       v1.0.2  h1:LU9/1bFyqef3re6FVSFgTFMSXCZvrmDpmX3KQtlHzXA=
-			r := regexp.MustCompile(`(\s).*$`)
-			return r.ReplaceAllString(v, "")
-		}
-	}
-	return ""
+	return info.Main.Version
 }

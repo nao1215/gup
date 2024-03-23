@@ -139,30 +139,6 @@ func ExampleGoBin() {
 	// Output: Example GoBin: OK
 }
 
-func ExampleGoVersionWithOptionM() {
-	// GoVersionWithOptionM returns the embedded module version information of
-	// the executable. `gal` in this case.
-	pathFileBin := filepath.Join("..", "..", "cmd", "testdata", "check_success", "gal")
-	if runtime.GOOS == "windows" {
-		pathFileBin = filepath.Join("..", "..", "cmd", "testdata", "check_success_for_windows", "gal.exe")
-	}
-
-	modInfo, err := goutil.GoVersionWithOptionM(pathFileBin)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, info := range modInfo {
-		expectContains := "github.com/nao1215/gal"
-		if strings.Contains(info, expectContains) {
-			fmt.Println("Example GoVersionWithOptionM: OK")
-
-			break
-		}
-	}
-	// Output: Example GoVersionWithOptionM: OK
-}
-
 func ExampleInstall() {
 	// Install installs an executable from a Go package.
 	err := goutil.InstallLatest("example.com/unknown_user/unknown_package")
