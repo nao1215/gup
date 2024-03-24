@@ -55,6 +55,6 @@ func printPackageList(pkgs []goutil.Package) {
 		fmt.Fprintf(print.Stdout, "%"+strconv.Itoa(max)+"s: %s%s\n",
 			v.Name,
 			v.ImportPath,
-			color.GreenString("@"+goutil.GetPackageVersion(v.Name)))
+			color.GreenString("@"+v.Version.Current))
 	}
 }
