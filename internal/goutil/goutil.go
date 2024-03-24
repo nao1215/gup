@@ -66,11 +66,6 @@ func NewVersion() *Version {
 	}
 }
 
-// SetCurrentVer set package current version.
-func (p *Package) SetCurrentVer() {
-	p.Version.Current = GetPackageVersion(p.Name)
-}
-
 // SetLatestVer set package latest version.
 func (p *Package) SetLatestVer() {
 	p.Version.Latest = GetPackageVersion(p.Name)
@@ -174,9 +169,7 @@ func (gp *GoPaths) EndDryRunMode() error {
 // removeTmpDir remove tmporary directory for dry run
 func (gp *GoPaths) removeTmpDir() error {
 	if gp.TmpPath != "" {
-		if err := os.RemoveAll(gp.TmpPath); err != nil {
-			return err
-		}
+		return os.RemoveAll(gp.TmpPath)
 	}
 	return nil
 }
@@ -307,7 +300,7 @@ func GetPackageInformation(binList []string) []Package {
 			ModulePath: info.Main.Path,
 			Version:    NewVersion(),
 		}
-		pkg.SetCurrentVer()
+		pkg.Version.Current = info.Main.Version
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs
