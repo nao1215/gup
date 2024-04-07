@@ -34,7 +34,13 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
+	if err := cmd.RegisterFlagCompletionFunc("exclude", cobra.NoFileCompletions); err != nil {
+		panic(err)
+	}
 	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
+	if err := cmd.RegisterFlagCompletionFunc("main", cobra.NoFileCompletions); err != nil {
+		panic(err)
+	}
 	// cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
