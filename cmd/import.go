@@ -32,6 +32,9 @@ Finally, you execute the export subcommand in this state.`,
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringP("input", "i", config.FilePath(), "specify gup.conf file path to import")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
+		panic(err)
+	}
 
 	return cmd
 }

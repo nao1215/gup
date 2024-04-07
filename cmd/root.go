@@ -3,6 +3,8 @@ package cmd
 
 import (
 	"os"
+	"runtime"
+	"strconv"
 
 	"github.com/nao1215/gup/internal/assets"
 	"github.com/nao1215/gup/internal/completion"
@@ -58,4 +60,13 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		print.Err(err)
 	}
+}
+
+func completeNCPUs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	n := runtime.NumCPU()
+	ret := make([]string, 0, n)
+	for i := 1; i <= n; i++ {
+		ret = append(ret, strconv.FormatInt(int64(i), 10))
+	}
+	return ret, cobra.ShellCompDirectiveNoFileComp
 }

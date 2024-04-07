@@ -30,6 +30,9 @@ However, do not update`,
 	}
 
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
+		panic(err)
+	}
 
 	return cmd
 }
