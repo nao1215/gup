@@ -50,7 +50,7 @@ oh-my-zsh alias is disabled (e.g. $ \gup update).
 }
 
 // Execute run gup process.
-func Execute() (err error) {
+func Execute() error {
 	assets.DeployIconIfNeeded()
 	rootCmd := newRootCmd()
 	return rootCmd.Execute()
