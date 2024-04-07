@@ -6,7 +6,6 @@ import (
 
 	"github.com/nao1215/gup/internal/assets"
 	"github.com/nao1215/gup/internal/completion"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -54,9 +53,5 @@ oh-my-zsh alias is disabled (e.g. $ \gup update).
 func Execute() (err error) {
 	assets.DeployIconIfNeeded()
 	rootCmd := newRootCmd()
-
-	if err = rootCmd.Execute(); err != nil {
-		print.Err(err)
-	}
-	return
+	return rootCmd.Execute()
 }

@@ -1,7 +1,12 @@
 package main
 
-import "github.com/nao1215/gup/cmd"
+import (
+	"github.com/nao1215/gup/cmd"
+	"github.com/nao1215/gup/internal/print"
+)
 
 func main() {
-	_ = cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		print.Err(err)
+	}
 }

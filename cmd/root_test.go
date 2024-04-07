@@ -41,7 +41,7 @@ func TestExecute(t *testing.T) {
 			err := Execute()
 			gotErr := err != nil
 			if tt.wantErr != gotErr {
-				t.Errorf("expected error return %v, got %v", tt.wantErr, gotErr)
+				t.Errorf("expected error return %v, got %v: %v", tt.wantErr, gotErr, err)
 			}
 		})
 	}
