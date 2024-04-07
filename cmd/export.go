@@ -23,6 +23,8 @@ exports the file to $XDG_CONFIG_HOME/.config/gup/gup.conf (e.g. $HOME/.config/gu
 After you have placed gup.conf in the same path hierarchy on
 another system, you execute import subcommand. gup start the
 installation according to the contents of gup.conf.`,
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(export(cmd, args))
 		},

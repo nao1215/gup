@@ -9,8 +9,10 @@ import (
 
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Show " + cmdinfo.Name + " command version information",
+		Use:               "version",
+		Short:             "Show " + cmdinfo.Name + " command version information",
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println(cmdinfo.GetVersion())
 		},

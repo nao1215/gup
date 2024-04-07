@@ -21,6 +21,8 @@ binaries across multiple systems. After you create gup.conf by
 import subcommand in another environment, you save conf-file in
 $XDG_CONFIG_HOME/.config/gup/gup.conf (e.g. $HOME/.config/gup/gup.conf.)
 Finally, you execute the export subcommand in this state.`,
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runImport(cmd, args))
 		},
