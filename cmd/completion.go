@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/nao1215/gup/internal/completion"
 	"github.com/spf13/cobra"
 )
@@ -8,11 +11,28 @@ import (
 func newCompletionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "completion",
-		Short: "Create shell completion files (bash, fish, zsh) for the gup",
-		Long: `Create shell completion files (bash, fish, zsh) for the gup command
-if it is not already on the system`,
-		Run: func(cmd *cobra.Command, args []string) {
-			completion.DeployShellCompletionFileIfNeeded(newRootCmd())
+		Short: "Generate shell completions (bash, fish, zsh) for gup",
+		Long: `Generate shell completions (bash, fish, zsh) for the gup command.
+With no arguments, generate files to the file system if they are not already there,
+with shell name as argument, output completion for the shell to standard output.`,
+		Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
+		ValidArgs: []string{"bash", "fish", "zsh"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			rootCmd := newRootCmd()
+			if len(args) == 0 {
+				completion.DeployShellCompletionFileIfNeeded(rootCmd)
+				return nil
+			}
+			switch args[0] {
+			case "bash":
+				return rootCmd.GenBashCompletion(os.Stdout)
+			case "fish":
+				return rootCmd.GenFishCompletion(os.Stdout, false)
+			case "zsh":
+				return rootCmd.GenZshCompletion(os.Stdout)
+			default:
+				return fmt.Errorf("internal error, should not happen with arg %q", args[0])
+			}
 		},
 	}
 }
