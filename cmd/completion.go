@@ -25,7 +25,7 @@ with shell name as argument, output completion for the shell to standard output.
 			}
 			switch args[0] {
 			case "bash":
-				return rootCmd.GenBashCompletion(os.Stdout)
+				return rootCmd.GenBashCompletionV2(os.Stdout, false)
 			case "fish":
 				return rootCmd.GenFishCompletion(os.Stdout, false)
 			case "zsh":
