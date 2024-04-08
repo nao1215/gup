@@ -20,22 +20,29 @@ import (
 
 func TestExecute(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
+		name    string
+		args    []string
+		wantErr bool
 	}{
 		{
-			name: "success",
-			args: []string{""},
+			name:    "success",
+			args:    []string{""},
+			wantErr: false,
 		},
 		{
-			name: "fail",
-			args: []string{"no-exist-subcommand", "--no-exist-option"},
+			name:    "fail",
+			args:    []string{"no-exist-subcommand", "--no-exist-option"},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			err := Execute()
+			gotErr := err != nil
+			if tt.wantErr != gotErr {
+				t.Errorf("expected error return %v, got %v: %v", tt.wantErr, gotErr, err)
+			}
 		})
 	}
 }
@@ -64,10 +71,13 @@ func TestExecute_Check(t *testing.T) {
 	}()
 
 	os.Args = []string{"gup", "check"}
-	Execute()
+	err = Execute()
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
+	if err != nil {
+		t.Error(err)
+	}
 
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
@@ -109,11 +119,14 @@ func TestExecute_Version(t *testing.T) {
 
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			err = Execute()
 		})
 		pw.Close()
 		os.Stdout = orgStdout
 		os.Stderr = orgStderr
+		if err != nil {
+			t.Error(err)
+		}
 
 		buf := bytes.Buffer{}
 		_, err = io.Copy(&buf, pr)
@@ -182,11 +195,14 @@ func TestExecute_List(t *testing.T) {
 
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			err = Execute()
 		})
 		pw.Close()
 		print.Stdout = orgStdout
 		print.Stderr = orgStderr
+		if err != nil {
+			t.Error(err)
+		}
 
 		buf := bytes.Buffer{}
 		_, err = io.Copy(&buf, pr)
@@ -286,7 +302,9 @@ func TestExecute_Remove_Force(t *testing.T) {
 
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			if err := Execute(); err != nil {
+				t.Error(err)
+			}
 		})
 
 		if file.IsFile(filepath.Join(dest)) {
@@ -359,7 +377,9 @@ subaru = github.com/nao1215/subaru
 
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			if err := Execute(); err != nil {
+				t.Error(err)
+			}
 		})
 
 		if !file.IsFile(config.FilePath()) {
@@ -429,11 +449,14 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 
 		os.Args = tt.args
 		t.Run(tt.name, func(t *testing.T) {
-			Execute()
+			err = Execute()
 		})
 		pw.Close()
 		os.Stdout = orgStdout
 		os.Stderr = orgStderr
+		if err != nil {
+			t.Error(err)
+		}
 
 		buf := bytes.Buffer{}
 		_, err = io.Copy(&buf, pr)
@@ -491,11 +514,14 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 		confFile = "testdata/gup_config/windows.conf"
 	}
 	os.Args = []string{"gup", "import", "-i", confFile}
-	Execute()
+	err = Execute()
 
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
+	if err != nil {
+		t.Error(err)
+	}
 
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
@@ -557,11 +583,14 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 			print.Stderr = pw
 
 			os.Args = []string{"gup", "import", "-i", tt.inputFile}
-			Execute()
+			err = Execute()
 
 			pw.Close()
 			print.Stdout = orgStdout
 			print.Stderr = orgStderr
+			if err != nil {
+				t.Error(err)
+			}
 
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
@@ -647,10 +676,13 @@ func TestExecute_Update(t *testing.T) {
 	print.Stderr = pw
 
 	os.Args = []string{"gup", "update"}
-	Execute()
+	err = Execute()
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
+	if err != nil {
+		t.Error(err)
+	}
 
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
@@ -741,10 +773,13 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	print.Stderr = pw
 
 	os.Args = []string{"gup", "update", "--dry-run", "--notify"}
-	Execute()
+	err = Execute()
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
+	if err != nil {
+		t.Error(err)
+	}
 
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
@@ -768,7 +803,9 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 func TestExecute_Completion(t *testing.T) {
 	t.Run("generate completion file", func(t *testing.T) {
 		os.Args = []string{"gup", "completion"}
-		Execute()
+		if err := Execute(); err != nil {
+			t.Error(err)
+		}
 
 		bash := filepath.Join(os.Getenv("HOME"), ".bash_completion.d", cmdinfo.Name)
 		if runtime.GOOS == "windows" {
@@ -803,4 +840,72 @@ func TestExecute_Completion(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestExecute_CompletionForShell(t *testing.T) {
+	tests := []struct {
+		shell      string
+		wantOutput bool
+		wantErr    bool
+	}{
+		{
+			shell:      "bash",
+			wantOutput: true,
+			wantErr:    false,
+		},
+		{
+			shell:      "fish",
+			wantOutput: true,
+			wantErr:    false,
+		},
+		{
+			shell:      "zsh",
+			wantOutput: true,
+			wantErr:    false,
+		},
+		{
+			shell:      "unknown-shell",
+			wantOutput: false,
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.shell, func(t *testing.T) {
+			orgStdout := os.Stdout
+			orgStderr := os.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			os.Stdout = pw
+			os.Stderr = pw
+
+			os.Args = []string{"gup", "completion", tt.shell}
+			buf := bytes.Buffer{}
+			result := make(chan error)
+			go func() {
+				_, err := io.Copy(&buf, pr)
+				t.Cleanup(func() { pr.Close() })
+				result <- err
+			}()
+			err = Execute()
+			pw.Close()
+			os.Stdout = orgStdout
+			os.Stderr = orgStderr
+
+			gotErr := err != nil
+			if tt.wantErr != gotErr {
+				t.Errorf("expected error return %v, got %v", tt.wantErr, gotErr)
+			}
+
+			err = <-result
+			if err != nil {
+				t.Error(err)
+			}
+			gotOutput := buf.Len() != 0
+			if tt.wantOutput != gotOutput {
+				t.Errorf("expected output %v, got %v", tt.wantOutput, gotOutput)
+			}
+		})
+	}
 }
