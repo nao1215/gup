@@ -12,9 +12,11 @@ import (
 
 func newListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List up command name with package path and version under $GOPATH/bin or $GOBIN",
-		Long:  `List up command name with package path and version under $GOPATH/bin or $GOBIN`,
+		Use:               "list",
+		Short:             "List up command name with package path and version under $GOPATH/bin or $GOBIN",
+		Long:              `List up command name with package path and version under $GOPATH/bin or $GOBIN`,
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(list(cmd, args))
 		},

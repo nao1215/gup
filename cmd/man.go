@@ -16,10 +16,12 @@ import (
 
 func newManCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "man",
-		Short:   "Generate man-pages under /usr/share/man/man1 (need root privilege)",
-		Long:    `Generate man-pages under /usr/share/man/man1 (need root privilege)`,
-		Example: "  sudo gup man",
+		Use:               "man",
+		Short:             "Generate man-pages under /usr/share/man/man1 (need root privilege)",
+		Long:              `Generate man-pages under /usr/share/man/man1 (need root privilege)`,
+		Example:           "  sudo gup man",
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(man(cmd, args))
 		},
