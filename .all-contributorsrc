@@ -87,6 +87,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "scop",
+      "name": "Ville Skyttä",
+      "avatar_url": "https://avatars.githubusercontent.com/u/109152?v=4",
+      "profile": "https://github.com/scop",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
