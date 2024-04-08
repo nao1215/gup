@@ -36,7 +36,7 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 
 	path := bashCompletionFilePath()
 	bashCompletion := new(bytes.Buffer)
-	if err := cmd.GenBashCompletion(bashCompletion); err != nil {
+	if err := cmd.GenBashCompletionV2(bashCompletion, false); err != nil {
 		print.Err(fmt.Errorf("can not generate bash completion content: %w", err))
 		return
 	}
@@ -167,7 +167,7 @@ func hasSameBashCompletionContent(cmd *cobra.Command) bool {
 	}
 
 	currentBashCompletion := new(bytes.Buffer)
-	if err := cmd.GenBashCompletion(currentBashCompletion); err != nil {
+	if err := cmd.GenBashCompletionV2(currentBashCompletion, false); err != nil {
 		return false
 	}
 	if !strings.Contains(string(bashCompletionFileInLocal), currentBashCompletion.String()) {
