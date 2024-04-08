@@ -881,6 +881,13 @@ func TestExecute_CompletionForShell(t *testing.T) {
 			os.Stderr = pw
 
 			os.Args = []string{"gup", "completion", tt.shell}
+			buf := bytes.Buffer{}
+			result := make(chan error)
+			go func() {
+				_, err := io.Copy(&buf, pr)
+				t.Cleanup(func() { pr.Close() })
+				result <- err
+			}()
 			err = Execute()
 			pw.Close()
 			os.Stdout = orgStdout
@@ -891,9 +898,7 @@ func TestExecute_CompletionForShell(t *testing.T) {
 				t.Errorf("expected error return %v, got %v", tt.wantErr, gotErr)
 			}
 
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			t.Cleanup(func() { pr.Close() })
+			err = <-result
 			if err != nil {
 				t.Error(err)
 			}
