@@ -218,7 +218,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			args:  args{},
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open no_exist_dir: The system cannot find the file specified.",
+				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: The system cannot find the file specified.",
 				"",
 			},
 		})
@@ -235,7 +235,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			args:  args{},
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
+				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
 				"",
 			},
 		})

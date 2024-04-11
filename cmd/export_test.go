@@ -210,7 +210,7 @@ func Test_export(t *testing.T) {
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open " + filepath.Join("testdata", "dummy") + ": The system cannot find the file specified.",
+				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open " + filepath.Join("testdata", "dummy") + ": The system cannot find the file specified.",
 				"",
 			},
 		})
@@ -231,7 +231,7 @@ func Test_export(t *testing.T) {
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
-				"gup:ERROR: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
+				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
 				"",
 			},
 		})

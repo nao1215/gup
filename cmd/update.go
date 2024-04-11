@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -30,15 +31,16 @@ under $GOPATH/bin and automatically updates commands to the latest version.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(gup(cmd, args))
 		},
+		ValidArgsFunction: completePathBinaries,
 	}
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("exclude", cobra.NoFileCompletions); err != nil {
+	if err := cmd.RegisterFlagCompletionFunc("exclude", completePathBinaries); err != nil {
 		panic(err)
 	}
 	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("main", cobra.NoFileCompletions); err != nil {
+	if err := cmd.RegisterFlagCompletionFunc("main", completePathBinaries); err != nil {
 		panic(err)
 	}
 	// cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
@@ -237,7 +239,7 @@ func pkgDigit(pkgs []goutil.Package) string {
 	return strconv.Itoa(len(strconv.Itoa(len(pkgs))))
 }
 
-func getPackageInfo() ([]goutil.Package, error) {
+func getBinaryPathList() ([]string, error) {
 	goBin, err := goutil.GoBin()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", "can't find installed binaries", err)
@@ -246,6 +248,15 @@ func getPackageInfo() ([]goutil.Package, error) {
 	binList, err := goutil.BinaryPathList(goBin)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", "can't get binary-paths installed by 'go install'", err)
+	}
+
+	return binList, nil
+}
+
+func getPackageInfo() ([]goutil.Package, error) {
+	binList, err := getBinaryPathList()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
 	return goutil.GetPackageInformation(binList), nil
@@ -287,4 +298,12 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 		}
 	}
 	return result
+}
+
+func completePathBinaries(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	binList, _ := getBinaryPathList()
+	for i, b := range binList {
+		binList[i] = filepath.Base(b)
+	}
+	return binList, cobra.ShellCompDirectiveNoFileComp
 }
