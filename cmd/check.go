@@ -22,8 +22,7 @@ func newCheckCmd() *cobra.Command {
 check subcommand checks if the binary is the latest version
 and displays the name of the binary that needs to be updated.
 However, do not update`,
-		Args:              cobra.NoArgs,
-		ValidArgsFunction: cobra.NoFileCompletions,
+		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(check(cmd, args))
 		},
