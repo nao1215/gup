@@ -32,13 +32,12 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 ### Use "go install"
 If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
 ```
-$ go install github.com/nao1215/gup@latest
+go install github.com/nao1215/gup@latest
 ```
 
-### For Mac user
-```
-$ brew tap nao1215/tap
-$ brew install nao1215/tap/gup
+### Use homebrew
+```shell
+brew install nao1215/tap/gup
 ```
 
 ### Install from Package or Binary
