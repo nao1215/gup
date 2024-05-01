@@ -39,3 +39,11 @@ nfpms:
       - deb
       - rpm
       - apk
+brews:
+  - name: gup
+    description: gup - Update binaries installed by "go install"
+    license: Apache License 2.0
+    repository:
+      owner: nao1215
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
