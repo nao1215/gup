@@ -61,9 +61,11 @@ func Question(ask string) bool {
 		cmdinfo.Name, color.GreenString("CHECK"), ask+" [Y/n] ")
 	_, err := FmtScanln(&response)
 	if err != nil {
-		// If user input only enter.
+		// If user input only enter, [Y/n] syntax is commonly used to denote that
+		// "yes" is the default.
+		// https://github.com/nao1215/gup/issues/146
 		if strings.Contains(err.Error(), "expected newline") {
-			return Question(ask)
+			return true
 		}
 		fmt.Fprint(os.Stderr, err.Error())
 		return false
