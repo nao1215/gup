@@ -2,10 +2,6 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-10-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
-[![MultiVersionUnitTest](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/multi_ver_unittest.yml)
-[![WindowsUnitTest](https://github.com/nao1215/gup/actions/workflows/windows_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/windows_test.yml)
-[![MacUnitTest](https://github.com/nao1215/gup/actions/workflows/mac_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/mac_test.yml)
-[![LinuxUnitTest](https://github.com/nao1215/gup/actions/workflows/linux_test.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/linux_test.yml)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
 ![Coverage](https://raw.githubusercontent.com/nao1215/octocovs-central-repo/main/badges/nao1215/gup/coverage.svg)
 [![gosec](https://github.com/nao1215/gup/actions/workflows/security.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/security.yml)
@@ -196,6 +192,11 @@ Contributions are not only related to development. For example, GitHub Star moti
 
 ### Star History
 [![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+
+### For Developers
+When adding new features or fixing bugs, please write unit tests. The sqly is unit tested for all packages as the unit test tree map below shows.
+
+![treemap](./doc/img/cover-tree.svg)
 
 ## Contact
 If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.

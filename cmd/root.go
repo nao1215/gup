@@ -58,7 +58,8 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-func completeNCPUs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// completeNCPUs returns the number of CPU cores as a string.
+func completeNCPUs(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 	n := runtime.NumCPU()
 	ret := make([]string, 0, n)
 	for i := 1; i <= n; i++ {
