@@ -1,4 +1,4 @@
-.PHONY: build test clean vet fmt chkfmt
+.PHONY: build test clean vet fmt chkfmt changelog tools help
 
 APP         = gup
 VERSION     = $(shell git describe --tags --abbrev=0)
