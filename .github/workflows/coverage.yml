@@ -1,4 +1,4 @@
-name: LinuxUnitTest
+name: Coverage
 
 on:
   workflow_dispatch:
@@ -25,10 +25,7 @@ jobs:
           go-version: "1"
           check-latest: true
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Run tests with coverage report output
+        run: go test -cover -coverpkg=./... -coverprofile=coverage.out ./...
 
-      - uses: nao1215/actions-hottest@v1
-        with:
-          args: '-cover -coverpkg=./... -coverprofile=coverage.out ./...'
       - uses: k1LoW/octocov-action@v1
