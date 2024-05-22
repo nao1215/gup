@@ -32,7 +32,7 @@ changelog:
       - "^test:"
 nfpms:
   - maintainer: Naohiro CHIKAMATSU <n.chika156@gmail.com>
-    description: gup - Update binaries installed by "go install"
+    description: gup - Update binaries installed by 'go install'
     homepage: https://github.com/nao1215/gup
     license: Apache License 2.0
     formats:
@@ -41,7 +41,7 @@ nfpms:
       - apk
 brews:
   - name: gup
-    description: gup - Update binaries installed by "go install"
+    description: gup - Update binaries installed by 'go install'
     license: Apache License 2.0
     repository:
       owner: nao1215
