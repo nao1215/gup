@@ -17,9 +17,10 @@ func newCheckCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check the latest version of the binary installed by 'go install'",
-		Long: `Check the latest version of the binary installed by 'go install'
+		Long: `Check the latest version and build toolchain of the binary installed by 'go install'
 
 check subcommand checks if the binary is the latest version
+and if it has been built with the current version of go installed,
 and displays the name of the binary that needs to be updated.
 However, do not update`,
 		ValidArgsFunction: completePathBinaries,
@@ -92,7 +93,7 @@ func doCheck(pkgs []goutil.Package, cpus int) int {
 				err = fmt.Errorf(" %s %w", p.Name, err)
 			}
 			p.Version.Latest = latestVer
-			if !goutil.IsAlreadyUpToDate(*p.Version) {
+			if !p.IsAlreadyUpToDate() {
 				mu.Lock()
 				needUpdatePkgs = append(needUpdatePkgs, p)
 				mu.Unlock()

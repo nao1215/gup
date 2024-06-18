@@ -161,20 +161,25 @@ func ExampleInstall() {
 }
 
 func ExampleIsAlreadyUpToDate() {
-	// Create Version object with Current and Latest package version
+	// Create Version object with Current and Latest package and Go versions
 	ver := goutil.Version{
 		Current: "v1.9.0",
 		Latest:  "v1.9.1",
 	}
+	goVer := goutil.Version{
+		Current: "go1.21.1",
+		Latest:  "go1.22.4",
+	}
+	pkg := goutil.Package{Version: &ver, GoVersion: &goVer}
 
 	// Check if Current is already up to date (expected: false)
-	if goutil.IsAlreadyUpToDate(ver) {
+	if pkg.IsAlreadyUpToDate() {
 		fmt.Println("Example IsAlreadyUpToDate: already up to date.")
 	} else {
-		fmt.Println("Example IsAlreadyUpToDate: outdated. Newer latest version exists.")
+		fmt.Println("Example IsAlreadyUpToDate: outdated. Newer latest version or installed Go toolchain exists.")
 	}
 
-	// Output: Example IsAlreadyUpToDate: outdated. Newer latest version exists.
+	// Output: Example IsAlreadyUpToDate: outdated. Newer latest version or installed Go toolchain exists.
 }
 
 func ExampleNewGoPaths() {
