@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -48,6 +49,8 @@ type Package struct {
 	ModulePath string
 	// Version store Package version (current and latest).
 	Version *Version
+	// GoVersion stores version of Go toolchain
+	GoVersion *Version
 }
 
 // Version is package version information.
@@ -73,30 +76,70 @@ func (p *Package) SetLatestVer() {
 
 // CurrentToLatestStr returns string about the current version and the latest version
 func (p *Package) CurrentToLatestStr() string {
-	if IsAlreadyUpToDate(*p.Version) {
-		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
+	if p.IsAlreadyUpToDate() {
+		return "Already up-to-date: " + color.GreenString(p.Version.Latest) + " / " + color.GreenString(p.GoVersion.Current)
 	}
-	return color.GreenString(p.Version.Current) + " to " + color.YellowString(p.Version.Latest)
+	var ret string
+	if p.Version.Current != p.Version.Latest {
+		ret += color.GreenString(p.Version.Current) + " to " + color.YellowString(p.Version.Latest)
+	}
+	if p.GoVersion.Current != p.GoVersion.Latest {
+		if len(ret) != 0 {
+			ret += ", "
+		}
+		ret += color.GreenString(p.GoVersion.Current) + " to " + color.YellowString(p.GoVersion.Latest)
+	}
+	return ret
 }
 
 // VersionCheckResultStr returns string about command version check.
 func (p *Package) VersionCheckResultStr() string {
-	if IsAlreadyUpToDate(*p.Version) {
-		return "Already up-to-date: " + color.GreenString(p.Version.Latest)
+	if p.IsAlreadyUpToDate() {
+		return "Already up-to-date: " + color.GreenString(p.Version.Latest) + " / " + color.GreenString(p.GoVersion.Current)
 	}
-	return "current: " + color.GreenString(p.Version.Current) + ", latest: " + color.YellowString(p.Version.Latest)
+	var ret string
+	// TODO: yellow only if latest > current
+	if p.Version.Current == p.Version.Latest {
+		ret += color.GreenString(p.Version.Current)
+	} else {
+		ret += "current: " + color.GreenString(p.Version.Current) + ", latest: "
+		if versionUpToDate(p.Version.Current, p.Version.Latest) {
+			ret += color.GreenString(p.Version.Latest)
+		} else {
+			ret += color.YellowString(p.Version.Latest)
+		}
+	}
+	ret += " / "
+	if p.GoVersion.Current == p.GoVersion.Latest {
+		ret += color.GreenString(p.GoVersion.Current)
+	} else {
+		ret += "current: " + color.GreenString(p.GoVersion.Current) + ", installed: "
+		if versionUpToDate(p.GoVersion.Current, p.GoVersion.Latest) {
+			ret += color.GreenString(p.GoVersion.Latest)
+		} else {
+			ret += color.YellowString(p.GoVersion.Latest)
+		}
+	}
+	return ret
 }
 
 // IsAlreadyUpToDate return whether binary is already up to date or not.
-func IsAlreadyUpToDate(ver Version) bool {
-	if ver.Current == ver.Latest {
+func (p *Package) IsAlreadyUpToDate() bool {
+	if p.Version.Current == p.Version.Latest && p.GoVersion.Current == p.GoVersion.Latest {
 		return true
 	}
 
-	return strings.Compare(
-		strings.TrimLeft(ver.Current, "v"),
-		strings.TrimLeft(ver.Latest, "v"),
-	) >= 0
+	return versionUpToDate(
+		strings.TrimLeft(p.Version.Current, "v"),
+		strings.TrimLeft(p.Version.Latest, "v"),
+	) && versionUpToDate(
+		strings.TrimLeft(p.GoVersion.Current, "go"),
+		strings.TrimLeft(p.GoVersion.Latest, "go"),
+	)
+}
+
+func versionUpToDate(current, available string) bool {
+	return current >= available
 }
 
 // NewGoPaths return GoPaths instance.
@@ -288,6 +331,10 @@ func BinaryPathList(path string) ([]string, error) {
 // GetPackageInformation return golang package information.
 func GetPackageInformation(binList []string) []Package {
 	pkgs := []Package{}
+	goVer, err := GetInstalledGoVersion()
+	if err != nil {
+		goVer = "unknown"
+	}
 	for _, v := range binList {
 		info, err := buildinfo.ReadFile(v)
 		if err != nil {
@@ -299,8 +346,11 @@ func GetPackageInformation(binList []string) []Package {
 			ImportPath: info.Path,
 			ModulePath: info.Main.Path,
 			Version:    NewVersion(),
+			GoVersion:  NewVersion(),
 		}
 		pkg.Version.Current = info.Main.Version
+		pkg.GoVersion.Current = info.GoVersion
+		pkg.GoVersion.Latest = goVer
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs
@@ -317,4 +367,24 @@ func GetPackageVersion(cmdName string) string {
 		return "unknown"
 	}
 	return info.Main.Version
+}
+
+var goVersionRegex = regexp.MustCompile(`(^|\s)(go[1-9]\S+)`)
+
+func GetInstalledGoVersion() (string, error) {
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(goExe, "version")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("can't check go version:\n%s", stderr.String())
+	}
+
+	if m := goVersionRegex.FindStringSubmatch(stdout.String()); m != nil {
+		return m[2], nil
+	}
+
+	return "", fmt.Errorf("can't find go version string in %q", strings.TrimSpace(stdout.String()))
 }

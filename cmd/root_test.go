@@ -533,7 +533,7 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 
 	contain := false
 	for _, v := range got {
-		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gup") {
+		if strings.Contains(v, "[1/1] github.com/nao1215/gup") {
 			contain = true
 		}
 	}
@@ -694,7 +694,7 @@ func TestExecute_Update(t *testing.T) {
 
 	contain := false
 	for _, v := range got {
-		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/gal/cmd/gal") {
+		if strings.Contains(v, "[1/1] github.com/nao1215/gal/cmd/gal") {
 			contain = true
 		}
 	}
@@ -791,7 +791,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 
 	contain := false
 	for _, v := range got {
-		if strings.Contains(v, "gup:INFO : [1/1] github.com/nao1215/posixer") {
+		if strings.Contains(v, "[1/1] github.com/nao1215/posixer") {
 			contain = true
 		}
 	}

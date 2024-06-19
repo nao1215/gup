@@ -20,9 +20,11 @@ var (
 
 // Info print information message at STDOUT in green.
 // This function is used to print some information (that is not error) to the user.
+//
+// NOTE: When we executed gup update, the standard output became quite wide.
+// To make the information more readable for the user, I removed the 'gup:INFO:' part.
 func Info(msg string) {
-	fmt.Fprintf(Stdout, "%s:%s: %s\n",
-		cmdinfo.Name, color.GreenString("INFO "), msg)
+	fmt.Fprintf(Stdout, "%s\n", msg)
 }
 
 // Warn print warning message at STDERR in yellow.

@@ -27,7 +27,7 @@ func TestInfo(t *testing.T) {
 			args: args{
 				msg: "test message",
 			},
-			want: []string{"gup:INFO : test message", ""},
+			want: []string{"test message", ""},
 		},
 	}
 	for _, tt := range tests {

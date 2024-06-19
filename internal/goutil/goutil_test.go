@@ -283,46 +283,58 @@ func TestInstallMaster_golden(t *testing.T) {
 
 func TestIsAlreadyUpToDate_golden(t *testing.T) {
 	for i, test := range []struct {
-		curr   string
-		latest string
-		expect bool
+		curr     string
+		latest   string
+		currGo   string
+		latestGo string
+		expect   bool
 	}{
 		// Regular cases
-		{curr: "v1.9.0", latest: "v1.9.1", expect: false},
-		{curr: "v1.9.0", latest: "v1.9.0", expect: true},
-		{curr: "v1.9.1", latest: "v1.9.0", expect: true},
+		{curr: "v1.9.0", latest: "v1.9.1", currGo: "go1.22.4", latestGo: "go1.22.4", expect: false},
+		{curr: "v1.9.0", latest: "v1.9.0", currGo: "go1.22.4", latestGo: "go1.22.4", expect: true},
+		{curr: "v1.9.1", latest: "v1.9.0", currGo: "go1.22.4", latestGo: "go1.22.4", expect: true},
+		{curr: "v1.9.0", latest: "v1.9.0", currGo: "go1.22.1", latestGo: "go1.22.4", expect: false},
 		// Irregular cases (untagged versions)
 		{
-			curr:   "v0.0.0-20220913151710-7c6e287988f3",
-			latest: "v0.0.0-20210608161538-9736a4bde949",
-			expect: true,
+			curr:     "v0.0.0-20220913151710-7c6e287988f3",
+			latest:   "v0.0.0-20210608161538-9736a4bde949",
+			currGo:   "go1.22.4",
+			latestGo: "go1.22.4",
+			expect:   true,
 		},
 		{
-			curr:   "v0.0.0-20210608161538-9736a4bde949",
-			latest: "v0.0.0-20220913151710-7c6e287988f3",
-			expect: false,
+			curr:     "v0.0.0-20210608161538-9736a4bde949",
+			latest:   "v0.0.0-20220913151710-7c6e287988f3",
+			currGo:   "go1.22.4",
+			latestGo: "go1.22.4",
+			expect:   false,
 		},
 		// Compatibility between go-style semver and pure-semver
-		{curr: "v1.9.0", latest: "1.9.1", expect: false},
-		{curr: "v1.9.1", latest: "1.9.0", expect: true},
-		{curr: "1.9.0", latest: "v1.9.1", expect: false},
-		{curr: "1.9.1", latest: "v1.9.0", expect: true},
+		{curr: "v1.9.0", latest: "1.9.1", currGo: "go1.22.4", latestGo: "go1.22.4", expect: false},
+		{curr: "v1.9.1", latest: "1.9.0", currGo: "go1.22.4", latestGo: "go1.22.4", expect: true},
+		{curr: "1.9.0", latest: "v1.9.1", currGo: "go1.22.4", latestGo: "go1.22.4", expect: false},
+		{curr: "1.9.1", latest: "v1.9.0", currGo: "go1.22.4", latestGo: "go1.22.4", expect: true},
 		// Issue #36
-		{curr: "v1.9.1-0.20220908165354-f7355b5d2afa", latest: "v1.9.0", expect: true},
+		{curr: "v1.9.1-0.20220908165354-f7355b5d2afa", latest: "v1.9.0", currGo: "go1.22.4", latestGo: "go1.22.4", expect: true},
 	} {
 		verTmp := Version{
 			Current: test.curr,
 			Latest:  test.latest,
 		}
+		goVerTmp := Version{
+			Current: test.currGo,
+			Latest:  test.latestGo,
+		}
+		pkg := Package{Version: &verTmp, GoVersion: &goVerTmp}
 
 		want := test.expect
-		got := IsAlreadyUpToDate(verTmp)
+		got := pkg.IsAlreadyUpToDate()
 
 		// Assert to be equal
 		if want != got {
 			t.Errorf(
-				"case #%v failed. got: (\"%v\" >= \"%v\") = %v, want: %v",
-				i, test.curr, test.latest, got, want,
+				"case #%v failed. got: (\"%v\" >= \"%v\" / \"%v\" >= \"%v\") = %v, want: %v",
+				i, test.curr, test.latest, test.currGo, test.latestGo, got, want,
 			)
 		}
 	}
@@ -545,6 +557,10 @@ func TestPackage_CurrentToLatestStr_not_up_to_date(t *testing.T) {
 			Current: "v0.0.1",
 			Latest:  "v1.9.1",
 		},
+		GoVersion: &Version{
+			Current: "go1.22.4",
+			Latest:  "go1.22.4",
+		},
 	}
 
 	// Assert to contain the expected message
@@ -565,10 +581,38 @@ func TestPackage_VersionCheckResultStr_not_up_to_date(t *testing.T) {
 			Current: "v0.0.1",
 			Latest:  "v1.9.1",
 		},
+		GoVersion: &Version{
+			Current: "go1.22.4",
+			Latest:  "go1.22.4",
+		},
 	}
 
 	// Assert to contain the expected message
 	wantContain := "current: v0.0.1, latest: v1.9.1"
+	got := pkgInfo.VersionCheckResultStr()
+
+	if !strings.Contains(got, wantContain) {
+		t.Errorf("got: %v, want: %v", got, wantContain)
+	}
+}
+
+func TestPackage_VersionCheckResultStr_go_not_up_to_date(t *testing.T) {
+	pkgInfo := Package{
+		Name:       "foo",
+		ImportPath: "github.com/dummy_name/dummy",
+		ModulePath: "github.com/dummy_name/dummy/foo",
+		Version: &Version{
+			Current: "v1.9.1",
+			Latest:  "v1.9.1",
+		},
+		GoVersion: &Version{
+			Current: "go1.22.1",
+			Latest:  "go1.22.4",
+		},
+	}
+
+	// Assert to contain the expected message
+	wantContain := "current: go1.22.1, installed: go1.22.4"
 	got := pkgInfo.VersionCheckResultStr()
 
 	if !strings.Contains(got, wantContain) {

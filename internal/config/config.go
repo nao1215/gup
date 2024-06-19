@@ -14,6 +14,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/shogo82148/pointer"
 )
 
 // ConfigFileName is gup command configuration file
@@ -40,7 +41,8 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 	pkgs := []goutil.Package{}
 	for _, v := range contents {
 		pkg := goutil.Package{}
-		ver := goutil.Version{Current: "<from gup.conf>", Latest: ""}
+		binVer := goutil.Version{Current: "<from gup.conf>", Latest: ""}
+		goVer := goutil.Version{Current: "<from gup.conf>", Latest: ""}
 
 		v = deleteComment(v)
 		if isBlank(v) {
@@ -55,7 +57,8 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 		equalIdx := strings.Index(v, "=")
 		pkg.Name = strings.TrimSpace(v[:equalIdx-1])
 		pkg.ImportPath = strings.TrimSpace(v[equalIdx+1:])
-		pkg.Version = &ver
+		pkg.Version = pointer.Ptr(binVer)
+		pkg.GoVersion = pointer.Ptr(goVer)
 		pkgs = append(pkgs, pkg)
 	}
 
