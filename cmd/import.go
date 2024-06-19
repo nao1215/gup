@@ -42,7 +42,7 @@ Finally, you execute the export subcommand in this state.`,
 	return cmd
 }
 
-func runImport(cmd *cobra.Command, args []string) int {
+func runImport(cmd *cobra.Command, _ []string) int {
 	dryRun, err := cmd.Flags().GetBool("dry-run")
 	if err != nil {
 		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--dry-run)", err))

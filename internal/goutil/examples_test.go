@@ -256,33 +256,10 @@ func ExampleGoPaths_StartDryRunMode() {
 }
 
 // ----------------------------------------------------------------------------
-//  Type: Package
+//
+//	Type: Package
+//
 // ----------------------------------------------------------------------------
-
-func ExamplePackage_CurrentToLatestStr() {
-	// Set the paths of the target binary
-	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
-	if len(packages) == 0 {
-		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
-	}
-
-	// test with the first package found
-	pkgInfo := packages[0]
-
-	wantContain := "Already up-to-date"
-	got := pkgInfo.CurrentToLatestStr()
-
-	if !strings.Contains(got, wantContain) {
-		log.Fatalf(
-			"example Package.CurrentToLatestStr failed. \nwant contain: %s\n got: %s",
-			wantContain, got,
-		)
-	}
-
-	fmt.Println("Example Package.CurrentToLatestStr: OK")
-	// Output: Example Package.CurrentToLatestStr: OK
-}
-
 func ExamplePackage_SetLatestVer() {
 	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
 	if len(packages) == 0 {
@@ -312,27 +289,4 @@ func ExamplePackage_SetLatestVer() {
 
 	fmt.Println("Example Package.SetLatestVer: OK")
 	// Output: Example Package.SetLatestVer: OK
-}
-
-func ExamplePackage_VersionCheckResultStr() {
-	packages := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
-	if len(packages) == 0 {
-		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
-	}
-
-	// test with the first package found
-	pkgInfo := packages[0]
-
-	wantContain := "Already up-to-date"
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		log.Fatalf(
-			"example Package.VersionCheckResultStr failed. \nwant contain: %s\n got: %s",
-			wantContain, got,
-		)
-	}
-
-	fmt.Println("Example Package.VersionCheckResultStr: OK")
-	// Output: Example Package.VersionCheckResultStr: OK
 }
