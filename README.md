@@ -47,12 +47,12 @@ If you update all binaries, you just run `$ gup update`.
 ```
 $ gup update
 gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
-gup:INFO : [ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3)
-gup:INFO : [ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0)
-gup:INFO : [ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2)
-gup:INFO : [ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5)
-gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1)
+gup:INFO : [ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
+gup:INFO : [ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3 / go1.22.4)
+gup:INFO : [ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0 / go1.22.4)
+gup:INFO : [ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2 / go1.22.4)
+gup:INFO : [ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5 / go1.22.4)
+gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1 / go1.22.4)
    :
    :
 ```
@@ -62,9 +62,9 @@ If you want to update only the specified binaries, you specify multiple command 
 ```
 $ gup update subaru gup ubume
 gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1)
-gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2)
-gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1)
+gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1, go1.20.1 to go1.22.4)
+gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2 / go1.22.4)
+gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1 / go1.22.4)
 ```
 
 ### Exclude binaries during gup update
@@ -107,10 +107,10 @@ If you want to know if the binary is the latest version, use the check subcomman
 ```
 $ gup check
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87)
-gup:INFO : [ 2/33] fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4)
+gup:INFO : [ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
+gup:INFO : [ 2/33] fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4 / current: go1.20.2, installed: go1.22.4)
    :
-gup:INFO : [33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0)
+gup:INFO : [33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0 / go1.22.4)
 
 gup:INFO : If you want to update binaries, the following command.
            $ gup update fyne_demo gup mimixbox
@@ -120,8 +120,8 @@ Like other subcommands, you can only check the specified binaries.
 ```
 $ gup check lazygit mimixbox
 gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2)
-gup:INFO : [2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2)
+gup:INFO : [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2 / go1.22.4)
+gup:INFO : [2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2 / go1.22.4)
 
 gup:INFO : If you want to update binaries, the following command.
            $ gup update mimixbox
