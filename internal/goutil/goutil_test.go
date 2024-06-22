@@ -340,6 +340,51 @@ func TestIsAlreadyUpToDate_golden(t *testing.T) {
 	}
 }
 
+func TestVersionUpToDate_golden(t *testing.T) {
+	type args struct {
+		current   string
+		available string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "basic test",
+			args: args{
+				current:   "1.0.0",
+				available: "1.0.1",
+			},
+			want: false,
+		},
+		{
+			name: "unknown treated as newer",
+			args: args{
+				current:   "1.0.0",
+				available: "unknown",
+			},
+			want: false,
+		},
+		{
+			name: "differing digits, single older",
+			args: args{
+				current:   "1.2.0",
+				available: "1.11.5",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := versionUpToDate(tt.args.current, tt.args.available)
+			if got != tt.want {
+				t.Errorf("versionUpToDate() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // ============================================================================
 //  Methods
 // ============================================================================
