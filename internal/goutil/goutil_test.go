@@ -340,6 +340,131 @@ func TestIsAlreadyUpToDate_golden(t *testing.T) {
 	}
 }
 
+func TestVersionUpToDate_golden(t *testing.T) {
+	type args struct {
+		current   string
+		available string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "basic test",
+			args: args{
+				current:   "1.0.0",
+				available: "1.0.1",
+			},
+			want: false,
+		},
+		{
+			name: "unknown treated as newer",
+			args: args{
+				current:   "1.0.0",
+				available: "unknown",
+			},
+			want: false,
+		},
+		{
+			name: "differing digits, single older",
+			args: args{
+				current:   "1.2.0",
+				available: "1.11.5",
+			},
+			want: false,
+		},
+		{
+			name: "same version",
+			args: args{
+				current:   "1.0.0",
+				available: "1.0.0",
+			},
+			want: true,
+		},
+		{
+			name: "current newer",
+			args: args{
+				current:   "2.0.0",
+				available: "1.0.0",
+			},
+			want: true,
+		},
+		{
+			name: "current patch newer",
+			args: args{
+				current:   "1.0.1",
+				available: "1.0.0",
+			},
+			want: true,
+		},
+		{
+			name: "current minor newer",
+			args: args{
+				current:   "1.1.0",
+				available: "1.0.1",
+			},
+			want: true,
+		},
+		{
+			name: "different lengths, current newer",
+			args: args{
+				current:   "1.0",
+				available: "0.9.9",
+			},
+			want: true,
+		},
+		{
+			name: "additional test, current older major version",
+			args: args{
+				current:   "0.9.9",
+				available: "1.0.0",
+			},
+			want: false,
+		},
+		{
+			name: "additional test, current older minor version",
+			args: args{
+				current:   "1.0.0",
+				available: "1.1.0",
+			},
+			want: false,
+		},
+		{
+			name: "additional test, current older patch version",
+			args: args{
+				current:   "1.0.0",
+				available: "1.0.1",
+			},
+			want: false,
+		},
+		{
+			name: "additional test, current much older version",
+			args: args{
+				current:   "1.0.0",
+				available: "2.0.0",
+			},
+			want: false,
+		},
+		{
+			name: "additional test, current much newer version",
+			args: args{
+				current:   "2.0.0",
+				available: "1.0.0",
+			},
+			want: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := versionUpToDate(tt.args.current, tt.args.available)
+			if got != tt.want {
+				t.Errorf("versionUpToDate() test_name=%s, got = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
 // ============================================================================
 //  Methods
 // ============================================================================

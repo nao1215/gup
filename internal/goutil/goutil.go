@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/hashicorp/go-version"
 	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/pkg/errors"
@@ -138,8 +139,25 @@ func (p *Package) IsAlreadyUpToDate() bool {
 	)
 }
 
+// versionUpToDate return whether current version is up to date or not.
 func versionUpToDate(current, available string) bool {
-	return current >= available
+	if current == "unknown" || available == "unknown" {
+		return false // unknown version is not up to date
+	}
+
+	currentVer, err := version.NewVersion(current)
+	if err != nil {
+		return false // invalid version is not up to date
+	}
+	availableVer, err := version.NewVersion(available)
+	if err != nil {
+		return false // invalid version is not up to date
+	}
+
+	if currentVer.GreaterThanOrEqual(availableVer) {
+		return true
+	}
+	return false
 }
 
 // NewGoPaths return GoPaths instance.
@@ -371,6 +389,7 @@ func GetPackageVersion(cmdName string) string {
 
 var goVersionRegex = regexp.MustCompile(`(^|\s)(go[1-9]\S+)`)
 
+// GetInstalledGoVersion return installed go version.
 func GetInstalledGoVersion() (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(goExe, "version")
