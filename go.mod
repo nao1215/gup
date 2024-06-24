@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.17.0
 	github.com/gen2brain/beeep v0.0.0-20220909211152-5a9ec94374f6
 	github.com/google/go-cmp v0.6.0
+	github.com/hashicorp/go-version v1.7.0
 	github.com/mattn/go-colorable v0.1.13
 	github.com/nao1215/gorky v0.2.1
 	github.com/pkg/errors v0.9.1
