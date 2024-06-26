@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -673,6 +674,30 @@ func TestGoPaths_StartDryRunMode_fail_if_key_not_set(t *testing.T) {
 //  Type: Package
 // ----------------------------------------------------------------------------
 
+func TestPackage_CurrentToLatestStr_up_to_date(t *testing.T) {
+	pkgInfo := Package{
+		Name:       "foo",
+		ImportPath: "github.com/dummy_name/dummy",
+		ModulePath: "github.com/dummy_name/dummy/foo",
+		Version: &Version{
+			Current: "v1.42.2",
+			Latest:  "v1.9.1",
+		},
+		GoVersion: &Version{
+			Current: "go1.22.4",
+			Latest:  "go1.22.4",
+		},
+	}
+
+	// Assert to contain the expected message
+	wantContain := "up-to-date: v1.42.2"
+	got := pkgInfo.CurrentToLatestStr()
+
+	if !strings.Contains(got, wantContain) {
+		t.Errorf("got: %v, want: %v", got, wantContain)
+	}
+}
+
 func TestPackage_CurrentToLatestStr_not_up_to_date(t *testing.T) {
 	pkgInfo := Package{
 		Name:       "foo",
@@ -691,6 +716,30 @@ func TestPackage_CurrentToLatestStr_not_up_to_date(t *testing.T) {
 	// Assert to contain the expected message
 	wantContain := "v0.0.1 to v1.9.1"
 	got := pkgInfo.CurrentToLatestStr()
+
+	if !strings.Contains(got, wantContain) {
+		t.Errorf("got: %v, want: %v", got, wantContain)
+	}
+}
+
+func TestPackage_VersionCheckResultStr_up_to_date(t *testing.T) {
+	pkgInfo := Package{
+		Name:       "foo",
+		ImportPath: "github.com/dummy_name/dummy",
+		ModulePath: "github.com/dummy_name/dummy/foo",
+		Version: &Version{
+			Current: "v2.5.0",
+			Latest:  "v1.9.1",
+		},
+		GoVersion: &Version{
+			Current: "go1.22.4",
+			Latest:  "go1.22.4",
+		},
+	}
+
+	// Assert to contain the expected message
+	wantContain := "up-to-date: v2.5.0"
+	got := pkgInfo.VersionCheckResultStr()
 
 	if !strings.Contains(got, wantContain) {
 		t.Errorf("got: %v, want: %v", got, wantContain)
@@ -717,6 +766,30 @@ func TestPackage_VersionCheckResultStr_not_up_to_date(t *testing.T) {
 	got := pkgInfo.VersionCheckResultStr()
 
 	if !strings.Contains(got, wantContain) {
+		t.Errorf("got: %v, want: %v", got, wantContain)
+	}
+}
+
+func TestPackage_VersionCheckResultStr_go_up_to_date(t *testing.T) {
+	pkgInfo := Package{
+		Name:       "foo",
+		ImportPath: "github.com/dummy_name/dummy",
+		ModulePath: "github.com/dummy_name/dummy/foo",
+		Version: &Version{
+			Current: "v1.9.1",
+			Latest:  "v1.9.1",
+		},
+		GoVersion: &Version{
+			Current: "go1.99.9",
+			Latest:  "go1.22.4",
+		},
+	}
+
+	// Assert to contain the expected message
+	wantContain := regexp.MustCompile(`up-to-date:.* go1\.99\.9`)
+	got := pkgInfo.VersionCheckResultStr()
+
+	if !wantContain.MatchString(got) {
 		t.Errorf("got: %v, want: %v", got, wantContain)
 	}
 }
