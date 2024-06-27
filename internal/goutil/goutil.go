@@ -78,7 +78,7 @@ func (p *Package) SetLatestVer() {
 // CurrentToLatestStr returns string about the current version and the latest version
 func (p *Package) CurrentToLatestStr() string {
 	if p.IsAlreadyUpToDate() {
-		return "Already up-to-date: " + color.GreenString(p.Version.Latest) + " / " + color.GreenString(p.GoVersion.Current)
+		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
 	}
 	var ret string
 	if p.Version.Current != p.Version.Latest {
@@ -96,7 +96,7 @@ func (p *Package) CurrentToLatestStr() string {
 // VersionCheckResultStr returns string about command version check.
 func (p *Package) VersionCheckResultStr() string {
 	if p.IsAlreadyUpToDate() {
-		return "Already up-to-date: " + color.GreenString(p.Version.Latest) + " / " + color.GreenString(p.GoVersion.Current)
+		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
 	}
 	var ret string
 	// TODO: yellow only if latest > current
