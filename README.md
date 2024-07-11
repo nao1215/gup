@@ -11,13 +11,13 @@
 [[日本語](./doc/ja/README.md)]
 
 # gup - Update binaries installed by "go install"
-![demo](./doc/img/demo.gif)
+
+![sample](./doc/img/sample.png)
 
 **gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
-![sample](./doc/img/sample.png)
 
 ## Supported OS (unit testing with GitHub Actions)
 - Linux
@@ -46,13 +46,13 @@ If you update all binaries, you just run `$ gup update`.
 
 ```
 $ gup update
-gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
-gup:INFO : [ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3 / go1.22.4)
-gup:INFO : [ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0 / go1.22.4)
-gup:INFO : [ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2 / go1.22.4)
-gup:INFO : [ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5 / go1.22.4)
-gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1 / go1.22.4)
+update binary under $GOPATH/bin or $GOBIN
+[ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
+[ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3 / go1.22.4)
+[ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0 / go1.22.4)
+[ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2 / go1.22.4)
+[ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5 / go1.22.4)
+[ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1 / go1.22.4)
    :
    :
 ```
@@ -61,10 +61,10 @@ gup:INFO : [ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-t
 If you want to update only the specified binaries, you specify multiple command names separated by space.
 ```
 $ gup update subaru gup ubume
-gup:INFO : update binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1, go1.20.1 to go1.22.4)
-gup:INFO : [2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2 / go1.22.4)
-gup:INFO : [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1 / go1.22.4)
+update binary under $GOPATH/bin or $GOBIN
+[1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1, go1.20.1 to go1.22.4)
+[2/3] github.com/nao1215/subaru (Already up-to-date: v1.0.2 / go1.22.4)
+[3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1 / go1.22.4)
 ```
 
 ### Exclude binaries during gup update
@@ -89,41 +89,41 @@ If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subc
 ```
 $ gup remove subaru gal ubume
 gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
-gup:INFO : removed /home/nao/.go/bin/subaru
+removed /home/nao/.go/bin/subaru
 gup:CHECK: remove /home/nao/.go/bin/gal? [Y/n] n
-gup:INFO : cancel removal /home/nao/.go/bin/gal
+cancel removal /home/nao/.go/bin/gal
 gup:CHECK: remove /home/nao/.go/bin/ubume? [Y/n] Y
-gup:INFO : removed /home/nao/.go/bin/ubume
+removed /home/nao/.go/bin/ubume
 ```
 
 If you want to force the removal, use the --force option.
 ```
 $ gup remove --force gal
-gup:INFO : removed /home/nao/.go/bin/gal
+removed /home/nao/.go/bin/gal
 ```
 
 ### Check if the binary is the latest version
 If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
 ```
 $ gup check
-gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
-gup:INFO : [ 2/33] fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4 / current: go1.20.2, installed: go1.22.4)
+check binary under $GOPATH/bin or $GOBIN
+[ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
+[ 2/33] fyne.io/fyne/v2 (current: v2.1.3, latest: v2.1.4 / current: go1.20.2, installed: go1.22.4)
    :
-gup:INFO : [33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0 / go1.22.4)
+[33/33] github.com/nao1215/ubume (Already up-to-date: v1.5.0 / go1.22.4)
 
-gup:INFO : If you want to update binaries, the following command.
+If you want to update binaries, the following command.
            $ gup update fyne_demo gup mimixbox
 ```
 
 Like other subcommands, you can only check the specified binaries.
 ```
 $ gup check lazygit mimixbox
-gup:INFO : check binary under $GOPATH/bin or $GOBIN
-gup:INFO : [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2 / go1.22.4)
-gup:INFO : [2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2 / go1.22.4)
+check binary under $GOPATH/bin or $GOBIN
+[1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2 / go1.22.4)
+[2/2] github.com/nao1215/mimixbox (current: v0.32.1, latest: v0.33.2 / go1.22.4)
 
-gup:INFO : If you want to update binaries, the following command.
+If you want to update binaries, the following command.
            $ gup update mimixbox
 ```
 ### Export／Import subcommand
@@ -133,7 +133,7 @@ according to the contents of gup.conf.
 ```
 ※ Environments A (e.g. ubuntu)
 $ gup export
-gup:INFO: Export /home/nao/.config/gup/gup.conf
+Export /home/nao/.config/gup/gup.conf
 
 ※ Environments B (e.g. debian)
 $ ls /home/nao/.config/gup/gup.conf
@@ -154,17 +154,17 @@ $ gup import --input=gup.conf
 man subcommand generates man-pages under /usr/share/man/man1.
 ```
 $ sudo gup man
-gup:INFO : Generate /usr/share/man/man1/gup-bug-report.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-check.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-completion.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-export.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-import.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-list.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-man.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-remove.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-update.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup-version.1.gz
-gup:INFO : Generate /usr/share/man/man1/gup.1.gz
+Generate /usr/share/man/man1/gup-bug-report.1.gz
+Generate /usr/share/man/man1/gup-check.1.gz
+Generate /usr/share/man/man1/gup-completion.1.gz
+Generate /usr/share/man/man1/gup-export.1.gz
+Generate /usr/share/man/man1/gup-import.1.gz
+Generate /usr/share/man/man1/gup-list.1.gz
+Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-remove.1.gz
+Generate /usr/share/man/man1/gup-update.1.gz
+Generate /usr/share/man/man1/gup-version.1.gz
+Generate /usr/share/man/man1/gup.1.gz
 ```
 
 ### Generate shell completion file (for bash, zsh, fish)
@@ -172,9 +172,9 @@ completion subcommand generates shell completion files for bash, zsh, and fish. 
 
 ```
 $ gup completion
-gup:INFO : create bash-completion file: /home/nao/.bash_completion
-gup:INFO : create fish-completion file: /home/nao/.config/fish/completions/gup.fish
-gup:INFO : create zsh-completion file: /home/nao/.zsh/completion/_gup
+create bash-completion file: /home/nao/.bash_completion
+create fish-completion file: /home/nao/.config/fish/completions/gup.fish
+create zsh-completion file: /home/nao/.zsh/completion/_gup
 ```
 
 ### Desktop notification
