@@ -44,7 +44,7 @@ brew install nao1215/tap/gup
 ### Update all binaries
 If you update all binaries, you just run `$ gup update`.
 
-```
+```shell
 $ gup update
 update binary under $GOPATH/bin or $GOBIN
 [ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
@@ -59,7 +59,7 @@ update binary under $GOPATH/bin or $GOBIN
 
 ### Update the specified binary
 If you want to update only the specified binaries, you specify multiple command names separated by space.
-```
+```shell
 $ gup update subaru gup ubume
 update binary under $GOPATH/bin or $GOBIN
 [1/3] github.com/nao1215/gup (v0.7.0 to v0.7.1, go1.20.1 to go1.22.4)
@@ -70,13 +70,13 @@ update binary under $GOPATH/bin or $GOBIN
 ### Exclude binaries during gup update
 If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
 Also works in combination with --dry-run
-```
+```shell
 $ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
 ```
 
 ### Update binaries with @main or @master
 If you want to update binaries with @master or @main, you can specify the -m or --master option.
-```
+```shell
 $ gup update --main=gup,lazygit,sqly
 ```
 
@@ -86,7 +86,7 @@ list subcommand print command information under $GOPATH/bin or $GOBIN. The outpu
 
 ### Remove the specified binary
 If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.
-```
+```shell
 $ gup remove subaru gal ubume
 gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
 removed /home/nao/.go/bin/subaru
@@ -97,14 +97,14 @@ removed /home/nao/.go/bin/ubume
 ```
 
 If you want to force the removal, use the --force option.
-```
+```shell
 $ gup remove --force gal
 removed /home/nao/.go/bin/gal
 ```
 
 ### Check if the binary is the latest version
 If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
-```
+```shell
 $ gup check
 check binary under $GOPATH/bin or $GOBIN
 [ 1/33] github.com/cheat/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
@@ -117,7 +117,7 @@ If you want to update binaries, the following command.
 ```
 
 Like other subcommands, you can only check the specified binaries.
-```
+```shell
 $ gup check lazygit mimixbox
 check binary under $GOPATH/bin or $GOBIN
 [1/2] github.com/jesseduffield/lazygit (Already up-to-date: v0.32.2 / go1.22.4)
@@ -130,7 +130,7 @@ If you want to update binaries, the following command.
 You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $XDG_CONFIG_HOME/gup/gup.conf. If you want to know [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), see this link. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation
 according to the contents of gup.conf.
 
-```
+```shell
 ※ Environments A (e.g. ubuntu)
 $ gup export
 Export /home/nao/.config/gup/gup.conf
@@ -142,7 +142,7 @@ $ gup import
 ```
 
 Alternatively, export subcommand print package information (it's same as gup.conf) that you want to export at STDOUT if you use --output option. import subcommand can also specify the gup.conf file path if you use --input option.
-```
+```shell
 ※ Environments A (e.g. ubuntu)
 $ gup export --output > gup.conf
 
@@ -152,7 +152,7 @@ $ gup import --input=gup.conf
 
 ### Generate man-pages (for linux, mac)
 man subcommand generates man-pages under /usr/share/man/man1.
-```
+```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
 Generate /usr/share/man/man1/gup-check.1.gz
@@ -170,7 +170,7 @@ Generate /usr/share/man/man1/gup.1.gz
 ### Generate shell completion file (for bash, zsh, fish)
 completion subcommand generates shell completion files for bash, zsh, and fish. If the shell completion file does not exist in the system, the generation process will begin. To activate the completion feature, restart the shell.
 
-```
+```shell
 $ gup completion
 create bash-completion file: /home/nao/.bash_completion
 create fish-completion file: /home/nao/.config/fish/completions/gup.fish
@@ -179,7 +179,7 @@ create zsh-completion file: /home/nao/.zsh/completion/_gup
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
-```
+```shell
 $ gup update --notify
 ```
 ![success](./doc/img/notify_success.png)
