@@ -5,6 +5,7 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - ./scripts/completions.sh
 builds:
   - main: .
     ldflags:
@@ -20,6 +21,8 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    files:
+    - completions/*
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -31,7 +34,7 @@ changelog:
       - "^docs:"
       - "^test:"
 nfpms:
-  - maintainer: Naohiro CHIKAMATSU <n.chika156@gmail.com>
+  - maintainer: 'Naohiro CHIKAMATSU <n.chika156@gmail.com>'
     description: gup - Update binaries installed by 'go install'
     homepage: https://github.com/nao1215/gup
     license: Apache License 2.0
@@ -39,6 +42,19 @@ nfpms:
       - deb
       - rpm
       - apk
+    contents:
+      - src: ./completions/gup.bash
+        dst: /usr/share/bash-completion/completions/gup
+        file_info:
+          mode: 0644
+      - src: ./completions/gup.fish
+        dst: /usr/share/fish/vendor_completions.d/gup.fish
+        file_info:
+          mode: 0644
+      - src: ./completions/gup.zsh
+        dst: /usr/share/zsh/vendor-completions/_gup
+        file_info:
+          mode: 0644
 brews:
   - name: gup
     description: gup - Update binaries installed by 'go install'
@@ -47,3 +63,9 @@ brews:
       owner: nao1215
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    # Ref. https://carlosbecker.com/posts/golang-completions-cobra/
+    install: |-
+      bin.install "gup"
+      bash_completion.install "completions/gup.bash" => "gup"
+      zsh_completion.install "completions/gup.zsh" => "gup"
+      fish_completion.install "completions/gup.fish"    
