@@ -118,7 +118,7 @@ func doCheck(pkgs []goutil.Package, cpus int) int {
 		v := <-ch
 		if v.err == nil {
 			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
-				i+1, len(pkgs), v.pkg.ModulePath, v.pkg.VersionCheckResultStr()))
+				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
 		} else {
 			result = 1
 			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
