@@ -14,11 +14,13 @@ const Name = "gup"
 // GetVersion return gup command version.
 // Version global variable is set by ldflags.
 func GetVersion() string {
-	version := "unknown"
+	version := "(devel)"
 	if Version != "" {
 		version = Version
 	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		version = buildInfo.Main.Version
+		if buildInfo.Main.Version != "" {
+			version = buildInfo.Main.Version
+		}
 	}
 	return fmt.Sprintf("%s version %s (under Apache License version 2.0)", Name, version)
 }

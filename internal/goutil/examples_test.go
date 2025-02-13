@@ -139,7 +139,7 @@ func ExampleGoBin() {
 	// Output: Example GoBin: OK
 }
 
-func ExampleInstall() {
+func ExampleInstallLatest() {
 	// Install installs an executable from a Go package.
 	err := goutil.InstallLatest("example.com/unknown_user/unknown_package")
 
@@ -160,7 +160,7 @@ func ExampleInstall() {
 	// Output: Example Install: OK
 }
 
-func ExampleIsAlreadyUpToDate() {
+func ExamplePackage_IsAlreadyUpToDate() {
 	// Create Version object with Current and Latest package and Go versions
 	ver := goutil.Version{
 		Current: "v1.9.0",

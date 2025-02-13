@@ -104,7 +104,7 @@ func TestExecute_Version(t *testing.T) {
 		{
 			name:   "success",
 			args:   []string{"gup", "version"},
-			stdout: []string{"gup version  (under Apache License version 2.0)", ""},
+			stdout: []string{"gup version (devel) (under Apache License version 2.0)", ""},
 		},
 	}
 	for _, tt := range tests {
