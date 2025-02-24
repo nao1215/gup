@@ -1,12 +1,14 @@
 module github.com/nao1215/gup
 
-go 1.20
+go 1.21
+
+toolchain go1.24.0
 
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/fatih/color v1.18.0
 	github.com/gen2brain/beeep v0.0.0-20220909211152-5a9ec94374f6
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-version v1.7.0
 	github.com/mattn/go-colorable v0.1.14
 	github.com/nao1215/gorky v0.2.1
