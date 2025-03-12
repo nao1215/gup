@@ -1,6 +1,6 @@
 module github.com/nao1215/gup
 
-go 1.21
+go 1.23.0
 
 toolchain go1.24.0
 
@@ -16,7 +16,7 @@ require (
 	github.com/shogo82148/pointer v1.3.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/sync v0.11.0
+	golang.org/x/sync v0.12.0
 )
 
 require (

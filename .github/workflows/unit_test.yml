@@ -21,8 +21,6 @@ jobs:
           - "1"
           - "1.24"
           - "1.23"
-          - "1.22"
-          - "1.21"
       fail-fast: false
     runs-on: ${{ matrix.os }}
 
