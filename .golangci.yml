@@ -1,39 +1,26 @@
+version: "2"
 run:
   go: "1.20"
-
-issues:
-  exclude-use-default: false
-
 linters:
-  disable-all: true
+  default: none
   enable:
-    - deadcode
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - structcheck
-    - typecheck
-    - unused
-    - varcheck
     - asciicheck
     - bodyclose
     - dogsled
     - durationcheck
+    - errcheck
     - errorlint
     - exhaustive
-    - exportloopref
     - forcetypeassert
     - gochecknoglobals
     - gochecknoinits
     - goconst
     - gocritic
-    - goimports
-    - gomnd
     - gosec
-    - ifshort
+    - govet
+    - ineffassign
     - misspell
+    - mnd
     - nakedret
     - noctx
     - nolintlint
@@ -41,16 +28,32 @@ linters:
     - prealloc
     - rowserrcheck
     - sqlclosecheck
-    - stylecheck
+    - staticcheck
     - tagliatelle
     - thelper
     - unconvert
     - unparam
+    - unused
     - wastedassign
     - whitespace
-linters-settings:
-  tagliatelle:
-    case:
-      use-field-name: true
-      rules:
-        json: snake
+  settings:
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+        use-field-name: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

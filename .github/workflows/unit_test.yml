@@ -20,7 +20,6 @@ jobs:
         go:
           - "1"
           - "1.24"
-          - "1.23"
       fail-fast: false
     runs-on: ${{ matrix.os }}
 
