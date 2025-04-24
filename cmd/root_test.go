@@ -383,7 +383,7 @@ subaru = github.com/nao1215/subaru
 		})
 
 		if !file.IsFile(config.FilePath()) {
-			t.Errorf(config.FilePath() + " does not exist. failed to generate")
+			t.Error(config.FilePath() + " does not exist. failed to generate")
 			continue
 		}
 
