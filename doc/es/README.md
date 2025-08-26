@@ -9,41 +9,41 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/nao1215/gup)](https://goreportcard.com/report/github.com/nao1215/gup)
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)
 
-[日本語](./doc/ja/README.md) | [Русский](./doc/ru/README.md) | [中文](./doc/zh-cn/README.md) | [한국어](./doc/ko/README.md) | [Español](./doc/es/README.md) | [Français](./doc/fr/README.md)
+[日本語](../ja/README.md) | [Русский](../ru/README.md) | [中文](../zh-cn/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md)
 
-# gup - Update binaries installed by "go install"
+# gup - Actualizar binarios instalados por "go install"
 
-![sample](./doc/img/sample.png)
+![sample](../img/sample.png)
 
-**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
+El comando **gup** actualiza los binarios instalados por "go install" a la versión más reciente. gup actualiza todos los binarios en paralelo, por lo que es muy rápido. También proporciona subcomandos para manipular binarios bajo $GOPATH/bin ($GOBIN). Es un software multiplataforma que se ejecuta en Windows, Mac y Linux.
 
-If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
+Si estás usando oh-my-zsh, entonces gup tiene un alias configurado. El alias es `gup - git pull --rebase`. Por lo tanto, asegúrate de que el alias de oh-my-zsh esté deshabilitado (e.g. $ \gup update).
 
 
-## Supported OS (unit testing with GitHub Actions)
+## OS Soportados (pruebas unitarias con GitHub Actions)
 - Linux
 - Mac
 - Windows
 
-## How to install
-### Use "go install"
-If you does not have the golang development environment installed on your system, please install golang from the [golang official website](https://go.dev/doc/install).
+## Cómo instalar
+### Usar "go install"
+Si no tienes el entorno de desarrollo de golang instalado en tu sistema, por favor instala golang desde el [sitio web oficial de golang](https://go.dev/doc/install).
 ```
 go install github.com/nao1215/gup@latest
 ```
 
-### Use homebrew
+### Usar homebrew
 ```shell
 brew install nao1215/tap/gup
 ```
 
-### Install from Package or Binary
-[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
+### Instalar desde Paquete o Binario
+[La página de releases](https://github.com/nao1215/gup/releases) contiene paquetes en formatos .deb, .rpm y .apk. El comando gup usa el comando go internamente, por lo que se requiere la instalación de golang.
 
 
-## How to use
-### Update all binaries
-If you update all binaries, you just run `$ gup update`.
+## Cómo usar
+### Actualizar todos los binarios
+Si quieres actualizar todos los binarios, simplemente ejecuta `$ gup update`.
 
 ```shell
 $ gup update
@@ -58,8 +58,8 @@ update binary under $GOPATH/bin or $GOBIN
    :
 ```
 
-### Update the specified binary
-If you want to update only the specified binaries, you specify multiple command names separated by space.
+### Actualizar el binario especificado
+Si quieres actualizar solo los binarios especificados, especifica múltiples nombres de comandos separados por espacio.
 ```shell
 $ gup update subaru gup ubume
 update binary under $GOPATH/bin or $GOBIN
@@ -68,25 +68,25 @@ update binary under $GOPATH/bin or $GOBIN
 [3/3] github.com/nao1215/ubume/cmd/ubume (Already up-to-date: v1.4.1 / go1.22.4)
 ```
 
-### Exclude binaries during gup update
-If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
-Also works in combination with --dry-run
+### Excluir binarios durante gup update
+Si no quieres actualizar algunos binarios, simplemente especifica los binarios que no deben actualizarse separados usando ',' sin espacios como delimitador.
+También funciona en combinación con --dry-run
 ```shell
-$ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
+$ gup update --exclude=gopls,golangci-lint    //--exclude o -e, este ejemplo excluirá 'gopls' y 'golangci-lint'
 ```
 
-### Update binaries with @main or @master
-If you want to update binaries with @master or @main, you can specify the -m or --master option.
+### Actualizar binarios con @main o @master
+Si quieres actualizar binarios con @master o @main, puedes especificar la opción -m o --master.
 ```shell
 $ gup update --main=gup,lazygit,sqly
 ```
 
-### List up command name with package path and version under $GOPATH/bin
-list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
-![sample](doc/img/list.png)
+### Listar el nombre del comando con ruta del paquete y versión bajo $GOPATH/bin
+El subcomando list imprime información de comandos bajo $GOPATH/bin o $GOBIN. La información de salida es el nombre del comando, ruta del paquete y versión del comando.
+![sample](../img/list.png)
 
-### Remove the specified binary
-If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.
+### Eliminar el binario especificado
+Si quieres eliminar un comando bajo $GOPATH/bin o $GOBIN, usa el subcomando remove. El subcomando remove pregunta si quieres eliminarlo antes de eliminarlo.
 ```shell
 $ gup remove subaru gal ubume
 gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
@@ -97,14 +97,14 @@ gup:CHECK: remove /home/nao/.go/bin/ubume? [Y/n] Y
 removed /home/nao/.go/bin/ubume
 ```
 
-If you want to force the removal, use the --force option.
+Si quieres forzar la eliminación, usa la opción --force.
 ```shell
 $ gup remove --force gal
 removed /home/nao/.go/bin/gal
 ```
 
-### Check if the binary is the latest version
-If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
+### Verificar si el binario es la versión más reciente
+Si quieres saber si el binario es la versión más reciente, usa el subcomando check. El subcomando check verifica si el binario es la versión más reciente y muestra el nombre del binario que necesita ser actualizado.
 ```shell
 $ gup check
 check binary under $GOPATH/bin or $GOBIN
@@ -117,7 +117,7 @@ If you want to update binaries, the following command.
            $ gup update fyne_demo gup mimixbox
 ```
 
-Like other subcommands, you can only check the specified binaries.
+Como otros subcomandos, solo puedes verificar los binarios especificados.
 ```shell
 $ gup check lazygit mimixbox
 check binary under $GOPATH/bin or $GOBIN
@@ -127,32 +127,32 @@ check binary under $GOPATH/bin or $GOBIN
 If you want to update binaries, the following command.
            $ gup update mimixbox
 ```
-### Export／Import subcommand
-You use the export／import subcommand if you want to install the same golang binaries across multiple systems. By default, export-subcommand exports the file to $XDG_CONFIG_HOME/gup/gup.conf. If you want to know [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), see this link. After you have placed gup.conf in the same path hierarchy on another system, you execute import-subcommand. gup start the installation
-according to the contents of gup.conf.
+### Subcomando Export／Import
+Usas el subcomando export／import si quieres instalar los mismos binarios de golang en múltiples sistemas. Por defecto, el subcomando export exporta el archivo a $XDG_CONFIG_HOME/gup/gup.conf. Si quieres conocer [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), ve este enlace. Después de haber colocado gup.conf en la misma jerarquía de rutas en otro sistema, ejecutas el subcomando import. gup iniciará la instalación
+según el contenido de gup.conf.
 
 ```shell
-※ Environments A (e.g. ubuntu)
+※ Entorno A (e.g. ubuntu)
 $ gup export
 Export /home/nao/.config/gup/gup.conf
 
-※ Environments B (e.g. debian)
+※ Entorno B (e.g. debian)
 $ ls /home/nao/.config/gup/gup.conf
 /home/nao/.config/gup/gup.conf
 $ gup import
 ```
 
-Alternatively, export subcommand print package information (it's same as gup.conf) that you want to export at STDOUT if you use --output option. import subcommand can also specify the gup.conf file path if you use --input option.
+Alternativamente, el subcomando export imprime información del paquete (es lo mismo que gup.conf) que quieres exportar en STDOUT si usas la opción --output. El subcomando import también puede especificar la ruta del archivo gup.conf si usas la opción --input.
 ```shell
-※ Environments A (e.g. ubuntu)
+※ Entorno A (e.g. ubuntu)
 $ gup export --output > gup.conf
 
-※ Environments B (e.g. debian)
+※ Entorno B (e.g. debian)
 $ gup import --input=gup.conf
 ```
 
-### Generate man-pages (for linux, mac)
-man subcommand generates man-pages under /usr/share/man/man1.
+### Generar páginas de manual (para linux, mac)
+El subcomando man genera páginas de manual bajo /usr/share/man/man1.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -168,8 +168,8 @@ Generate /usr/share/man/man1/gup-version.1.gz
 Generate /usr/share/man/man1/gup.1.gz
 ```
 
-### Generate shell completion file (for bash, zsh, fish)
-completion subcommand generates shell completion files for bash, zsh, and fish. If the shell completion file does not exist in the system, the generation process will begin. To activate the completion feature, restart the shell.
+### Generar archivo de autocompletado de shell (para bash, zsh, fish)
+El subcomando completion genera archivos de autocompletado de shell para bash, zsh y fish. Si el archivo de autocompletado de shell no existe en el sistema, comenzará el proceso de generación. Para activar la función de autocompletado, reinicia el shell.
 
 ```shell
 $ gup completion
@@ -178,45 +178,45 @@ create fish-completion file: /home/nao/.config/fish/completions/gup.fish
 create zsh-completion file: /home/nao/.zsh/completion/_gup
 ```
 
-### Desktop notification
-If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
+### Notificación de escritorio
+Si usas gup con la opción --notify, el comando gup te notificará en tu escritorio si la actualización fue exitosa o no después de que termine la actualización.
 ```shell
 $ gup update --notify
 ```
-![success](./doc/img/notify_success.png)
-![warning](./doc/img/notify_warning.png)
+![success](../img/notify_success.png)
+![warning](../img/notify_warning.png)
 
 
-## Contributing
-First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
-Contributions are not only related to development. For example, GitHub Star motivates me to develop!
+## Contribuir
+En primer lugar, ¡gracias por tomarte el tiempo de contribuir! ❤️  Ve [CONTRIBUTING.md](../../CONTRIBUTING.md) para más información.
+Las contribuciones no solo están relacionadas con el desarrollo. Por ejemplo, ¡GitHub Star me motiva a desarrollar!
 
-### Star History
+### Historial de Estrellas
 [![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
 
-### For Developers
-When adding new features or fixing bugs, please write unit tests. The sqly is unit tested for all packages as the unit test tree map below shows.
+### Para Desarrolladores
+Al agregar nuevas características o corregir errores, por favor escribe pruebas unitarias. sqly tiene pruebas unitarias para todos los paquetes como muestra el mapa de árbol de pruebas unitarias a continuación.
 
-![treemap](./doc/img/cover-tree.svg)
+![treemap](../img/cover-tree.svg)
 
-## Contact
-If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.
+## Contacto
+Si quieres enviar comentarios como "encontré un error" o "solicitud de características adicionales" al desarrollador, por favor usa uno de los siguientes contactos.
 
 - [GitHub Issue](https://github.com/nao1215/gup/issues)
 
-You can use the bug-report subcommand to send a bug report.
+Puedes usar el subcomando bug-report para enviar un reporte de error.
 ```
 $ gup bug-report
 ※ Open GitHub issue page by your default browser
 ```
 
-## LICENSE
-The gup project is licensed under the terms of [the Apache License 2.0](./LICENSE).
+## LICENCIA
+El proyecto gup está licenciado bajo los términos de [la Licencia Apache 2.0](../../LICENSE).
 
 
-## Contributors ✨
+## Colaboradores ✨
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+Gracias a estas maravillosas personas ([clave de emoji](https://allcontributors.org/docs/en/emoji-key)):
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -245,4 +245,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+Este proyecto sigue la especificación [all-contributors](https://github.com/all-contributors/all-contributors). ¡Contribuciones de cualquier tipo son bienvenidas!

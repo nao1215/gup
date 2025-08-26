@@ -30,6 +30,7 @@ jobs:
           reporter: github-pr-review
           level: warning
           locale: "US"
+          exclude: ./doc/*
 
   actionlint:
     runs-on: ubuntu-latest
