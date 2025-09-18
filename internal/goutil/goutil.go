@@ -131,11 +131,11 @@ func (p *Package) IsAlreadyUpToDate() bool {
 	}
 
 	return versionUpToDate(
-		strings.TrimLeft(p.Version.Current, "v"),
-		strings.TrimLeft(p.Version.Latest, "v"),
+		strings.TrimPrefix(p.Version.Current, "v"),
+		strings.TrimPrefix(p.Version.Latest, "v"),
 	) && versionUpToDate(
-		strings.TrimLeft(p.GoVersion.Current, "go"),
-		strings.TrimLeft(p.GoVersion.Latest, "go"),
+		strings.TrimPrefix(p.GoVersion.Current, "go"),
+		strings.TrimPrefix(p.GoVersion.Latest, "go"),
 	)
 }
 
@@ -367,7 +367,7 @@ func GetPackageInformation(binList []string) []Package {
 			GoVersion:  NewVersion(),
 		}
 		pkg.Version.Current = info.Main.Version
-		pkg.GoVersion.Current = info.GoVersion
+		pkg.GoVersion.Current, _, _ = strings.Cut(info.GoVersion, " ")
 		pkg.GoVersion.Latest = goVer
 		pkgs = append(pkgs, pkg)
 	}
