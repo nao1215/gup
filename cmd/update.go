@@ -212,11 +212,15 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 	// update all packages
 	ctx := context.Background()
 	for _, v := range pkgs {
-
 		// Collect online latest version
 		ver, err := goutil.GetLatestVer(v.ModulePath)
 		if err != nil {
-			print.Err(fmt.Errorf("%s: %w", v.Name, err))
+			// Send error result so consumer doesn't hang
+			ch <- updateResult{
+				updated: false,
+				pkg:     v,
+				err:     fmt.Errorf("%s: %w", v.Name, err),
+			}
 			result = 1
 			continue
 		}
@@ -224,6 +228,22 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 
 		// Run update
 		go updater(ctx, v, ch)
+	}
+
+	// print result
+	count := 0
+	for v := range ch {
+		if v.err == nil {
+			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
+				count+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+		} else {
+			result = 1
+			print.Err(fmt.Errorf(countFmt+"%s", count+1, len(pkgs), v.err.Error()))
+		}
+		count++
+		if count == len(pkgs) {
+			break
+		}
 	}
 
 	// print result
