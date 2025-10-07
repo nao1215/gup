@@ -127,8 +127,9 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Packag
 }
 
 type updateResult struct {
-	pkg goutil.Package
-	err error
+	updated bool
+	pkg     goutil.Package
+	err     error
 }
 
 // update updates all packages.
@@ -157,14 +158,33 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 	updater := func(ctx context.Context, p goutil.Package, result chan updateResult) {
 		if err := weighted.Acquire(ctx, 1); err != nil {
 			r := updateResult{
-				pkg: p,
-				err: err,
+				updated: false,
+				pkg:     p,
+				err:     err,
 			}
 			result <- r
 			return
 		}
 		defer weighted.Release(1)
 
+		// Check if we should update the package
+		shouldUpdate := false
+		if !p.IsPackageUpToDate() {
+			shouldUpdate = true
+		} else if !ignoreGoUpdate && !p.IsGoUpToDate() {
+			shouldUpdate = true
+		}
+		if !shouldUpdate {
+			r := updateResult{
+				updated: false,
+				pkg:     p,
+				err:     nil,
+			}
+			result <- r
+			return
+		}
+
+		// Run the update
 		var err error
 		if p.ImportPath == "" {
 			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
@@ -182,24 +202,28 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 
 		p.SetLatestVer()
 		r := updateResult{
-			pkg: p,
-			err: err,
+			updated: err == nil,
+			pkg:     p,
+			err:     err,
 		}
 		result <- r
 	}
 
-	// update all package
+	// update all packages
 	ctx := context.Background()
 	for _, v := range pkgs {
-		shouldUpdate := false
-		if !v.IsPackageUpToDate() {
-			shouldUpdate = true
-		} else if !ignoreGoUpdate && !v.IsGoUpToDate() {
-			shouldUpdate = true
+
+		// Collect online latest version
+		ver, err := goutil.GetLatestVer(v.ModulePath)
+		if err != nil {
+			print.Err(fmt.Errorf("%s: %w", v.Name, err))
+			result = 1
+			continue
 		}
-		if shouldUpdate {
-			go updater(ctx, v, ch)
-		}
+		v.Version.Latest = ver
+
+		// Run update
+		go updater(ctx, v, ch)
 	}
 
 	// print result
