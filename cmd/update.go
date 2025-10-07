@@ -49,6 +49,7 @@ using the current installed Go toolchain.`,
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}
+	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 
 	return cmd
 }
@@ -79,6 +80,12 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	ignoreGoUpdate, err := cmd.Flags().GetBool("ignore-go-update")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--ignore-go-update)", err))
+		return 1
+	}
+
 	pkgs, err := getPackageInfo()
 	if err != nil {
 		print.Err(err)
@@ -104,7 +111,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err("unable to update package: no package information or no package under $GOBIN")
 		return 1
 	}
-	return update(pkgs, dryRun, notify, cpus, mainPkgNames)
+	return update(pkgs, dryRun, notify, cpus, ignoreGoUpdate, mainPkgNames)
 }
 
 func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
@@ -127,7 +134,7 @@ type updateResult struct {
 // update updates all packages.
 // If dryRun is true, it does not update.
 // If notification is true, it notifies the result of update.
-func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, mainPkgNames []string) int {
+func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, mainPkgNames []string) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -184,7 +191,15 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, mainPkgN
 	// update all package
 	ctx := context.Background()
 	for _, v := range pkgs {
-		go updater(ctx, v, ch)
+		shouldUpdate := false
+		if !v.IsPackageUpToDate() {
+			shouldUpdate = true
+		} else if !ignoreGoUpdate && !v.IsGoUpToDate() {
+			shouldUpdate = true
+		}
+		if shouldUpdate {
+			go updater(ctx, v, ch)
+		}
 	}
 
 	// print result

@@ -173,7 +173,7 @@ func ExamplePackage_IsAlreadyUpToDate() {
 	pkg := goutil.Package{Version: &ver, GoVersion: &goVer}
 
 	// Check if Current is already up to date (expected: false)
-	if pkg.IsAlreadyUpToDate() {
+	if pkg.IsPackageUpToDate() && pkg.IsGoUpToDate() {
 		fmt.Println("Example IsAlreadyUpToDate: already up to date.")
 	} else {
 		fmt.Println("Example IsAlreadyUpToDate: outdated. Newer latest version or installed Go toolchain exists.")

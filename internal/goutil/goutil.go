@@ -77,7 +77,7 @@ func (p *Package) SetLatestVer() {
 
 // CurrentToLatestStr returns string about the current version and the latest version
 func (p *Package) CurrentToLatestStr() string {
-	if p.IsAlreadyUpToDate() {
+	if p.IsPackageUpToDate() && p.IsGoUpToDate() {
 		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
 	}
 	var ret string
@@ -95,7 +95,7 @@ func (p *Package) CurrentToLatestStr() string {
 
 // VersionCheckResultStr returns string about command version check.
 func (p *Package) VersionCheckResultStr() string {
-	if p.IsAlreadyUpToDate() {
+	if p.IsPackageUpToDate() && p.IsGoUpToDate() {
 		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
 	}
 	var ret string
@@ -104,7 +104,7 @@ func (p *Package) VersionCheckResultStr() string {
 		ret += color.GreenString(p.Version.Current)
 	} else {
 		ret += "current: " + color.GreenString(p.Version.Current) + ", latest: "
-		if versionUpToDate(p.Version.Current, p.Version.Latest) {
+		if p.IsPackageUpToDate() {
 			ret += color.GreenString(p.Version.Latest)
 		} else {
 			ret += color.YellowString(p.Version.Latest)
@@ -115,7 +115,7 @@ func (p *Package) VersionCheckResultStr() string {
 		ret += color.GreenString(p.GoVersion.Current)
 	} else {
 		ret += "current: " + color.GreenString(p.GoVersion.Current) + ", installed: "
-		if versionUpToDate(p.GoVersion.Current, p.GoVersion.Latest) {
+		if p.IsGoUpToDate() {
 			ret += color.GreenString(p.GoVersion.Latest)
 		} else {
 			ret += color.YellowString(p.GoVersion.Latest)
@@ -124,22 +124,38 @@ func (p *Package) VersionCheckResultStr() string {
 	return ret
 }
 
-// IsAlreadyUpToDate return whether binary is already up to date or not.
-func (p *Package) IsAlreadyUpToDate() bool {
-	if p.Version.Current == p.Version.Latest && p.GoVersion.Current == p.GoVersion.Latest {
-		return true
+// IsUpToDate is an helper to determine if the package and
+// potentially the Go runtime versions are up to date.
+func (p *Package) IsUpToDate(skipGoVersion bool) bool {
+	if !p.IsPackageUpToDate() {
+		return false
 	}
+	if !skipGoVersion && !p.IsGoUpToDate() {
+		return false
+	}
+	return true
+}
 
+// IsAlreadyUpToDate checks if the Package (set by the package author) version is up to date.
+// Returns true if current >= available.
+func (p *Package) IsPackageUpToDate() bool {
 	return versionUpToDate(
 		strings.TrimPrefix(p.Version.Current, "v"),
 		strings.TrimPrefix(p.Version.Latest, "v"),
-	) && versionUpToDate(
+	)
+}
+
+// IsAlreadyUpToDate checks if the Golang runtime version is up to date.
+// Returns true if current >= available.
+func (p *Package) IsGoUpToDate() bool {
+	return versionUpToDate(
 		strings.TrimPrefix(p.GoVersion.Current, "go"),
 		strings.TrimPrefix(p.GoVersion.Latest, "go"),
 	)
 }
 
-// versionUpToDate return whether current version is up to date or not.
+// versionUpToDate parses versions and compares them.
+// Returns true if current >= available.
 func versionUpToDate(current, available string) bool {
 	if current == "unknown" || available == "unknown" {
 		return false // unknown version is not up to date
