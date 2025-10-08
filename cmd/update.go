@@ -210,7 +210,7 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 
 		p.SetLatestVer()
 		r := updateResult{
-			updated: err == nil,
+			updated: updateErr == nil,
 			pkg:     p,
 			err:     updateErr,
 		}
