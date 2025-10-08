@@ -167,6 +167,19 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		}
 		defer weighted.Release(1)
 
+		// Collect online latest version
+		ver, err := goutil.GetLatestVer(p.ModulePath)
+		if err != nil {
+			// Send error result so consumer doesn't hang
+			result <- updateResult{
+				updated: false,
+				pkg:     p,
+				err:     fmt.Errorf(" %s: %w", p.Name, err),
+			}
+			return
+		}
+		p.Version.Latest = ver
+
 		// Check if we should update the package
 		shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 		if !shouldUpdate {
@@ -180,17 +193,17 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		}
 
 		// Run the update
-		var err error
+		var updateErr error
 		if p.ImportPath == "" {
-			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
+			updateErr = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
 			if slices.Contains(mainPkgNames, p.Name) {
-				if err = goutil.InstallMainOrMaster(p.ImportPath); err != nil {
-					err = fmt.Errorf(" %s %w", p.Name, err)
+				if err := goutil.InstallMainOrMaster(p.ImportPath); err != nil {
+					updateErr = fmt.Errorf(" %s %w", p.Name, err)
 				}
 			} else {
-				if err = goutil.InstallLatest(p.ImportPath); err != nil {
-					err = fmt.Errorf(" %s %w", p.Name, err)
+				if err := goutil.InstallLatest(p.ImportPath); err != nil {
+					updateErr = fmt.Errorf(" %s %w", p.Name, err)
 				}
 			}
 		}
@@ -199,7 +212,7 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		r := updateResult{
 			updated: err == nil,
 			pkg:     p,
-			err:     err,
+			err:     updateErr,
 		}
 		result <- r
 	}
@@ -207,20 +220,6 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 	// update all packages
 	ctx := context.Background()
 	for _, v := range pkgs {
-		// Collect online latest version
-		ver, err := goutil.GetLatestVer(v.ModulePath)
-		if err != nil {
-			// Send error result so consumer doesn't hang
-			ch <- updateResult{
-				updated: false,
-				pkg:     v,
-				err:     fmt.Errorf("%s: %w", v.Name, err),
-			}
-			result = 1
-			continue
-		}
-		v.Version.Latest = ver
-
 		// Run update
 		go updater(ctx, v, ch)
 	}
