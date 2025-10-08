@@ -282,7 +282,7 @@ func TestInstallMaster_golden(t *testing.T) {
 	}
 }
 
-func TestIsAlreadyUpToDate_golden(t *testing.T) {
+func TestIsUpToDate_golden(t *testing.T) {
 	for i, test := range []struct {
 		curr     string
 		latest   string
@@ -329,7 +329,7 @@ func TestIsAlreadyUpToDate_golden(t *testing.T) {
 		pkg := Package{Version: &verTmp, GoVersion: &goVerTmp}
 
 		want := test.expect
-		got := pkg.IsAlreadyUpToDate()
+		got := pkg.IsUpToDate(true)
 
 		// Assert to be equal
 		if want != got {
