@@ -100,7 +100,9 @@ func doCheck(pkgs []goutil.Package, cpus int, ignoreGoUpdate bool) int {
 				err = fmt.Errorf(" %s %w", p.Name, err)
 			}
 			p.Version.Latest = latestVer
-			if !p.IsUpToDate(ignoreGoUpdate) {
+
+			shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
+			if shouldUpdate {
 				mu.Lock()
 				needUpdatePkgs = append(needUpdatePkgs, p)
 				mu.Unlock()

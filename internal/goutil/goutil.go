@@ -124,18 +124,6 @@ func (p *Package) VersionCheckResultStr() string {
 	return ret
 }
 
-// IsUpToDate is an helper to determine if the package and
-// potentially the Go runtime versions are up to date.
-func (p *Package) IsUpToDate(skipGoVersion bool) bool {
-	if !p.IsPackageUpToDate() {
-		return false
-	}
-	if !skipGoVersion && !p.IsGoUpToDate() {
-		return false
-	}
-	return true
-}
-
 // IsPackageUpToDate checks if the Package (set by the package author) version is up to date.
 // Returns true if current >= available.
 func (p *Package) IsPackageUpToDate() bool {

@@ -329,7 +329,7 @@ func TestIsUpToDate_golden(t *testing.T) {
 		pkg := Package{Version: &verTmp, GoVersion: &goVerTmp}
 
 		want := test.expect
-		got := pkg.IsUpToDate(true)
+		got := pkg.IsPackageUpToDate() && pkg.IsGoUpToDate()
 
 		// Assert to be equal
 		if want != got {

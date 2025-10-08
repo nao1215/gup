@@ -168,12 +168,7 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		defer weighted.Release(1)
 
 		// Check if we should update the package
-		shouldUpdate := false
-		if !p.IsPackageUpToDate() {
-			shouldUpdate = true
-		} else if !ignoreGoUpdate && !p.IsGoUpToDate() {
-			shouldUpdate = true
-		}
+		shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 		if !shouldUpdate {
 			r := updateResult{
 				updated: false,
