@@ -136,7 +136,7 @@ func (p *Package) IsUpToDate(skipGoVersion bool) bool {
 	return true
 }
 
-// IsAlreadyUpToDate checks if the Package (set by the package author) version is up to date.
+// IsPackageUpToDate checks if the Package (set by the package author) version is up to date.
 // Returns true if current >= available.
 func (p *Package) IsPackageUpToDate() bool {
 	return versionUpToDate(
@@ -145,7 +145,7 @@ func (p *Package) IsPackageUpToDate() bool {
 	)
 }
 
-// IsAlreadyUpToDate checks if the Golang runtime version is up to date.
+// IsGoUpToDate checks if the Golang runtime version is up to date.
 // Returns true if current >= available.
 func (p *Package) IsGoUpToDate() bool {
 	return versionUpToDate(
