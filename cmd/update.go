@@ -199,11 +199,11 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		} else {
 			if slices.Contains(mainPkgNames, p.Name) {
 				if err := goutil.InstallMainOrMaster(p.ImportPath); err != nil {
-					updateErr = fmt.Errorf("%s %w", p.Name, err)
+					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			} else {
 				if err := goutil.InstallLatest(p.ImportPath); err != nil {
-					updateErr = fmt.Errorf("%s %w", p.Name, err)
+					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			}
 		}
