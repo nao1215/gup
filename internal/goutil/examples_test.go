@@ -160,7 +160,7 @@ func ExampleInstallLatest() {
 	// Output: Example Install: OK
 }
 
-func ExamplePackage_IsUpToDate() {
+func ExamplePackage_IsPackageUpToDate() {
 	// Create Version object with Current and Latest package and Go versions
 	ver := goutil.Version{
 		Current: "v1.9.0",
