@@ -155,15 +155,13 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 
 	ch := make(chan updateResult)
 	weighted := semaphore.NewWeighted(int64(cpus))
-	updater := func(ctx context.Context, p goutil.Package, result chan updateResult) {
+	updater := func(ctx context.Context, p goutil.Package) updateResult {
 		if err := weighted.Acquire(ctx, 1); err != nil {
-			r := updateResult{
+			return updateResult{
 				updated: false,
 				pkg:     p,
 				err:     err,
 			}
-			result <- r
-			return
 		}
 		defer weighted.Release(1)
 
@@ -171,25 +169,22 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		ver, err := goutil.GetLatestVer(p.ModulePath)
 		if err != nil {
 			// Send error result so consumer doesn't hang
-			result <- updateResult{
+			return updateResult{
 				updated: false,
 				pkg:     p,
 				err:     fmt.Errorf("%s: %w", p.Name, err),
 			}
-			return
 		}
 		p.Version.Latest = ver
 
 		// Check if we should update the package
 		shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 		if !shouldUpdate {
-			r := updateResult{
+			return updateResult{
 				updated: false,
 				pkg:     p,
 				err:     nil,
 			}
-			result <- r
-			return
 		}
 
 		// Run the update
@@ -209,19 +204,21 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		}
 
 		p.SetLatestVer()
-		r := updateResult{
+		return updateResult{
 			updated: updateErr == nil,
 			pkg:     p,
 			err:     updateErr,
 		}
-		result <- r
 	}
 
 	// update all packages
 	ctx := context.Background()
 	for _, v := range pkgs {
 		// Run update
-		go updater(ctx, v, ch)
+		go func() {
+			res := updater(ctx, v)
+			ch <- res
+		}()
 	}
 
 	// print result
