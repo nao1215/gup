@@ -240,18 +240,6 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		}
 	}
 
-	// print result
-	for i := 0; i < len(pkgs); i++ {
-		v := <-ch
-		if v.err == nil {
-			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
-				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
-		} else {
-			result = 1
-			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
-		}
-	}
-
 	if dryRun {
 		if err := dryRunManager.EndDryRunMode(); err != nil {
 			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
