@@ -165,20 +165,23 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		}
 		defer weighted.Release(1)
 
-		// Collect online latest version
-		ver, err := goutil.GetLatestVer(p.ModulePath)
-		if err != nil {
-			// Send error result so consumer doesn't hang
-			return updateResult{
-				updated: false,
-				pkg:     p,
-				err:     fmt.Errorf("%s: %w", p.Name, err),
+		// Collect online latest version if possible; else always update
+		shouldUpdate := true
+		if p.ModulePath != "" {
+			ver, err := goutil.GetLatestVer(p.ModulePath)
+			if err != nil {
+				return updateResult{
+					updated: false,
+					pkg:     p,
+					err:     fmt.Errorf("%s: %w", p.Name, err),
+				}
 			}
-		}
-		p.Version.Latest = ver
+			p.Version.Latest = ver
 
-		// Check if we should update the package
-		shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
+			// Check if we should update the package
+			shouldUpdate = !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
+		}
+
 		if !shouldUpdate {
 			return updateResult{
 				updated: false,

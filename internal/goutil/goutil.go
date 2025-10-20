@@ -44,9 +44,10 @@ type GoPaths struct {
 type Package struct {
 	// Name is package name
 	Name string
-	// ImportPath is import path for 'go install'
+	// ImportPath is the package import path used by 'go install'
 	ImportPath string
-	// ModulePath is path where go.mod is stored
+	// ModulePath is path where go.mod is stored.
+	// May not be set if module path cannot be determined
 	ModulePath string
 	// Version store Package version (current and latest).
 	Version *Version
