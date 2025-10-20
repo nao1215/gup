@@ -218,10 +218,10 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 	ctx := context.Background()
 	for _, v := range pkgs {
 		// Run update
-		go func() {
+		go func(v goutil.Package) {
 			res := updater(ctx, v)
 			ch <- res
-		}()
+		}(v)
 	}
 
 	// print result
