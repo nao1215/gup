@@ -278,6 +278,7 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 		cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 		cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 		cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+		cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 		if got := gup(cmd, []string{}); got != 1 {
 			t.Errorf("gup() = %v, want %v", got, 1)
 		}

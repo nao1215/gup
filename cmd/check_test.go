@@ -110,6 +110,7 @@ func Test_check(t *testing.T) {
 
 			cmd := &cobra.Command{}
 			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
@@ -260,6 +261,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 
 			cmd := &cobra.Command{}
 			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
