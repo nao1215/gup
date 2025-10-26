@@ -18,6 +18,45 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
+func helper_CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+
+	return out.Sync()
+}
+
+func helper_setupFakeGoBin() {
+	absGobin, err := filepath.Abs(filepath.Join("testdata", "gobin_tmp"))
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("GOBIN", absGobin)
+
+	// failsafe to ensure fake GOBIN has been set
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		panic(err)
+	}
+
+	if !strings.HasSuffix(gobin, "_tmp") {
+		panic("SHOULD NOT HAPPEN: GOBIN is not set to fake path")
+	}
+}
+
 func TestExecute(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -608,6 +647,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 }
 
 func TestExecute_Update(t *testing.T) {
+	helper_setupFakeGoBin()
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -617,53 +657,31 @@ func TestExecute_Update(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsDir(gobin) {
-		if err := os.Rename(gobin, gobin+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if file.IsDir(gobin + ".backup") {
-				os.RemoveAll(gobin)
-				if err := os.Rename(gobin+".backup", gobin); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
 
-		if err := os.MkdirAll(gobin, 0755); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.RemoveAll(gobin); err != nil {
+		t.Fatal(err)
+	}
 
-		targetPath := ""
-		binName := ""
-		if runtime.GOOS == "windows" {
-			binName = "gal.exe"
-			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
-		} else {
-			binName = "gal"
-			targetPath = filepath.Join("testdata", "check_success", binName)
-		}
-		in, err := os.Open(targetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer in.Close()
+	if err := os.MkdirAll(gobin, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-		out, err := os.Create(filepath.Join(gobin, binName))
-		if err != nil {
-			t.Fatal(err)
-		}
+	targetPath := ""
+	binName := ""
+	if runtime.GOOS == "windows" {
+		binName = "gal.exe"
+		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+	} else {
+		binName = "gal"
+		targetPath = filepath.Join("testdata", "check_success", binName)
+	}
 
-		_, err = io.Copy(out, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in.Close()
-		out.Close()
+	if err := helper_CopyFile(targetPath, filepath.Join(gobin, binName)); err != nil {
+		t.Fatal(err)
+	}
 
-		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
-			t.Fatal(err)
-		}
+	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+		t.Fatal(err)
 	}
 
 	orgStdout := print.Stdout
@@ -704,6 +722,7 @@ func TestExecute_Update(t *testing.T) {
 }
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
+	helper_setupFakeGoBin()
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -713,54 +732,31 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsDir(gobin) {
-		if err := os.Rename(gobin, gobin+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if file.IsDir(gobin + ".backup") {
-				os.RemoveAll(gobin)
-				if err := os.Rename(gobin+".backup", gobin); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
 
-		if err := os.MkdirAll(gobin, 0755); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.RemoveAll(gobin); err != nil {
+		t.Fatal(err)
+	}
 
-		targetPath := ""
-		binName := ""
-		if runtime.GOOS == "windows" {
-			binName = "posixer.exe"
-			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
-		} else {
-			binName = "posixer"
-			targetPath = filepath.Join("testdata", "check_success", binName)
-		}
-		in, err := os.Open(targetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer in.Close()
+	if err := os.MkdirAll(gobin, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-		out, err := os.Create(filepath.Join(gobin, binName))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer out.Close()
+	targetPath := ""
+	binName := ""
+	if runtime.GOOS == "windows" {
+		binName = "posixer.exe"
+		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+	} else {
+		binName = "posixer"
+		targetPath = filepath.Join("testdata", "check_success", binName)
+	}
 
-		_, err = io.Copy(out, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in.Close()
-		out.Close()
+	if err := helper_CopyFile(targetPath, filepath.Join(gobin, binName)); err != nil {
+		t.Fatal(err)
+	}
 
-		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
-			t.Fatal(err)
-		}
+	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+		t.Fatal(err)
 	}
 
 	orgStdout := print.Stdout
