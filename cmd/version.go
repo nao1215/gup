@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/nao1215/gup/internal/cmdinfo"
+	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +13,7 @@ func newVersionCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(cmdinfo.GetVersion())
+			print.Info(cmdinfo.GetVersion())
 		},
 	}
 }
