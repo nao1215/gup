@@ -33,6 +33,7 @@ However, do not update`,
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}
+	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 
 	return cmd
 }
@@ -49,6 +50,12 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	ignoreGoUpdate, err := cmd.Flags().GetBool("ignore-go-update")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--ignore-go-update)", err))
+		return 1
+	}
+
 	pkgs, err := getPackageInfo()
 	if err != nil {
 		print.Err(err)
@@ -60,10 +67,10 @@ func check(cmd *cobra.Command, args []string) int {
 		print.Err("unable to check package: no package information")
 		return 1
 	}
-	return doCheck(pkgs, cpus)
+	return doCheck(pkgs, cpus, ignoreGoUpdate)
 }
 
-func doCheck(pkgs []goutil.Package, cpus int) int {
+func doCheck(pkgs []goutil.Package, cpus int, ignoreGoUpdate bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	var mu sync.Mutex
@@ -93,7 +100,9 @@ func doCheck(pkgs []goutil.Package, cpus int) int {
 				err = fmt.Errorf(" %s %w", p.Name, err)
 			}
 			p.Version.Latest = latestVer
-			if !p.IsAlreadyUpToDate() {
+
+			shouldUpdate := !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
+			if shouldUpdate {
 				mu.Lock()
 				needUpdatePkgs = append(needUpdatePkgs, p)
 				mu.Unlock()

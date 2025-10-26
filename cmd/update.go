@@ -49,6 +49,7 @@ using the current installed Go toolchain.`,
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}
+	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 
 	return cmd
 }
@@ -79,6 +80,12 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	ignoreGoUpdate, err := cmd.Flags().GetBool("ignore-go-update")
+	if err != nil {
+		print.Err(fmt.Errorf("%s: %w", "can not parse command line argument (--ignore-go-update)", err))
+		return 1
+	}
+
 	pkgs, err := getPackageInfo()
 	if err != nil {
 		print.Err(err)
@@ -104,7 +111,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err("unable to update package: no package information or no package under $GOBIN")
 		return 1
 	}
-	return update(pkgs, dryRun, notify, cpus, mainPkgNames)
+	return update(pkgs, dryRun, notify, cpus, ignoreGoUpdate, mainPkgNames)
 }
 
 func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
@@ -120,14 +127,15 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Packag
 }
 
 type updateResult struct {
-	pkg goutil.Package
-	err error
+	updated bool
+	pkg     goutil.Package
+	err     error
 }
 
 // update updates all packages.
 // If dryRun is true, it does not update.
 // If notification is true, it notifies the result of update.
-func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, mainPkgNames []string) int {
+func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, mainPkgNames []string) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -147,55 +155,88 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, mainPkgN
 
 	ch := make(chan updateResult)
 	weighted := semaphore.NewWeighted(int64(cpus))
-	updater := func(ctx context.Context, p goutil.Package, result chan updateResult) {
+	updater := func(ctx context.Context, p goutil.Package) updateResult {
 		if err := weighted.Acquire(ctx, 1); err != nil {
-			r := updateResult{
-				pkg: p,
-				err: err,
+			return updateResult{
+				updated: false,
+				pkg:     p,
+				err:     err,
 			}
-			result <- r
-			return
 		}
 		defer weighted.Release(1)
 
-		var err error
+		// Collect online latest version if possible; else always update
+		shouldUpdate := true
+		if p.ModulePath != "" {
+			ver, err := goutil.GetLatestVer(p.ModulePath)
+			if err != nil {
+				return updateResult{
+					updated: false,
+					pkg:     p,
+					err:     fmt.Errorf("%s: %w", p.Name, err),
+				}
+			}
+			p.Version.Latest = ver
+
+			// Check if we should update the package
+			shouldUpdate = !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
+		}
+
+		if !shouldUpdate {
+			return updateResult{
+				updated: false,
+				pkg:     p,
+				err:     nil,
+			}
+		}
+
+		// Run the update
+		var updateErr error
 		if p.ImportPath == "" {
-			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
+			updateErr = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
 			if slices.Contains(mainPkgNames, p.Name) {
-				if err = goutil.InstallMainOrMaster(p.ImportPath); err != nil {
-					err = fmt.Errorf(" %s %w", p.Name, err)
+				if err := goutil.InstallMainOrMaster(p.ImportPath); err != nil {
+					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			} else {
-				if err = goutil.InstallLatest(p.ImportPath); err != nil {
-					err = fmt.Errorf(" %s %w", p.Name, err)
+				if err := goutil.InstallLatest(p.ImportPath); err != nil {
+					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			}
 		}
 
 		p.SetLatestVer()
-		r := updateResult{
-			pkg: p,
-			err: err,
+		return updateResult{
+			updated: updateErr == nil,
+			pkg:     p,
+			err:     updateErr,
 		}
-		result <- r
 	}
 
-	// update all package
+	// update all packages
 	ctx := context.Background()
 	for _, v := range pkgs {
-		go updater(ctx, v, ch)
+		// Run update
+		go func(v goutil.Package) {
+			res := updater(ctx, v)
+			ch <- res
+		}(v)
 	}
 
 	// print result
-	for i := 0; i < len(pkgs); i++ {
-		v := <-ch
+	count := 0
+	for v := range ch {
 		if v.err == nil {
 			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
-				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+				count+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
 		} else {
 			result = 1
-			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
+			print.Err(fmt.Errorf(countFmt+"%s", count+1, len(pkgs), v.err.Error()))
+		}
+		count++
+		if count == len(pkgs) {
+			break
 		}
 	}
 
