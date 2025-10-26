@@ -62,7 +62,7 @@ func helper_setupFakeGoBin(t *testing.T) {
 }
 
 // Runs a gup command, and return its output split by \n
-func helper_runGup(t *testing.T, args []string) []string {
+func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	t.Helper()
 
 	// Redirect output
@@ -86,10 +86,10 @@ func helper_runGup(t *testing.T, args []string) []string {
 
 	os.Args = args
 	err = Execute()
-	if err != nil {
-		t.Fatal(err)
-	}
 	pw.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
@@ -99,7 +99,7 @@ func helper_runGup(t *testing.T, args []string) []string {
 	defer pr.Close()
 	got := strings.Split(buf.String(), "\n")
 
-	return got
+	return got, nil
 }
 
 func TestExecute(t *testing.T) {
@@ -140,7 +140,10 @@ func TestExecute_Check(t *testing.T) {
 	}
 	t.Setenv("GOBIN", gobinDir)
 
-	got := helper_runGup(t, []string{"gup", "check"})
+	got, err := helper_runGup(t, []string{"gup", "check"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !strings.Contains(got[len(got)-2], "posixer") {
 		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
@@ -163,7 +166,10 @@ func TestExecute_Version(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		got := helper_runGup(t, tt.args)
+		got, err := helper_runGup(t, tt.args)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(tt.stdout, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
 		}
@@ -207,7 +213,10 @@ func TestExecute_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
 
-		got := helper_runGup(t, tt.args)
+		got, err := helper_runGup(t, tt.args)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		count := 0
 		for _, g := range got {
@@ -415,38 +424,10 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
 
-		OsExit = func(code int) {}
-		defer func() {
-			OsExit = os.Exit
-		}()
-
-		orgStdout := os.Stdout
-		orgStderr := os.Stderr
-		pr, pw, err := os.Pipe()
+		got, err := helper_runGup(t, tt.args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.Stdout = pw
-		os.Stderr = pw
-
-		os.Args = tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			err = Execute()
-		})
-		pw.Close()
-		os.Stdout = orgStdout
-		os.Stderr = orgStderr
-		if err != nil {
-			t.Error(err)
-		}
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
 
 		if diff := cmp.Diff(tt.want, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
@@ -486,7 +467,11 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		confFile = "testdata/gup_config/windows.conf"
 	}
-	got := helper_runGup(t, []string{"gup", "import", "-i", confFile})
+
+	got, err := helper_runGup(t, []string{"gup", "import", "-i", confFile})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	contain := false
 	for _, v := range got {
@@ -530,7 +515,10 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			got := helper_runGup(t, []string{"gup", "import", "-i", tt.inputFile})
+			got, err := helper_runGup(t, []string{"gup", "import", "-i", tt.inputFile})
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
@@ -577,7 +565,10 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := helper_runGup(t, []string{"gup", "update"})
+	got, err := helper_runGup(t, []string{"gup", "update"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	contain := false
 	for _, v := range got {
@@ -628,7 +619,10 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"})
+	got, err := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	contain := false
 	for _, v := range got {
