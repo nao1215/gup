@@ -15,22 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 func Test_check(t *testing.T) {
-	type args struct {
-		cmd  *cobra.Command
-		args []string
-	}
 	tests := []struct {
 		name  string
 		gobin string
-		args  args
+		args  []string
 		want  int
 	}{
 		{
 			name:  "not go install command in $GOBIN",
 			gobin: filepath.Join("testdata", "check_fail"),
-			args:  args{},
 			want:  1,
 		},
 	}
@@ -47,10 +41,7 @@ func Test_check(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			cmd := &cobra.Command{}
-			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
-			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
-			if got := check(cmd, tt.args.args); got != tt.want {
+			if got := check(newCheckCmd(), tt.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -198,10 +189,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			cmd := &cobra.Command{}
-			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
-			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
-			if got := check(cmd, tt.args.args); got != tt.want {
+			if got := check(newCheckCmd(), tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()

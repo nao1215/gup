@@ -94,33 +94,21 @@ func Test_export_not_use_go_cmd(t *testing.T) {
 }
 
 func Test_export(t *testing.T) {
-	type args struct {
-		cmd  *cobra.Command
-		args []string
-	}
 	tests := []struct {
 		name   string
-		args   args
+		args   []string
 		gobin  string
 		want   int
 		stderr []string
 	}{
 		{
-			name: "can not make .config directory",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
+			name:   "can not make .config directory",
 			gobin:  "",
 			want:   1,
 			stderr: []string{},
 		},
 		{
-			name: "no package information",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
+			name:  "no package information",
 			gobin: filepath.Join("testdata", "text"),
 			want:  1,
 			stderr: []string{
@@ -134,17 +122,13 @@ func Test_export(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		tests = append(tests, struct {
 			name   string
-			args   args
+			args  []string
 			gobin  string
 			want   int
 			stderr []string
 		}{
 
-			name: "not exist gobin directory",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
+			name:  "not exist gobin directory",
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
@@ -155,17 +139,13 @@ func Test_export(t *testing.T) {
 	} else {
 		tests = append(tests, struct {
 			name   string
-			args   args
+			args  []string
 			gobin  string
 			want   int
 			stderr []string
 		}{
 
-			name: "not exist gobin directory",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
+			name:  "not exist gobin directory",
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
@@ -196,8 +176,7 @@ func Test_export(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			tt.args.cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
-			if got := export(tt.args.cmd, tt.args.args); got != tt.want {
+			if got := export(newExportCmd(), tt.args); got != tt.want {
 				t.Errorf("export() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
