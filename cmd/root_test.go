@@ -74,6 +74,7 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer pr.Close()
 	print.Stdout = pw
 	print.Stderr = pw
 
@@ -82,6 +83,7 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 		OsExit = os.Exit
 	}()
 
+	// Run command
 	os.Args = args
 	err = Execute()
 	pw.Close()
@@ -89,12 +91,12 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 		return nil, err
 	}
 
+	// Get output
 	buf := bytes.Buffer{}
 	_, err = io.Copy(&buf, pr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pr.Close()
 	got := strings.Split(buf.String(), "\n")
 
 	return got, nil
