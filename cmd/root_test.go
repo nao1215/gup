@@ -18,7 +18,9 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
-func helper_CopyFile(src, dst string) error {
+func helper_CopyFile(t *testing.T, src, dst string) error {
+	t.Helper()
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -39,7 +41,9 @@ func helper_CopyFile(src, dst string) error {
 	return out.Sync()
 }
 
-func helper_setupFakeGoBin() {
+func helper_setupFakeGoBin(t *testing.T) {
+	t.Helper()
+
 	absGobin, err := filepath.Abs(filepath.Join("testdata", "gobin_tmp"))
 	if err != nil {
 		panic(err)
@@ -59,6 +63,8 @@ func helper_setupFakeGoBin() {
 
 // Runs a gup command, and return its output split by \n
 func helper_runGup(t *testing.T, args []string) []string {
+	t.Helper()
+
 	// Redirect output
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
@@ -549,7 +555,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 }
 
 func TestExecute_Update(t *testing.T) {
-	helper_setupFakeGoBin()
+	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -578,7 +584,7 @@ func TestExecute_Update(t *testing.T) {
 		targetPath = filepath.Join("testdata", "check_success", binName)
 	}
 
-	if err := helper_CopyFile(targetPath, filepath.Join(gobin, binName)); err != nil {
+	if err := helper_CopyFile(t, targetPath, filepath.Join(gobin, binName)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -600,7 +606,7 @@ func TestExecute_Update(t *testing.T) {
 }
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
-	helper_setupFakeGoBin()
+	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -629,7 +635,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		targetPath = filepath.Join("testdata", "check_success", binName)
 	}
 
-	if err := helper_CopyFile(targetPath, filepath.Join(gobin, binName)); err != nil {
+	if err := helper_CopyFile(t, targetPath, filepath.Join(gobin, binName)); err != nil {
 		t.Fatal(err)
 	}
 
