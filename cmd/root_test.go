@@ -272,22 +272,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 		dest = filepath.Join("testdata", "delete", "posixer")
 	}
 
-	newFile, err := os.Create(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	oldFile, err := os.Open(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = io.Copy(newFile, oldFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldFile.Close()
-	newFile.Close()
+	helper_CopyFile(t, src, dest)
 
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
