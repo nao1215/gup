@@ -700,38 +700,14 @@ func TestExecute_CompletionForShell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.shell, func(t *testing.T) {
-			orgStdout := os.Stdout
-			orgStderr := os.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			os.Stdout = pw
-			os.Stderr = pw
-
-			os.Args = []string{"gup", "completion", tt.shell}
-			buf := bytes.Buffer{}
-			result := make(chan error)
-			go func() {
-				_, err := io.Copy(&buf, pr)
-				t.Cleanup(func() { pr.Close() })
-				result <- err
-			}()
-			err = Execute()
-			pw.Close()
-			os.Stdout = orgStdout
-			os.Stderr = orgStderr
+			got, err := helper_runGup(t, []string{"gup", "completion", tt.shell})
 
 			gotErr := err != nil
 			if tt.wantErr != gotErr {
 				t.Errorf("expected error return %v, got %v", tt.wantErr, gotErr)
 			}
 
-			err = <-result
-			if err != nil {
-				t.Error(err)
-			}
-			gotOutput := buf.Len() != 0
+			gotOutput := len(got) != 0
 			if tt.wantOutput != gotOutput {
 				t.Errorf("expected output %v, got %v", tt.wantOutput, gotOutput)
 			}
