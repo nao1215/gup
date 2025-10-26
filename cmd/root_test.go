@@ -18,27 +18,25 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
-func helper_CopyFile(t *testing.T, src, dst string) error {
+func helper_CopyFile(t *testing.T, src, dst string) {
 	t.Helper()
 
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		t.Fatal(err)
 	}
 	defer in.Close()
 
 	out, err := os.Create(dst)
 	if err != nil {
-		return err
+		t.Fatal(err)
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, in)
 	if err != nil {
-		return err
+		t.Fatal(err)
 	}
-
-	return out.Sync()
 }
 
 func helper_setupFakeGoBin(t *testing.T) {
@@ -46,18 +44,18 @@ func helper_setupFakeGoBin(t *testing.T) {
 
 	absGobin, err := filepath.Abs(filepath.Join("testdata", "gobin_tmp"))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	os.Setenv("GOBIN", absGobin)
 
 	// failsafe to ensure fake GOBIN has been set
 	gobin, err := goutil.GoBin()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if !strings.HasSuffix(gobin, "_tmp") {
-		panic("SHOULD NOT HAPPEN: GOBIN is not set to fake path")
+		t.Fatal("SHOULD NOT HAPPEN: GOBIN is not set to fake path")
 	}
 }
 
@@ -557,9 +555,7 @@ func TestExecute_Update(t *testing.T) {
 		targetPath = filepath.Join("testdata", "check_success", binName)
 	}
 
-	if err := helper_CopyFile(t, targetPath, filepath.Join(gobin, binName)); err != nil {
-		t.Fatal(err)
-	}
+	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
 
 	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 		t.Fatal(err)
@@ -611,9 +607,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		targetPath = filepath.Join("testdata", "check_success", binName)
 	}
 
-	if err := helper_CopyFile(t, targetPath, filepath.Join(gobin, binName)); err != nil {
-		t.Fatal(err)
-	}
+	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
 
 	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
 		t.Fatal(err)
