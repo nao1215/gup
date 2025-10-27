@@ -95,7 +95,7 @@ func writeConfigFile(pkgs []goutil.Package) error {
 }
 
 func outputConfig(pkgs []goutil.Package) error {
-	return config.WriteConfFile(os.Stdout, pkgs)
+	return config.WriteConfFile(print.Stdout, pkgs)
 }
 
 func validPkgInfo(pkgs []goutil.Package) []goutil.Package {

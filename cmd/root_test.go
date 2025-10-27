@@ -18,6 +18,90 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
+func helper_CopyFile(t *testing.T, src, dst string) {
+	t.Helper()
+
+	in, err := os.Open(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func helper_setupFakeGoBin(t *testing.T) {
+	t.Helper()
+
+	absGobin, err := filepath.Abs(filepath.Join("testdata", "gobin_tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Setenv("GOBIN", absGobin)
+
+	// failsafe to ensure fake GOBIN has been set
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.HasSuffix(gobin, "_tmp") {
+		t.Fatal("SHOULD NOT HAPPEN: GOBIN is not set to fake path")
+	}
+}
+
+// Runs a gup command, and return its output split by \n
+func helper_runGup(t *testing.T, args []string) ([]string, error) {
+	t.Helper()
+
+	// Redirect output
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	defer func() {
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+	}()
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pr.Close()
+	print.Stdout = pw
+	print.Stderr = pw
+
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
+
+	// Run command
+	os.Args = args
+	err = Execute()
+	pw.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get output
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(buf.String(), "\n")
+
+	return got, nil
+}
+
 func TestExecute(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -56,36 +140,10 @@ func TestExecute_Check(t *testing.T) {
 	}
 	t.Setenv("GOBIN", gobinDir)
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
+	got, err := helper_runGup(t, []string{"gup", "check"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	print.Stdout = pw
-	print.Stderr = pw
-
-	OsExit = func(code int) {}
-	defer func() {
-		OsExit = os.Exit
-	}()
-
-	os.Args = []string{"gup", "check"}
-	err = Execute()
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	defer pr.Close()
-	got := strings.Split(buf.String(), "\n")
 
 	if !strings.Contains(got[len(got)-2], "posixer") {
 		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
@@ -108,34 +166,10 @@ func TestExecute_Version(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		orgStdout := os.Stdout
-		orgStderr := os.Stderr
-		pr, pw, err := os.Pipe()
+		got, err := helper_runGup(t, tt.args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.Stdout = pw
-		os.Stderr = pw
-
-		os.Args = tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			err = Execute()
-		})
-		pw.Close()
-		os.Stdout = orgStdout
-		os.Stderr = orgStderr
-		if err != nil {
-			t.Error(err)
-		}
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
-
 		if diff := cmp.Diff(tt.stdout, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
 		}
@@ -179,38 +213,10 @@ func TestExecute_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
 
-		OsExit = func(code int) {}
-		defer func() {
-			OsExit = os.Exit
-		}()
-
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
+		got, err := helper_runGup(t, tt.args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		print.Stdout = pw
-		print.Stderr = pw
-
-		os.Args = tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			err = Execute()
-		})
-		pw.Close()
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-		if err != nil {
-			t.Error(err)
-		}
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
 
 		count := 0
 		for _, g := range got {
@@ -275,22 +281,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 		dest = filepath.Join("testdata", "delete", "posixer")
 	}
 
-	newFile, err := os.Create(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	oldFile, err := os.Open(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = io.Copy(newFile, oldFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldFile.Close()
-	newFile.Close()
+	helper_CopyFile(t, src, dest)
 
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
@@ -433,38 +424,10 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	for _, tt := range tests {
 		t.Setenv("GOBIN", tt.gobin)
 
-		OsExit = func(code int) {}
-		defer func() {
-			OsExit = os.Exit
-		}()
-
-		orgStdout := os.Stdout
-		orgStderr := os.Stderr
-		pr, pw, err := os.Pipe()
+		got, err := helper_runGup(t, tt.args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		os.Stdout = pw
-		os.Stderr = pw
-
-		os.Args = tt.args
-		t.Run(tt.name, func(t *testing.T) {
-			err = Execute()
-		})
-		pw.Close()
-		os.Stdout = orgStdout
-		os.Stderr = orgStderr
-		if err != nil {
-			t.Error(err)
-		}
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
-		got := strings.Split(buf.String(), "\n")
 
 		if diff := cmp.Diff(tt.want, got); diff != "" {
 			t.Errorf("value is mismatch (-want +got):\n%s", diff)
@@ -500,36 +463,15 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 		}
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
-
 	confFile := "testdata/gup_config/nix.conf"
 	if runtime.GOOS == "windows" {
 		confFile = "testdata/gup_config/windows.conf"
 	}
-	os.Args = []string{"gup", "import", "-i", confFile}
-	err = Execute()
 
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got, err := helper_runGup(t, []string{"gup", "import", "-i", confFile})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	defer pr.Close()
-	got := strings.Split(buf.String(), "\n")
 
 	contain := false
 	for _, v := range got {
@@ -573,32 +515,10 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
+			got, err := helper_runGup(t, []string{"gup", "import", "-i", tt.inputFile})
 			if err != nil {
 				t.Fatal(err)
 			}
-			print.Stdout = pw
-			print.Stderr = pw
-
-			os.Args = []string{"gup", "import", "-i", tt.inputFile}
-			err = Execute()
-
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-			if err != nil {
-				t.Error(err)
-			}
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
-			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
@@ -608,6 +528,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 }
 
 func TestExecute_Update(t *testing.T) {
+	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -617,80 +538,35 @@ func TestExecute_Update(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsDir(gobin) {
-		if err := os.Rename(gobin, gobin+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if file.IsDir(gobin + ".backup") {
-				os.RemoveAll(gobin)
-				if err := os.Rename(gobin+".backup", gobin); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
 
-		if err := os.MkdirAll(gobin, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		targetPath := ""
-		binName := ""
-		if runtime.GOOS == "windows" {
-			binName = "gal.exe"
-			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
-		} else {
-			binName = "gal"
-			targetPath = filepath.Join("testdata", "check_success", binName)
-		}
-		in, err := os.Open(targetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer in.Close()
-
-		out, err := os.Create(filepath.Join(gobin, binName))
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		_, err = io.Copy(out, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in.Close()
-		out.Close()
-
-		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.RemoveAll(gobin); err != nil {
+		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
+	if err := os.MkdirAll(gobin, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	targetPath := ""
+	binName := ""
+	if runtime.GOOS == "windows" {
+		binName = "gal.exe"
+		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+	} else {
+		binName = "gal"
+		targetPath = filepath.Join("testdata", "check_success", binName)
+	}
+
+	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
+
+	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := helper_runGup(t, []string{"gup", "update"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	print.Stdout = pw
-	print.Stderr = pw
-
-	os.Args = []string{"gup", "update"}
-	err = Execute()
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	defer pr.Close()
-	got := strings.Split(buf.String(), "\n")
 
 	contain := false
 	for _, v := range got {
@@ -704,6 +580,7 @@ func TestExecute_Update(t *testing.T) {
 }
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
+	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
@@ -713,81 +590,35 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if file.IsDir(gobin) {
-		if err := os.Rename(gobin, gobin+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if file.IsDir(gobin + ".backup") {
-				os.RemoveAll(gobin)
-				if err := os.Rename(gobin+".backup", gobin); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
 
-		if err := os.MkdirAll(gobin, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		targetPath := ""
-		binName := ""
-		if runtime.GOOS == "windows" {
-			binName = "posixer.exe"
-			targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
-		} else {
-			binName = "posixer"
-			targetPath = filepath.Join("testdata", "check_success", binName)
-		}
-		in, err := os.Open(targetPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer in.Close()
-
-		out, err := os.Create(filepath.Join(gobin, binName))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer out.Close()
-
-		_, err = io.Copy(out, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in.Close()
-		out.Close()
-
-		if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
-			t.Fatal(err)
-		}
+	if err := os.RemoveAll(gobin); err != nil {
+		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
+	if err := os.MkdirAll(gobin, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	targetPath := ""
+	binName := ""
+	if runtime.GOOS == "windows" {
+		binName = "posixer.exe"
+		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+	} else {
+		binName = "posixer"
+		targetPath = filepath.Join("testdata", "check_success", binName)
+	}
+
+	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
+
+	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	print.Stdout = pw
-	print.Stderr = pw
-
-	os.Args = []string{"gup", "update", "--dry-run", "--notify"}
-	err = Execute()
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	defer pr.Close()
-	got := strings.Split(buf.String(), "\n")
 
 	contain := false
 	for _, v := range got {
@@ -871,38 +702,14 @@ func TestExecute_CompletionForShell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.shell, func(t *testing.T) {
-			orgStdout := os.Stdout
-			orgStderr := os.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			os.Stdout = pw
-			os.Stderr = pw
-
-			os.Args = []string{"gup", "completion", tt.shell}
-			buf := bytes.Buffer{}
-			result := make(chan error)
-			go func() {
-				_, err := io.Copy(&buf, pr)
-				t.Cleanup(func() { pr.Close() })
-				result <- err
-			}()
-			err = Execute()
-			pw.Close()
-			os.Stdout = orgStdout
-			os.Stderr = orgStderr
+			got, err := helper_runGup(t, []string{"gup", "completion", tt.shell})
 
 			gotErr := err != nil
 			if tt.wantErr != gotErr {
 				t.Errorf("expected error return %v, got %v", tt.wantErr, gotErr)
 			}
 
-			err = <-result
-			if err != nil {
-				t.Error(err)
-			}
-			gotOutput := buf.Len() != 0
+			gotOutput := len(got) != 0
 			if tt.wantOutput != gotOutput {
 				t.Errorf("expected output %v, got %v", tt.wantOutput, gotOutput)
 			}

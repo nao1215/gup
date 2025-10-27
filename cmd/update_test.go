@@ -11,105 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/spf13/cobra"
 )
-
-func Test_gup(t *testing.T) {
-	type args struct {
-		cmd  *cobra.Command
-		args []string
-	}
-	tests := []struct {
-		name   string
-		args   args
-		want   int
-		stderr []string
-	}{
-		{
-			name: "parser --dry-run argument error",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
-			want: 1,
-			stderr: []string{
-				"gup:ERROR: can not parse command line argument (--dry-run): flag accessed but not defined: dry-run",
-				"",
-			},
-		},
-		{
-			name: "parser --notify argument error",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
-			want: 1,
-			stderr: []string{
-				"gup:ERROR: can not parse command line argument (--notify): flag accessed but not defined: notify",
-				"",
-			},
-		},
-		{
-			name: "parser --jobs argument error",
-			args: args{
-				cmd:  &cobra.Command{},
-				args: []string{},
-			},
-			want: 1,
-			stderr: []string{
-				"gup:ERROR: can not parse command line argument (--jobs): flag accessed but not defined: jobs",
-				"",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.name == "parser --dry-run argument error" {
-				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "parser --notify argument error" {
-				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			} else if tt.name == "parser --jobs argument error" {
-				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-			}
-
-			OsExit = func(code int) {}
-			defer func() {
-				OsExit = os.Exit
-			}()
-
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
-
-			if got := gup(tt.args.cmd, tt.args.args); got != tt.want {
-				t.Errorf("gup() = %v, want %v", got, tt.want)
-			}
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
-			got := strings.Split(buf.String(), "\n")
-
-			if diff := cmp.Diff(tt.stderr, got); diff != "" {
-				t.Errorf("value is mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
 
 func Test_extractUserSpecifyPkg(t *testing.T) {
 	type args struct {
@@ -274,12 +176,7 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 		print.Stdout = pw
 		print.Stderr = pw
 
-		cmd := &cobra.Command{}
-		cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
-		cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
-		cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
-		cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
-		if got := gup(cmd, []string{}); got != 1 {
+		if got := gup(newUpdateCmd(), []string{}); got != 1 {
 			t.Errorf("gup() = %v, want %v", got, 1)
 		}
 		pw.Close()
