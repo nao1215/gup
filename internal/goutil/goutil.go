@@ -292,7 +292,7 @@ func install(importPath, version string) error {
 func GetLatestVer(modulePath string) (string, error) {
 	out, err := exec.Command(goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output() //#nosec
 	if err != nil {
-		return "", errors.New("can't check " + modulePath)
+		return "", fmt.Errorf("can't check %s:\n%w", modulePath, err)
 	}
 	return strings.TrimRight(string(out), "\n"), nil
 }
