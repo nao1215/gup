@@ -105,6 +105,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "iTrooz",
+      "name": "iTrooz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/42669835?v=4",
+      "profile": "https://itrooz.fr",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "peczenyj",
+      "name": "Tiago Peczenyj",
+      "avatar_url": "https://avatars.githubusercontent.com/u/59438?v=4",
+      "profile": "http://pacman.blog.br",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
