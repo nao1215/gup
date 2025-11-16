@@ -15,16 +15,83 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func Test_CheckOption(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
+	tests := []struct {
+		name   string
+		args   args
+		want   int
+		stderr []string
+	}{
+		{
+			name: "parser --jobs argument error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--jobs): flag accessed but not defined: jobs",
+				"",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OsExit = func(code int) {}
+			defer func() {
+				OsExit = os.Exit
+			}()
+
+			orgStdout := print.Stdout
+			orgStderr := print.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			print.Stdout = pw
+			print.Stderr = pw
+
+			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
+				t.Errorf("check() = %v, want %v", got, tt.want)
+			}
+			pw.Close()
+			print.Stdout = orgStdout
+			print.Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			defer pr.Close()
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.stderr, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_check(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
 	tests := []struct {
 		name  string
 		gobin string
-		args  []string
+		args  args
 		want  int
 	}{
 		{
 			name:  "not go install command in $GOBIN",
 			gobin: filepath.Join("testdata", "check_fail"),
+			args:  args{},
 			want:  1,
 		},
 	}
@@ -41,7 +108,10 @@ func Test_check(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(newCheckCmd(), tt.args); got != tt.want {
+			cmd := &cobra.Command{}
+			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -189,7 +259,10 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(newCheckCmd(), tt.args.args); got != tt.want {
+			cmd := &cobra.Command{}
+			cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+			cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+			if got := check(cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()

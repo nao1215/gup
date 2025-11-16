@@ -18,6 +18,68 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func Test_ExportOption(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
+	tests := []struct {
+		name   string
+		args   args
+		want   int
+		stderr []string
+	}{
+		{
+			name: "parser --output argument error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--output): flag accessed but not defined: output",
+				"",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OsExit = func(code int) {}
+			defer func() {
+				OsExit = os.Exit
+			}()
+
+			orgStdout := print.Stdout
+			orgStderr := print.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			print.Stdout = pw
+			print.Stderr = pw
+
+			if got := export(tt.args.cmd, tt.args.args); got != tt.want {
+				t.Errorf("export() = %v, want %v", got, tt.want)
+			}
+			pw.Close()
+			print.Stdout = orgStdout
+			print.Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			defer pr.Close()
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.stderr, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_validPkgInfo(t *testing.T) {
 	type args struct {
 		pkgs []goutil.Package
@@ -94,21 +156,33 @@ func Test_export_not_use_go_cmd(t *testing.T) {
 }
 
 func Test_export(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
 	tests := []struct {
 		name   string
-		args   []string
+		args   args
 		gobin  string
 		want   int
 		stderr []string
 	}{
 		{
-			name:   "can not make .config directory",
+			name: "can not make .config directory",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
 			gobin:  "",
 			want:   1,
 			stderr: []string{},
 		},
 		{
-			name:  "no package information",
+			name: "no package information",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
 			gobin: filepath.Join("testdata", "text"),
 			want:  1,
 			stderr: []string{
@@ -122,13 +196,17 @@ func Test_export(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		tests = append(tests, struct {
 			name   string
-			args  []string
+			args   args
 			gobin  string
 			want   int
 			stderr []string
 		}{
 
-			name:  "not exist gobin directory",
+			name: "not exist gobin directory",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
@@ -139,13 +217,17 @@ func Test_export(t *testing.T) {
 	} else {
 		tests = append(tests, struct {
 			name   string
-			args  []string
+			args   args
 			gobin  string
 			want   int
 			stderr []string
 		}{
 
-			name:  "not exist gobin directory",
+			name: "not exist gobin directory",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
 			gobin: filepath.Join("testdata", "dummy"),
 			want:  1,
 			stderr: []string{
@@ -176,7 +258,8 @@ func Test_export(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := export(newExportCmd(), tt.args); got != tt.want {
+			tt.args.cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
+			if got := export(tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("export() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -202,6 +285,42 @@ func Test_export(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_export_parse_error(t *testing.T) {
+	t.Run("parse argument error", func(t *testing.T) {
+		orgStdout := print.Stdout
+		orgStderr := print.Stderr
+		pr, pw, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		print.Stdout = pw
+		print.Stderr = pw
+
+		if got := export(&cobra.Command{}, []string{}); got != 1 {
+			t.Errorf("export() = %v, want %v", got, 1)
+		}
+		pw.Close()
+		print.Stdout = orgStdout
+		print.Stderr = orgStderr
+
+		buf := bytes.Buffer{}
+		_, err = io.Copy(&buf, pr)
+		if err != nil {
+			t.Error(err)
+		}
+		defer pr.Close()
+		got := strings.Split(buf.String(), "\n")
+
+		want := []string{
+			"gup:ERROR: can not parse command line argument (--output): flag accessed but not defined: output",
+			"",
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("value is mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
 
 func Test_writeConfigFile(t *testing.T) {

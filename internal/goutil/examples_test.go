@@ -174,7 +174,7 @@ func ExamplePackage_IsPackageUpToDate() {
 
 	// Check if Current is already up to date (expected: false)
 	if pkg.IsPackageUpToDate() && pkg.IsGoUpToDate() {
-		fmt.Println("Example IsUpToDate: already up to date.")
+		fmt.Println("Example IspToDate: already up to date.")
 	} else {
 		fmt.Println("Example IsUpToDate: outdated. Newer latest version or installed Go toolchain exists.")
 	}

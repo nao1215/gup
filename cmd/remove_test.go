@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -8,8 +9,131 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gorky/file"
+	"github.com/nao1215/gup/internal/print"
+	"github.com/spf13/cobra"
 )
+
+func Test_remove(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
+	tests := []struct {
+		name   string
+		args   args
+		gobin  string
+		want   int
+		stderr []string
+	}{
+		{
+			name: "no argument (not specify delete target)",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			gobin: "no_use",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: no command name specified",
+				"",
+			},
+		},
+		{
+			name: "argument parse error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--force): flag accessed but not defined: force",
+				"",
+			},
+		},
+	}
+
+	if runtime.GOOS == "windows" {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				`gup:ERROR: no such file or directory: not_exist\test`,
+				"",
+			},
+		})
+	} else {
+		tests = append(tests, struct {
+			name   string
+			args   args
+			gobin  string
+			want   int
+			stderr []string
+		}{
+			name: "delete taget binary does not exist",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{"test"},
+			},
+			gobin: "not_exist",
+			want:  1,
+			stderr: []string{
+				"gup:ERROR: no such file or directory: not_exist/test",
+				"",
+			},
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GOBIN", tt.gobin)
+
+			orgStdout := print.Stdout
+			orgStderr := print.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			print.Stdout = pw
+			print.Stderr = pw
+
+			if tt.name != "argument parse error" {
+				tt.args.cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
+			}
+			if got := remove(tt.args.cmd, tt.args.args); got != tt.want {
+				t.Errorf("remove() = %v, want %v", got, tt.want)
+			}
+			pw.Close()
+			print.Stdout = orgStdout
+			print.Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			defer pr.Close()
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.stderr, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 func Test_removeLoop(t *testing.T) {
 	type args struct {

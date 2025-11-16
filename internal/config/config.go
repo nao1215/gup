@@ -66,7 +66,7 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 }
 
 // WriteConfFile write package information at configuration-file.
-func WriteConfFile(file io.Writer, pkgs []goutil.Package) error {
+func WriteConfFile(file *os.File, pkgs []goutil.Package) error {
 	text := ""
 	for _, v := range pkgs {
 		// lost version information

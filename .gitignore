@@ -17,5 +17,3 @@ gup
 dist
 cover.*
 /completions
-
-cmd/testdata/gobin_tmp
