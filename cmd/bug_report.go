@@ -26,7 +26,7 @@ func newBugReportCmd() *cobra.Command {
 type openBrowserFunc func(string) bool
 
 // bugReport opens the default browser to start a bug report which will include useful system information.
-func bugReport(cmd *cobra.Command, _ []string, openBrowser openBrowserFunc) int { //nolint
+func bugReport(cmd *cobra.Command, _ []string, openBrowser openBrowserFunc) int {
 	var buf bytes.Buffer
 
 	const (

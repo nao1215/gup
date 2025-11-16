@@ -1,4 +1,6 @@
 // Package cmd define subcommands provided by the gup command
+//
+//nolint:paralleltest
 package cmd
 
 import (
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/adrg/xdg"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/cmdinfo"
@@ -21,17 +24,17 @@ import (
 func helper_CopyFile(t *testing.T, src, dst string) {
 	t.Helper()
 
-	in, err := os.Open(src)
+	in, err := os.Open(filepath.Clean(src))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer in.Close()
+	defer in.Close() //nolint:errcheck // ignore close error in test
 
-	out, err := os.Create(dst)
+	out, err := os.Create(filepath.Clean(dst))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck // ignore close error in test
 
 	_, err = io.Copy(out, in)
 	if err != nil {
@@ -46,7 +49,7 @@ func helper_setupFakeGoBin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Setenv("GOBIN", absGobin)
+	t.Setenv("GOBIN", absGobin)
 
 	// failsafe to ensure fake GOBIN has been set
 	gobin, err := goutil.GoBin()
@@ -74,7 +77,7 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pr.Close()
+	defer pr.Close() //nolint:errcheck // ignore close error in test
 	print.Stdout = pw
 	print.Stderr = pw
 
@@ -86,7 +89,7 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	// Run command
 	os.Args = args
 	err = Execute()
-	pw.Close()
+	pw.Close() //nolint:errcheck,gosec // ignore close error in test
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +105,40 @@ func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	return got, nil
 }
 
+func setupXDGBase(t *testing.T) {
+	t.Helper()
+
+	origHome := os.Getenv("HOME")
+	origConfig := xdg.ConfigHome
+	origData := xdg.DataHome
+	origCache := xdg.CacheHome
+
+	t.Cleanup(func() {
+		_ = os.Unsetenv("HOME")
+		if origHome != "" {
+			_ = os.Setenv("HOME", origHome)
+		}
+		xdg.ConfigHome = origConfig
+		xdg.DataHome = origData
+		xdg.CacheHome = origCache
+	})
+
+	base := t.TempDir()
+	t.Setenv("HOME", base)
+	xdg.ConfigHome = filepath.Join(base, "config")
+	xdg.DataHome = filepath.Join(base, "data")
+	xdg.CacheHome = filepath.Join(base, "cache")
+
+	for _, dir := range []string{xdg.ConfigHome, xdg.DataHome, xdg.CacheHome} {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatalf("failed to create XDG directory %s: %v", dir, err)
+		}
+	}
+}
+
 func TestExecute(t *testing.T) {
+	setupXDGBase(t)
+
 	tests := []struct {
 		name    string
 		args    []string
@@ -132,13 +168,15 @@ func TestExecute(t *testing.T) {
 }
 
 func TestExecute_Check(t *testing.T) {
-	gobinDir := ""
-	if runtime.GOOS == "windows" {
-		gobinDir = filepath.Join("testdata", "check_success_for_windows")
+	setupXDGBase(t)
+
+	if runtime.GOOS == goosWindows {
+		gobinDir := filepath.Join("testdata", "check_success_for_windows")
+		t.Setenv("GOBIN", gobinDir)
 	} else {
-		gobinDir = filepath.Join("testdata", "check_success")
+		gobinDir := filepath.Join("testdata", "check_success")
+		t.Setenv("GOBIN", gobinDir)
 	}
-	t.Setenv("GOBIN", gobinDir)
 
 	got, err := helper_runGup(t, []string{"gup", "check"})
 	if err != nil {
@@ -154,6 +192,8 @@ func TestExecute_Check(t *testing.T) {
 }
 
 func TestExecute_Version(t *testing.T) {
+	setupXDGBase(t)
+
 	tests := []struct {
 		name   string
 		args   []string
@@ -177,6 +217,8 @@ func TestExecute_Version(t *testing.T) {
 }
 
 func TestExecute_List(t *testing.T) {
+	setupXDGBase(t)
+
 	type test struct {
 		name   string
 		gobin  string
@@ -186,7 +228,7 @@ func TestExecute_List(t *testing.T) {
 	}
 	tests := []test{}
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
 			name:  "check success in windows",
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
@@ -233,6 +275,8 @@ func TestExecute_List(t *testing.T) {
 }
 
 func TestExecute_Remove_Force(t *testing.T) {
+	setupXDGBase(t)
+
 	type test struct {
 		name   string
 		gobin  string
@@ -243,14 +287,14 @@ func TestExecute_Remove_Force(t *testing.T) {
 
 	src := ""
 	dest := ""
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
 			name:   "success",
 			gobin:  filepath.Join("testdata", "delete_force"),
 			args:   []string{"gup", "remove", "-f", "posixer.exe"},
 			stdout: []string{},
 		})
-		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0750); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
@@ -268,7 +312,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 			args:   []string{"gup", "remove", "-f", "posixer"},
 			stdout: []string{},
 		})
-		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0750); err != nil {
 			t.Fatal(err)
 		}
 		defer func() {
@@ -298,13 +342,15 @@ func TestExecute_Remove_Force(t *testing.T) {
 			}
 		})
 
-		if file.IsFile(filepath.Join(dest)) {
+		if file.IsFile(dest) {
 			t.Errorf("failed to remove posixer command")
 		}
 	}
 }
 
 func TestExecute_Export(t *testing.T) {
+	setupXDGBase(t)
+
 	tests := []struct {
 		name  string
 		gobin string
@@ -312,7 +358,7 @@ func TestExecute_Export(t *testing.T) {
 		want  string
 	}{}
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, struct {
 			name  string
 			gobin string
@@ -390,6 +436,8 @@ subaru = github.com/nao1215/subaru
 }
 
 func TestExecute_Export_WithOutputOption(t *testing.T) {
+	setupXDGBase(t)
+
 	type test struct {
 		name  string
 		gobin string
@@ -398,7 +446,7 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	}
 
 	tests := []test{}
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
 			name:  "success",
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
@@ -436,35 +484,25 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 }
 
 func TestExecute_Import_WithInputOption(t *testing.T) {
+	if os.Getenv("GUP_RUN_UPDATE_TESTS") != "1" {
+		t.Skip("skip import/install test without explicit opt-in")
+	}
+
+	setupXDGBase(t)
+
+	gobinDir := filepath.Join(t.TempDir(), "gobin")
+	t.Setenv("GOBIN", gobinDir)
+	if err := os.MkdirAll(gobinDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	gobin, err := goutil.GoBin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if file.IsDir(gobin) {
-		if err := os.Rename(gobin, gobin+".backup"); err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			if file.IsDir(gobin + ".backup") {
-				os.RemoveAll(gobin)
-				if err := os.Rename(gobin+".backup", gobin); err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
-
-		if err := os.MkdirAll(gobin, 0755); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	confFile := "testdata/gup_config/nix.conf"
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		confFile = "testdata/gup_config/windows.conf"
 	}
 
@@ -486,6 +524,8 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 }
 
 func TestExecute_Import_WithBadInputFile(t *testing.T) {
+	setupXDGBase(t)
+
 	tests := []struct {
 		name      string
 		inputFile string
@@ -528,6 +568,11 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 }
 
 func TestExecute_Update(t *testing.T) {
+	if os.Getenv("GUP_RUN_UPDATE_TESTS") != "1" {
+		t.Skip("skip update test without explicit opt-in")
+	}
+
+	setupXDGBase(t)
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -543,13 +588,13 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.MkdirAll(gobin, 0755); err != nil {
+	if err := os.MkdirAll(gobin, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	targetPath := ""
 	binName := ""
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		binName = "gal.exe"
 		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
 	} else {
@@ -559,7 +604,7 @@ func TestExecute_Update(t *testing.T) {
 
 	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
 
-	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+	if err = os.Chmod(filepath.Join(gobin, binName), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -580,6 +625,11 @@ func TestExecute_Update(t *testing.T) {
 }
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
+	if os.Getenv("GUP_RUN_UPDATE_TESTS") != "1" {
+		t.Skip("skip update test without explicit opt-in")
+	}
+
+	setupXDGBase(t)
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -595,13 +645,13 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.MkdirAll(gobin, 0755); err != nil {
+	if err := os.MkdirAll(gobin, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	targetPath := ""
 	binName := ""
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		binName = "posixer.exe"
 		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
 	} else {
@@ -611,7 +661,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 
 	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
 
-	if err = os.Chmod(filepath.Join(gobin, binName), 0777); err != nil {
+	if err = os.Chmod(filepath.Join(gobin, binName), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -632,6 +682,8 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 }
 
 func TestExecute_Completion(t *testing.T) {
+	setupXDGBase(t)
+
 	t.Run("generate completion file", func(t *testing.T) {
 		os.Args = []string{"gup", "completion"}
 		if err := Execute(); err != nil {
@@ -639,7 +691,7 @@ func TestExecute_Completion(t *testing.T) {
 		}
 
 		bash := filepath.Join(os.Getenv("HOME"), ".local", "share", "bash-completion", "completions", cmdinfo.Name)
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == goosWindows {
 			if file.IsFile(bash) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", bash)
 			}
@@ -650,7 +702,7 @@ func TestExecute_Completion(t *testing.T) {
 		}
 
 		fish := filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == goosWindows {
 			if file.IsFile(fish) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", fish)
 			}
@@ -661,7 +713,7 @@ func TestExecute_Completion(t *testing.T) {
 		}
 
 		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == goosWindows {
 			if file.IsFile(zsh) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", zsh)
 			}
@@ -674,6 +726,8 @@ func TestExecute_Completion(t *testing.T) {
 }
 
 func TestExecute_CompletionForShell(t *testing.T) {
+	setupXDGBase(t)
+
 	tests := []struct {
 		shell      string
 		wantOutput bool

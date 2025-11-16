@@ -61,7 +61,6 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
 	if err := fp.Close(); err != nil {
 		print.Err(fmt.Errorf("can not close .bash_completion %w", err))
 	}
-	return
 }
 
 func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
@@ -192,7 +191,7 @@ func isSameFishCompletionFile(cmd *cobra.Command) bool {
 		return false
 	}
 
-	if bytes.Compare(currentFishCompletion.Bytes(), fishCompletionInLocal) != 0 {
+	if !bytes.Equal(currentFishCompletion.Bytes(), fishCompletionInLocal) {
 		return false
 	}
 	return true
@@ -214,7 +213,7 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 		return false
 	}
 
-	if bytes.Compare(currentZshCompletion.Bytes(), zshCompletionInLocal) != 0 {
+	if !bytes.Equal(currentZshCompletion.Bytes(), zshCompletionInLocal) {
 		return false
 	}
 	return true

@@ -29,12 +29,42 @@ func newManCmd() *cobra.Command {
 	return cmd
 }
 
-func man(cmd *cobra.Command, args []string) int { //nolint
-	if err := generateManpages(filepath.Join("/", "usr", "share", "man", "man1")); err != nil {
-		print.Err(fmt.Errorf("%s: %w", "can not generate man-pages", err))
-		return 1
+func man(_ *cobra.Command, _ []string) int {
+	for _, dst := range manPaths(os.Getenv("MANPATH")) {
+		if err := generateManpages(dst); err != nil {
+			print.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
+			return 1
+		}
 	}
 	return 0
+}
+
+// manPaths normalizes MANPATH entries into man1 directories.
+// Empty or invalid MANPATH falls back to /usr/share/man/man1.
+func manPaths(manpathEnv string) []string {
+	defaultPath := filepath.Join("/", "usr", "share", "man", "man1")
+	if manpathEnv == "" {
+		return []string{defaultPath}
+	}
+
+	paths := make([]string, 0)
+	for _, p := range strings.Split(manpathEnv, ":") {
+		p = filepath.Clean(strings.TrimSpace(p))
+		if p == "" || p == "." || !filepath.IsAbs(p) {
+			continue
+		}
+
+		if filepath.Base(p) != "man1" {
+			p = filepath.Join(p, "man1")
+		}
+		paths = append(paths, p)
+	}
+
+	if len(paths) == 0 {
+		return []string{defaultPath}
+	}
+
+	return paths
 }
 
 func generateManpages(dst string) error {

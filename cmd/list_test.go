@@ -30,7 +30,9 @@ func Test_list_not_found_go_command(t *testing.T) {
 		if got := list(&cobra.Command{}, []string{}); got != 1 {
 			t.Errorf("list() = %v, want %v", got, 1)
 		}
-		pw.Close()
+		if err := pw.Close(); err != nil {
+			t.Fatal(err)
+		}
 		print.Stdout = orgStdout
 		print.Stderr = orgStderr
 
@@ -39,11 +41,13 @@ func Test_list_not_found_go_command(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		defer pr.Close()
+		defer func() {
+			_ = pr.Close()
+		}()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == goosWindows {
 			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
 			want = append(want, "")
 		} else {
@@ -79,7 +83,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			},
 		},
 	}
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, struct {
 			name   string
 			gobin  string
@@ -115,7 +119,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		})
 	}
 
-	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0o755); err != nil { //nolint:gosec
 		t.Fatal(err)
 	}
 
@@ -135,7 +139,9 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			if got := list(tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("list() = %v, want %v", got, tt.want)
 			}
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
 			print.Stdout = orgStdout
 			print.Stderr = orgStderr
 
@@ -144,7 +150,9 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			defer pr.Close()
+			defer func() {
+				_ = pr.Close()
+			}()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {

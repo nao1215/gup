@@ -1,3 +1,4 @@
+//nolint:paralleltest,goconst
 package goutil
 
 import (
@@ -154,6 +155,9 @@ func TestGetPackageVersion_getting_error_from_gobin(t *testing.T) {
 }
 
 func TestGetPackageVersion_package_has_no_version_info(t *testing.T) {
+	t.Setenv(keyGoBin, filepath.Join(t.TempDir(), "bin"))
+	t.Setenv(keyGoPath, "")
+
 	// Backup and defer restore
 	OldGoExe := goExe
 	defer func() {
@@ -540,15 +544,11 @@ func TestGoPaths_EndDryRunMode_fail_if_key_not_set(t *testing.T) {
 }
 
 func TestGoPaths_EndDryRunMode_fail_to_remove_temp_dir(t *testing.T) {
-	// Backup and defer restore since EndDryRunMode will change the env
-	// variables to the values stored in the struct.
+	// Backup environment variables. t.Setenv restores on cleanup.
 	oldGOBIN := os.Getenv("GOBIN")
 	oldGOPATH := os.Getenv("GOPATH")
-
-	defer func() {
-		os.Setenv("GOBIN", oldGOBIN)
-		os.Setenv("GOPATH", oldGOPATH)
-	}()
+	t.Setenv("GOBIN", oldGOBIN)
+	t.Setenv("GOPATH", oldGOPATH)
 
 	gp := GoPaths{
 		GOBIN:   "dummy",

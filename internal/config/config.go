@@ -18,7 +18,7 @@ import (
 )
 
 // ConfigFileName is gup command configuration file
-var ConfigFileName = "gup.conf"
+const ConfigFileName = "gup.conf"
 
 // FilePath return configuration-file path.
 func FilePath() string {
@@ -38,6 +38,8 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 		return nil, fmt.Errorf("can't read %s: %w", path, err)
 	}
 
+	const expectedPair = 2
+
 	pkgs := []goutil.Package{}
 	for _, v := range contents {
 		pkg := goutil.Package{}
@@ -50,7 +52,7 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 		}
 
 		// Check if the package name and package path are included
-		if len(strings.Split(v, "=")) != 2 {
+		if len(strings.Split(v, "=")) != expectedPair {
 			return nil, errors.New(path + " is not gup.conf file")
 		}
 
@@ -67,13 +69,13 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 
 // WriteConfFile write package information at configuration-file.
 func WriteConfFile(file io.Writer, pkgs []goutil.Package) error {
-	text := ""
+	var builder strings.Builder
 	for _, v := range pkgs {
 		// lost version information
-		text = text + fmt.Sprintf("%s = %s\n", v.Name, v.ImportPath)
+		builder.WriteString(fmt.Sprintf("%s = %s\n", v.Name, v.ImportPath))
 	}
 
-	_, err := file.Write(([]byte)(text))
+	_, err := file.Write([]byte(builder.String()))
 	if err != nil {
 		return fmt.Errorf("%s %s: %w", "can't update", FilePath(), err)
 	}

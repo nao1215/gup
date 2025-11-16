@@ -6,7 +6,7 @@ import (
 )
 
 // Version value is set by ldflags
-var Version string
+var Version string //nolint:gochecknoglobals
 
 // Name is command name
 const Name = "gup"

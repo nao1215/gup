@@ -23,7 +23,7 @@ func newListCmd() *cobra.Command {
 	}
 }
 
-func list(cmd *cobra.Command, args []string) int {
+func list(_ *cobra.Command, _ []string) int {
 	if err := goutil.CanUseGoCmd(); err != nil {
 		print.Err(fmt.Errorf("%s: %w", "you didn't install golang", err))
 		return 1
@@ -54,7 +54,7 @@ func printPackageList(pkgs []goutil.Package) {
 	}
 
 	for _, v := range pkgs {
-		fmt.Fprintf(print.Stdout, "%"+strconv.Itoa(max)+"s: %s%s\n",
+		_, _ = fmt.Fprintf(print.Stdout, "%"+strconv.Itoa(max)+"s: %s%s\n",
 			v.Name,
 			v.ImportPath,
 			color.GreenString("@"+v.Version.Current))

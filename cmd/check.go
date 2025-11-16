@@ -147,8 +147,9 @@ func printUpdatablePkgInfo(pkgs []goutil.Package) {
 	for _, v := range pkgs {
 		p += v.Name + " "
 	}
+	const indentSpaces = 11
 	fmt.Println("")
 	print.Info("If you want to update binaries, run the following command.\n" +
-		strings.Repeat(" ", 11) +
+		strings.Repeat(" ", indentSpaces) +
 		"$ gup update " + p)
 }

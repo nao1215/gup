@@ -20,6 +20,12 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+var (
+	getLatestVer        = goutil.GetLatestVer        //nolint:gochecknoglobals // swapped in tests
+	installLatest       = goutil.InstallLatest       //nolint:gochecknoglobals // swapped in tests
+	installMainOrMaster = goutil.InstallMainOrMaster //nolint:gochecknoglobals // swapped in tests
+)
+
 func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -168,7 +174,7 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 		// Collect online latest version if possible; else always update
 		shouldUpdate := true
 		if p.ModulePath != "" {
-			ver, err := goutil.GetLatestVer(p.ModulePath)
+			ver, err := getLatestVer(p.ModulePath)
 			if err != nil {
 				return updateResult{
 					updated: false,
@@ -196,11 +202,11 @@ func update(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGo
 			updateErr = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
 			if slices.Contains(mainPkgNames, p.Name) {
-				if err := goutil.InstallMainOrMaster(p.ImportPath); err != nil {
+				if err := installMainOrMaster(p.ImportPath); err != nil {
 					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			} else {
-				if err := goutil.InstallLatest(p.ImportPath); err != nil {
+				if err := installLatest(p.ImportPath); err != nil {
 					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				}
 			}

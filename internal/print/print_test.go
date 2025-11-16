@@ -1,4 +1,6 @@
 // Package print defines functions to accept colored standard output and user input
+//
+//nolint:paralleltest
 package print
 
 import (
@@ -42,7 +44,9 @@ func TestInfo(t *testing.T) {
 			Stderr = pw
 
 			Info(tt.args.msg)
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
 			Stdout = orgStdout
 			Stderr = orgStderr
 
@@ -89,7 +93,9 @@ func TestWarn(t *testing.T) {
 			Stderr = pw
 
 			Warn(tt.args.msg)
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
 			Stdout = orgStdout
 			Stderr = orgStderr
 
@@ -136,7 +142,9 @@ func TestErr(t *testing.T) {
 			Stderr = pw
 
 			Err(tt.args.msg)
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
 			Stdout = orgStdout
 			Stderr = orgStderr
 
@@ -191,7 +199,9 @@ func TestFatal(t *testing.T) {
 			defer func() { OsExit = orgOsExit }()
 
 			Fatal(tt.args.msg)
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
 			Stdout = orgStdout
 			Stderr = orgStderr
 
@@ -322,6 +332,6 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	return func() {
 		// clean up
 		os.Stdin = oldOsStdin
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 	}, nil
 }
