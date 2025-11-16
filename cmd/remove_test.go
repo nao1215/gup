@@ -1,3 +1,4 @@
+//nolint:errcheck,gosec,wastedassign
 package cmd
 
 import (
@@ -38,7 +39,7 @@ func Test_removeLoop(t *testing.T) {
 		},
 	}
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
 			name: "interactive question: input 'y'",
 			args: args{
@@ -90,7 +91,7 @@ func Test_removeLoop(t *testing.T) {
 
 			src := ""
 			dest := ""
-			if runtime.GOOS == "windows" {
+			if runtime.GOOS == goosWindows {
 				src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
 				dest = filepath.Join("testdata", "delete", "posixer.exe")
 			} else {
@@ -123,8 +124,8 @@ func Test_removeLoop(t *testing.T) {
 			}
 			defer funcDefer()
 
-			if runtime.GOOS != "windows" && tt.name == "windows environment and suffix is mismatch" {
-				GOOS = "windows"
+			if runtime.GOOS != goosWindows && tt.name == "windows environment and suffix is mismatch" {
+				GOOS = goosWindows
 				defer func() { GOOS = runtime.GOOS }()
 				t.Setenv("GOEXE", ".exe")
 			}
@@ -148,7 +149,7 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	oldOsStdin := os.Stdin
 	var tmpFile *os.File
 	var e error
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != goosWindows {
 		tmpFile, e = os.CreateTemp(t.TempDir(), strings.ReplaceAll(t.Name(), "/", ""))
 	} else {
 		// See https://github.com/golang/go/issues/51442

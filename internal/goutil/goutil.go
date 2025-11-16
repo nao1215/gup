@@ -2,6 +2,7 @@ package goutil
 
 import (
 	"bytes"
+	"context"
 	"debug/buildinfo"
 	"fmt"
 	"go/build"
@@ -18,16 +19,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+const unknown = "unknown"
+
 // Internal variables to mock/monkey-patch behaviors in tests.
 var (
 	// goExe is the executable name for the go command.
-	goExe = "go"
+	goExe = "go" //nolint:gochecknoglobals
 	// keyGoBin is the key name of the env variable for "GOBIN".
-	keyGoBin = "GOBIN"
+	keyGoBin = "GOBIN" //nolint:gochecknoglobals
 	// keyGoPath is the key name of the env variable for "GOPATH".
-	keyGoPath = "GOPATH"
+	keyGoPath = "GOPATH" //nolint:gochecknoglobals
 	// osMkdirTemp is a copy of os.MkdirTemp to ease testing.
-	osMkdirTemp = os.MkdirTemp
+	osMkdirTemp = os.MkdirTemp //nolint:gochecknoglobals
 )
 
 // GoPaths has $GOBIN and $GOPATH
@@ -146,7 +149,7 @@ func (p *Package) IsGoUpToDate() bool {
 // versionUpToDate parses versions and compares them.
 // Returns true if current >= available.
 func versionUpToDate(current, available string) bool {
-	if current == "unknown" || available == "unknown" {
+	if current == unknown || available == unknown {
 		return false // unknown version is not up to date
 	}
 
@@ -180,7 +183,8 @@ func (gp *GoPaths) StartDryRunMode() error {
 		return err
 	}
 
-	if gp.GOBIN != "" {
+	switch {
+	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, tmpDir); err != nil {
 			// Wrap error to avoid OS dependent error message during testing.
 			return errors.Wrapf(
@@ -189,7 +193,7 @@ func (gp *GoPaths) StartDryRunMode() error {
 				keyGoBin, tmpDir,
 			)
 		}
-	} else if gp.GOPATH != "" {
+	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
 			return errors.Wrapf(
 				err,
@@ -197,7 +201,7 @@ func (gp *GoPaths) StartDryRunMode() error {
 				keyGoPath, tmpDir,
 			)
 		}
-	} else {
+	default:
 		return errors.New("$GOPATH and $GOBIN is not set")
 	}
 	return nil
@@ -205,7 +209,8 @@ func (gp *GoPaths) StartDryRunMode() error {
 
 // EndDryRunMode restore the GOBIN or GOPATH settings.
 func (gp *GoPaths) EndDryRunMode() error {
-	if gp.GOBIN != "" {
+	switch {
+	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
 			// Wrap error to avoid OS dependent error message during testing.
 			return errors.Wrapf(
@@ -214,7 +219,7 @@ func (gp *GoPaths) EndDryRunMode() error {
 				keyGoBin, gp.GOBIN,
 			)
 		}
-	} else if gp.GOPATH != "" {
+	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
 			return errors.Wrapf(
 				err,
@@ -222,7 +227,7 @@ func (gp *GoPaths) EndDryRunMode() error {
 				keyGoPath, gp.GOPATH,
 			)
 		}
-	} else {
+	default:
 		return errors.New("$GOPATH and $GOBIN is not set")
 	}
 
@@ -278,7 +283,7 @@ func install(importPath, version string) error {
 	}
 
 	var stderr bytes.Buffer
-	cmd := exec.Command(goExe, "install", fmt.Sprintf("%s@%s", importPath, version)) //#nosec
+	cmd := exec.CommandContext(context.Background(), goExe, "install", fmt.Sprintf("%s@%s", importPath, version)) //#nosec
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
@@ -290,7 +295,7 @@ func install(importPath, version string) error {
 
 // GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest"
 func GetLatestVer(modulePath string) (string, error) {
-	out, err := exec.Command(goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output() //#nosec
+	out, err := exec.CommandContext(context.Background(), goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest").Output() //#nosec
 	if err != nil {
 		return "", fmt.Errorf("can't check %s:\n%w", modulePath, err)
 	}
@@ -303,7 +308,7 @@ func goPath() string {
 	if gopath != "" {
 		return gopath
 	}
-	out, err := exec.Command(goExe, "env", keyGoPath).Output()
+	out, err := exec.CommandContext(context.Background(), goExe, "env", keyGoPath).Output()
 	if err == nil {
 		return strings.TrimSpace(string(out))
 	}
@@ -356,7 +361,7 @@ func GetPackageInformation(binList []string) []Package {
 	pkgs := []Package{}
 	goVer, err := GetInstalledGoVersion()
 	if err != nil {
-		goVer = "unknown"
+		goVer = unknown
 	}
 	for _, v := range binList {
 		info, err := buildinfo.ReadFile(v)
@@ -397,7 +402,7 @@ var goVersionRegex = regexp.MustCompile(`(^|\s)(go[1-9]\S+)`)
 // GetInstalledGoVersion return installed go version.
 func GetInstalledGoVersion() (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(goExe, "version")
+	cmd := exec.CommandContext(context.Background(), goExe, "version")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

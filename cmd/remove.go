@@ -53,8 +53,10 @@ func remove(cmd *cobra.Command, args []string) int {
 	return removeLoop(gobin, force, args)
 }
 
+const goosWindows = "windows"
+
 // GOOS is wrapper for runtime.GOOS variable. It's for unit test.
-var GOOS = runtime.GOOS
+var GOOS = runtime.GOOS //nolint:gochecknoglobals
 
 func removeLoop(gobin string, force bool, target []string) int {
 	result := 0
@@ -62,7 +64,7 @@ func removeLoop(gobin string, force bool, target []string) int {
 		// In Windows, $GOEXE is set to the ".exe" extension.
 		// The user-specified command name (arguments) may not have an extension.
 		execSuffix := os.Getenv("GOEXE")
-		if GOOS == "windows" && !strings.HasSuffix(v, execSuffix) {
+		if GOOS == goosWindows && !strings.HasSuffix(v, execSuffix) {
 			v += execSuffix
 		}
 

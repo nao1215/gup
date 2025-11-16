@@ -1,3 +1,4 @@
+//nolint:paralleltest,errcheck,gosec
 package cmd
 
 import (
@@ -70,6 +71,68 @@ func Test_check(t *testing.T) {
 	}
 }
 
+func Test_CheckOption(t *testing.T) {
+	type args struct {
+		cmd  *cobra.Command
+		args []string
+	}
+	tests := []struct {
+		name   string
+		args   args
+		want   int
+		stderr []string
+	}{
+		{
+			name: "parser --jobs argument error",
+			args: args{
+				cmd:  &cobra.Command{},
+				args: []string{},
+			},
+			want: 1,
+			stderr: []string{
+				"gup:ERROR: can not parse command line argument (--jobs): flag accessed but not defined: jobs",
+				"",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			OsExit = func(code int) {}
+			defer func() {
+				OsExit = os.Exit
+			}()
+
+			orgStdout := print.Stdout
+			orgStderr := print.Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			print.Stdout = pw
+			print.Stderr = pw
+
+			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
+				t.Errorf("check() = %v, want %v", got, tt.want)
+			}
+			pw.Close()
+			print.Stdout = orgStdout
+			print.Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			defer pr.Close()
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.stderr, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_check_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
@@ -99,7 +162,7 @@ func Test_check_not_use_go_cmd(t *testing.T) {
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == goosWindows {
 			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
 			want = append(want, "")
 		} else {
@@ -114,7 +177,6 @@ func Test_check_not_use_go_cmd(t *testing.T) {
 
 func Test_check_gobin_is_empty(t *testing.T) {
 	type args struct {
-		cmd  *cobra.Command
 		args []string
 	}
 	tests := []struct {
@@ -136,7 +198,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 		},
 	}
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == goosWindows {
 		tests = append(tests, struct {
 			name   string
 			gobin  string

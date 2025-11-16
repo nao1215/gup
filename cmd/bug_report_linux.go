@@ -3,9 +3,10 @@
 package cmd
 
 import (
+	"context"
 	"os/exec"
 )
 
 func openBrowser(targetURL string) bool {
-	return exec.Command("xdg-open", targetURL).Start() == nil
+	return exec.CommandContext(context.Background(), "xdg-open", targetURL).Start() == nil
 }

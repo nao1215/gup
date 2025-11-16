@@ -12,7 +12,7 @@ import (
 )
 
 // OsExit is wrapper for  os.Exit(). It's for unit test.
-var OsExit = os.Exit
+var OsExit = os.Exit //nolint:gochecknoglobals
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{

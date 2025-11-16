@@ -13,9 +13,9 @@ import (
 
 var (
 	// Stdout is new instance of Writer which handles escape sequence for stdout.
-	Stdout = colorable.NewColorableStdout()
+	Stdout = colorable.NewColorableStdout() //nolint:gochecknoglobals
 	// Stderr is new instance of Writer which handles escape sequence for stderr.
-	Stderr = colorable.NewColorableStderr()
+	Stderr = colorable.NewColorableStderr() //nolint:gochecknoglobals
 )
 
 // Info print information message at STDOUT in green.
@@ -24,42 +24,42 @@ var (
 // NOTE: When we executed gup update, the standard output became quite wide.
 // To make the information more readable for the user, I removed the 'gup:INFO:' part.
 func Info(msg string) {
-	fmt.Fprintf(Stdout, "%s\n", msg)
+	_, _ = fmt.Fprintf(Stdout, "%s\n", msg)
 }
 
 // Warn print warning message at STDERR in yellow.
 // This function is used to print warning message to the user.
 func Warn(err interface{}) {
-	fmt.Fprintf(Stderr, "%s:%s: %v\n",
+	_, _ = fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name, color.YellowString("WARN "), err)
 }
 
 // Err print error message at STDERR in yellow.
 // This function is used to print error message to the user.
 func Err(err interface{}) {
-	fmt.Fprintf(Stderr, "%s:%s: %v\n",
+	_, _ = fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name, color.HiYellowString("ERROR"), err)
 }
 
 // OsExit is wrapper for  os.Exit(). It's for unit test.
-var OsExit = os.Exit
+var OsExit = os.Exit //nolint:gochecknoglobals
 
 // Fatal print dying message at STDERR in red.
 // After print message, process will exit
 func Fatal(err interface{}) {
-	fmt.Fprintf(Stderr, "%s:%s: %v\n",
+	_, _ = fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name, color.RedString("FATAL"), err)
 	OsExit(1)
 }
 
 // FmtScanln is wrapper for fmt.Scanln(). It's for unit test.
-var FmtScanln = fmt.Scanln
+var FmtScanln = fmt.Scanln //nolint:gochecknoglobals
 
 // Question displays the question in the terminal and receives an answer from the user.
 func Question(ask string) bool {
 	var response string
 
-	fmt.Fprintf(Stdout, "%s:%s: %s",
+	_, _ = fmt.Fprintf(Stdout, "%s:%s: %s",
 		cmdinfo.Name, color.GreenString("CHECK"), ask+" [Y/n] ")
 	_, err := FmtScanln(&response)
 	if err != nil {
