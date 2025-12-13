@@ -12,7 +12,7 @@ require (
 	github.com/nao1215/gorky v0.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/shogo82148/pointer v1.3.0
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/sync v0.19.0
 )
@@ -32,6 +32,6 @@ require (
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
