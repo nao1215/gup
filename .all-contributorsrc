@@ -123,6 +123,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "shogo82148",
+      "name": "ICHINOSE Shogo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1157344?v=4",
+      "profile": "https://shogo82148.github.io/",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
