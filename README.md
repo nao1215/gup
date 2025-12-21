@@ -195,7 +195,7 @@ Contributions are not only related to development. For example, GitHub Star moti
 [![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
 
 ### For Developers
-When adding new features or fixing bugs, please write unit tests. The sqly is unit tested for all packages as the unit test tree map below shows.
+When adding new features or fixing bugs, please write unit tests. The gup is unit tested for all packages as the unit test tree map below shows.
 
 ![treemap](./doc/img/cover-tree.svg)
 
