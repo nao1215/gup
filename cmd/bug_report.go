@@ -53,7 +53,11 @@ Any other useful data to share.
 	buf.WriteString(additionalDetails)
 
 	body := buf.String()
-	url := "https://github.com/nao1215/gup/issues/new?title=[Bug Report] Title&body=" + url.QueryEscape(body)
+	q := url.Values{
+		"title": {"[Bug Report] Title"},
+		"body":  {body},
+	}
+	url := "https://github.com/nao1215/gup/issues/new?" + q.Encode()
 
 	if !openBrowser(url) {
 		fmt.Print("Please file a new issue at https://github.com/nao1215/gup/issues/new using this template:\n\n")
