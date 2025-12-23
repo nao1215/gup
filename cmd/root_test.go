@@ -125,6 +125,7 @@ func setupXDGBase(t *testing.T) {
 
 	base := t.TempDir()
 	t.Setenv("HOME", base)
+	t.Setenv("GOTELEMETRY", "off") // prevent Go toolchain telemetry files in temp home that break cleanup
 	xdg.ConfigHome = filepath.Join(base, "config")
 	xdg.DataHome = filepath.Join(base, "data")
 	xdg.CacheHome = filepath.Join(base, "cache")

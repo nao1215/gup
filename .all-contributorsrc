@@ -130,6 +130,16 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/1157344?v=4",
       "profile": "https://shogo82148.github.io/",
       "contributions": [
+        "doc",
+        "code"
+      ]
+    },
+    {
+      "login": "jylenhof",
+      "name": "Jean-Yves LENHOF",
+      "avatar_url": "https://avatars.githubusercontent.com/u/36410287?v=4",
+      "profile": "http://blog.lenhof.eu.org/",
+      "contributions": [
         "doc"
       ]
     }
