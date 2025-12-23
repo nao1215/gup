@@ -1,5 +1,100 @@
-## [](https://github.com/nao1215/gup/compare/v0.26.0...) (2024-05-15)
+## [v0.28.2](https://github.com/nao1215/gup/compare/v0.28.1...v0.28.2) (2025-12-23)
 
+* docs: add mise alternate installation instructions (en/fr) and fix shell quoting in README [#222](https://github.com/nao1215/gup/pull/222) ([jylenhof](https://github.com/jylenhof))
+* Refactor bug report URL construction to fix the bug-report command [#221](https://github.com/nao1215/gup/pull/221) ([shogo82148](https://github.com/shogo82148))
+* docs: add shogo82148 to all-contributors [#220](https://github.com/nao1215/gup/pull/220) ([nao1215](https://github.com/nao1215))
+* docs: fix typo in README [#219](https://github.com/nao1215/gup/pull/219) ([shogo82148](https://github.com/shogo82148))
+* Bump golang.org/x/sync from 0.18.0 to 0.19.0 [#217](https://github.com/nao1215/gup/pull/217) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/hashicorp/go-version from 1.7.0 to 1.8.0 [#214](https://github.com/nao1215/gup/pull/214) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump actions/checkout from 5 to 6 [#213](https://github.com/nao1215/gup/pull/213) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.28.1](https://github.com/nao1215/gup/compare/v0.28.0...v0.28.1) (2025-11-16)
+
+* Use MANPATH when installing man pages and fix lints [#211](https://github.com/nao1215/gup/pull/211) ([nao1215](https://github.com/nao1215))
+* docs: update contributors [#210](https://github.com/nao1215/gup/pull/210) ([nao1215](https://github.com/nao1215))
+* Return the original error when latest version lookup fails [#205](https://github.com/nao1215/gup/pull/205) ([peczenyj](https://github.com/peczenyj))
+* Bump golang.org/x/sync from 0.17.0 to 0.18.0 [#207](https://github.com/nao1215/gup/pull/207) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.28.0](https://github.com/nao1215/gup/compare/v0.27.9...v0.28.0) (2025-10-27)
+
+* Add --ignore-go-update flag and refine updater error handling [#201](https://github.com/nao1215/gup/pull/201) ([iTrooz](https://github.com/iTrooz))
+* Refactor tests to isolate environments and add helpers [#203](https://github.com/nao1215/gup/pull/203) ([iTrooz](https://github.com/iTrooz))
+* Bump golang.org/x/sync from 0.16.0 to 0.17.0 [#200](https://github.com/nao1215/gup/pull/200) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump actions/setup-go from 5 to 6 [#199](https://github.com/nao1215/gup/pull/199) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.9](https://github.com/nao1215/gup/compare/v0.27.8...v0.27.9) (2025-09-04)
+
+* docs: add README translations (es, fr, ko, ru, zh-cn) [#195](https://github.com/nao1215/gup/pull/195) ([nao1215](https://github.com/nao1215))
+* Trim potential GOEXPERIMENT flag in build info [#197](https://github.com/nao1215/gup/pull/197) ([mcha-forks](https://github.com/mcha-forks))
+* Update contributors [#198](https://github.com/nao1215/gup/pull/198) ([nao1215](https://github.com/nao1215))
+* Support Go 1.24 or later [#188](https://github.com/nao1215/gup/pull/188) ([nao1215](https://github.com/nao1215))
+* Bump github.com/spf13/cobra from 1.9.1 to 1.10.1 [#196](https://github.com/nao1215/gup/pull/196) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump actions/checkout from 4 to 5 [#194](https://github.com/nao1215/gup/pull/194) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/gen2brain/beeep [#192](https://github.com/nao1215/gup/pull/192) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.15.0 to 0.16.0 [#193](https://github.com/nao1215/gup/pull/193) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.14.0 to 0.15.0 [#190](https://github.com/nao1215/gup/pull/190) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.13.0 to 0.14.0 [#189](https://github.com/nao1215/gup/pull/189) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.8](https://github.com/nao1215/gup/compare/v0.27.7...v0.27.8) (2025-03-12)
+
+* Bump golang.org/x/sync from 0.11.0 to 0.12.0 [#185](https://github.com/nao1215/gup/pull/185) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.7](https://github.com/nao1215/gup/compare/v0.27.6...v0.27.7) (2025-02-25)
+
+* Add Go 1.24 to CI and fix unit tests [#182](https://github.com/nao1215/gup/pull/182) ([nao1215](https://github.com/nao1215))
+* Bump github.com/google/go-cmp from 0.6.0 to 0.7.0 [#184](https://github.com/nao1215/gup/pull/184) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/spf13/cobra from 1.8.1 to 1.9.1 [#183](https://github.com/nao1215/gup/pull/183) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.10.0 to 0.11.0 [#181](https://github.com/nao1215/gup/pull/181) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.6](https://github.com/nao1215/gup/compare/v0.27.5...v0.27.6) (2025-01-13)
+
+* Bump github.com/mattn/go-colorable from 0.1.13 to 0.1.14 [#180](https://github.com/nao1215/gup/pull/180) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.9.0 to 0.10.0 [#179](https://github.com/nao1215/gup/pull/179) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump golang.org/x/sync from 0.8.0 to 0.9.0 [#178](https://github.com/nao1215/gup/pull/178) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/adrg/xdg from 0.5.2 to 0.5.3 [#177](https://github.com/nao1215/gup/pull/177) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/adrg/xdg from 0.5.1 to 0.5.2 [#176](https://github.com/nao1215/gup/pull/176) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/fatih/color from 1.17.0 to 1.18.0 [#175](https://github.com/nao1215/gup/pull/175) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump github.com/adrg/xdg from 0.5.0 to 0.5.1 [#174](https://github.com/nao1215/gup/pull/174) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.5](https://github.com/nao1215/gup/compare/v0.27.4...v0.27.5) (2024-09-10)
+
+* Fix: check sub command prints incorrect path [#172](https://github.com/nao1215/gup/pull/172) ([nao1215](https://github.com/nao1215))
+* Add go 1.23 [#170](https://github.com/nao1215/gup/pull/170) ([nao1215](https://github.com/nao1215))
+
+## [v0.27.4](https://github.com/nao1215/gup/compare/v0.27.3...v0.27.4) (2024-08-10)
+
+* Feat: Integrate completions into Homebrew formula (Issue #168) [#169](https://github.com/nao1215/gup/pull/169) ([nao1215](https://github.com/nao1215))
+* Bump golang.org/x/sync from 0.7.0 to 0.8.0 [#167](https://github.com/nao1215/gup/pull/167) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Specify Language for Fenced Code Blocks [#166](https://github.com/nao1215/gup/pull/166) ([nao1215](https://github.com/nao1215))
+* Bump github.com/adrg/xdg from 0.4.0 to 0.5.0 [#165](https://github.com/nao1215/gup/pull/165) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.27.3](https://github.com/nao1215/gup/compare/v0.27.2...v0.27.3) (2024-06-27)
+
+* Output current rather than latest version in up-to-date messages [#164](https://github.com/nao1215/gup/pull/164) ([scop](https://github.com/scop))
+
+## [v0.27.2](https://github.com/nao1215/gup/compare/v0.27.1...v0.27.2) (2024-06-24)
+
+* Update: change version compare logic [#162](https://github.com/nao1215/gup/pull/162) ([nao1215](https://github.com/nao1215))
+* Update README output wrt added Go versions [#161](https://github.com/nao1215/gup/pull/161) ([scop](https://github.com/scop))
+
+## [v0.27.1](https://github.com/nao1215/gup/compare/v0.27.0...v0.27.1) (2024-06-19)
+
+* Remove deprecated option [#158](https://github.com/nao1215/gup/pull/158) ([nao1215](https://github.com/nao1215))
+
+## [v0.27.0](https://github.com/nao1215/gup/compare/v0.26.2...v0.27.0) (2024-06-19)
+
+* Output and consider Go toolchain version, too [#156](https://github.com/nao1215/gup/pull/156) ([scop](https://github.com/scop))
+* Bump github.com/spf13/cobra from 1.8.0 to 1.8.1 [#155](https://github.com/nao1215/gup/pull/155) ([dependabot[bot]](https://github.com/apps/dependabot))
+* Bump goreleaser/goreleaser-action from 5 to 6 [#153](https://github.com/nao1215/gup/pull/153) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [v0.26.2](https://github.com/nao1215/gup/compare/v0.26.1...v0.26.2) (2024-05-22)
+
+* Fix goreleaser quoting [#151](https://github.com/nao1215/gup/pull/151) ([nao1215](https://github.com/nao1215))
+* Update GitHub Actions [#150](https://github.com/nao1215/gup/pull/150) ([nao1215](https://github.com/nao1215))
+
+## [v0.26.1](https://github.com/nao1215/gup/compare/v0.26.0...v0.26.1) (2024-05-15)
+
+* Update project rules [#149](https://github.com/nao1215/gup/pull/149) ([nao1215](https://github.com/nao1215))
 * Bump github.com/fatih/color from 1.16.0 to 1.17.0 [#148](https://github.com/nao1215/gup/pull/148) ([dependabot[bot]](https://github.com/apps/dependabot))
 
 ## [v0.26.0](https://github.com/nao1215/gup/compare/v0.25.2...v0.26.0) (2024-05-08)
@@ -268,4 +363,3 @@
 
 
 ## [v0.1.0](https://github.com/nao1215/gup/compare/17a4faec4b36...v0.1.0) (2022-02-20)
-
