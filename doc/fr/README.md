@@ -37,6 +37,11 @@ go install github.com/nao1215/gup@latest
 brew install nao1215/tap/gup
 ```
 
+### Utiliser mise-en-place
+```shell
+mise use -g gup@latest
+``
+
 ### Installer depuis un package ou un binaire
 [La page de release](https://github.com/nao1215/gup/releases) contient des packages aux formats .deb, .rpm et .apk. La commande gup utilise la commande go en interne, donc l'installation de golang est requise.
 
