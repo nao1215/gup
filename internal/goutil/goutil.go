@@ -86,13 +86,13 @@ func (p *Package) CurrentToLatestStr() string {
 	}
 	var ret string
 	if p.Version.Current != p.Version.Latest {
-		ret += color.GreenString(p.Version.Current) + " to " + color.YellowString(p.Version.Latest)
+		ret += color.YellowString(p.Version.Current) + " to " + color.GreenString(p.Version.Latest)
 	}
 	if p.GoVersion.Current != p.GoVersion.Latest {
 		if len(ret) != 0 {
 			ret += ", "
 		}
-		ret += color.GreenString(p.GoVersion.Current) + " to " + color.YellowString(p.GoVersion.Latest)
+		ret += color.YellowString(p.GoVersion.Current) + " to " + color.GreenString(p.GoVersion.Latest)
 	}
 	return ret
 }
@@ -103,27 +103,28 @@ func (p *Package) VersionCheckResultStr() string {
 		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
 	}
 	var ret string
-	// TODO: yellow only if latest > current
 	if p.Version.Current == p.Version.Latest {
 		ret += color.GreenString(p.Version.Current)
 	} else {
-		ret += "current: " + color.GreenString(p.Version.Current) + ", latest: "
+		ret += "current: "
 		if p.IsPackageUpToDate() {
-			ret += color.GreenString(p.Version.Latest)
+			ret += color.GreenString(p.Version.Current)
 		} else {
-			ret += color.YellowString(p.Version.Latest)
+			ret += color.YellowString(p.Version.Current)
 		}
+		ret += ", latest:" + color.GreenString(p.Version.Latest)
 	}
 	ret += " / "
 	if p.GoVersion.Current == p.GoVersion.Latest {
 		ret += color.GreenString(p.GoVersion.Current)
 	} else {
-		ret += "current: " + color.GreenString(p.GoVersion.Current) + ", installed: "
+		ret += "current: "
 		if p.IsGoUpToDate() {
-			ret += color.GreenString(p.GoVersion.Latest)
+			ret += color.GreenString(p.GoVersion.Current)
 		} else {
-			ret += color.YellowString(p.GoVersion.Latest)
+			ret += color.YellowString(p.GoVersion.Current)
 		}
+		ret += ", latest:" + color.GreenString(p.GoVersion.Latest)
 	}
 	return ret
 }
