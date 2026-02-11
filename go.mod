@@ -11,7 +11,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14
 	github.com/nao1215/gorky v0.2.1
 	github.com/pkg/errors v0.9.1
-	github.com/shogo82148/pointer v1.3.0
+	github.com/shogo82148/pointer v1.4.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/sync v0.19.0

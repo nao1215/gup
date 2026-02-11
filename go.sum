@@ -43,8 +43,8 @@ github.com/sergeymakinen/go-bmp v1.0.0 h1:SdGTzp9WvCV0A1V0mBeaS7kQAwNLdVJbmHlqNW
 github.com/sergeymakinen/go-bmp v1.0.0/go.mod h1:/mxlAQZRLxSvJFNIEGGLBE/m40f3ZnUifpgVDlcUIEY=
 github.com/sergeymakinen/go-ico v1.0.0-beta.0 h1:m5qKH7uPKLdrygMWxbamVn+tl2HfiA3K6MFJw4GfZvQ=
 github.com/sergeymakinen/go-ico v1.0.0-beta.0/go.mod h1:wQ47mTczswBO5F0NoDt7O0IXgnV4Xy3ojrroMQzyhUk=
-github.com/shogo82148/pointer v1.3.0 h1:LW5V2jUAjFNjS8e7k/PgFoh3EavOSB/vvN85aGue5+I=
-github.com/shogo82148/pointer v1.3.0/go.mod h1:agZ5JFpavFPXznbWonIvbG78NDfvDTFppe+7o53up5w=
+github.com/shogo82148/pointer v1.4.0 h1:mEpe+gtEWGP4cX8o5YJdmKAbSsYBCqfMQ70RarPJKGE=
+github.com/shogo82148/pointer v1.4.0/go.mod h1:agZ5JFpavFPXznbWonIvbG78NDfvDTFppe+7o53up5w=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/pflag v1.0.9 h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=
