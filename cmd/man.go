@@ -103,6 +103,18 @@ func generateManpages(dst string) error {
 func copyManpages(manFiles []string, dst string) error {
 	dst = filepath.Clean(dst)
 
+	dstRoot, err := os.OpenRoot(dst)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := dstRoot.Close(); closeErr != nil {
+			// TODO: If use go 1.20, rewrite like this.
+			// err = errors.Join(err, closeErr)
+			err = closeErr // overwrite error
+		}
+	}()
+
 	for _, file := range manFiles {
 		file = filepath.Clean(file)
 
@@ -118,7 +130,8 @@ func copyManpages(manFiles []string, dst string) error {
 			}
 		}()
 
-		out, err := os.Create(filepath.Clean(filepath.Join(dst, fmt.Sprintf("%s%s", filepath.Base(file), ".gz"))))
+		outName := filepath.Base(file) + ".gz"
+		out, err := dstRoot.Create(outName)
 		if err != nil {
 			return err
 		}
@@ -140,7 +153,7 @@ func copyManpages(manFiles []string, dst string) error {
 			}
 		}()
 
-		print.Info("Generate " + out.Name())
+		print.Info("Generate " + filepath.Join(dst, outName))
 		_, err = io.Copy(gz, in)
 		if err != nil {
 			return err

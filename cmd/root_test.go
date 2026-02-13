@@ -126,6 +126,16 @@ func setupXDGBase(t *testing.T) {
 	base := t.TempDir()
 	t.Setenv("HOME", base)
 	t.Setenv("GOTELEMETRY", "off") // prevent Go toolchain telemetry files in temp home that break cleanup
+	// Redirect telemetry directory away from HOME to prevent t.TempDir() cleanup failures on macOS.
+	// Even with GOTELEMETRY=off, the Go toolchain may still create the telemetry directory structure.
+	telemetryDir, err := os.MkdirTemp("", "gup-test-telemetry-*")
+	if err != nil {
+		t.Fatalf("failed to create telemetry dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(telemetryDir)
+	})
+	t.Setenv("GOTELEMETRYDIR", telemetryDir)
 	xdg.ConfigHome = filepath.Join(base, "config")
 	xdg.DataHome = filepath.Join(base, "data")
 	xdg.CacheHome = filepath.Join(base, "cache")

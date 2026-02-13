@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/nao1215/gorky/file"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -59,6 +58,17 @@ const goosWindows = "windows"
 var GOOS = runtime.GOOS //nolint:gochecknoglobals
 
 func removeLoop(gobin string, force bool, target []string) int {
+	root, err := os.OpenRoot(gobin)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+	defer func() {
+		if closeErr := root.Close(); closeErr != nil {
+			print.Err(closeErr)
+		}
+	}()
+
 	result := 0
 	for _, v := range target {
 		// In Windows, $GOEXE is set to the ".exe" extension.
@@ -68,24 +78,27 @@ func removeLoop(gobin string, force bool, target []string) int {
 			v += execSuffix
 		}
 
-		target := filepath.Join(gobin, v)
-		if !file.IsFile(target) {
-			print.Err(fmt.Errorf("no such file or directory: %s", target))
+		name := filepath.Base(v)
+		displayPath := filepath.Join(gobin, name)
+
+		info, err := root.Stat(name)
+		if err != nil || info.IsDir() {
+			print.Err(fmt.Errorf("no such file or directory: %s", displayPath))
 			result = 1
 			continue
 		}
 		if !force {
-			if !print.Question(fmt.Sprintf("remove %s?", target)) {
-				print.Info("cancel removal " + target)
+			if !print.Question(fmt.Sprintf("remove %s?", displayPath)) {
+				print.Info("cancel removal " + displayPath)
 				continue
 			}
 		}
 
-		if err := os.Remove(target); err != nil {
+		if err := root.Remove(name); err != nil {
 			print.Err(err)
 			continue
 		}
-		print.Info("removed " + target)
+		print.Info("removed " + displayPath)
 	}
 	return result
 }

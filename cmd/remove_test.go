@@ -37,6 +37,16 @@ func Test_removeLoop(t *testing.T) {
 			input: "y",
 			want:  1,
 		},
+		{
+			name: "gobin does not exist",
+			args: args{
+				gobin:  filepath.Join("testdata", "no_such_dir"),
+				force:  true,
+				target: []string{"posixer"},
+			},
+			input: "",
+			want:  1,
+		},
 	}
 
 	if runtime.GOOS == goosWindows {
