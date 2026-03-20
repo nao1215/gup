@@ -1,10 +1,10 @@
 module github.com/nao1215/gup
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/gen2brain/beeep v0.11.2
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-version v1.8.0
@@ -33,7 +33,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 )
 
