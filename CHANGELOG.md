@@ -1,3 +1,11 @@
+## [v1.1.4](https://github.com/nao1215/gup/compare/v1.1.3...v1.1.4) (2026-03-22)
+
+### Build
+
+* Bump minimum Go version from 1.24 to 1.25
+* Add Go 1.26 to CI test matrix
+* Bump `github.com/fatih/color` from 1.18.0 to 1.19.0
+
 ## [v1.1.3](https://github.com/nao1215/gup/compare/v1.1.2...v1.1.3) (2026-02-23)
 
 ### Fixes
