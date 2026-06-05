@@ -1,3 +1,29 @@
+## [v1.2.0](https://github.com/nao1215/gup/compare/v1.1.4...v1.2.0) (2026-06-05)
+
+### Features
+
+* Add `gup migrate BEFORE_PATH AFTER_PATH [BINARY...]` subcommand to reinstall `go install` binaries from one `$GOBIN` directory into another
+  * Reinstalls using the exact `import path@version` recorded in each binary's build info (no implicit upgrade to `@latest`)
+  * Add-only semantics: never deletes files in `AFTER_PATH`, skips binaries that already exist there unless `--force` is given
+  * Refuses to run when `BEFORE_PATH` and `AFTER_PATH` resolve to the same directory, and never mutates the filesystem on a validation failure
+  * Skips binaries with no resolvable import path, `command-line-arguments` builds, and `devel`/`(devel)` versions instead of upgrading them
+  * Follows module-path renames, warns about missing targets, and supports `--dry-run`, `--notify`, `--jobs`, and `--force` (parallelized like `import`/`update`)
+  * Useful when a Go version manager such as `mise` changes the real path of `$GOBIN` per Go version
+
+### Docs
+
+* Replace the static README screenshot with a `gup update` GIF recorded via VHS and document the `gup migrate` use case (including `mise`)
+
+### Build
+
+* Bump `github.com/hashicorp/go-version` from 1.8.0 to 1.9.0
+* Bump `github.com/mattn/go-colorable` from 0.1.14 to 0.1.15
+* Bump `gitleaks/gitleaks-action` from 2 to 3
+
+### Tests
+
+* Add table-driven tests for `migrate` covering path validation, add-only/force semantics, binary filtering, skip conditions, module-path-mismatch retry, dry-run, and `--jobs` boundaries
+
 ## [v1.1.4](https://github.com/nao1215/gup/compare/v1.1.3...v1.1.4) (2026-03-22)
 
 ### Build
