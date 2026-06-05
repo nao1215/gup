@@ -12,9 +12,9 @@
 
 # gup - Update binaries installed by "go install"
 
-![sample](./doc/img/sample.png)
+![sample](./doc/img/sample.gif)
 
-**gup** command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
+gup command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
@@ -204,6 +204,48 @@ $ gup export --output > gup.json
 $ gup import --file=gup.json
 ```
 
+### Migrate binaries to a new $GOBIN
+
+```shell
+gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
+```
+
+`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`,
+using the exact `import path@version` recorded in each binary's build info
+(it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to
+`AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt
+with the Go toolchain currently in use.
+
+#### Why this is useful (e.g. with `mise`)
+
+When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change
+the real path of `$GOBIN` per Go version. As a result, tools you installed
+under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate`
+lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
+
+```shell
+# Reinstall every go-install tool from the old GOBIN into the new GOBIN
+$ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/installs/go/1.25.0/bin
+
+# Migrate only specific binaries
+$ gup migrate /old/gobin /new/gobin gopls air
+```
+
+`migrate` is add-only:
+
+- It never deletes or cleans up files in `AFTER_PATH`.
+- Binaries that already exist in `AFTER_PATH` are skipped by default. Use
+  `--force` to reinstall over them.
+- `AFTER_PATH` is created automatically when it does not exist.
+- `BEFORE_PATH` and `AFTER_PATH` must be different directories.
+
+Binaries whose import path or version cannot be resolved, and development
+builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local
+or non-reproducible builds are never broken.
+
+Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
+`--force`.
+
 ### Generate man-pages (for linux, mac)
 man subcommand generates man-pages under /usr/share/man/man1.
 ```shell
@@ -215,6 +257,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz

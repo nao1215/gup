@@ -12,7 +12,7 @@
 
 # gup - "go install"でインストールしたバイナリを更新
 
-![sample](../img/sample.png)
+![sample](../img/sample.gif)
 
 **gup** コマンドは、"go install" でインストールしたバイナリを最新版に更新します。gupはすべてのバイナリを並列で更新するため、非常に高速です。また、\$GOPATH/bin (\$GOBIN) 配下のバイナリを操作するためのサブコマンドも提供しています。Windows、Mac、Linuxで動作するクロスプラットフォーム対応のソフトウェアです。
 
@@ -214,6 +214,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz

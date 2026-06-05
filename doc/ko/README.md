@@ -12,7 +12,7 @@
 
 # gup - "go install"로 설치된 바이너리 업데이트
 
-![sample](../img/sample.png)
+![sample](../img/sample.gif)
 
 **gup** 명령어는 "go install"로 설치된 바이너리를 최신 버전으로 업데이트합니다. gup은 모든 바이너리를 병렬로 업데이트하므로 매우 빠릅니다. 또한 \$GOPATH/bin (\$GOBIN) 아래의 바이너리를 조작하기 위한 하위 명령어를 제공합니다. Windows, Mac, Linux에서 실행되는 크로스 플랫폼 소프트웨어입니다.
 
@@ -214,6 +214,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz
