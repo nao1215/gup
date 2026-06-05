@@ -207,6 +207,8 @@ type updateResult struct {
 	pkg         goutil.Package
 	err         error
 	renamedFrom string // original binary name if renamed during update
+	skipped     bool   // true when the package was intentionally skipped (no error)
+	skipReason  string // human-readable reason when skipped is true
 }
 
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel) (int, []goutil.Package, map[string]string) {

@@ -42,6 +42,7 @@ If you find gup useful, please consider sponsoring the project:
 	cmd.AddCommand(newExportCmd())
 	cmd.AddCommand(newImportCmd())
 	cmd.AddCommand(newListCmd())
+	cmd.AddCommand(newMigrateCmd())
 	cmd.AddCommand(newRemoveCmd())
 	cmd.AddCommand(newUpdateCmd())
 	cmd.AddCommand(newVersionCmd())
