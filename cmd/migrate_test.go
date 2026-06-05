@@ -14,6 +14,12 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
+const (
+	testImportPathXY   = "github.com/x/y"
+	testImportPathTool = "github.com/example/tool"
+	testBinPosixer     = "posixer"
+)
+
 // captureMigrateOutput redirects print output into a buffer for the duration of fn.
 func captureMigrateOutput(t *testing.T, fn func()) string {
 	t.Helper()
@@ -131,7 +137,7 @@ func Test_resolveMigrateVersion(t *testing.T) {
 	}{
 		{
 			name:        "regular version",
-			pkg:         goutil.Package{ImportPath: "github.com/x/y", Version: &goutil.Version{Current: "v1.2.3"}},
+			pkg:         goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: "v1.2.3"}},
 			wantVersion: "v1.2.3",
 			wantSkip:    false,
 		},
@@ -141,28 +147,28 @@ func Test_resolveMigrateVersion(t *testing.T) {
 			wantSkip: true,
 		},
 		{
-			name:     "command-line-arguments",
-			pkg:      goutil.Package{ImportPath: "command-line-arguments", Version: &goutil.Version{Current: "v1.0.0"}},
+			name:     commandLineArguments,
+			pkg:      goutil.Package{ImportPath: commandLineArguments, Version: &goutil.Version{Current: "v1.0.0"}},
 			wantSkip: true,
 		},
 		{
 			name:     "empty version",
-			pkg:      goutil.Package{ImportPath: "github.com/x/y", Version: &goutil.Version{Current: "  "}},
+			pkg:      goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: "  "}},
 			wantSkip: true,
 		},
 		{
-			name:     "nil version",
-			pkg:      goutil.Package{ImportPath: "github.com/x/y"},
+			name:     "nil version pointer",
+			pkg:      goutil.Package{ImportPath: testImportPathXY},
 			wantSkip: true,
 		},
 		{
-			name:     "devel",
-			pkg:      goutil.Package{ImportPath: "github.com/x/y", Version: &goutil.Version{Current: "devel"}},
+			name:     develVersion,
+			pkg:      goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: develVersion}},
 			wantSkip: true,
 		},
 		{
 			name:     "devel with parentheses",
-			pkg:      goutil.Package{ImportPath: "github.com/x/y", Version: &goutil.Version{Current: "(devel)"}},
+			pkg:      goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: develVersionParen}},
 			wantSkip: true,
 		},
 	}
@@ -199,7 +205,7 @@ func Test_migratePackages_install(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
 	}
 
 	out := captureMigrateOutput(t, func() {
@@ -211,7 +217,7 @@ func Test_migratePackages_install(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("installer called %d times, want 1 (output: %s)", len(calls), out)
 	}
-	if calls[0].importPath != "github.com/example/tool" || calls[0].version != "v1.2.3" {
+	if calls[0].importPath != testImportPathTool || calls[0].version != "v1.2.3" {
 		t.Fatalf("installed %q@%q, want exact reinstall", calls[0].importPath, calls[0].version)
 	}
 }
@@ -219,8 +225,10 @@ func Test_migratePackages_install(t *testing.T) {
 func Test_migratePackages_addOnlySkip(t *testing.T) {
 	after := t.TempDir()
 	t.Setenv("GOBIN", t.TempDir())
-	// Simulate a binary that already exists in AFTER_PATH.
-	if err := os.WriteFile(filepath.Join(after, "tool"), []byte("x"), 0o600); err != nil {
+	// Simulate a binary that already exists in AFTER_PATH. Use the same name
+	// migrate would produce (with the platform-specific suffix on Windows).
+	existing := binaryNameFromImportPath(testImportPathTool)
+	if err := os.WriteFile(filepath.Join(after, existing), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +242,7 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
 	}
 
 	out := captureMigrateOutput(t, func() {
@@ -254,7 +262,8 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 func Test_migratePackages_force(t *testing.T) {
 	after := t.TempDir()
 	t.Setenv("GOBIN", t.TempDir())
-	if err := os.WriteFile(filepath.Join(after, "tool"), []byte("x"), 0o600); err != nil {
+	existing := binaryNameFromImportPath(testImportPathTool)
+	if err := os.WriteFile(filepath.Join(after, existing), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -268,7 +277,7 @@ func Test_migratePackages_force(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -295,7 +304,7 @@ func Test_migratePackages_dryRun(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -323,7 +332,7 @@ func Test_migratePackages_skipDevelAndUnknown(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "devbin", ImportPath: "github.com/example/dev", Version: &goutil.Version{Current: "(devel)"}},
+		{Name: "devbin", ImportPath: "github.com/example/dev", Version: &goutil.Version{Current: develVersionParen}},
 		{Name: "noimport", ImportPath: "", Version: &goutil.Version{Current: "v1.0.0"}},
 		{Name: "good", ImportPath: "github.com/example/good", Version: &goutil.Version{Current: "v1.0.0"}},
 	}
@@ -390,7 +399,7 @@ func Test_migratePackages_installError(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "v1.0.0"}},
+		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.0.0"}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -439,7 +448,7 @@ func Test_runMigrate_filterByBinary(t *testing.T) {
 
 	cmd := newMigrateCmd()
 	captureMigrateOutput(t, func() {
-		if got := runMigrate(cmd, []string{before, after, "posixer"}); got != 0 {
+		if got := runMigrate(cmd, []string{before, after, testBinPosixer}); got != 0 {
 			t.Fatalf("runMigrate() = %d, want 0", got)
 		}
 	})
@@ -469,7 +478,7 @@ func Test_runMigrate_missingTargetWarning(t *testing.T) {
 	cmd := newMigrateCmd()
 	out := captureMigrateOutput(t, func() {
 		// "posixer" exists in testdata; "doesnotexist" does not.
-		if got := runMigrate(cmd, []string{before, after, "posixer", "doesnotexist"}); got != 0 {
+		if got := runMigrate(cmd, []string{before, after, testBinPosixer, "doesnotexist"}); got != 0 {
 			t.Fatalf("runMigrate() = %d, want 0", got)
 		}
 	})

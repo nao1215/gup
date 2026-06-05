@@ -24,6 +24,13 @@ const (
 	migrateMinArgs = 2
 	// afterPathDirPerm is the permission used when creating AFTER_PATH.
 	afterPathDirPerm = 0o755
+	// commandLineArguments is the import path 'go install' records for binaries
+	// built from local files; such binaries cannot be reinstalled by path.
+	commandLineArguments = "command-line-arguments"
+	// develVersion and develVersionParen are the version strings recorded for
+	// development builds, which are skipped instead of being upgraded.
+	develVersion      = "devel"
+	develVersionParen = "(devel)"
 )
 
 func newMigrateCmd() *cobra.Command {
@@ -301,7 +308,7 @@ func resolveMigrateVersion(p goutil.Package) (version string, skip bool, reason 
 	if p.ImportPath == "" {
 		return "", true, "import path is unknown"
 	}
-	if p.ImportPath == "command-line-arguments" {
+	if p.ImportPath == commandLineArguments {
 		return "", true, "devel binary copied from local environment"
 	}
 
@@ -312,7 +319,7 @@ func resolveMigrateVersion(p goutil.Package) (version string, skip bool, reason 
 	if current == "" {
 		return "", true, "version is empty"
 	}
-	if current == "devel" || current == "(devel)" {
+	if current == develVersion || current == develVersionParen {
 		return "", true, "version is a development build"
 	}
 	return current, false, ""
