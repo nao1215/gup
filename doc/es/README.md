@@ -12,7 +12,7 @@
 
 # gup - Actualizar binarios instalados por "go install"
 
-![sample](../img/sample.png)
+![sample](../img/sample.gif)
 
 El comando **gup** actualiza los binarios instalados por "go install" a la versión más reciente. gup actualiza todos los binarios en paralelo, por lo que es muy rápido. También proporciona subcomandos para manipular binarios bajo $GOPATH/bin ($GOBIN). Es un software multiplataforma que se ejecuta en Windows, Mac y Linux.
 
@@ -215,6 +215,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz

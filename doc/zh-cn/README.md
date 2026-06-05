@@ -12,7 +12,7 @@
 
 # gup - 更新通过"go install"安装的二进制文件
 
-![sample](../img/sample.png)
+![sample](../img/sample.gif)
 
 **gup** 命令将通过"go install"安装的二进制文件更新到最新版本。gup 并行更新所有二进制文件，因此非常快速。它还提供用于操作 \$GOPATH/bin (\$GOBIN) 下二进制文件的子命令。它是一个跨平台软件，可在 Windows、Mac 和 Linux 上运行。
 
@@ -215,6 +215,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz

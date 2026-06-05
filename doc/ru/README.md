@@ -12,7 +12,7 @@
 
 # gup - Обновляет бинарные файлы, установленные через "go install"
 
-![sample](../img/sample.png)
+![sample](../img/sample.gif)
 
 Команда **gup** обновляет бинарные файлы, установленные через "go install", до последней версии. gup обновляет все бинарные файлы параллельно, поэтому работает очень быстро. Она также предоставляет подкоманды для управления бинарными файлами в \$GOPATH/bin (\$GOBIN). Это кроссплатформенное программное обеспечение, которое работает на Windows, Mac и Linux.
 
@@ -215,6 +215,7 @@ Generate /usr/share/man/man1/gup-export.1.gz
 Generate /usr/share/man/man1/gup-import.1.gz
 Generate /usr/share/man/man1/gup-list.1.gz
 Generate /usr/share/man/man1/gup-man.1.gz
+Generate /usr/share/man/man1/gup-migrate.1.gz
 Generate /usr/share/man/man1/gup-remove.1.gz
 Generate /usr/share/man/man1/gup-update.1.gz
 Generate /usr/share/man/man1/gup-version.1.gz
