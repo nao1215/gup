@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/fileutil"
@@ -44,6 +45,7 @@ versions recorded in that gup.json.`,
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}
+	addTimeoutFlag(cmd)
 
 	return cmd
 }
@@ -84,6 +86,12 @@ func runImport(cmd *cobra.Command, _ []string) int {
 	}
 	cpus = clampJobs(cpus)
 
+	timeout, err := getTimeoutFlag(cmd)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	if !fileutil.IsFile(confFile) {
 		print.Err(fmt.Errorf("%s is not found", confFile))
 		return 1
@@ -101,10 +109,10 @@ func runImport(cmd *cobra.Command, _ []string) int {
 	}
 
 	print.Info("start import based on " + confFile)
-	return installFromConfig(pkgs, dryRun, notify, cpus)
+	return installFromConfig(pkgs, dryRun, notify, cpus, timeout)
 }
 
-func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int) int {
+func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -156,7 +164,7 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 		}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, installer)
+	ch := forEachPackage(ctx, pkgs, cpus, timeout, installer)
 
 	count := 0
 	for v := range ch {

@@ -250,7 +250,7 @@ func Test_migratePackages_install(t *testing.T) {
 	}
 
 	out := captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false); got != 0 {
+		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -287,7 +287,7 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 	}
 
 	out := captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false); got != 0 {
+		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -322,7 +322,7 @@ func Test_migratePackages_force(t *testing.T) {
 	}
 
 	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, true); got != 0 {
+		if got := migratePackages(pkgs, after, false, false, 1, true, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -349,7 +349,7 @@ func Test_migratePackages_dryRun(t *testing.T) {
 	}
 
 	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, true, false, 1, false); got != 0 {
+		if got := migratePackages(pkgs, after, true, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() dry-run = %d, want 0", got)
 		}
 	})
@@ -379,7 +379,7 @@ func Test_migratePackages_skipDevelAndUnknown(t *testing.T) {
 	}
 
 	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 2, false); got != 0 {
+		if got := migratePackages(pkgs, after, false, false, 2, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -415,7 +415,7 @@ func Test_migratePackages_modulePathMismatchRetry(t *testing.T) {
 	}
 
 	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false); got != 0 {
+		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -444,7 +444,7 @@ func Test_migratePackages_installError(t *testing.T) {
 	}
 
 	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false); got != 1 {
+		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 1 {
 			t.Fatalf("migratePackages() = %d, want 1 on install error", got)
 		}
 	})
@@ -466,7 +466,7 @@ func Test_migratePackages_jobsBoundary(t *testing.T) {
 
 	for _, jobs := range []int{-1, 0, 1, 100} {
 		captureMigrateOutput(t, func() {
-			if got := migratePackages(pkgs, after, false, false, jobs, false); got != 0 {
+			if got := migratePackages(pkgs, after, false, false, jobs, false, 0); got != 0 {
 				t.Fatalf("migratePackages(jobs=%d) = %d, want 0", jobs, got)
 			}
 		})

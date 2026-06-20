@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
@@ -262,7 +263,7 @@ func Test_installFromConfig_UseVersion(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1); got != 0 {
+	if got := installFromConfig(pkgs, false, false, 1, 0); got != 0 {
 		t.Fatalf("installFromConfig() = %d, want 0", got)
 	}
 
@@ -377,7 +378,7 @@ func Test_installFromConfig_installError(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1); got != 1 {
+	if got := installFromConfig(pkgs, false, false, 1, 0); got != 1 {
 		t.Fatalf("installFromConfig() = %d, want 1", got)
 	}
 }
@@ -391,7 +392,7 @@ func Test_installFromConfig_emptyImportPath(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1); got != 1 {
+	if got := installFromConfig(pkgs, false, false, 1, 0); got != 1 {
 		t.Fatalf("installFromConfig() = %d, want 1", got)
 	}
 }
@@ -414,7 +415,7 @@ func Test_installFromConfig_dryRun(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, true, false, 1); got != 0 {
+	if got := installFromConfig(pkgs, true, false, 1, 0); got != 0 {
 		t.Fatalf("installFromConfig() dry-run = %d, want 0", got)
 	}
 }
@@ -510,5 +511,83 @@ func Test_runImport_autoDetectSingleCandidate(t *testing.T) {
 	}
 	if !strings.Contains(out, "start import based on") {
 		t.Errorf("expected import to start from the detected file, got: %s", out)
+	}
+}
+
+func Test_runImport_timeoutPropagation(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+
+	// Capture the context deadline the install operation receives.
+	org := installByVersionCtx
+	var sawDeadline bool
+	var remaining time.Duration
+	installByVersionCtx = func(ctx context.Context, _, _ string) error {
+		if dl, ok := ctx.Deadline(); ok {
+			sawDeadline = true
+			remaining = time.Until(dl)
+		}
+		return nil
+	}
+	t.Cleanup(func() { installByVersionCtx = org })
+
+	gobinDir := filepath.Join(t.TempDir(), "gobin")
+	t.Setenv("GOBIN", gobinDir)
+	if err := os.MkdirAll(gobinDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newImportCmd()
+	if err := cmd.Flags().Set("timeout", "30s"); err != nil {
+		t.Fatal(err)
+	}
+	if got := runImport(cmd, nil); got != 0 {
+		t.Fatalf("runImport() = %d, want 0", got)
+	}
+
+	if !sawDeadline {
+		t.Fatal("install operation did not receive a context deadline from --timeout")
+	}
+	if remaining <= 0 || remaining > 30*time.Second {
+		t.Errorf("unexpected remaining deadline %v, want (0, 30s]", remaining)
+	}
+}
+
+func Test_runImport_timeoutZeroDisablesDeadline(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+
+	org := installByVersionCtx
+	var sawDeadline bool
+	installByVersionCtx = func(ctx context.Context, _, _ string) error {
+		if _, ok := ctx.Deadline(); ok {
+			sawDeadline = true
+		}
+		return nil
+	}
+	t.Cleanup(func() { installByVersionCtx = org })
+
+	gobinDir := filepath.Join(t.TempDir(), "gobin")
+	t.Setenv("GOBIN", gobinDir)
+	if err := os.MkdirAll(gobinDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newImportCmd()
+	if err := cmd.Flags().Set("timeout", "0"); err != nil {
+		t.Fatal(err)
+	}
+	if got := runImport(cmd, nil); got != 0 {
+		t.Fatalf("runImport() = %d, want 0", got)
+	}
+
+	if sawDeadline {
+		t.Error("install operation should not receive a deadline when --timeout is 0")
 	}
 }
