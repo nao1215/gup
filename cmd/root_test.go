@@ -264,7 +264,7 @@ func TestExecute(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "success",
+			name:    testNameSuccess,
 			args:    []string{""},
 			wantErr: false,
 		},
@@ -297,7 +297,7 @@ func TestExecute_Check(t *testing.T) {
 		t.Setenv("GOBIN", gobinDir)
 	}
 
-	got, err := helper_runGup(t, []string{"gup", "check"})
+	got, err := helper_runGup(t, []string{testCmdGup, "check"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,8 +319,8 @@ func TestExecute_Version(t *testing.T) {
 		stdout []string
 	}{
 		{
-			name:   "success",
-			args:   []string{"gup", "version"},
+			name:   testNameSuccess,
+			args:   []string{testCmdGup, testCmdVersion},
 			stdout: []string{"gup version (devel) (under Apache License version 2.0)", ""},
 		},
 	}
@@ -351,7 +351,7 @@ func TestExecute_List(t *testing.T) {
 		tests = append(tests, test{
 			name:  "check success in windows",
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
-			args:  []string{"gup", "list"},
+			args:  []string{testCmdGup, testCmdList},
 			stdout: []string{
 				"github.com/nao1215/gal/cmd/gal",
 				"github.com/nao1215/posixer",
@@ -362,7 +362,7 @@ func TestExecute_List(t *testing.T) {
 		tests = append(tests, test{
 			name:  "check success in nix family",
 			gobin: filepath.Join("testdata", "check_success"),
-			args:  []string{"gup", "list"},
+			args:  []string{testCmdGup, testCmdList},
 			stdout: []string{
 				"    gal: github.com/nao1215/gal/cmd/gal@v1.1.1",
 				"posixer: github.com/nao1215/posixer@v0.1.0",
@@ -408,9 +408,9 @@ func TestExecute_Remove_Force(t *testing.T) {
 	dest := ""
 	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
-			name:   "success",
+			name:   testNameSuccess,
 			gobin:  filepath.Join("testdata", "delete_force"),
-			args:   []string{"gup", "remove", "-f", "posixer.exe"},
+			args:   []string{testCmdGup, testCmdRemove, "-f", testBinPosixerExe},
 			stdout: []string{},
 		})
 		if err := os.MkdirAll(filepath.Join("testdata", "delete_force"), 0750); err != nil {
@@ -422,13 +422,13 @@ func TestExecute_Remove_Force(t *testing.T) {
 				t.Fatal(err)
 			}
 		}()
-		src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
-		dest = filepath.Join("testdata", "delete_force", "posixer.exe")
+		src = filepath.Join("testdata", "check_success_for_windows", testBinPosixerExe)
+		dest = filepath.Join("testdata", "delete_force", testBinPosixerExe)
 	} else {
 		tests = append(tests, test{
-			name:   "success",
+			name:   testNameSuccess,
 			gobin:  filepath.Join("testdata", "delete"),
-			args:   []string{"gup", "remove", "-f", "posixer"},
+			args:   []string{testCmdGup, testCmdRemove, "-f", "posixer"},
 			stdout: []string{},
 		})
 		if err := os.MkdirAll(filepath.Join("testdata", "delete"), 0750); err != nil {
@@ -484,9 +484,9 @@ func TestExecute_Export(t *testing.T) {
 			args  []string
 			want  string
 		}{
-			name:  "success",
+			name:  testNameSuccess,
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
-			args:  []string{"gup", "export"},
+			args:  []string{testCmdGup, testCmdExport},
 			want: `{
   "schema_version": 1,
   "packages": [
@@ -513,9 +513,9 @@ func TestExecute_Export(t *testing.T) {
 			args  []string
 			want  string
 		}{
-			name:  "success",
+			name:  testNameSuccess,
 			gobin: filepath.Join("testdata", "check_success"),
-			args:  []string{"gup", "export"},
+			args:  []string{testCmdGup, testCmdExport},
 			want: `{
   "schema_version": 1,
   "packages": [
@@ -602,9 +602,9 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 	tests := []test{}
 	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
-			name:  "success",
+			name:  testNameSuccess,
 			gobin: filepath.Join("testdata", "check_success_for_windows"),
-			args:  []string{"gup", "export", "--output"},
+			args:  []string{testCmdGup, testCmdExport, "--output"},
 			want: []string{
 				"{",
 				`  "schema_version": 1,`,
@@ -616,9 +616,9 @@ func TestExecute_Export_WithOutputOption(t *testing.T) {
 		})
 	} else {
 		tests = append(tests, test{
-			name:  "success",
+			name:  testNameSuccess,
 			gobin: filepath.Join("testdata", "check_success"),
-			args:  []string{"gup", "export", "--output"},
+			args:  []string{testCmdGup, testCmdExport, "--output"},
 			want: []string{
 				"{",
 				`  "schema_version": 1,`,
@@ -679,7 +679,7 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 		confFile = "testdata/gup_config/windows.json"
 	}
 
-	got, err := helper_runGup(t, []string{"gup", "import", "-f", confFile})
+	got, err := helper_runGup(t, []string{testCmdGup, testCmdImport, "-f", confFile})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +728,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			got, err := helper_runGup(t, []string{"gup", "import", "-f", tt.inputFile})
+			got, err := helper_runGup(t, []string{testCmdGup, testCmdImport, "-f", tt.inputFile})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -778,7 +778,7 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{"gup", "update"})
+	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -819,7 +819,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	targetPath := ""
 	binName := ""
 	if runtime.GOOS == goosWindows {
-		binName = "posixer.exe"
+		binName = testBinPosixerExe
 		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
 	} else {
 		binName = "posixer"
@@ -832,7 +832,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"})
+	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, "--dry-run", "--notify"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -858,9 +858,9 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 		name string
 		args []string
 	}{
-		{name: "version", args: []string{"gup", "version"}},
-		{name: "help", args: []string{"gup", "help"}},
-		{name: "completion bash", args: []string{"gup", testCmdCompletion, testShellBash}},
+		{name: testCmdVersion, args: []string{testCmdGup, testCmdVersion}},
+		{name: "help", args: []string{testCmdGup, "help"}},
+		{name: "completion bash", args: []string{testCmdGup, testCmdCompletion, testShellBash}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -912,7 +912,7 @@ func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 		t.Fatalf("assets directory %s should not exist before notify command runs", assetsDirForTest())
 	}
 
-	if _, err := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"}); err != nil {
+	if _, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, "--dry-run", "--notify"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -931,7 +931,7 @@ func TestExecute_Completion(t *testing.T) {
 	setupXDGBase(t)
 
 	t.Run("generate completion file", func(t *testing.T) {
-		os.Args = []string{"gup", "completion", "--install"}
+		os.Args = []string{testCmdGup, testCmdCompletion, testFlagInstall}
 		if err := Execute(); err != nil {
 			t.Error(err)
 		}
@@ -947,7 +947,7 @@ func TestExecute_Completion(t *testing.T) {
 			}
 		}
 
-		fish := filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
+		fish := filepath.Join(os.Getenv("HOME"), ".config", testShellFish, "completions", cmdinfo.Name+".fish")
 		if runtime.GOOS == goosWindows {
 			if fileutil.IsFile(fish) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", fish)
@@ -958,7 +958,7 @@ func TestExecute_Completion(t *testing.T) {
 			}
 		}
 
-		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
+		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", testCmdCompletion, "_"+cmdinfo.Name)
 		if runtime.GOOS == goosWindows {
 			if fileutil.IsFile(zsh) {
 				t.Errorf("generate %s, however shell completion file is not generated on Windows", zsh)
@@ -986,17 +986,17 @@ func TestExecute_CompletionForShell(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			shell:      "fish",
+			shell:      testShellFish,
 			wantOutput: true,
 			wantErr:    false,
 		},
 		{
-			shell:      "zsh",
+			shell:      testShellZsh,
 			wantOutput: true,
 			wantErr:    false,
 		},
 		{
-			shell:      "powershell",
+			shell:      testShellPowershell,
 			wantOutput: true,
 			wantErr:    false,
 			wantHeader: "# powershell completion for gup",
@@ -1009,7 +1009,7 @@ func TestExecute_CompletionForShell(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.shell, func(t *testing.T) {
-			got, err := helper_runGupCaptureAllOutput(t, []string{"gup", "completion", tt.shell})
+			got, err := helper_runGupCaptureAllOutput(t, []string{testCmdGup, testCmdCompletion, tt.shell})
 
 			gotErr := err != nil
 			if tt.wantErr != gotErr {

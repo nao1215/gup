@@ -108,7 +108,7 @@ func Test_export(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name:   "can not make .config directory",
+			name:   testNoConfigDir,
 			gobin:  "",
 			want:   1,
 			stderr: []string{},
@@ -165,7 +165,7 @@ func Test_export(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
-			if tt.name == "can not make .config directory" {
+			if tt.name == testNoConfigDir {
 				oldHome := xdg.ConfigHome
 				xdg.ConfigHome = filepath.Join("/", "root")
 				defer func() {
@@ -201,7 +201,7 @@ func Test_export(t *testing.T) {
 			}()
 			got := strings.Split(buf.String(), "\n")
 
-			if tt.name != "can not make .config directory" {
+			if tt.name != testNoConfigDir {
 				if diff := cmp.Diff(tt.stderr, got); diff != "" {
 					t.Errorf("value is mismatch (-want +got):\n%s", diff)
 				}

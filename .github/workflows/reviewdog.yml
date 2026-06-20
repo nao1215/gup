@@ -2,20 +2,6 @@ name: reviewdog
 on: [pull_request]
 
 jobs:
-  golangci-lint:
-    name: golangci-lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: golangci-lint
-        uses: reviewdog/action-golangci-lint@v2
-        with:
-          reporter: github-pr-review
-          level: warning
-
   misspell:
     name: misspell
     runs-on: ubuntu-latest

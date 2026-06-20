@@ -16,7 +16,7 @@ func TestCompletion_InstallWithShellArg(t *testing.T) {
 	t.Parallel()
 
 	cmd := newCompletionCmd()
-	cmd.SetArgs([]string{"--install", "bash"})
+	cmd.SetArgs([]string{testFlagInstall, testShellBash})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("--install with shell argument should fail")
 	}
@@ -26,7 +26,7 @@ func TestCompletion_Install(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cmd := newCompletionCmd()
-	cmd.SetArgs([]string{"--install"})
+	cmd.SetArgs([]string{testFlagInstall})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("completion --install should succeed: %v", err)
 	}
