@@ -8,9 +8,6 @@ coverage:
     - "github.com/nao1215/gup/cmd/root.go"
     - "github.com/nao1215/gup/cmd/man.go"
     - "github.com/nao1215/gup/cmd/bug_report.go"
-    - "github.com/nao1215/gup/internal/assets/asset.go"
-    - "github.com/nao1215/gup/internal/notify/notify.go"
-    - "github.com/nao1215/gup/internal/completion/completion.go"
   badge:
     path: doc/coverage.svg
 diff:
