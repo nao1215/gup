@@ -13,9 +13,9 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates binaries installed with `go install` to their latest version, running the updates in parallel instead of one at a time.
+gup updates binaries installed with `go install`, running the updates in parallel instead of one at a time.
 
-It also manages the tools under `\$GOPATH/bin` (`\$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tools at their exact versions on another machine, and `migrate` them into a different `\$GOBIN`. Runs on Windows, macOS, and Linux.
+gup also manages the tools under `$GOPATH/bin` (`$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tool set on another machine, and `migrate` them into a different `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
