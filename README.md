@@ -19,15 +19,15 @@ gup command update binaries installed by "go install" to the latest version. gup
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
 ## Benchmark
-gup updates binaries in parallel, while typical alternatives update them one at a time. The table below updates N binaries under `$GOBIN`, measured offline against a local module proxy so the numbers reflect update orchestration rather than network or per-binary build time (median of 5 runs, Linux).
+gup updates binaries in parallel, so it finishes much faster than tools that update them one at a time. Updating 9 binaries that each had a newer version available:
 
-| Tool | Strategy | 10 binaries | 30 binaries | 50 binaries |
-|------|----------|------------:|------------:|------------:|
-| gup update | parallel | 0.08s | 0.18s | 0.30s |
-| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 0.55s | 1.77s | 2.72s |
-| `go install` loop | sequential | 0.55s | 1.57s | 2.63s |
+| Tool | Strategy | Time |
+|------|----------|-----:|
+| gup update | parallel | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
+| `go install` loop | sequential | 2.9s |
 
-Real-world runs are dominated by each binary's build time, but gup's parallel updates keep it the fastest of the three. Reproduce with [`scripts/bench_compare.sh`](./scripts/bench_compare.sh).
+Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
 
 
 ## Supported OS (unit testing with GitHub Actions)

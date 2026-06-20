@@ -1,30 +1,28 @@
 #!/bin/sh
 # scripts/bench_compare.sh
 #
-# Reproducible, offline benchmark comparing `gup update` against other tools
-# that update binaries installed by `go install`. Real network is noisy, so
-# synthetic modules are served from a local file GOPROXY; with trivial modules
-# this isolates each tool's update orchestration (gup runs in parallel; the
-# others are sequential). Real-world times are dominated by each binary's build,
-# but gup's parallelism keeps it ahead.
+# Benchmarks `gup update` against other tools that update binaries installed by
+# `go install`, using real modules so the numbers reflect what users actually
+# experience. gup updates binaries in parallel; the alternatives are sequential.
 #
 # Tools compared:
 #   - gup update            (this repo; parallel)
 #   - go-global-update      (github.com/Gelio/go-global-update; sequential)
 #   - go install <pkg> loop (the no-tool baseline; sequential)
 #
+# It installs older versions of a fixed set of small CLIs into a temp GOBIN,
+# then times each tool upgrading them to the latest version (median of RUNS,
+# warm Go module cache). Requires network access.
+#
 # Usage:
-#   sh scripts/bench_compare.sh                 # sizes "10 30 50", 5 runs
-#   SIZES="30" RUNS=7 sh scripts/bench_compare.sh
+#   sh scripts/bench_compare.sh
+#   RUNS=7 sh scripts/bench_compare.sh
 set -eu
 
-SIZES="${SIZES:-10 30 50}"
 RUNS="${RUNS:-5}"
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 work="$(mktemp -d)"
-proxy="$work/proxy"
-gen="$work/gen"
 gup="$work/gup"
 gobin="$work/gobin"
 tools="$work/tools"
@@ -32,77 +30,45 @@ tools="$work/tools"
 cleanup() { chmod -R u+w "$work" 2>/dev/null || true; rm -rf "$work"; }
 trap cleanup EXIT
 
-# go-global-update is installed with the normal network proxy before we switch
-# GOPROXY to the local file proxy.
-echo "installing go-global-update..."
+# Old versions to install; each has a newer release so every tool does real work.
+OLD="\
+github.com/nao1215/posixer@v0.1.0 \
+github.com/nao1215/subaru@v1.0.0 \
+github.com/nao1215/gal/cmd/gal@v1.1.1 \
+github.com/nao1215/ubume/cmd/ubume@v1.5.0 \
+github.com/sivchari/tenv/cmd/tenv@v1.0.0 \
+github.com/Songmu/ghch/cmd/ghch@v0.10.0 \
+github.com/nao1215/leadtime@v0.0.3 \
+github.com/mattn/goveralls@v0.0.11 \
+github.com/fatih/gomodifytags@v1.16.0"
+
+echo "building gup and installing go-global-update..."
+( cd "$repo_root" && go build -o "$gup" main.go )
 GOBIN="$tools" go install github.com/Gelio/go-global-update@latest
 
-export GOPROXY="file://$proxy"
-export GOSUMDB=off GOFLAGS=-mod=mod GOTOOLCHAIN=local GOBIN="$gobin"
+export GOBIN="$gobin"
 export PATH="$tools:$PATH"
 
-cat > "$work/gen.go" <<'GOEOF'
-package main
+# Warm the module and build caches so we measure the tools, not one-time downloads.
+mkdir -p "$gobin"
+for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1 || true; done
 
-import (
-	"archive/zip"
-	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-)
-
-func main() {
-	proxy, n := os.Args[1], must(strconv.Atoi(os.Args[2]))
-	for i := 0; i < n; i++ {
-		mod := fmt.Sprintf("example.test/m%04d", i)
-		dir := filepath.Join(proxy, mod, "@v")
-		_ = os.MkdirAll(dir, 0o755)
-		_ = os.WriteFile(filepath.Join(dir, "list"), []byte("v1.0.0\nv1.0.1\n"), 0o644)
-		gomod := "module " + mod + "\n\ngo 1.21\n"
-		for _, v := range []string{"v1.0.0", "v1.0.1"} {
-			_ = os.WriteFile(filepath.Join(dir, v+".info"), []byte(`{"Version":"`+v+`","Time":"2020-01-01T00:00:00Z"}`), 0o644)
-			_ = os.WriteFile(filepath.Join(dir, v+".mod"), []byte(gomod), 0o644)
-			f, _ := os.Create(filepath.Join(dir, v+".zip"))
-			zw := zip.NewWriter(f)
-			p := mod + "@" + v + "/"
-			w, _ := zw.Create(p + "go.mod")
-			_, _ = w.Write([]byte(gomod))
-			w2, _ := zw.Create(p + "main.go")
-			_, _ = w2.Write([]byte("package main\n\nfunc main() { _ = \"" + v + "\" }\n"))
-			_ = zw.Close()
-			_ = f.Close()
-		}
-	}
+pin_old() {
+	chmod -R u+w "$gobin" 2>/dev/null || true
+	rm -rf "$gobin"; mkdir -p "$gobin"
+	for spec in $OLD; do go install "$spec" >/dev/null 2>&1 || true; done
 }
 
-func must(n int, err error) int {
-	if err != nil {
-		panic(err)
-	}
-	return n
+install_loop() {
+	for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1 || true; done
 }
-GOEOF
-( cd "$work" && go mod init bench >/dev/null 2>&1 && go build -o "$gen" gen.go )
-( cd "$repo_root" && go build -o "$gup" main.go )
 
 median() { echo "$1" | tr ' ' '\n' | grep -v '^$' | sort -n | awk '{a[NR]=$0} END{print a[int((NR+1)/2)]}'; }
 
-install_old() { # $1 = n
-	chmod -R u+w "$gobin" 2>/dev/null || true
-	rm -rf "$gobin"; mkdir -p "$gobin"
-	i=0
-	while [ "$i" -lt "$1" ]; do
-		go install "example.test/m$(printf '%04d' "$i")@v1.0.0" 2>/dev/null
-		i=$(( i + 1 ))
-	done
-}
-
-bench() { # $1=n  $2=command...
-	n="$1"; shift
+bench() { # $@ = command to run after pinning old versions
 	times=""; r=0
 	while [ "$r" -lt "$RUNS" ]; do
-		install_old "$n"
+		pin_old
 		start=$(date +%s%N)
 		"$@" >/dev/null 2>&1 || true
 		end=$(date +%s%N)
@@ -112,19 +78,9 @@ bench() { # $1=n  $2=command...
 	median "$times"
 }
 
-install_loop() { # $1 = n  (sequential `go install @latest`)
-	i=0
-	while [ "$i" -lt "$1" ]; do
-		go install "example.test/m$(printf '%04d' "$i")@latest" 2>/dev/null || true
-		i=$(( i + 1 ))
-	done
-}
-
-printf '%-6s %-12s %-20s %-18s\n' "N" "gup(ms)" "go-global-update(ms)" "go-install(ms)"
-for n in $SIZES; do
-	"$gen" "$proxy" "$n" >/dev/null
-	g=$(bench "$n" "$gup" update)
-	o=$(bench "$n" go-global-update)
-	l=$(bench "$n" sh -c 'i=0; while [ "$i" -lt '"$n"' ]; do go install "example.test/m$(printf %04d "$i")@latest" 2>/dev/null || true; i=$((i+1)); done')
-	printf '%-6s %-12s %-20s %-18s\n' "$n" "$g" "$o" "$l"
-done
+n=$(echo $OLD | wc -w)
+echo
+echo "updating $n binaries to latest, median of $RUNS runs (ms):"
+printf '  %-18s %s\n' "gup update"        "$(bench "$gup" update)"
+printf '  %-18s %s\n' "go-global-update"  "$(bench go-global-update)"
+printf '  %-18s %s\n' "go install loop"   "$(bench install_loop)"
