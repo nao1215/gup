@@ -10,6 +10,7 @@ import (
 
 // Info notify information message at desktop
 func Info(title, message string) {
+	assets.DeployIconIfNeeded()
 	err := beeep.Notify(title, message, assets.InfoIconPath())
 	if err != nil {
 		print.Warn(err)
@@ -18,6 +19,7 @@ func Info(title, message string) {
 
 // Warn notify warning message at desktop
 func Warn(title, message string) {
+	assets.DeployIconIfNeeded()
 	err := beeep.Notify(title, message, assets.WarningIconPath())
 	if err != nil {
 		print.Warn(err)

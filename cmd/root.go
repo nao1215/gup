@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/nao1215/gup/internal/assets"
 	"github.com/nao1215/gup/internal/completion"
 	"github.com/spf13/cobra"
 )
@@ -57,7 +56,6 @@ If you find gup useful, please consider sponsoring the project:
 
 // Execute run gup process.
 func Execute() error {
-	assets.DeployIconIfNeeded()
 	rootCmd := newRootCmd()
 	return rootCmd.Execute()
 }

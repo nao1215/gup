@@ -15,6 +15,7 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/google/go-cmp/cmp"
+	"github.com/nao1215/gup/internal/assets"
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/fileutil"
@@ -847,6 +848,85 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	}
 }
 
+// assetsDirForTest returns the directory where notification icons are deployed.
+func assetsDirForTest() string {
+	return filepath.Join(config.DirPath(), "assets")
+}
+
+func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "version", args: []string{"gup", "version"}},
+		{name: "help", args: []string{"gup", "help"}},
+		{name: "completion bash", args: []string{"gup", testCmdCompletion, testShellBash}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupXDGBase(t)
+
+			if _, err := helper_runGupCaptureAllOutput(t, tt.args); err != nil {
+				t.Fatal(err)
+			}
+
+			if fileutil.IsDir(assetsDirForTest()) {
+				t.Errorf("read-only command %q created assets directory %s", tt.name, assetsDirForTest())
+			}
+		})
+	}
+}
+
+func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
+	setupXDGBase(t)
+	helper_stubUpdateOps(t)
+	helper_setupFakeGoBin(t)
+	OsExit = func(code int) {}
+	defer func() {
+		OsExit = os.Exit
+	}()
+
+	gobin, err := goutil.GoBin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(gobin); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(gobin, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	binName := testBinPosixer
+	targetPath := filepath.Join("testdata", "check_success", binName)
+	if runtime.GOOS == goosWindows {
+		binName = testBinPosixer + ".exe"
+		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
+	}
+	helper_CopyFile(t, targetPath, filepath.Join(gobin, binName))
+	if err = os.Chmod(filepath.Join(gobin, binName), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if fileutil.IsDir(assetsDirForTest()) {
+		t.Fatalf("assets directory %s should not exist before notify command runs", assetsDirForTest())
+	}
+
+	if _, err := helper_runGup(t, []string{"gup", "update", "--dry-run", "--notify"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !fileutil.IsDir(assetsDirForTest()) {
+		t.Errorf("notify command did not deploy assets directory %s", assetsDirForTest())
+	}
+	if !fileutil.IsFile(assets.InfoIconPath()) {
+		t.Errorf("notify command did not deploy info icon %s", assets.InfoIconPath())
+	}
+	if !fileutil.IsFile(assets.WarningIconPath()) {
+		t.Errorf("notify command did not deploy warning icon %s", assets.WarningIconPath())
+	}
+}
+
 func TestExecute_Completion(t *testing.T) {
 	setupXDGBase(t)
 
@@ -901,7 +981,7 @@ func TestExecute_CompletionForShell(t *testing.T) {
 		wantHeader string
 	}{
 		{
-			shell:      "bash",
+			shell:      testShellBash,
 			wantOutput: true,
 			wantErr:    false,
 		},
