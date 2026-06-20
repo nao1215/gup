@@ -90,7 +90,7 @@ func Test_gup(t *testing.T) {
 			},
 		},
 		{
-			name: "parser --jobs argument error",
+			name: testParserJobsErr,
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -111,7 +111,7 @@ func Test_gup(t *testing.T) {
 			case "parser --notify argument error":
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("jobs", "j", false, "Specify the number of CPU cores to use")
-			case "parser --jobs argument error":
+			case testParserJobsErr:
 				tt.args.cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 				tt.args.cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 			}
@@ -172,17 +172,17 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 						Name: "test1",
 					},
 					{
-						Name: "test2",
+						Name: testNameTest2,
 					},
 					{
 						Name: "test3",
 					},
 				},
-				targets: []string{"test2"},
+				targets: []string{testNameTest2},
 			},
 			want: []goutil.Package{
 				{
-					Name: "test2",
+					Name: testNameTest2,
 				},
 			},
 		},
@@ -194,7 +194,7 @@ func Test_extractUserSpecifyPkg(t *testing.T) {
 						Name: "test1",
 					},
 					{
-						Name: "test2",
+						Name: testNameTest2,
 					},
 					{
 						Name: "test3",
@@ -247,7 +247,7 @@ func Test_extractUserSpecifyPkg_dedupNotFoundWarnings(t *testing.T) {
 	}
 	print.Stderr = pw
 
-	got := extractUserSpecifyPkg(pkgs, []string{"missing", "missing"})
+	got := extractUserSpecifyPkg(pkgs, []string{testMissing, testMissing})
 	if len(got) != 0 {
 		t.Fatalf("extractUserSpecifyPkg() should return no packages, got: %+v", got)
 	}
@@ -277,10 +277,10 @@ func Test_filterBinaryPathListByTargets(t *testing.T) {
 	binList := []string{
 		filepath.Join("tmp", "gopls"),
 		filepath.Join("tmp", "dlv"),
-		filepath.Join("tmp", "air"),
+		filepath.Join("tmp", testBinAir),
 	}
 
-	got := filterBinaryPathListByTargets(binList, []string{"  dlv  ", "missing"})
+	got := filterBinaryPathListByTargets(binList, []string{"  dlv  ", testMissing})
 	want := []string{filepath.Join("tmp", "dlv")}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("value is mismatch (-want +got):\n%s", diff)
@@ -485,20 +485,20 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			args: args{
 				pkgs: []goutil.Package{
 					{
-						Name: "pkg1",
+						Name: testPkg1,
 					},
 					{
-						Name: "pkg2",
+						Name: testPkg2,
 					},
 					{
-						Name: "pkg3",
+						Name: testPkg3,
 					},
 				},
-				excludePkgList: []string{"pkg1", "pkg3"},
+				excludePkgList: []string{testPkg1, testPkg3},
 			},
 			want: []goutil.Package{
 				{
-					Name: "pkg2",
+					Name: testPkg2,
 				},
 			},
 		},
@@ -507,16 +507,16 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			args: args{
 				pkgs: []goutil.Package{
 					{
-						Name: "pkg1",
+						Name: testPkg1,
 					},
 					{
-						Name: "pkg2",
+						Name: testPkg2,
 					},
 					{
-						Name: "pkg3",
+						Name: testPkg3,
 					},
 				},
-				excludePkgList: []string{"pkg1", "pkg2", "pkg3"},
+				excludePkgList: []string{testPkg1, testPkg2, testPkg3},
 			},
 			want: []goutil.Package{},
 		},
@@ -525,26 +525,26 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			args: args{
 				pkgs: []goutil.Package{
 					{
-						Name: "pkg1",
+						Name: testPkg1,
 					},
 					{
-						Name: "pkg2",
+						Name: testPkg2,
 					},
 					{
-						Name: "pkg3",
+						Name: testPkg3,
 					},
 				},
 				excludePkgList: []string{"pkg4"},
 			},
 			want: []goutil.Package{
 				{
-					Name: "pkg1",
+					Name: testPkg1,
 				},
 				{
-					Name: "pkg2",
+					Name: testPkg2,
 				},
 				{
-					Name: "pkg3",
+					Name: testPkg3,
 				},
 			},
 		},
@@ -553,20 +553,20 @@ func Test_excludeUserSpecifiedPkg(t *testing.T) {
 			args: args{
 				pkgs: []goutil.Package{
 					{
-						Name: "pkg1",
+						Name: testPkg1,
 					},
 					{
-						Name: "pkg2",
+						Name: testPkg2,
 					},
 					{
-						Name: "pkg3",
+						Name: testPkg3,
 					},
 				},
 				excludePkgList: []string{" pkg1", "pkg3 "},
 			},
 			want: []goutil.Package{
 				{
-					Name: "pkg2",
+					Name: testPkg2,
 				},
 			},
 		},
@@ -660,18 +660,18 @@ func Test_desktopNotifyIfNeeded(t *testing.T) {
 
 func TestExtractUserSpecifyPkg(t *testing.T) {
 	pkgs := []goutil.Package{
-		{Name: "pkg1"},
-		{Name: "pkg2.exe"},
-		{Name: "pkg3"},
+		{Name: testPkg1},
+		{Name: testPkg2Exe},
+		{Name: testPkg3},
 	}
-	targets := []string{"pkg1", "pkg2.exe"}
+	targets := []string{testPkg1, testPkg2Exe}
 	if runtime.GOOS == goosWindows {
-		targets = []string{"pkg1", "pkg2"}
+		targets = []string{testPkg1, testPkg2}
 	}
 
 	expected := []goutil.Package{
-		{Name: "pkg1"},
-		{Name: "pkg2.exe"},
+		{Name: testPkg1},
+		{Name: testPkg2Exe},
 	}
 	actual := extractUserSpecifyPkg(pkgs, targets)
 
@@ -738,31 +738,31 @@ func Test_replaceImportPathPrefix(t *testing.T) {
 	}{
 		{
 			name:       "same as module root",
-			importPath: "github.com/cosmtrek/air",
-			oldModule:  "github.com/cosmtrek/air",
-			newModule:  "github.com/air-verse/air",
-			wantImport: "github.com/air-verse/air",
+			importPath: testOldModule,
+			oldModule:  testOldModule,
+			newModule:  testNewModule,
+			wantImport: testNewModule,
 		},
 		{
 			name:       "subdir path",
 			importPath: "github.com/cosmtrek/air/cmd/air",
-			oldModule:  "github.com/cosmtrek/air",
-			newModule:  "github.com/air-verse/air",
+			oldModule:  testOldModule,
+			newModule:  testNewModule,
 			wantImport: "github.com/air-verse/air/cmd/air",
 		},
 		{
 			name:       "empty import path",
 			importPath: "",
-			oldModule:  "github.com/cosmtrek/air",
-			newModule:  "github.com/air-verse/air",
-			wantImport: "github.com/air-verse/air",
+			oldModule:  testOldModule,
+			newModule:  testNewModule,
+			wantImport: testNewModule,
 		},
 		{
 			name:       "no prefix match keeps original import path",
-			importPath: "github.com/example/tool",
-			oldModule:  "github.com/cosmtrek/air",
-			newModule:  "github.com/air-verse/air",
-			wantImport: "github.com/example/tool",
+			importPath: testImportPathTool,
+			oldModule:  testOldModule,
+			newModule:  testNewModule,
+			wantImport: testImportPathTool,
 		},
 	}
 
@@ -785,7 +785,7 @@ func Test_removeOldBinaryIfRenamed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := removeOldBinaryIfRenamed("old-tool", "new-tool"); err != nil {
+	if err := removeOldBinaryIfRenamed("old-tool", testNewTool); err != nil {
 		t.Fatalf("removeOldBinaryIfRenamed() error = %v", err)
 	}
 	if _, err := os.Stat(oldBinaryPath); !errors.Is(err, os.ErrNotExist) {
@@ -806,8 +806,8 @@ func Test_removeOldBinaryIfRenamed(t *testing.T) {
 
 func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 	const (
-		oldModule = "github.com/cosmtrek/air"
-		newModule = "github.com/air-verse/air"
+		oldModule = testOldModule
+		newModule = testNewModule
 		oldImport = "github.com/cosmtrek/air/cmd/air"
 		newImport = "github.com/air-verse/air/cmd/air"
 	)
@@ -830,7 +830,7 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 			return "", modulePathMismatchErr(oldModule, newModule)
 		}
 		if modulePath == newModule {
-			return "v1.2.3", nil
+			return testVersion123, nil
 		}
 		return "", errors.New("unexpected module path")
 	}
@@ -851,20 +851,20 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "air",
+			Name:       testBinAir,
 			ImportPath: oldImport,
 			ModulePath: oldModule,
 			Version: &goutil.Version{
-				Current: "v1.2.3",
+				Current: testVersion123,
 			},
 			GoVersion: &goutil.Version{
-				Current: "go1.22.4",
-				Latest:  "go1.22.4",
+				Current: testGoVersion1224,
+				Latest:  testGoVersion1224,
 			},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"air": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
 	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
@@ -878,10 +878,10 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 
 func Test_update_modulePathChangedOnInstall(t *testing.T) {
 	const (
-		oldModule = "github.com/cosmtrek/air"
-		newModule = "github.com/air-verse/air"
-		oldImport = "github.com/cosmtrek/air"
-		newImport = "github.com/air-verse/air"
+		oldModule = testOldModule
+		newModule = testNewModule
+		oldImport = testOldModule
+		newImport = testNewModule
 	)
 
 	origGetLatest := getLatestVer
@@ -920,20 +920,20 @@ func Test_update_modulePathChangedOnInstall(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "air",
+			Name:       testBinAir,
 			ImportPath: oldImport,
 			ModulePath: newModule,
 			Version: &goutil.Version{
 				Current: testVersionOne,
 			},
 			GoVersion: &goutil.Version{
-				Current: "go1.22.4",
-				Latest:  "go1.22.4",
+				Current: testGoVersion1224,
+				Latest:  testGoVersion1224,
 			},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"air": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
 	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
@@ -957,7 +957,7 @@ func Test_mergeConfigPackages(t *testing.T) {
 			UpdateChannel: goutil.UpdateChannelLatest,
 		},
 		{
-			Name:          "kept-tool",
+			Name:          testKeptTool,
 			ImportPath:    "github.com/example/kept-tool",
 			Version:       &goutil.Version{Current: "v0.5.0"},
 			UpdateChannel: goutil.UpdateChannelLatest,
@@ -965,19 +965,19 @@ func Test_mergeConfigPackages(t *testing.T) {
 	}
 	succeededPkgs := []goutil.Package{
 		{
-			Name:       "new-tool",
+			Name:       testNewTool,
 			ImportPath: "github.com/example/new-tool",
-			Version:    &goutil.Version{Current: testVersionOne, Latest: "v2.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne, Latest: testVersionTwo},
 		},
 		// empty name/import should be skipped
 		{Name: "", ImportPath: ""},
 	}
 	channelMap := map[string]goutil.UpdateChannel{
-		"new-tool":  goutil.UpdateChannelMain,
-		"kept-tool": goutil.UpdateChannelLatest,
+		testNewTool:  goutil.UpdateChannelMain,
+		testKeptTool: goutil.UpdateChannelLatest,
 	}
 	renamedPkgs := map[string]string{
-		"old-tool": "new-tool",
+		"old-tool": testNewTool,
 	}
 
 	got := mergeConfigPackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -987,10 +987,10 @@ func Test_mergeConfigPackages(t *testing.T) {
 		t.Fatalf("mergeConfigPackages() returned %d packages, want 2", len(got))
 	}
 	// sorted by name
-	if got[0].Name != "kept-tool" {
+	if got[0].Name != testKeptTool {
 		t.Errorf("first package = %q, want kept-tool", got[0].Name)
 	}
-	if got[1].Name != "new-tool" {
+	if got[1].Name != testNewTool {
 		t.Errorf("second package = %q, want new-tool", got[1].Name)
 	}
 	if got[1].UpdateChannel != goutil.UpdateChannelMain {
@@ -1007,19 +1007,19 @@ func Test_sanitizeConfigPackage(t *testing.T) {
 		{
 			name: "nil version defaults to latest",
 			pkg: goutil.Package{
-				Name:       "tool",
-				ImportPath: "github.com/example/tool",
+				Name:       testBinTool,
+				ImportPath: testImportPathTool,
 			},
-			wantVer: "latest",
+			wantVer: latestKeyword,
 		},
 		{
 			name: "empty version defaults to latest",
 			pkg: goutil.Package{
-				Name:       "tool",
-				ImportPath: "github.com/example/tool",
+				Name:       testBinTool,
+				ImportPath: testImportPathTool,
 				Version:    &goutil.Version{Current: "  "},
 			},
-			wantVer: "latest",
+			wantVer: latestKeyword,
 		},
 		{
 			name: "preserves valid version",
@@ -1028,7 +1028,7 @@ func Test_sanitizeConfigPackage(t *testing.T) {
 				ImportPath: " github.com/example/tool ",
 				Version:    &goutil.Version{Current: " v1.2.3 "},
 			},
-			wantVer: "v1.2.3",
+			wantVer: testVersion123,
 		},
 	}
 	for _, tt := range tests {
@@ -1053,19 +1053,19 @@ func Test_persistedVersion(t *testing.T) {
 		{
 			name: "nil version",
 			pkg:  goutil.Package{},
-			want: "latest",
+			want: latestKeyword,
 		},
 		{
 			name: "prefers latest over current",
 			pkg: goutil.Package{
-				Version: &goutil.Version{Current: testVersionOne, Latest: "v2.0.0"},
+				Version: &goutil.Version{Current: testVersionOne, Latest: testVersionTwo},
 			},
-			want: "v2.0.0",
+			want: testVersionTwo,
 		},
 		{
 			name: "falls back to current when latest is unknown",
 			pkg: goutil.Package{
-				Version: &goutil.Version{Current: testVersionOne, Latest: "unknown"},
+				Version: &goutil.Version{Current: testVersionOne, Latest: testUnknown},
 			},
 			want: testVersionOne,
 		},
@@ -1081,7 +1081,7 @@ func Test_persistedVersion(t *testing.T) {
 			pkg: goutil.Package{
 				Version: &goutil.Version{Current: "", Latest: ""},
 			},
-			want: "latest",
+			want: latestKeyword,
 		},
 	}
 	for _, tt := range tests {
@@ -1096,18 +1096,18 @@ func Test_persistedVersion(t *testing.T) {
 
 func Test_resolveUpdateChannels(t *testing.T) {
 	pkgs := []goutil.Package{
-		{Name: "tool-a"},
+		{Name: testBinToolA},
 		{Name: "tool-b"},
 		{Name: "tool-c"},
 	}
 
 	t.Run("assigns channels from flags", func(t *testing.T) {
-		got, err := resolveUpdateChannels(pkgs, nil, []string{"tool-a"}, []string{"tool-b"}, nil)
+		got, err := resolveUpdateChannels(pkgs, nil, []string{testBinToolA}, []string{"tool-b"}, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got["tool-a"] != goutil.UpdateChannelMain {
-			t.Errorf("tool-a channel = %q, want main", got["tool-a"])
+		if got[testBinToolA] != goutil.UpdateChannelMain {
+			t.Errorf("tool-a channel = %q, want main", got[testBinToolA])
 		}
 		if got["tool-b"] != goutil.UpdateChannelMaster {
 			t.Errorf("tool-b channel = %q, want master", got["tool-b"])
@@ -1118,7 +1118,7 @@ func Test_resolveUpdateChannels(t *testing.T) {
 	})
 
 	t.Run("error on conflicting flags", func(t *testing.T) {
-		_, err := resolveUpdateChannels(pkgs, nil, []string{"tool-a"}, []string{"tool-a"}, nil)
+		_, err := resolveUpdateChannels(pkgs, nil, []string{testBinToolA}, []string{testBinToolA}, nil)
 		if err == nil {
 			t.Fatal("expected error for conflicting flags")
 		}
@@ -1165,7 +1165,7 @@ func Test_installWithSelectedVersion(t *testing.T) {
 	}()
 
 	var called string
-	installLatest = func(string) error { called = "latest"; return nil }
+	installLatest = func(string) error { called = latestKeyword; return nil }
 	installMainOrMaster = func(string) error { called = "main"; return nil }
 	installByVersionUpd = func(_, v string) error { called = "version:" + v; return nil }
 
@@ -1173,10 +1173,10 @@ func Test_installWithSelectedVersion(t *testing.T) {
 		channel goutil.UpdateChannel
 		want    string
 	}{
-		{goutil.UpdateChannelLatest, "latest"},
+		{goutil.UpdateChannelLatest, latestKeyword},
 		{goutil.UpdateChannelMain, "main"},
 		{goutil.UpdateChannelMaster, "version:master"},
-		{"unknown", "latest"}, // default case
+		{testUnknown, latestKeyword}, // default case
 	}
 	for _, tt := range tests {
 		called = ""
@@ -1248,10 +1248,10 @@ func Test_latestVerCache_get_contextCanceled(t *testing.T) {
 
 func Test_packageUpdateChannel(t *testing.T) {
 	channelMap := map[string]goutil.UpdateChannel{
-		"tool-a": goutil.UpdateChannelMain,
+		testBinToolA: goutil.UpdateChannelMain,
 	}
 
-	if got := packageUpdateChannel("tool-a", goutil.UpdateChannelLatest, channelMap); got != goutil.UpdateChannelMain {
+	if got := packageUpdateChannel(testBinToolA, goutil.UpdateChannelLatest, channelMap); got != goutil.UpdateChannelMain {
 		t.Errorf("found in map: got %q, want main", got)
 	}
 	if got := packageUpdateChannel("tool-b", goutil.UpdateChannelMaster, channelMap); got != goutil.UpdateChannelMaster {
@@ -1263,9 +1263,9 @@ func Test_binaryNameFromImportPath(t *testing.T) {
 	t.Setenv("GOEXE", "")
 
 	got := binaryNameFromImportPath("github.com/example/tool/cmd/mytool")
-	want := "mytool"
+	want := testBinMytool
 	if runtime.GOOS == goosWindows {
-		want = "mytool.exe"
+		want = testBinMytoolExe
 	}
 	if got != want {
 		t.Errorf("binaryNameFromImportPath() = %q, want %q", got, want)
@@ -1285,11 +1285,11 @@ func Test_binaryNameFromImportPathWith(t *testing.T) {
 			importPath: "github.com/example/tool/cmd/mytool",
 			goos:       "linux",
 			goexe:      "",
-			want:       "mytool",
+			want:       testBinMytool,
 		},
 		{
 			name:       "windows adds .exe when GOEXE is empty",
-			importPath: "github.com/air-verse/air",
+			importPath: testNewModule,
 			goos:       goosWindows,
 			goexe:      "",
 			want:       "air.exe",
@@ -1299,7 +1299,7 @@ func Test_binaryNameFromImportPathWith(t *testing.T) {
 			importPath: "github.com/example/tool/cmd/mytool.exe",
 			goos:       goosWindows,
 			goexe:      "",
-			want:       "mytool.exe",
+			want:       testBinMytoolExe,
 		},
 		{
 			name:       "windows respects GOEXE when provided",
@@ -1326,8 +1326,8 @@ func Test_normalizeBinaryNameForMatch(t *testing.T) {
 		input string
 		want  string
 	}{
-		{name: "plain name", input: "tool", want: "tool"},
-		{name: "whitespace trimmed", input: "  tool  ", want: "tool"},
+		{name: "plain name", input: testBinTool, want: testBinTool},
+		{name: "whitespace trimmed", input: "  tool  ", want: testBinTool},
 		{name: "empty", input: "", want: ""},
 	}
 	for _, tt := range tests {
@@ -1341,7 +1341,7 @@ func Test_normalizeBinaryNameForMatch(t *testing.T) {
 }
 
 func Test_removeOldBinaryIfRenamed_unsafeName(t *testing.T) {
-	err := removeOldBinaryIfRenamed("../escape", "new-tool")
+	err := removeOldBinaryIfRenamed("../escape", testNewTool)
 	if err == nil {
 		t.Fatal("expected error for unsafe binary name")
 	}
@@ -1351,7 +1351,7 @@ func Test_removeOldBinaryIfRenamed_unsafeName(t *testing.T) {
 }
 
 func Test_removeOldBinaryIfRenamed_emptyNames(t *testing.T) {
-	if err := removeOldBinaryIfRenamed("", "new-tool"); err != nil {
+	if err := removeOldBinaryIfRenamed("", testNewTool); err != nil {
 		t.Errorf("empty oldName should return nil, got: %v", err)
 	}
 	if err := removeOldBinaryIfRenamed("old-tool", ""); err != nil {
@@ -1381,15 +1381,15 @@ func Test_updateWithChannels_emptyImportPath(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
+			Name:       testBinTool,
 			ImportPath: "",
-			ModulePath: "github.com/example/tool",
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1 (empty import path)", result)
@@ -1403,15 +1403,15 @@ func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -1460,15 +1460,15 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.26.0-X:nodwarf5", Latest: "go1.26.0-X:nodwarf5"},
+			GoVersion:  &goutil.Version{Current: testGoVersionNoDwarf5, Latest: testGoVersionNoDwarf5},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap)
 
 	if err := pw.Close(); err != nil {
@@ -1537,15 +1537,15 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.25.0-X:nodwarf5", Latest: "go1.26.0-X:nodwarf5"},
+			GoVersion:  &goutil.Version{Current: "go1.25.0-X:nodwarf5", Latest: testGoVersionNoDwarf5},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap)
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
@@ -1565,7 +1565,7 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	if !strings.Contains(buf.String(), color.YellowString("go1.25.0-X:nodwarf5")) {
 		t.Fatalf("expected current go version in yellow, got:\n%s", buf.String())
 	}
-	if !strings.Contains(buf.String(), color.GreenString("go1.26.0-X:nodwarf5")) {
+	if !strings.Contains(buf.String(), color.GreenString(testGoVersionNoDwarf5)) {
 		t.Fatalf("expected latest go version in green, got:\n%s", buf.String())
 	}
 }
@@ -1577,15 +1577,15 @@ func Test_updateWithChannels_emptyModulePath(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
 			ModulePath: "",
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -1601,15 +1601,15 @@ func Test_updateWithChannels_getLatestVerError(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
@@ -1630,15 +1630,15 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelMaster}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -1685,7 +1685,7 @@ func Test_removeOldBinaryIfRenamed_notExist(t *testing.T) {
 	t.Setenv("GOBIN", gobin)
 
 	// old binary doesn't exist — should succeed silently
-	if err := removeOldBinaryIfRenamed("nonexistent-tool", "new-tool"); err != nil {
+	if err := removeOldBinaryIfRenamed("nonexistent-tool", testNewTool); err != nil {
 		t.Fatalf("removeOldBinaryIfRenamed() should succeed for non-existent: %v", err)
 	}
 }
@@ -1703,15 +1703,15 @@ func Test_updateWithChannels_notify(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, true, 1, true, channelMap)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() with notify = %d, want 0", result)
@@ -1731,15 +1731,15 @@ func Test_updateWithChannels_installError(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelLatest}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
@@ -1768,15 +1768,15 @@ func Test_updateWithChannels_mainChannel(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version:    &goutil.Version{Current: testVersionOne},
-			GoVersion:  &goutil.Version{Current: "go1.22.4", Latest: "go1.22.4"},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
 		},
 	}
 
-	channelMap := map[string]goutil.UpdateChannel{"tool": goutil.UpdateChannelMain}
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
 	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)

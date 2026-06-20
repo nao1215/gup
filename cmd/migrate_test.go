@@ -20,6 +20,45 @@ const (
 	testBinPosixer     = "posixer"
 	testShellBash      = "bash"
 	testCmdCompletion  = "completion"
+
+	testOldModule         = "github.com/cosmtrek/air"
+	testNewModule         = "github.com/air-verse/air"
+	testParserJobsErr     = "parser --jobs argument error"
+	testGobinEmpty        = "$GOBIN is empty"
+	testNoExistDir        = "no_exist_dir"
+	testBinAir            = "air"
+	testGoVersion1224     = "go1.22.4"
+	testGoVersionNoDwarf5 = "go1.26.0-X:nodwarf5"
+	testFlagInstall       = "--install"
+	testCmdGup            = "gup"
+	testCmdList           = "list"
+	testCmdExport         = "export"
+	testCmdImport         = "import"
+	testShellFish         = "fish"
+	testBinMytool         = "mytool"
+	testBinMytoolExe      = "mytool.exe"
+	testPkg1              = "pkg1"
+	testPkg2              = "pkg2"
+	testPkg3              = "pkg3"
+	testPkg2Exe           = "pkg2.exe"
+	testMissing           = "missing"
+	testKeptTool          = "kept-tool"
+	testNewTool           = "new-tool"
+	testDeleteCancel      = "delete cancel"
+	testNoConfigDir       = "can not make .config directory"
+	testVersion123        = "v1.2.3"
+	testVersionTwo        = "v2.0.0"
+	testBinTool           = "tool"
+	testBinPosixerExe     = "posixer.exe"
+	testBinToolA          = "tool-a"
+	testCmdVersion        = "version"
+	testCmdUpdate         = "update"
+	testCmdRemove         = "remove"
+	testShellZsh          = "zsh"
+	testShellPowershell   = "powershell"
+	testNameSuccess       = "success"
+	testNameTest2         = "test2"
+	testUnknown           = "unknown"
 )
 
 // captureMigrateOutput redirects print output into a buffer for the duration of fn.
@@ -139,18 +178,18 @@ func Test_resolveMigrateVersion(t *testing.T) {
 	}{
 		{
 			name:        "regular version",
-			pkg:         goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: "v1.2.3"}},
-			wantVersion: "v1.2.3",
+			pkg:         goutil.Package{ImportPath: testImportPathXY, Version: &goutil.Version{Current: testVersion123}},
+			wantVersion: testVersion123,
 			wantSkip:    false,
 		},
 		{
 			name:     "empty import path",
-			pkg:      goutil.Package{ImportPath: "", Version: &goutil.Version{Current: "v1.0.0"}},
+			pkg:      goutil.Package{ImportPath: "", Version: &goutil.Version{Current: testVersionOne}},
 			wantSkip: true,
 		},
 		{
 			name:     commandLineArguments,
-			pkg:      goutil.Package{ImportPath: commandLineArguments, Version: &goutil.Version{Current: "v1.0.0"}},
+			pkg:      goutil.Package{ImportPath: commandLineArguments, Version: &goutil.Version{Current: testVersionOne}},
 			wantSkip: true,
 		},
 		{
@@ -207,7 +246,7 @@ func Test_migratePackages_install(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
 	out := captureMigrateOutput(t, func() {
@@ -219,7 +258,7 @@ func Test_migratePackages_install(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("installer called %d times, want 1 (output: %s)", len(calls), out)
 	}
-	if calls[0].importPath != testImportPathTool || calls[0].version != "v1.2.3" {
+	if calls[0].importPath != testImportPathTool || calls[0].version != testVersion123 {
 		t.Fatalf("installed %q@%q, want exact reinstall", calls[0].importPath, calls[0].version)
 	}
 }
@@ -244,7 +283,7 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
 	out := captureMigrateOutput(t, func() {
@@ -279,7 +318,7 @@ func Test_migratePackages_force(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -306,7 +345,7 @@ func Test_migratePackages_dryRun(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.2.3"}},
+		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -335,8 +374,8 @@ func Test_migratePackages_skipDevelAndUnknown(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{Name: "devbin", ImportPath: "github.com/example/dev", Version: &goutil.Version{Current: develVersionParen}},
-		{Name: "noimport", ImportPath: "", Version: &goutil.Version{Current: "v1.0.0"}},
-		{Name: "good", ImportPath: "github.com/example/good", Version: &goutil.Version{Current: "v1.0.0"}},
+		{Name: "noimport", ImportPath: "", Version: &goutil.Version{Current: testVersionOne}},
+		{Name: "good", ImportPath: "github.com/example/good", Version: &goutil.Version{Current: testVersionOne}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -368,10 +407,10 @@ func Test_migratePackages_modulePathMismatchRetry(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
+			Name:       testBinTool,
 			ImportPath: "github.com/old/mod/cmd/tool",
 			ModulePath: "github.com/old/mod",
-			Version:    &goutil.Version{Current: "v1.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne},
 		},
 	}
 
@@ -401,7 +440,7 @@ func Test_migratePackages_installError(t *testing.T) {
 	}
 
 	pkgs := []goutil.Package{
-		{Name: "tool", ImportPath: testImportPathTool, Version: &goutil.Version{Current: "v1.0.0"}},
+		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersionOne}},
 	}
 
 	captureMigrateOutput(t, func() {
@@ -421,8 +460,8 @@ func Test_migratePackages_jobsBoundary(t *testing.T) {
 	installByVersionMigrateCtx = func(context.Context, string, string) error { return nil }
 
 	pkgs := []goutil.Package{
-		{Name: "a", ImportPath: "github.com/example/a", Version: &goutil.Version{Current: "v1.0.0"}},
-		{Name: "b", ImportPath: "github.com/example/b", Version: &goutil.Version{Current: "v1.0.0"}},
+		{Name: "a", ImportPath: "github.com/example/a", Version: &goutil.Version{Current: testVersionOne}},
+		{Name: "b", ImportPath: "github.com/example/b", Version: &goutil.Version{Current: testVersionOne}},
 	}
 
 	for _, jobs := range []int{-1, 0, 1, 100} {

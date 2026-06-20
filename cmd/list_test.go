@@ -91,8 +91,8 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			want   int
 			stderr []string
 		}{
-			name:  "$GOBIN is empty",
-			gobin: "no_exist_dir",
+			name:  testGobinEmpty,
+			gobin: testNoExistDir,
 			args:  args{},
 			want:  1,
 			stderr: []string{
@@ -108,8 +108,8 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			want   int
 			stderr []string
 		}{
-			name:  "$GOBIN is empty",
-			gobin: "no_exist_dir",
+			name:  testGobinEmpty,
+			gobin: testNoExistDir,
 			args:  args{},
 			want:  1,
 			stderr: []string{

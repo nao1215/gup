@@ -15,6 +15,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+const (
+	testPrintMessage = "Print message"
+	testMessage      = "test message"
+	testNoCheck      = "no check"
+)
+
 func TestInfo(t *testing.T) {
 	type args struct {
 		msg string
@@ -25,11 +31,11 @@ func TestInfo(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "Print message",
+			name: testPrintMessage,
 			args: args{
-				msg: "test message",
+				msg: testMessage,
 			},
-			want: []string{"test message", ""},
+			want: []string{testMessage, ""},
 		},
 	}
 	for _, tt := range tests {
@@ -74,9 +80,9 @@ func TestWarn(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "Print message",
+			name: testPrintMessage,
 			args: args{
-				msg: "test message",
+				msg: testMessage,
 			},
 			want: []string{"gup:WARN : test message", ""},
 		},
@@ -123,9 +129,9 @@ func TestErr(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "Print message",
+			name: testPrintMessage,
 			args: args{
-				msg: "test message",
+				msg: testMessage,
 			},
 			want: []string{"gup:ERROR: test message", ""},
 		},
@@ -172,9 +178,9 @@ func TestFatal(t *testing.T) {
 		exitcode int
 	}{
 		{
-			name: "Print message",
+			name: testPrintMessage,
 			args: args{
-				msg: "test message",
+				msg: testMessage,
 			},
 			want:     []string{"gup:FATAL: test message", ""},
 			exitcode: 1,
@@ -234,37 +240,37 @@ func TestQuestion(t *testing.T) {
 	}{
 		{
 			name:  "user input 'y'",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "y",
 			want:  true,
 		},
 		{
 			name:  "user input 'yes'",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "yes",
 			want:  true,
 		},
 		{
 			name:  "user input 'n'",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "n",
 			want:  false,
 		},
 		{
 			name:  "user input 'no'",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "no",
 			want:  false,
 		},
 		{
 			name:  "user input 'yes' after 'a'",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "a\nyes",
 			want:  true,
 		},
 		{
 			name:  "user only input enter",
-			args:  args{"no check"},
+			args:  args{testNoCheck},
 			input: "\nyes",
 			want:  true,
 		},
@@ -292,7 +298,7 @@ func TestQuestion_FmtScanlnErr(t *testing.T) {
 		}
 		defer func() { FmtScanln = orgFmtScanln }()
 
-		if got := Question("no check"); got != false {
+		if got := Question(testNoCheck); got != false {
 			t.Errorf("Question() = %v, want %v", got, false)
 		}
 	})

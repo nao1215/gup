@@ -256,9 +256,9 @@ func Test_installFromConfig_UseVersion(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "gup",
+			Name:       testCmdGup,
 			ImportPath: "github.com/nao1215/gup",
-			Version:    &goutil.Version{Current: "v1.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne},
 		},
 	}
 
@@ -287,21 +287,21 @@ func Test_versionFromConfig_NormalizeDevel(t *testing.T) {
 			pkg: goutil.Package{
 				Version: &goutil.Version{Current: "(devel)"},
 			},
-			want: "latest",
+			want: latestKeyword,
 		},
 		{
 			name: "devel without parentheses",
 			pkg: goutil.Package{
 				Version: &goutil.Version{Current: "devel"},
 			},
-			want: "latest",
+			want: latestKeyword,
 		},
 		{
 			name: "regular version",
 			pkg: goutil.Package{
-				Version: &goutil.Version{Current: "v1.2.3"},
+				Version: &goutil.Version{Current: testVersion123},
 			},
-			want: "v1.2.3",
+			want: testVersion123,
 		},
 	}
 
@@ -371,9 +371,9 @@ func Test_installFromConfig_installError(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
+			Name:       testBinTool,
 			ImportPath: "github.com/example/tool",
-			Version:    &goutil.Version{Current: "v1.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne},
 		},
 	}
 
@@ -385,9 +385,9 @@ func Test_installFromConfig_installError(t *testing.T) {
 func Test_installFromConfig_emptyImportPath(t *testing.T) {
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
+			Name:       testBinTool,
 			ImportPath: "",
-			Version:    &goutil.Version{Current: "v1.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne},
 		},
 	}
 
@@ -408,9 +408,9 @@ func Test_installFromConfig_dryRun(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
+			Name:       testBinTool,
 			ImportPath: "github.com/example/tool",
-			Version:    &goutil.Version{Current: "v1.0.0"},
+			Version:    &goutil.Version{Current: testVersionOne},
 		},
 	}
 

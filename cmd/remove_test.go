@@ -34,7 +34,7 @@ func Test_removeLoop(t *testing.T) {
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
-				target: []string{"posixer"},
+				target: []string{testBinPosixer},
 			},
 			input: "y",
 			want:  1,
@@ -47,17 +47,17 @@ func Test_removeLoop(t *testing.T) {
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
-				target: []string{"posixer.exe"},
+				target: []string{testBinPosixerExe},
 			},
 			input: "y",
 			want:  0,
 		})
 		tests = append(tests, test{
-			name: "delete cancel",
+			name: testDeleteCancel,
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
-				target: []string{"posixer.exe"},
+				target: []string{testBinPosixerExe},
 			},
 			input: "n",
 			want:  0,
@@ -68,17 +68,17 @@ func Test_removeLoop(t *testing.T) {
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
-				target: []string{"posixer"},
+				target: []string{testBinPosixer},
 			},
 			input: "y",
 			want:  0,
 		})
 		tests = append(tests, test{
-			name: "delete cancel",
+			name: testDeleteCancel,
 			args: args{
 				gobin:  filepath.Join("testdata", "delete"),
 				force:  false,
-				target: []string{"posixer"},
+				target: []string{testBinPosixer},
 			},
 			input: "n",
 			want:  0,
@@ -94,11 +94,11 @@ func Test_removeLoop(t *testing.T) {
 			src := ""
 			dest := ""
 			if runtime.GOOS == goosWindows {
-				src = filepath.Join("testdata", "check_success_for_windows", "posixer.exe")
-				dest = filepath.Join("testdata", "delete", "posixer.exe")
+				src = filepath.Join("testdata", "check_success_for_windows", testBinPosixerExe)
+				dest = filepath.Join("testdata", "delete", testBinPosixerExe)
 			} else {
-				src = filepath.Join("testdata", "check_success", "posixer")
-				dest = filepath.Join("testdata", "delete", "posixer")
+				src = filepath.Join("testdata", "check_success", testBinPosixer)
+				dest = filepath.Join("testdata", "delete", testBinPosixer)
 			}
 			newFile, err := os.Create(dest)
 			if err != nil {
@@ -136,7 +136,7 @@ func Test_removeLoop(t *testing.T) {
 				t.Errorf("removeLoop() = %v, want %v", got, tt.want)
 			}
 
-			if tt.name == "delete cancel" && !fileutil.IsFile(dest) {
+			if tt.name == testDeleteCancel && !fileutil.IsFile(dest) {
 				t.Errorf("input no, however posixer command is deleted")
 			}
 		})
@@ -169,7 +169,7 @@ func Test_remove_flagError(t *testing.T) {
 	t.Parallel()
 	cmd := &cobra.Command{}
 	// missing "force" flag
-	got := remove(cmd, []string{"tool"})
+	got := remove(cmd, []string{testBinTool})
 	if got != 1 {
 		t.Errorf("remove() = %v, want 1", got)
 	}
@@ -200,12 +200,12 @@ func Test_removeLoop_windowsFallbackGoexe(t *testing.T) {
 	t.Setenv("GOEXE", "")
 
 	gobin := t.TempDir()
-	binaryPath := filepath.Join(gobin, "posixer.exe")
+	binaryPath := filepath.Join(gobin, testBinPosixerExe)
 	if err := os.WriteFile(binaryPath, []byte("dummy"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := removeLoop(gobin, true, []string{"posixer"}); got != 0 {
+	if got := removeLoop(gobin, true, []string{testBinPosixer}); got != 0 {
 		t.Fatalf("removeLoop() = %v, want 0", got)
 	}
 	if fileutil.IsFile(binaryPath) {
@@ -237,7 +237,7 @@ func Test_removeLoop_forceTrimmedName(t *testing.T) {
 	t.Parallel()
 
 	gobin := t.TempDir()
-	binaryName := "posixer"
+	binaryName := testBinPosixer
 	if GOOS == goosWindows {
 		binaryName += normalizeExecSuffix(GOOS, os.Getenv("GOEXE"))
 	}
@@ -261,8 +261,8 @@ func Test_isSafeBinaryName(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{name: "simple name", input: "mytool", want: true},
-		{name: "with extension", input: "mytool.exe", want: true},
+		{name: "simple name", input: testBinMytool, want: true},
+		{name: "with extension", input: testBinMytoolExe, want: true},
 		{name: "empty", input: "", want: false},
 		{name: "whitespace only", input: "   ", want: false},
 		{name: "leading and trailing whitespace", input: " mytool ", want: false},

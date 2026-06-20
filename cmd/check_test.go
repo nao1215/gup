@@ -86,7 +86,7 @@ func Test_CheckOption(t *testing.T) {
 		stderr []string
 	}{
 		{
-			name: "parser --jobs argument error",
+			name: testParserJobsErr,
 			args: args{
 				cmd:  &cobra.Command{},
 				args: []string{},
@@ -209,8 +209,8 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			want   int
 			stderr []string
 		}{
-			name:  "$GOBIN is empty",
-			gobin: "no_exist_dir",
+			name:  testGobinEmpty,
+			gobin: testNoExistDir,
 			args:  args{},
 			want:  1,
 			stderr: []string{
@@ -226,8 +226,8 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			want   int
 			stderr []string
 		}{
-			name:  "$GOBIN is empty",
-			gobin: "no_exist_dir",
+			name:  testGobinEmpty,
+			gobin: testNoExistDir,
 			args:  args{},
 			want:  1,
 			stderr: []string{
@@ -399,8 +399,8 @@ func Test_check_jobsClamp(t *testing.T) {
 
 func Test_doCheck_modulePathChanged(t *testing.T) {
 	const (
-		oldModule = "github.com/cosmtrek/air"
-		newModule = "github.com/air-verse/air"
+		oldModule = testOldModule
+		newModule = testNewModule
 	)
 
 	origGetLatest := getLatestVer
@@ -415,7 +415,7 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 				"but was required as: " + oldModule)
 		}
 		if modulePath == newModule {
-			return "v1.2.3", nil
+			return testVersion123, nil
 		}
 		return "", errors.New("unexpected module path")
 	}
@@ -431,15 +431,15 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "air",
+			Name:       testBinAir,
 			ImportPath: "github.com/cosmtrek/air/cmd/air",
 			ModulePath: oldModule,
 			Version: &goutil.Version{
-				Current: "v1.2.3",
+				Current: testVersion123,
 			},
 			GoVersion: &goutil.Version{
-				Current: "go1.22.4",
-				Latest:  "go1.22.4",
+				Current: testGoVersion1224,
+				Latest:  testGoVersion1224,
 			},
 		},
 	}
@@ -481,15 +481,15 @@ func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version: &goutil.Version{
 				Current: testVersionOne,
 			},
 			GoVersion: &goutil.Version{
-				Current: "go1.26.0-X:nodwarf5",
-				Latest:  "go1.26.0-X:nodwarf5",
+				Current: testGoVersionNoDwarf5,
+				Latest:  testGoVersionNoDwarf5,
 			},
 		},
 	}
@@ -540,15 +540,15 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		{
-			Name:       "tool",
-			ImportPath: "github.com/example/tool",
-			ModulePath: "github.com/example/tool",
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
 			Version: &goutil.Version{
 				Current: testVersionOne,
 			},
 			GoVersion: &goutil.Version{
 				Current: "go1.25.0-X:nodwarf5",
-				Latest:  "go1.26.0-X:nodwarf5",
+				Latest:  testGoVersionNoDwarf5,
 			},
 		},
 	}
@@ -572,7 +572,7 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	if !strings.Contains(buf.String(), color.YellowString("go1.25.0-X:nodwarf5")) {
 		t.Fatalf("expected current go version in yellow, got:\n%s", buf.String())
 	}
-	if !strings.Contains(buf.String(), color.GreenString("go1.26.0-X:nodwarf5")) {
+	if !strings.Contains(buf.String(), color.GreenString(testGoVersionNoDwarf5)) {
 		t.Fatalf("expected latest go version in green, got:\n%s", buf.String())
 	}
 }

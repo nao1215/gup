@@ -8,6 +8,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// shellBash is the bash shell name used for completion arguments.
+const shellBash = "bash"
+
 func newCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion",
@@ -16,7 +19,7 @@ func newCompletionCmd() *cobra.Command {
 With a shell name as argument, output completion for the shell to standard output.
 Use --install to write bash/fish/zsh completion files to the user shell config paths.`,
 		Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
-		ValidArgs: []string{"bash", "fish", "zsh", "powershell"},
+		ValidArgs: []string{shellBash, "fish", "zsh", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rootCmd := newRootCmd()
 			install, err := getFlagBool(cmd, "install")
@@ -34,7 +37,7 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 				return fmt.Errorf("specify shell (bash|fish|zsh|powershell) or use --install to write bash/fish/zsh completion files")
 			}
 			switch args[0] {
-			case "bash":
+			case shellBash:
 				return rootCmd.GenBashCompletionV2(os.Stdout, false)
 			case "fish":
 				return rootCmd.GenFishCompletion(os.Stdout, false)
