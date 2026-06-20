@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -226,13 +225,9 @@ type updateResult struct {
 }
 
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration) (int, []goutil.Package, map[string]string) {
-	result := 0
-	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
 	succeededPkgs := make([]goutil.Package, 0, len(pkgs))
 	renamedPkgs := map[string]string{} // oldName -> newName
-	ctx, cancel, signals := newSignalCancelContext()
-	defer stopSignalCancelContext(cancel, signals)
 
 	verCache := newLatestVerCache()
 
@@ -337,27 +332,13 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 	}
 
 	// update all packages
-	ch := forEachPackage(ctx, pkgs, cpus, timeout, updater)
-
-	// print result
-	count := 0
-	for v := range ch {
-		if v.err == nil {
-			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
-				count+1, len(pkgs), v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
-			succeededPkgs = append(succeededPkgs, v.pkg)
-			if v.renamedFrom != "" {
-				renamedPkgs[v.renamedFrom] = v.pkg.Name
-			}
-		} else {
-			result = 1
-			print.Err(fmt.Errorf(countFmt+" %s", count+1, len(pkgs), v.err.Error()))
+	result := executePackages(pkgs, cpus, timeout, updater, func(prefix string, v updateResult) {
+		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+		succeededPkgs = append(succeededPkgs, v.pkg)
+		if v.renamedFrom != "" {
+			renamedPkgs[v.renamedFrom] = v.pkg.Name
 		}
-		count++
-		if count == len(pkgs) {
-			break
-		}
-	}
+	})
 
 	if dryRun {
 		if err := dryRunManager.EndDryRunMode(); err != nil {
@@ -610,10 +591,6 @@ func persistedVersion(p goutil.Package) string {
 		return current
 	}
 	return latestKeyword
-}
-
-func pkgDigit(pkgs []goutil.Package) string {
-	return strconv.Itoa(len(strconv.Itoa(len(pkgs))))
 }
 
 func getBinaryPathList() ([]string, error) {

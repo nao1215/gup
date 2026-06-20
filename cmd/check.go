@@ -75,14 +75,10 @@ func check(cmd *cobra.Command, args []string) int {
 		print.Err("unable to check package: no package information")
 		return 1
 	}
-	ctx, cancel, signals := newSignalCancelContext()
-	defer stopSignalCancelContext(cancel, signals)
-	return doCheck(ctx, pkgs, cpus, timeout, ignoreGoUpdate)
+	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate)
 }
 
-func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	result := 0
-	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
+func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
 	var mu sync.Mutex
 	needUpdatePkgs := []goutil.Package{}
 	verCache := newLatestVerCache()
@@ -92,7 +88,7 @@ func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, timeout time.
 	checker := func(ctx context.Context, p goutil.Package) updateResult {
 		var err error
 		if p.ModulePath == "" {
-			err = fmt.Errorf(" %s is not installed by 'go install' (or permission incorrect)", p.Name)
+			err = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
 			var latestVer string
 			modulePathChanged := false
@@ -100,13 +96,13 @@ func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, timeout time.
 			if err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
-					err = fmt.Errorf(" %s %w", p.Name, err)
+					err = fmt.Errorf("%s %w", p.Name, err)
 				} else {
 					modulePathChanged = true
 					p = newPkg
 					latestVer, err = verCache.get(ctx, p.ModulePath)
 					if err != nil {
-						err = fmt.Errorf(" %s %w", p.Name, err)
+						err = fmt.Errorf("%s %w", p.Name, err)
 					}
 				}
 			}
@@ -128,19 +124,9 @@ func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, timeout time.
 		}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, timeout, checker)
-
-	// print result
-	for i := 0; i < len(pkgs); i++ {
-		v := <-ch
-		if v.err == nil {
-			print.Info(fmt.Sprintf(countFmt+" %s (%s)",
-				i+1, len(pkgs), v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
-		} else {
-			result = 1
-			print.Err(fmt.Errorf(countFmt+"%s", i+1, len(pkgs), v.err.Error()))
-		}
-	}
+	result := executePackages(pkgs, cpus, timeout, checker, func(prefix string, v updateResult) {
+		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
+	})
 
 	printUpdatablePkgInfo(needUpdatePkgs)
 	return result

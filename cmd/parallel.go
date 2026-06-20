@@ -2,11 +2,56 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
+
+// countFormat returns the "[%Nd/%Nd]" progress format string for total
+// packages, where N is the digit width of total (e.g. "[%2d/%2d]" for 10).
+func countFormat(total int) string {
+	digit := strconv.Itoa(len(strconv.Itoa(total)))
+	return "[%" + digit + "d/%" + digit + "d]"
+}
+
+// collectResults consumes one result per package from ch in completion order
+// and returns 1 if any package failed, otherwise 0. Failed results print the
+// shared "[i/n] <error>" line; every non-error result is passed to onResult
+// with the formatted "[i/n]" prefix so callers can render command-specific
+// success/skip output and collect data.
+func collectResults(ch <-chan updateResult, total int, onResult func(prefix string, v updateResult)) int {
+	countFmt := countFormat(total)
+	result := 0
+	count := 0
+	for v := range ch {
+		prefix := fmt.Sprintf(countFmt, count+1, total)
+		if v.err != nil {
+			result = 1
+			print.Err(fmt.Errorf("%s %s", prefix, v.err.Error()))
+		} else {
+			onResult(prefix, v)
+		}
+		count++
+	}
+	return result
+}
+
+// executePackages runs worker over each package with signal-based cancellation
+// and a per-package timeout, then reports results via collectResults. It is the
+// shared operation engine used by update, check, import, and migrate.
+func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
+	worker func(context.Context, goutil.Package) updateResult,
+	onResult func(prefix string, v updateResult)) int {
+	ctx, cancel, signals := newSignalCancelContext()
+	defer stopSignalCancelContext(cancel, signals)
+
+	ch := forEachPackage(ctx, pkgs, cpus, timeout, worker)
+	return collectResults(ch, len(pkgs), onResult)
+}
 
 // forEachPackage runs fn for each package with a fixed-size worker pool.
 // It returns a channel that receives exactly len(pkgs) results.

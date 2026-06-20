@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 func TestForEachPackage(t *testing.T) {
@@ -111,4 +114,74 @@ func TestForEachPackage(t *testing.T) {
 			t.Fatalf("timeout=0 should not set a deadline: %v", r.err)
 		}
 	})
+}
+
+func TestCountFormat(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		total int
+		want  string
+	}{
+		{1, "[%1d/%1d]"},
+		{9, "[%1d/%1d]"},
+		{10, "[%2d/%2d]"},
+		{100, "[%3d/%3d]"},
+	}
+	for _, c := range cases {
+		if got := countFormat(c.total); got != c.want {
+			t.Errorf("countFormat(%d) = %q, want %q", c.total, got, c.want)
+		}
+	}
+}
+
+func TestCollectResults_AllSuccess(t *testing.T) {
+	t.Parallel()
+
+	pkgs := []goutil.Package{{Name: "a"}, {Name: "b"}, {Name: "c"}}
+	ch := make(chan updateResult, len(pkgs))
+	for _, p := range pkgs {
+		ch <- updateResult{pkg: p}
+	}
+	close(ch)
+
+	var prefixes []string
+	code := collectResults(ch, len(pkgs), func(prefix string, _ updateResult) {
+		prefixes = append(prefixes, prefix)
+	})
+
+	if code != 0 {
+		t.Errorf("collectResults() = %d, want 0", code)
+	}
+	if got := strings.Join(prefixes, ","); got != "[1/3],[2/3],[3/3]" {
+		t.Errorf("prefixes = %q, want [1/3],[2/3],[3/3]", got)
+	}
+}
+
+//nolint:paralleltest // captures the global print.Stderr
+func TestCollectResults_WithError(t *testing.T) {
+	orgStderr := print.Stderr
+	var buf bytes.Buffer
+	print.Stderr = &buf
+	t.Cleanup(func() { print.Stderr = orgStderr })
+
+	ch := make(chan updateResult, 2)
+	ch <- updateResult{pkg: goutil.Package{Name: "ok"}}
+	ch <- updateResult{pkg: goutil.Package{Name: "bad"}, err: errors.New("boom")}
+	close(ch)
+
+	onResultCalls := 0
+	code := collectResults(ch, 2, func(_ string, _ updateResult) {
+		onResultCalls++
+	})
+
+	if code != 1 {
+		t.Errorf("collectResults() = %d, want 1 when a result has an error", code)
+	}
+	if onResultCalls != 1 {
+		t.Errorf("onResult called %d times, want 1 (only the successful result)", onResultCalls)
+	}
+	if !strings.Contains(buf.String(), "[2/2] boom") {
+		t.Errorf("error output = %q, want it to contain %q", buf.String(), "[2/2] boom")
+	}
 }
