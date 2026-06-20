@@ -21,6 +21,18 @@ set -eu
 
 RUNS="${RUNS:-5}"
 
+# Millisecond clock. GNU date supports %N; macOS/BSD date does not (it prints a
+# literal "N"), so fall back to gdate (coreutils) and otherwise bail out instead
+# of reporting garbage timings.
+if [ "$(date +%N)" != "N" ]; then
+	now_ms() { echo $(( $(date +%s%N) / 1000000 )); }
+elif command -v gdate >/dev/null 2>&1; then
+	now_ms() { echo $(( $(gdate +%s%N) / 1000000 )); }
+else
+	echo "error: need GNU date (%N) or gdate (brew install coreutils) for millisecond timing" >&2
+	exit 1
+fi
+
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 work="$(mktemp -d)"
 gup="$work/gup"
@@ -51,16 +63,16 @@ export PATH="$tools:$PATH"
 
 # Warm the module and build caches so we measure the tools, not one-time downloads.
 mkdir -p "$gobin"
-for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1 || true; done
+for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1; done
 
 pin_old() {
 	chmod -R u+w "$gobin" 2>/dev/null || true
 	rm -rf "$gobin"; mkdir -p "$gobin"
-	for spec in $OLD; do go install "$spec" >/dev/null 2>&1 || true; done
+	for spec in $OLD; do go install "$spec" >/dev/null 2>&1; done
 }
 
 install_loop() {
-	for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1 || true; done
+	for spec in $OLD; do go install "${spec%@*}@latest" >/dev/null 2>&1; done
 }
 
 median() { echo "$1" | tr ' ' '\n' | grep -v '^$' | sort -n | awk '{a[NR]=$0} END{print a[int((NR+1)/2)]}'; }
@@ -69,10 +81,10 @@ bench() { # $@ = command to run after pinning old versions
 	times=""; r=0
 	while [ "$r" -lt "$RUNS" ]; do
 		pin_old
-		start=$(date +%s%N)
-		"$@" >/dev/null 2>&1 || true
-		end=$(date +%s%N)
-		times="$times $(( (end - start) / 1000000 ))"
+		start=$(now_ms)
+		"$@" >/dev/null 2>&1
+		end=$(now_ms)
+		times="$times $(( end - start ))"
 		r=$(( r + 1 ))
 	done
 	median "$times"
