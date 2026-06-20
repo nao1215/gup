@@ -128,7 +128,6 @@ func copyOneManpage(file, dst string) (err error) {
 		}
 	}()
 
-	//nolint:gosec // destination is chosen by the user and filename comes from filepath.Base.
 	out, err := os.Create(outputPath)
 	if err != nil {
 		return err

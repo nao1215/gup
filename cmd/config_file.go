@@ -57,7 +57,6 @@ func writeConfigFile(path string, pkgs []goutil.Package) (err error) {
 }
 
 func renameWithReplace(src, dst string) error {
-	//nolint:gosec // src/dst are created by this process and not user-controlled.
 	if err := os.Rename(src, dst); err != nil {
 		// Windows cannot overwrite an existing file with os.Rename.
 		// Retry via destination backup swap when the destination likely exists.
@@ -78,7 +77,6 @@ func renameWithBackupSwap(src, dst string) error {
 	if err = os.Rename(dst, backupPath); err != nil {
 		return err
 	}
-	//nolint:gosec // src/dst are created by this process and not user-controlled.
 	if err = os.Rename(src, dst); err != nil {
 		if restoreErr := os.Rename(backupPath, dst); restoreErr != nil {
 			return errors.Join(err, fmt.Errorf("can't restore original file %s after failed update: %w", dst, restoreErr))
@@ -97,11 +95,9 @@ func prepareBackupPath(dst string) (string, error) {
 	}
 	backupPath := backupFile.Name()
 	if err := backupFile.Close(); err != nil {
-		//nolint:gosec // backupPath is created by os.CreateTemp in this function.
 		_ = os.Remove(backupPath)
 		return "", err
 	}
-	//nolint:gosec // backupPath is created by os.CreateTemp in this function.
 	if err := os.Remove(backupPath); err != nil {
 		return "", err
 	}

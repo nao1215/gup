@@ -17,14 +17,12 @@ const (
 
 // IsFile reports whether the path exists and is a file.
 func IsFile(path string) bool {
-	//nolint:gosec // The caller controls the path; helper intentionally accepts relative paths.
 	stat, err := os.Stat(path)
 	return (err == nil) && (!stat.IsDir())
 }
 
 // IsDir reports whether the path exists and is a directory.
 func IsDir(path string) bool {
-	//nolint:gosec // The caller controls the path; helper intentionally accepts relative paths.
 	stat, err := os.Stat(path)
 	return (err == nil) && (stat.IsDir())
 }

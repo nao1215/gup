@@ -332,7 +332,6 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	return func() {
 		// clean up
 		os.Stdin = oldOsStdin
-		//nolint:gosec // tmpFile is created by os.CreateTemp in this test helper.
 		_ = os.Remove(tmpFile.Name())
 	}, nil
 }
