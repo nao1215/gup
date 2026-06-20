@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
@@ -1224,5 +1225,63 @@ func TestGetPackageInformation_emptyList(t *testing.T) {
 	result := GetPackageInformation([]string{})
 	if result != nil {
 		t.Errorf("expected nil for empty list, got %v", result)
+	}
+}
+
+const timeoutTestImportPath = "github.com/nao1215/posixer"
+
+// expiredContext returns a context whose deadline is already in the past.
+func expiredContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
+	t.Cleanup(cancel)
+	return ctx
+}
+
+// cancelledContext returns a context that has already been cancelled.
+func cancelledContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
+}
+
+func TestInstallWithContext_Timeout(t *testing.T) {
+	err := InstallWithContext(expiredContext(t), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("InstallWithContext should fail when the context deadline is exceeded")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("error should report a timeout, got: %v", err)
+	}
+}
+
+func TestInstallWithContext_Cancel(t *testing.T) {
+	err := InstallWithContext(cancelledContext(t), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("InstallWithContext should fail when the context is cancelled")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("error should report a cancellation, got: %v", err)
+	}
+}
+
+func TestGetLatestVerWithContext_Timeout(t *testing.T) {
+	_, err := GetLatestVerWithContext(expiredContext(t), timeoutTestImportPath)
+	if err == nil {
+		t.Fatal("GetLatestVerWithContext should fail when the context deadline is exceeded")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("error should report a timeout, got: %v", err)
+	}
+}
+
+func TestGetLatestVerWithContext_Cancel(t *testing.T) {
+	_, err := GetLatestVerWithContext(cancelledContext(t), timeoutTestImportPath)
+	if err == nil {
+		t.Fatal("GetLatestVerWithContext should fail when the context is cancelled")
+	}
+	if !strings.Contains(err.Error(), "cancelled") {
+		t.Errorf("error should report a cancellation, got: %v", err)
 	}
 }

@@ -6,9 +6,16 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
 )
+
+// defaultGoOpTimeout bounds a single package's go operations (version lookup
+// and install). It guards against unbounded hangs caused by bad network,
+// proxy, or registry states. Users can override it with --timeout, and
+// --timeout 0 disables the bound entirely.
+const defaultGoOpTimeout = 5 * time.Minute
 
 func ensureGoCommandAvailable() error {
 	if err := goutil.CanUseGoCmd(); err != nil {

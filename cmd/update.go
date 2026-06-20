@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/fileutil"
@@ -66,6 +67,7 @@ using the current installed Go toolchain.`,
 		panic(err)
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+	addTimeoutFlag(cmd)
 
 	return cmd
 }
@@ -98,6 +100,12 @@ func gup(cmd *cobra.Command, args []string) int {
 	cpus = clampJobs(cpus)
 
 	ignoreGoUpdate, err := getFlagBool(cmd, "ignore-go-update")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
+	timeout, err := getTimeoutFlag(cmd)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -163,7 +171,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout)
 
 	if !dryRun && (shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := mergeConfigPackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -217,7 +225,7 @@ type updateResult struct {
 	skipReason  string // human-readable reason when skipped is true
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel) (int, []goutil.Package, map[string]string) {
+func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration) (int, []goutil.Package, map[string]string) {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
@@ -329,7 +337,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 	}
 
 	// update all packages
-	ch := forEachPackage(ctx, pkgs, cpus, updater)
+	ch := forEachPackage(ctx, pkgs, cpus, timeout, updater)
 
 	// print result
 	count := 0

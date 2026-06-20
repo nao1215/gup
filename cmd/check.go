@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -33,6 +34,7 @@ However, do not update`,
 		panic(err)
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+	addTimeoutFlag(cmd)
 
 	return cmd
 }
@@ -56,6 +58,12 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	timeout, err := getTimeoutFlag(cmd)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	pkgs, err := getPackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
@@ -69,10 +77,10 @@ func check(cmd *cobra.Command, args []string) int {
 	}
 	ctx, cancel, signals := newSignalCancelContext()
 	defer stopSignalCancelContext(cancel, signals)
-	return doCheck(ctx, pkgs, cpus, ignoreGoUpdate)
+	return doCheck(ctx, pkgs, cpus, timeout, ignoreGoUpdate)
 }
 
-func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, ignoreGoUpdate bool) int {
+func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	var mu sync.Mutex
@@ -120,7 +128,7 @@ func doCheck(ctx context.Context, pkgs []goutil.Package, cpus int, ignoreGoUpdat
 		}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, checker)
+	ch := forEachPackage(ctx, pkgs, cpus, timeout, checker)
 
 	// print result
 	for i := 0; i < len(pkgs); i++ {

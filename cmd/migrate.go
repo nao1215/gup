@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -67,6 +68,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 		panic(err)
 	}
 	cmd.Flags().Bool("force", false, "reinstall even if the binary already exists in AFTER_PATH")
+	addTimeoutFlag(cmd)
 
 	return cmd
 }
@@ -98,6 +100,11 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 		print.Err(err)
 		return 1
 	}
+	timeout, err := getTimeoutFlag(cmd)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
 
 	beforePath := args[0]
 	afterPath := args[1]
@@ -123,7 +130,7 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 	}
 
 	print.Info(fmt.Sprintf("start migration from %s to %s", beforePath, afterPath))
-	return migratePackages(pkgs, afterPath, dryRun, notify, cpus, force)
+	return migratePackages(pkgs, afterPath, dryRun, notify, cpus, force, timeout)
 }
 
 // validateMigratePaths validates BEFORE_PATH and AFTER_PATH.
@@ -194,7 +201,7 @@ func sameDirPath(a, b string) (bool, error) {
 	return false, nil
 }
 
-func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool) int {
+func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
 	result := 0
 	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	ctx, cancel, signals := newSignalCancelContext()
@@ -249,7 +256,7 @@ func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notificati
 		return updateResult{updated: true, pkg: p}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, migrator)
+	ch := forEachPackage(ctx, pkgs, cpus, timeout, migrator)
 
 	count := 0
 	for v := range ch {
