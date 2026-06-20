@@ -139,7 +139,13 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	confReadPath := config.ResolveImportFilePath("")
+	confReadPath, resolveErr := config.ResolveImportFilePath("")
+	if resolveErr != nil {
+		// update only reads the config for channel hints and is not the
+		// command targeted by the ambiguity check, so fall back to the
+		// user-level config instead of failing.
+		confReadPath = config.FilePath()
+	}
 	confWritePath := config.FilePath()
 	if fileutil.IsFile(confReadPath) {
 		confWritePath = confReadPath

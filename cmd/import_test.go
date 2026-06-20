@@ -11,10 +11,40 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
+
+// validImportConf is a minimal gup.json with a single package entry.
+const validImportConf = `{
+  "schema_version": 1,
+  "packages": [
+    {
+      "name": "posixer",
+      "import_path": "github.com/nao1215/posixer",
+      "version": "v0.1.0",
+      "channel": "latest"
+    }
+  ]
+}`
+
+// chdirToTemp switches the working directory to a fresh temp dir and restores
+// it on cleanup, so that config.LocalFilePath() ("./gup.json") is isolated.
+func chdirToTemp(t *testing.T) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func Test_runImport_flagErrors(t *testing.T) {
 	tests := []struct {
@@ -392,5 +422,99 @@ func Test_installFromConfig_dryRun(t *testing.T) {
 
 	if got := installFromConfig(pkgs, true, false, 1); got != 0 {
 		t.Fatalf("installFromConfig() dry-run = %d, want 0", got)
+	}
+}
+
+func Test_runImport_ambiguousConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+
+	// Create the user-level config.
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Create ./gup.json as well, making auto-detection ambiguous.
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newImportCmd()
+
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	got := runImport(cmd, nil)
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
+
+	if got != 1 {
+		t.Errorf("runImport() = %v, want 1", got)
+	}
+
+	buf := bytes.Buffer{}
+	_, _ = io.Copy(&buf, pr)
+	pr.Close()
+
+	out := buf.String()
+	if !strings.Contains(out, "multiple gup.json") {
+		t.Errorf("expected ambiguity error, got: %s", out)
+	}
+	if !strings.Contains(out, "--file") {
+		t.Errorf("expected error to mention --file, got: %s", out)
+	}
+}
+
+func Test_runImport_autoDetectSingleCandidate(t *testing.T) {
+	setupXDGBase(t)
+	helper_stubImportInstaller(t)
+	chdirToTemp(t)
+
+	gobinDir := filepath.Join(t.TempDir(), "gobin")
+	t.Setenv("GOBIN", gobinDir)
+	if err := os.MkdirAll(gobinDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only ./gup.json exists: it is the sole auto-detected candidate.
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newImportCmd()
+
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	got := runImport(cmd, nil)
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
+
+	buf := bytes.Buffer{}
+	_, _ = io.Copy(&buf, pr)
+	pr.Close()
+
+	out := buf.String()
+	if got != 0 {
+		t.Errorf("runImport() = %v, want 0; output: %s", got, out)
+	}
+	if !strings.Contains(out, "start import based on") {
+		t.Errorf("expected import to start from the detected file, got: %s", out)
 	}
 }

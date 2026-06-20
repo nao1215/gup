@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/adrg/xdg"
@@ -239,22 +240,26 @@ func TestResolveImportFilePath(t *testing.T) { //nolint:paralleltest // changes 
 	}
 
 	custom := filepath.Join(t.TempDir(), "custom.json")
-	if got := ResolveImportFilePath(custom); got != custom {
-		t.Fatalf("ResolveImportFilePath(explicit) = %s, want %s", got, custom)
+	if got, err := ResolveImportFilePath(custom); err != nil || got != custom {
+		t.Fatalf("ResolveImportFilePath(explicit) = (%s, %v), want (%s, nil)", got, err, custom)
 	}
 
-	if got := ResolveImportFilePath(""); got != FilePath() {
-		t.Fatalf("ResolveImportFilePath(default) = %s, want %s", got, FilePath())
+	// Neither candidate exists: returns the user-level path so the caller can
+	// report it as "not found".
+	if got, err := ResolveImportFilePath(""); err != nil || got != FilePath() {
+		t.Fatalf("ResolveImportFilePath(none) = (%s, %v), want (%s, nil)", got, err, FilePath())
 	}
 
+	// Only ./gup.json exists: it is used.
 	local := filepath.Join(tmpDir, ConfigFileName)
 	if err := os.WriteFile(local, []byte(""), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := ResolveImportFilePath(""); got != LocalFilePath() {
-		t.Fatalf("ResolveImportFilePath(local) = %s, want %s", got, LocalFilePath())
+	if got, err := ResolveImportFilePath(""); err != nil || got != LocalFilePath() {
+		t.Fatalf("ResolveImportFilePath(local) = (%s, %v), want (%s, nil)", got, err, LocalFilePath())
 	}
 
+	// Both candidates exist: ambiguous, must return an error mentioning --file.
 	xdgFile := FilePath()
 	if err := os.MkdirAll(filepath.Dir(xdgFile), 0o750); err != nil {
 		t.Fatal(err)
@@ -262,8 +267,20 @@ func TestResolveImportFilePath(t *testing.T) { //nolint:paralleltest // changes 
 	if err := os.WriteFile(xdgFile, []byte(""), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := ResolveImportFilePath(""); got != FilePath() {
-		t.Fatalf("ResolveImportFilePath(xdg-priority) = %s, want %s", got, FilePath())
+	got, err := ResolveImportFilePath("")
+	if err == nil {
+		t.Fatalf("ResolveImportFilePath(ambiguous) = (%s, nil), want error", got)
+	}
+	if got != "" {
+		t.Fatalf("ResolveImportFilePath(ambiguous) path = %s, want empty", got)
+	}
+	if !strings.Contains(err.Error(), "--file") {
+		t.Fatalf("ResolveImportFilePath(ambiguous) error = %q, want it to mention --file", err.Error())
+	}
+
+	// An explicit path still wins even when both candidates exist.
+	if got, err := ResolveImportFilePath(custom); err != nil || got != custom {
+		t.Fatalf("ResolveImportFilePath(explicit over ambiguous) = (%s, %v), want (%s, nil)", got, err, custom)
 	}
 }
 

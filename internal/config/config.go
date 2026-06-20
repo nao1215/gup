@@ -49,24 +49,36 @@ func DirPath() string {
 	return filepath.Join(xdg.ConfigHome, cmdinfo.Name)
 }
 
-// ResolveImportFilePath resolves config file path for import.
-// Priority: explicit path > default config path (if exists) > ./gup.json (if exists) > default config path.
-func ResolveImportFilePath(explicitPath string) string {
+// ResolveImportFilePath resolves the gup.json path used by import.
+// Priority:
+//   - an explicit path always wins.
+//   - if exactly one auto-detected candidate (the user-level config or
+//     ./gup.json) exists, that candidate is used.
+//   - if both candidates exist and no explicit path is given, the choice is
+//     ambiguous and an error is returned so the caller can ask the user to
+//     rerun with --file.
+//   - if neither candidate exists, the user-level config path is returned so
+//     the caller can report it as "not found".
+func ResolveImportFilePath(explicitPath string) (string, error) {
 	explicitPath = strings.TrimSpace(explicitPath)
 	if explicitPath != "" {
-		return explicitPath
+		return explicitPath, nil
 	}
 
 	defaultPath := FilePath()
-	if fileutil.IsFile(defaultPath) {
-		return defaultPath
-	}
-
 	local := LocalFilePath()
-	if fileutil.IsFile(local) {
-		return local
+	defaultExists := fileutil.IsFile(defaultPath)
+	localExists := fileutil.IsFile(local)
+
+	if defaultExists && localExists {
+		return "", fmt.Errorf(
+			"multiple gup.json candidates found (%s and %s); rerun with --file to choose one",
+			defaultPath, local)
 	}
-	return defaultPath
+	if localExists {
+		return local, nil
+	}
+	return defaultPath, nil
 }
 
 // ResolveExportFilePath resolves config file path for export.
