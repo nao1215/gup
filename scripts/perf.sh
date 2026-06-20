@@ -54,12 +54,13 @@ populate_gobin() {
 time_run() {
 	label="$1"
 	shift
-	# warm once (page cache, module cache) before timing
-	GOBIN="$gobin" "$bin" "$@" >/dev/null 2>&1 || true
+	# warm once (page cache, module cache) before timing. Fail fast on a real
+	# command error so we never report timings for failed invocations.
+	GOBIN="$gobin" "$bin" "$@" >/dev/null 2>&1
 	start=$(date +%s%N)
 	r=0
 	while [ "$r" -lt "$RUNS" ]; do
-		GOBIN="$gobin" "$bin" "$@" >/dev/null 2>&1 || true
+		GOBIN="$gobin" "$bin" "$@" >/dev/null 2>&1
 		r=$(( r + 1 ))
 	done
 	end=$(date +%s%N)
