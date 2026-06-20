@@ -74,6 +74,80 @@ sequentially, so one batched call is effectively serial, while gup already runs
 the per-module calls concurrently. There is no N at which batching catches up in
 the tested range, so there is no useful threshold to gate on.
 
+## `gup update` investigation (real-install)
+
+The optimizations above target `list`/`export`/`migrate`. This section targets
+`update` itself, measured with real installs (not just `--dry-run`).
+
+### Harness
+
+`scripts/perf_update.sh` is offline and reproducible: it serves synthetic
+modules (each published at v1.0.0 and v1.0.1) from a local file `GOPROXY`,
+installs v1.0.0 into a temp GOBIN, then times `gup update` actually compiling
+and installing v1.0.1. Real network is avoided so numbers are stable.
+
+```sh
+sh scripts/perf_update.sh
+SIZES="30" JOBS="8 0" RUNS=7 sh scripts/perf_update.sh   # -j 0 = gup default (NumCPU)
+```
+
+### Measurement table
+
+Linux (NumCPU=32), warm module cache, median of 3 runs, milliseconds. "real
+install" upgrades every binary v1.0.0 -> v1.0.1; "no install" is a second
+`update` where everything is already current (resolution only).
+
+| Scenario (modules) | -j=1 | -j=4 | -j=8 | -j=default | no install |
+|--------------------|-----:|-----:|-----:|-----------:|-----------:|
+| 3                  |  204 |   70 |   68 |         63 |          8 |
+| 30                 | 1710 |  474 |  261 |        187 |         34 |
+| 150                | 8790 | 2260 | 1238 |        822 |         72 |
+
+### Findings
+
+- `update` is install-bound. For 150 modules, the real-install pass is 822ms vs
+  72ms when nothing needs installing — `go install` (compilation) is ~91% of the
+  time. These synthetic modules are trivial; real tools compile slower, so the
+  install share is even higher in practice.
+- `go install` parallelizes well across `-j`, and the default `-j=NumCPU` is the
+  fastest at every size, so the common path is already near-optimal.
+- Version resolution (`go list -m`, run concurrently and deduped per module) is a
+  small fraction, and the all-up-to-date pass is already fast.
+
+### Selected changes
+
+None. No candidate produced a reproducible end-to-end win above noise.
+
+### Rejected changes (with data)
+
+- Batch `go list -m` resolution: slower than the existing parallel pool at every
+  size (see the batching table above); also off the critical path for real
+  installs.
+- Install the exact resolved version instead of `@latest`: measured 248ms vs
+  245ms for 30 modules (~1%, noise) — with a warm cache, `go install @latest`
+  resolves from cache.
+- Skip `go version` under `--ignore-go-update`, memoize `GOBIN`/`GOPATH`: each is
+  well under ~2ms and not the dominant cost.
+- "Fast mode" (install first, diff later): the install is the cost, so doing it
+  first cannot remove it; it only loses the up-to-date skip.
+
+### Deferred changes
+
+- Persist latest-version lookups across runs: only helps the already-fast
+  resolution-only pass (34–72ms), not the install-bound common case, and adds
+  staleness/correctness risk. Not worth it on this data.
+- Batch multiple binaries of the same module into one `go install`: only helps
+  users with several binaries from one module (uncommon) and the harness uses
+  one binary per module, so no representative measurement exists. Revisit with a
+  multi-binary fixture.
+- Split resolve vs install concurrency: install is already at the optimal `-j`
+  and resolution overlaps with it, so there is no measured headroom.
+
+### Risks
+
+None — this investigation added only the harness and this document; no
+behavior-affecting code changed for `update`.
+
 ## Implemented change
 
 `GetPackageInformationWithoutGoVersion` was added alongside `GetPackageInformation`,
