@@ -860,7 +860,7 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 	}{
 		{name: "version", args: []string{"gup", "version"}},
 		{name: "help", args: []string{"gup", "help"}},
-		{name: "completion bash", args: []string{"gup", "completion", "bash"}},
+		{name: "completion bash", args: []string{"gup", testCmdCompletion, testShellBash}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -981,7 +981,7 @@ func TestExecute_CompletionForShell(t *testing.T) {
 		wantHeader string
 	}{
 		{
-			shell:      "bash",
+			shell:      testShellBash,
 			wantOutput: true,
 			wantErr:    false,
 		},

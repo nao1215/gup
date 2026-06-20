@@ -18,6 +18,8 @@ const (
 	testImportPathXY   = "github.com/x/y"
 	testImportPathTool = "github.com/example/tool"
 	testBinPosixer     = "posixer"
+	testShellBash      = "bash"
+	testCmdCompletion  = "completion"
 )
 
 // captureMigrateOutput redirects print output into a buffer for the duration of fn.
