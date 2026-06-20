@@ -932,7 +932,13 @@ func TestExecute_Completion(t *testing.T) {
 
 	t.Run("generate completion file", func(t *testing.T) {
 		os.Args = []string{testCmdGup, testCmdCompletion, testFlagInstall}
-		if err := Execute(); err != nil {
+		err := Execute()
+		if runtime.GOOS == goosWindows {
+			// --install is explicitly unsupported on Windows.
+			if err == nil {
+				t.Error("completion --install should return an error on Windows")
+			}
+		} else if err != nil {
 			t.Error(err)
 		}
 
