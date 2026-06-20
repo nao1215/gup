@@ -65,7 +65,11 @@ func runImport(cmd *cobra.Command, _ []string) int {
 		print.Err(err)
 		return 1
 	}
-	confFile = config.ResolveImportFilePath(confFile)
+	confFile, err = config.ResolveImportFilePath(confFile)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
 
 	notify, err := getFlagBool(cmd, "notify")
 	if err != nil {
