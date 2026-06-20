@@ -61,7 +61,7 @@ func TestForEachPackage(t *testing.T) {
 		}
 	})
 
-	t.Run("returns error when context is cancelled", func(t *testing.T) {
+	t.Run("returns error when context is canceled", func(t *testing.T) {
 		t.Parallel()
 
 		pkgs := []goutil.Package{{Name: "x"}}
@@ -74,7 +74,7 @@ func TestForEachPackage(t *testing.T) {
 
 		r := <-ch
 		if r.err == nil {
-			t.Fatal("expected error from cancelled context, got nil")
+			t.Fatal("expected error from canceled context, got nil")
 		}
 	})
 

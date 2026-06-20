@@ -1238,8 +1238,8 @@ func expiredContext(t *testing.T) context.Context {
 	return ctx
 }
 
-// cancelledContext returns a context that has already been cancelled.
-func cancelledContext(t *testing.T) context.Context {
+// canceledContext returns a context that has already been canceled.
+func canceledContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -1257,11 +1257,11 @@ func TestInstallWithContext_Timeout(t *testing.T) {
 }
 
 func TestInstallWithContext_Cancel(t *testing.T) {
-	err := InstallWithContext(cancelledContext(t), timeoutTestImportPath, "latest")
+	err := InstallWithContext(canceledContext(t), timeoutTestImportPath, "latest")
 	if err == nil {
-		t.Fatal("InstallWithContext should fail when the context is cancelled")
+		t.Fatal("InstallWithContext should fail when the context is canceled")
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Errorf("error should report a cancellation, got: %v", err)
 	}
 }
@@ -1277,11 +1277,11 @@ func TestGetLatestVerWithContext_Timeout(t *testing.T) {
 }
 
 func TestGetLatestVerWithContext_Cancel(t *testing.T) {
-	_, err := GetLatestVerWithContext(cancelledContext(t), timeoutTestImportPath)
+	_, err := GetLatestVerWithContext(canceledContext(t), timeoutTestImportPath)
 	if err == nil {
-		t.Fatal("GetLatestVerWithContext should fail when the context is cancelled")
+		t.Fatal("GetLatestVerWithContext should fail when the context is canceled")
 	}
-	if !strings.Contains(err.Error(), "cancelled") {
+	if !strings.Contains(err.Error(), "canceled") {
 		t.Errorf("error should report a cancellation, got: %v", err)
 	}
 }

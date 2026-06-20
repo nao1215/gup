@@ -402,7 +402,7 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
 				return fmt.Errorf("install of %s timed out: %w", importPath, ctxErr)
 			}
-			return fmt.Errorf("install of %s cancelled: %w", importPath, ctxErr)
+			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 		}
 		return fmt.Errorf("can't install %s:\n%s", importPath, stderr.String())
 	}
@@ -429,7 +429,7 @@ func GetLatestVerWithContext(ctx context.Context, modulePath string) (string, er
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
 				return "", fmt.Errorf("version check of %s timed out: %w", modulePath, ctxErr)
 			}
-			return "", fmt.Errorf("version check of %s cancelled: %w", modulePath, ctxErr)
+			return "", fmt.Errorf("version check of %s canceled: %w", modulePath, ctxErr)
 		}
 		return "", fmt.Errorf("can't check %s:\n%s", modulePath, stderr.String())
 	}
