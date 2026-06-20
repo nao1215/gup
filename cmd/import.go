@@ -20,10 +20,10 @@ var installByVersionCtx = goutil.InstallWithContext //nolint:gochecknoglobals //
 func newImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Install command according to gup.json.",
-		Long: `Install command according to gup.json.
-	
-Use export/import if you want to install the same golang binaries
+		Short: "Install commands according to gup.json.",
+		Long: `Install commands according to gup.json.
+
+Use export/import if you want to install the same Go binaries
 across multiple systems.
 First, run 'gup export' on the source environment and copy gup.json.
 Then run 'gup import' on the target environment to install the
