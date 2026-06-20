@@ -202,11 +202,6 @@ func sameDirPath(a, b string) (bool, error) {
 }
 
 func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
-	result := 0
-	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
-	ctx, cancel, signals := newSignalCancelContext()
-	defer stopSignalCancelContext(cancel, signals)
-
 	// Point GOBIN at AFTER_PATH so the existing 'go install' path reinstalls
 	// into the target directory. Restore the environment afterward. Dry-run
 	// never installs, so the environment is left untouched.
@@ -256,24 +251,13 @@ func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notificati
 		return updateResult{updated: true, pkg: p}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, timeout, migrator)
-
-	count := 0
-	for v := range ch {
-		switch {
-		case v.err != nil:
-			result = 1
-			print.Err(fmt.Errorf(countFmt+" %s", count+1, len(pkgs), v.err.Error()))
-		case v.skipped:
-			print.Info(fmt.Sprintf(countFmt+" skip %s: %s", count+1, len(pkgs), v.pkg.Name, v.skipReason))
-		default:
-			print.Info(fmt.Sprintf(countFmt+" %s@%s", count+1, len(pkgs), v.pkg.ImportPath, v.pkg.Version.Current))
+	result := executePackages(pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
+		if v.skipped {
+			print.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
+			return
 		}
-		count++
-		if count == len(pkgs) {
-			break
-		}
-	}
+		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
+	})
 
 	desktopNotifyIfNeeded(result, notification)
 	return result

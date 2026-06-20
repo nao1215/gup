@@ -113,11 +113,7 @@ func runImport(cmd *cobra.Command, _ []string) int {
 }
 
 func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) int {
-	result := 0
-	countFmt := "[%" + pkgDigit(pkgs) + "d/%" + pkgDigit(pkgs) + "d]"
 	dryRunManager := goutil.NewGoPaths()
-	ctx, cancel, signals := newSignalCancelContext()
-	defer stopSignalCancelContext(cancel, signals)
 
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {
@@ -164,21 +160,9 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 		}
 	}
 
-	ch := forEachPackage(ctx, pkgs, cpus, timeout, installer)
-
-	count := 0
-	for v := range ch {
-		if v.err == nil {
-			print.Info(fmt.Sprintf(countFmt+" %s@%s", count+1, len(pkgs), v.pkg.ImportPath, v.pkg.Version.Current))
-		} else {
-			result = 1
-			print.Err(fmt.Errorf(countFmt+" %s", count+1, len(pkgs), v.err.Error()))
-		}
-		count++
-		if count == len(pkgs) {
-			break
-		}
-	}
+	result := executePackages(pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
+		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
+	})
 
 	if dryRun {
 		if err := dryRunManager.EndDryRunMode(); err != nil {
