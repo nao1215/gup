@@ -500,14 +500,27 @@ func IsStdCmd(importPath string) bool {
 	return !strings.Contains(firstElem, ".")
 }
 
-// GetPackageInformation return golang package information.
-// Binary info is read in parallel using a worker pool to speed up initial scanning.
+// GetPackageInformation return golang package information including the latest
+// installed Go toolchain version. Use it for commands that compare Go versions
+// (check, update). Binary info is read in parallel using a worker pool.
 func GetPackageInformation(binList []string) []Package {
 	goVer, err := GetInstalledGoVersion()
 	if err != nil {
 		goVer = unknown
 	}
+	return collectPackageInformation(binList, goVer)
+}
 
+// GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips
+// the "go version" subprocess. Use it for commands (list, export, migrate) that
+// never read Package.GoVersion, avoiding a needless subprocess per invocation.
+func GetPackageInformationWithoutGoVersion(binList []string) []Package {
+	return collectPackageInformation(binList, unknown)
+}
+
+// collectPackageInformation reads build info for each binary in parallel and
+// stamps goVer as the latest Go toolchain version on every package.
+func collectPackageInformation(binList []string, goVer string) []Package {
 	if len(binList) == 0 {
 		return nil
 	}

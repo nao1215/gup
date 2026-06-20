@@ -121,7 +121,8 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 	binList = filterBinaryPathListByTargets(binList, binaries)
-	pkgs := goutil.GetPackageInformation(binList)
+	// migrate never reads GoVersion, so skip the "go version" subprocess.
+	pkgs := goutil.GetPackageInformationWithoutGoVersion(binList)
 	warnMissingMigrateTargets(binaries, pkgs, beforePath)
 
 	if len(pkgs) == 0 {

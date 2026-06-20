@@ -613,7 +613,8 @@ func getPackageInfo() ([]goutil.Package, error) {
 		return nil, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
-	return goutil.GetPackageInformation(binList), nil
+	// list and export never read GoVersion, so skip the "go version" subprocess.
+	return goutil.GetPackageInformationWithoutGoVersion(binList), nil
 }
 
 func getPackageInfoByTargets(targets []string) ([]goutil.Package, error) {

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1283,5 +1284,107 @@ func TestGetLatestVerWithContext_Cancel(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "canceled") {
 		t.Errorf("error should report a cancellation, got: %v", err)
+	}
+}
+
+// benchBinarySources are real Go binaries (with build info) used to populate
+// synthetic GOBIN directories for benchmarks.
+func benchBinarySources(b *testing.B) []string {
+	b.Helper()
+	base := filepath.Join("..", "..", "cmd", "testdata", "check_success")
+	srcs := []string{
+		filepath.Join(base, "gal"),
+		filepath.Join(base, "posixer"),
+		filepath.Join(base, "subaru"),
+	}
+	for _, s := range srcs {
+		if _, err := os.Stat(s); err != nil {
+			b.Skipf("benchmark fixtures unavailable: %v", err)
+		}
+	}
+	return srcs
+}
+
+// benchSetupGobin copies real Go binaries into a fresh temp dir until it holds
+// n files, returning the directory path.
+func benchSetupGobin(b *testing.B, n int) string {
+	b.Helper()
+	srcs := benchBinarySources(b)
+	dir := b.TempDir()
+	for i := 0; i < n; i++ {
+		data, err := os.ReadFile(srcs[i%len(srcs)])
+		if err != nil {
+			b.Fatal(err)
+		}
+		dst := filepath.Join(dir, fmt.Sprintf("bin%04d", i))
+		//nolint:gosec // dst is under b.TempDir(); not user-controlled.
+		if err := os.WriteFile(dst, data, 0o600); err != nil {
+			b.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func BenchmarkGetPackageInformation(b *testing.B) {
+	for _, n := range []int{3, 30, 150} {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			dir := benchSetupGobin(b, n)
+			list, err := BinaryPathList(dir)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = GetPackageInformation(list)
+			}
+		})
+	}
+}
+
+func BenchmarkBinaryPathList(b *testing.B) {
+	for _, n := range []int{3, 30, 150} {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			dir := benchSetupGobin(b, n)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if _, err := BinaryPathList(dir); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkGetInstalledGoVersion(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if _, err := GetInstalledGoVersion(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkGoBin(b *testing.B) {
+	b.Setenv("GOBIN", b.TempDir())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := GoBin(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkGetPackageInformationWithoutGoVersion(b *testing.B) {
+	for _, n := range []int{3, 30, 150} {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			dir := benchSetupGobin(b, n)
+			list, err := BinaryPathList(dir)
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = GetPackageInformationWithoutGoVersion(list)
+			}
+		})
 	}
 }
