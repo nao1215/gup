@@ -1,3 +1,34 @@
+## [v1.3.0](https://github.com/nao1215/gup/compare/v1.2.0...v1.3.0) (2026-06-21)
+
+### Features
+
+* Add a per-package `--timeout` to `update`, `check`, `import`, and `migrate` so a stuck `go` subprocess fails instead of hanging forever (default `5m`; `--timeout 0` disables). Signal-based cancellation still aborts in-flight work, and timeouts are reported distinctly from cancellations.
+
+### Bug Fixes
+
+* `gup import` now fails with a clear error when both the user-level `gup.json` and `./gup.json` exist and `--file` is omitted, instead of silently picking one.
+* Read-only commands (`gup version`, `gup help`, `gup completion <shell>`) no longer create notification asset files under the user profile at startup; icons are deployed lazily only when a desktop notification is actually sent.
+* `gup completion --install` now returns a clear error on Windows (where it was a silent no-op) and points users to `gup completion powershell` for stdout generation.
+
+### Performance
+
+* `list`, `export`, and `migrate` no longer run the `go version` subprocess they never used, cutting their package scan by up to ~97% on small `$GOBIN` sets.
+* Added a measurement-driven performance investigation in [doc/performance.md](./doc/performance.md), including a reproducible harness and optimizations that were measured and explicitly rejected (e.g. batching `go list -m`, which was slower than the existing parallel resolution).
+
+### Code Refactoring
+
+* Extracted a shared package-operation engine (cancellation, worker-pool execution, per-package result reporting) used by `update`, `check`, `import`, and `migrate`, shrinking the command files without changing behavior.
+
+### Docs
+
+* Added a benchmark table comparing `gup` with `go-global-update` and a sequential `go install` loop, and replaced the v1.0.0 breaking-change note with it.
+* Replaced the static `gup update` example and `gup list` screenshot with VHS-recorded GIFs.
+
+### Others
+
+* Restored a clean `golangci-lint` baseline (goconst/nolintlint/govet) and made `golangci-lint` an enforced CI gate; aligned the module with its declared `go1.25` policy by dropping a `go1.26`-constrained dependency.
+* Added focused tests for the platform-dependent `internal/completion`, `internal/assets`, and `internal/notify` packages.
+
 ## [v1.2.0](https://github.com/nao1215/gup/compare/v1.1.4...v1.2.0) (2026-06-05)
 
 ### Features
