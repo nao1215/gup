@@ -13,12 +13,14 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates the binaries installed by "go install" to the latest version, all in parallel so it stays fast. Beyond updating, gup manages everything under \$GOPATH/bin (\$GOBIN): list and check what is installed, remove binaries, export/import the set so you can reproduce the same tools on another machine, and migrate binaries from one \$GOBIN directory to another. It is cross-platform software that runs on Windows, Mac and Linux.
+gup updates binaries installed with `go install` to their latest version, running the updates in parallel instead of one at a time.
+
+It also manages the tools under `\$GOPATH/bin` (`\$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tools at their exact versions on another machine, and `migrate` them into a different `\$GOBIN`. Runs on Windows, macOS, and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
 ## Benchmark
-gup updates binaries in parallel, so it finishes much faster than tools that update them one at a time. Updating 9 binaries that each had a newer version available:
+gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
 
 | Tool | Strategy | Time |
 |------|----------|-----:|
@@ -69,7 +71,7 @@ nix profile install nixpkgs#gogup
 
 ## How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup update`. gup updates them in parallel.
+`gup update` updates every binary under `$GOBIN`, in parallel.
 
 ![update](./doc/img/update.gif)
 
