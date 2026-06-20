@@ -22,7 +22,7 @@ func newCheckCmd() *cobra.Command {
 check subcommand checks if the binary is the latest version
 and if it has been built with the current version of go installed,
 and displays the name of the binary that needs to be updated.
-However, do not update`,
+It does not update them.`,
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(check(cmd, args))

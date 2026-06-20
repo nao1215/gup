@@ -10,18 +10,25 @@
 
 [日本語](./doc/ja/README.md) | [Русский](./doc/ru/README.md) | [中文](./doc/zh-cn/README.md) | [한국어](./doc/ko/README.md) | [Español](./doc/es/README.md) | [Français](./doc/fr/README.md)
 
-# gup - Update binaries installed by "go install"
 
 ![sample](./doc/img/sample.gif)
 
-gup command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
+gup updates binaries installed with `go install`, running the updates in parallel instead of one at a time.
+
+gup also manages the tools under `$GOPATH/bin` (`$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tool set on another machine, and `migrate` them into a different `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
-## Breaking change (v1.0.0)
-- The config file format changed from `gup.conf` to `gup.json`.
-- `gup.conf` is no longer read by `gup import`.
-- The update channel (`latest` / `main` / `master`) is stored per package in `gup.json`.
+## Benchmark
+gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
+
+| Tool | Strategy | Time |
+|------|----------|-----:|
+| gup update | parallel | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
+| `go install` loop | sequential | 2.9s |
+
+Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
 
 
 ## Supported OS (unit testing with GitHub Actions)
@@ -64,20 +71,9 @@ nix profile install nixpkgs#gogup
 
 ## How to use
 ### Update all binaries
-If you update all binaries, you just run `$ gup update`.
+`gup update` updates every binary under `$GOBIN`, in parallel.
 
-```shell
-$ gup update
-update binary under $GOPATH/bin or $GOBIN
-[ 1/30] github.com/cheat/cheat/cmd/cheat (Already up-to-date: v0.0.0-20211009161301-12ffa4cb5c87 / go1.22.4)
-[ 2/30] fyne.io/fyne/v2/cmd/fyne_demo (Already up-to-date: v2.1.3 / go1.22.4)
-[ 3/30] github.com/nao1215/gal/cmd/gal (v1.0.0 to v1.2.0 / go1.22.4)
-[ 4/30] github.com/matsuyoshi30/germanium/cmd/germanium (Already up-to-date: v1.2.2 / go1.22.4)
-[ 5/30] github.com/onsi/ginkgo/ginkgo (Already up-to-date: v1.16.5 / go1.22.4)
-[ 6/30] github.com/git-chglog/git-chglog/cmd/git-chglog (Already up-to-date: v0.15.1 / go1.22.4)
-   :
-   :
-```
+![update](./doc/img/update.gif)
 
 ### Update the specified binary
 If you want to update only the specified binaries, you specify multiple command names separated by space.
@@ -109,7 +105,7 @@ $ gup update --main=gup,lazygit --master=sqly --latest=air
 
 ### List up command name with package path and version under $GOPATH/bin
 list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
-![sample](doc/img/list.png)
+![list](./doc/img/list.gif)
 
 ### Remove the specified binary
 If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.
