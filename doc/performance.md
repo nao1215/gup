@@ -50,8 +50,29 @@ parallel) and directory listing are cheap.
 | Memoize `GOBIN`/`GOPATH`/`go version` within a process | **Rejected** | `GoBin` is 90ns (env read; the `go env GOPATH` subprocess only runs when `GOPATH` is unset). `go version` is called once per command. Memoization saves nothing measurable. |
 | Completion / `BinaryPathList` scanning on large GOBIN | **Rejected** | 60µs at n=150 — noise relative to everything else. |
 | Persist latest-version lookups across process runs | **Deferred** | Potentially large win for repeated `check`/`update`, but introduces staleness (can report a wrong "latest"), needs TTL/invalidation, and a new failure mode. Makes behavior harder to reason about; needs a design before implementation. |
-| Batch `go list -m` version resolution | **Deferred → recommended next** | Now measured: with a warm module cache (network factored out), **30 separate `go list -m` calls take ~1819ms vs ~88ms for one batched `go list -m -e -json` call resolving 30 modules — ~20x**, because each separate call pays go's process-startup cost (~60ms). `go list -m -e -json` returns partial results with a per-module `.Error`, so failures stay isolated like today. Worth implementing for `check`/`update`, but it restructures version resolution (one upfront batch instead of lazy per-package) and must preserve the module-path-mismatch retry, so it belongs in a dedicated, well-tested PR. |
+| Batch `go list -m` version resolution | **Rejected (measured regression, no crossover)** | A naive microbenchmark looked compelling — 30 *sequential* `go list -m` calls ~1819ms vs ~88ms for one batched `go list -m -e -json` (~20x). **That comparison is wrong for gup**, which resolves versions **in parallel** across the `-j` worker pool. Measured properly (warm cache, real modules, `xargs -P` simulating the pool), the batched single call is slower at *every* size tested — there is no crossover threshold, because `go list -m` resolves modules sequentially internally while the pool resolves them concurrently. End-to-end `gup check` on 3 distinct modules also regressed (**68ms → 95ms/run**). Rejected and reverted. This is the issue's thesis in action. |
 | Split concurrency policy (metadata vs install) | **Deferred** | Marginal expected benefit; a single `-j` is simpler to reason about. Revisit only if network end-to-end data shows a clear win. |
+
+### Batched vs parallel `go list -m` (why batching was rejected)
+
+Warm module cache, real modules from `go.sum`, `xargs -P<j>` simulating gup's
+worker pool versus one batched `go list -m -e -json` call. Lower is better.
+
+| Modules (N) | -j | parallel per-module | batched 1 call |
+|------------:|---:|--------------------:|---------------:|
+| 4  | 8 |  65ms |  80ms |
+| 8  | 8 |  69ms | 179ms |
+| 16 | 8 | 133ms | 311ms |
+| 32 | 8 | 258ms | 563ms |
+| 4  | 4 |  68ms | 108ms |
+| 8  | 4 | 127ms | 153ms |
+| 16 | 4 | 242ms | 307ms |
+| 32 | 4 | 486ms | 547ms |
+
+The parallel pool wins at every size: `go list -m` resolves the listed modules
+sequentially, so one batched call is effectively serial, while gup already runs
+the per-module calls concurrently. There is no N at which batching catches up in
+the tested range, so there is no useful threshold to gate on.
 
 ## Implemented change
 
