@@ -55,5 +55,8 @@ func getTimeoutFlag(cmd *cobra.Command) (time.Duration, error) {
 	if err != nil {
 		return 0, fmt.Errorf("can not parse command line argument (--%s): %w", timeoutFlagName, err)
 	}
+	if v < 0 {
+		return 0, fmt.Errorf("can not parse command line argument (--%s): must be >= 0 (use 0 to disable the timeout)", timeoutFlagName)
+	}
 	return v, nil
 }

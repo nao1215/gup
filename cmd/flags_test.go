@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -105,6 +106,75 @@ func TestGetFlagStringSlice(t *testing.T) {
 		cmd := &cobra.Command{}
 		_, err := getFlagStringSlice(cmd, "no-such-flag")
 		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestGetTimeoutFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default", func(t *testing.T) {
+		t.Parallel()
+		cmd := &cobra.Command{}
+		addTimeoutFlag(cmd)
+		v, err := getTimeoutFlag(cmd)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v != defaultGoOpTimeout {
+			t.Errorf("got %v, want %v", v, defaultGoOpTimeout)
+		}
+	})
+
+	t.Run("zero disables the timeout", func(t *testing.T) {
+		t.Parallel()
+		cmd := &cobra.Command{}
+		addTimeoutFlag(cmd)
+		if err := cmd.Flags().Set(timeoutFlagName, "0"); err != nil {
+			t.Fatal(err)
+		}
+		v, err := getTimeoutFlag(cmd)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v != 0 {
+			t.Errorf("got %v, want 0", v)
+		}
+	})
+
+	t.Run("custom positive value", func(t *testing.T) {
+		t.Parallel()
+		cmd := &cobra.Command{}
+		addTimeoutFlag(cmd)
+		if err := cmd.Flags().Set(timeoutFlagName, "90s"); err != nil {
+			t.Fatal(err)
+		}
+		v, err := getTimeoutFlag(cmd)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if v != 90*time.Second {
+			t.Errorf("got %v, want 90s", v)
+		}
+	})
+
+	t.Run("negative value is rejected", func(t *testing.T) {
+		t.Parallel()
+		cmd := &cobra.Command{}
+		addTimeoutFlag(cmd)
+		if err := cmd.Flags().Set(timeoutFlagName, "-1s"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := getTimeoutFlag(cmd); err == nil {
+			t.Fatal("expected error for negative timeout, got nil")
+		}
+	})
+
+	t.Run("missing flag", func(t *testing.T) {
+		t.Parallel()
+		cmd := &cobra.Command{}
+		if _, err := getTimeoutFlag(cmd); err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
