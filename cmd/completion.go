@@ -11,6 +11,10 @@ import (
 // shellBash is the bash shell name used for completion arguments.
 const shellBash = "bash"
 
+// isWindows reports whether gup is running on Windows. It is a package
+// variable so tests can exercise the Windows-specific --install path on any OS.
+var isWindows = completion.IsWindows //nolint:gochecknoglobals // test seam
+
 func newCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion",
@@ -29,6 +33,9 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 			if install {
 				if len(args) != 0 {
 					return fmt.Errorf("--install cannot be used with shell argument")
+				}
+				if isWindows() {
+					return fmt.Errorf("--install is not supported on Windows; run 'gup completion powershell' to output PowerShell completion to stdout")
 				}
 				completion.DeployShellCompletionFileIfNeeded(rootCmd)
 				return nil
