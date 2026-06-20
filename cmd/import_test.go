@@ -32,18 +32,12 @@ const validImportConf = `{
 
 // chdirToTemp switches the working directory to a fresh temp dir and restores
 // it on cleanup, so that config.LocalFilePath() ("./gup.json") is isolated.
+// t.Chdir restores the directory before t.TempDir's RemoveAll runs, which
+// avoids a Windows cleanup failure where the current directory cannot be
+// removed while still in use.
 func chdirToTemp(t *testing.T) {
 	t.Helper()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(wd)
-	})
-	if err := os.Chdir(t.TempDir()); err != nil {
-		t.Fatal(err)
-	}
+	t.Chdir(t.TempDir())
 }
 
 func Test_runImport_flagErrors(t *testing.T) {
