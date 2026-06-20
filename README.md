@@ -10,11 +10,10 @@
 
 [日本語](./doc/ja/README.md) | [Русский](./doc/ru/README.md) | [中文](./doc/zh-cn/README.md) | [한국어](./doc/ko/README.md) | [Español](./doc/es/README.md) | [Français](./doc/fr/README.md)
 
-# gup - Update binaries installed by "go install"
 
 ![sample](./doc/img/sample.gif)
 
-gup command update binaries installed by "go install" to the latest version. gup updates all binaries in parallel, so very fast. It also provides subcommands for manipulating binaries under \$GOPATH/bin (\$GOBIN). It is a cross-platform software that runs on Windows, Mac and Linux.
+gup updates the binaries installed by "go install" to the latest version, all in parallel so it stays fast. Beyond updating, gup manages everything under \$GOPATH/bin (\$GOBIN): list and check what is installed, remove binaries, export/import the set so you can reproduce the same tools on another machine, and migrate binaries from one \$GOBIN directory to another. It is cross-platform software that runs on Windows, Mac and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
