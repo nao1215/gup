@@ -35,6 +35,7 @@ It does not update them.`,
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
+	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only update-available/failed binaries plus a summary")
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -60,6 +61,12 @@ func check(cmd *cobra.Command, args []string) int {
 	}
 
 	jsonOut, err := getFlagBool(cmd, "json")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
+	quiet, err := getFlagBool(cmd, "quiet")
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -91,7 +98,7 @@ func check(cmd *cobra.Command, args []string) int {
 	if jsonOut {
 		return doCheckJSON(pkgs, cpus, timeout, ignoreGoUpdate)
 	}
-	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate)
+	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate, quiet)
 }
 
 // applyCheckChannels resolves the saved per-package update channel from
@@ -117,20 +124,20 @@ func applyCheckChannels(pkgs []goutil.Package) []goutil.Package {
 	return applySavedChannels(pkgs, confPkgs)
 }
 
-func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, false)
+func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
+	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, quiet, false)
 }
 
 // doCheckJSON runs the same check as doCheck but emits a JSON array of package
 // records to STDOUT instead of human-readable progress lines.
 func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, true)
+	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, false, true)
 }
 
-func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, jsonOut bool) int {
+func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
 	verCache := newLatestVerCache()
 
-	if !jsonOut {
+	if !jsonOut && !quiet {
 		print.Info("check binary under $GOPATH/bin or $GOBIN")
 	}
 
@@ -176,6 +183,14 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
 		onResult = func(prefix string, v updateResult) {
+			if quiet {
+				// In quiet mode show only binaries with an available update,
+				// without the [i/n] progress counter (which would be sparse).
+				if v.status == statusUpdateAvailable {
+					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
+				}
+				return
+			}
 			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
 		}
 	}
@@ -191,6 +206,9 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 	}
 
 	printUpdatablePkgInfo(collectNeedUpdatePkgs(results))
+	if quiet {
+		print.Info(summarizeResults(results, true))
+	}
 	return result
 }
 

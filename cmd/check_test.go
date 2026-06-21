@@ -442,7 +442,7 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(pkgs, 1, 0, true)
+	got := doCheck(pkgs, 1, 0, true, false)
 
 	pw.Close()
 	print.Stdout = orgStdout
@@ -492,7 +492,7 @@ func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(pkgs, 1, 0, false)
+	got := doCheck(pkgs, 1, 0, false, false)
 
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
@@ -552,7 +552,7 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 		},
 	}
 
-	got := doCheck(pkgs, 1, 0, false)
+	got := doCheck(pkgs, 1, 0, false, false)
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
 	}

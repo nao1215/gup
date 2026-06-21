@@ -166,7 +166,7 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 	}
 
 	out := captureCheckOutput(t, func() int {
-		return doCheck(pkgs, 1, 0, true)
+		return doCheck(pkgs, 1, 0, true, false)
 	})
 
 	idx := strings.Index(out, "$ gup update ")
