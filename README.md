@@ -155,6 +155,8 @@ If you want to update binaries, the following command.
 
 ```shell
 $ gup check --json | jq -r '.[] | select(.status == "update-available") | .name'
+lazygit
+mimixbox
 ```
 
 Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, and `error` (omitted when absent). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
