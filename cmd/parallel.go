@@ -48,6 +48,12 @@ func collectResults(ch <-chan updateResult, total int, onResult func(prefix stri
 // per-package results. isCheck selects the check wording (update-available)
 // over the update wording (updated). Failures are counted first because a
 // failed result may still carry a non-error status.
+//
+// The status cases below cover every non-failed result that check and update
+// produce: check sets statusUpToDate or statusUpdateAvailable, and update sets
+// statusUpToDate or statusUpdated. statusError is reached only with v.err set
+// (counted as failed above), and statusInstalled is list-only, so neither needs
+// a status case here. summarizeResults is not used by other commands.
 func summarizeResults(results []updateResult, isCheck bool) string {
 	var updated, upToDate, available, failed int
 	for _, v := range results {
