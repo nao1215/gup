@@ -54,7 +54,9 @@ migrate is add-only: it never deletes files in AFTER_PATH, and by default it
 skips binaries that already exist there. Use --force to reinstall over them.
 
 If BINARY arguments are given, only those binaries are migrated.`,
-		Args:              cobra.MinimumNArgs(migrateMinArgs),
+		Args: requireMinArgs(migrateMinArgs,
+			"requires BEFORE_PATH and AFTER_PATH",
+			"gup migrate /old/gobin /new/gobin"),
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runMigrate(cmd, args))
