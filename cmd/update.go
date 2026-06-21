@@ -513,7 +513,7 @@ func binaryNameFromImportPathWith(importPath, goos, goExe string) string {
 	if goos == goosWindows {
 		goExe = strings.TrimSpace(goExe)
 		if goExe == "" {
-			goExe = ".exe"
+			goExe = exeSuffix
 		}
 		if !strings.HasSuffix(strings.ToLower(binName), strings.ToLower(goExe)) {
 			return binName + goExe
