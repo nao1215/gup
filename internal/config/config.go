@@ -171,9 +171,16 @@ func WriteConfFile(file io.Writer, pkgs []goutil.Package) error {
 	return nil
 }
 
+// normalizeConfVersion is the single place that decides which version string is
+// persisted to gup.json. Placeholder versions that are not real, installable
+// versions ("", "(devel)"/"devel", and "unknown") are normalized to "latest".
+// Persisting "unknown" would make versionUpToDate never match it and force a
+// needless reinstall on every run (see issue #300). All gup.json writes go
+// through WriteConfFile, which calls this, so the behavior can't diverge by
+// path.
 func normalizeConfVersion(version string) string {
 	version = strings.TrimSpace(version)
-	if version == "" || version == "(devel)" || version == "devel" {
+	if version == "" || version == "(devel)" || version == "devel" || version == "unknown" {
 		return "latest"
 	}
 	return version
