@@ -1421,6 +1421,17 @@ func TestInstallWithContext_Timeout(t *testing.T) {
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("error should report a timeout, got: %v", err)
 	}
+	// The timeout error must name the runnable command and the --timeout hint
+	// so users can rerun or relax the limit (issue #318).
+	if !strings.Contains(err.Error(), "go install "+timeoutTestImportPath+"@latest") {
+		t.Errorf("error should include the runnable go install command, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--timeout") {
+		t.Errorf("error should hint at the --timeout flag, got: %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error should wrap context.DeadlineExceeded, got: %v", err)
+	}
 }
 
 func TestInstallWithContext_Cancel(t *testing.T) {
@@ -1440,6 +1451,17 @@ func TestGetLatestVerWithContext_Timeout(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("error should report a timeout, got: %v", err)
+	}
+	// The version-check timeout uses "go list" (not "go install") and hints at
+	// the --timeout flag (issue #318).
+	if !strings.Contains(err.Error(), "go list -m "+timeoutTestImportPath+"@latest") {
+		t.Errorf("error should include the runnable go list command, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--timeout") {
+		t.Errorf("error should hint at the --timeout flag, got: %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error should wrap context.DeadlineExceeded, got: %v", err)
 	}
 }
 

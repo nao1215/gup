@@ -12,10 +12,12 @@ import (
 )
 
 // defaultGoOpTimeout bounds a single package's go operations (version lookup
-// and install). It guards against unbounded hangs caused by bad network,
-// proxy, or registry states. Users can override it with --timeout, and
-// --timeout 0 disables the bound entirely.
-const defaultGoOpTimeout = 5 * time.Minute
+// and install). The default is 0, which disables the bound: a normal
+// "go install" may compile for an arbitrary amount of time, so gup must not
+// kill it (see issue #318). Signal-based cancellation (Ctrl-C) still aborts
+// in-flight work. Users can opt in to a bound with --timeout (e.g. --timeout
+// 5m) to guard against unbounded hangs from bad network/proxy/registry states.
+const defaultGoOpTimeout time.Duration = 0
 
 func ensureGoCommandAvailable() error {
 	if err := goutil.CanUseGoCmd(); err != nil {
