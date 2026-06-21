@@ -13,8 +13,9 @@ import (
 // Literals reused across the property tests, kept as constants to satisfy
 // goconst (which counts occurrences across the whole package).
 const (
-	testGOOSLinux = "linux"
-	testDotExe    = ".exe"
+	testGOOSLinux   = "linux"
+	testDotExe      = ".exe"
+	testDotUpperExe = ".EXE"
 )
 
 // quickConfig returns a quick.Config with a fixed RNG seed so that any failing
@@ -45,7 +46,7 @@ func (binBaseName) Generate(rng *rand.Rand, _ int) reflect.Value {
 	case 0:
 		name += testDotExe
 	case 1:
-		name += ".EXE"
+		name += testDotUpperExe
 	case 2:
 		name += ".Exe"
 	default:
