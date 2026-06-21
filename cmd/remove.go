@@ -55,6 +55,9 @@ func remove(cmd *cobra.Command, args []string) int {
 
 const goosWindows = "windows"
 
+// exeSuffix is the Windows executable file extension.
+const exeSuffix = ".exe"
+
 // GOOS is wrapper for runtime.GOOS variable. It's for unit test.
 var GOOS = runtime.GOOS //nolint:gochecknoglobals
 
@@ -121,7 +124,7 @@ func normalizeExecSuffix(goos, goExe string) string {
 
 	goExe = strings.TrimSpace(goExe)
 	if goExe == "" {
-		return ".exe"
+		return exeSuffix
 	}
 	return goExe
 }

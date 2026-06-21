@@ -14,6 +14,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	whitespaceOnly = "   "
+	goplsExe       = "gopls.exe"
+	dotExe         = ".exe"
+	abcLiteral     = "abc"
+)
+
 func Test_removeLoop(t *testing.T) {
 	type args struct {
 		gobin  string
@@ -136,7 +143,7 @@ func Test_removeLoop(t *testing.T) {
 			if runtime.GOOS != goosWindows && tt.name == "windows environment and suffix is mismatch" {
 				GOOS = goosWindows
 				defer func() { GOOS = runtime.GOOS }()
-				t.Setenv("GOEXE", ".exe")
+				t.Setenv("GOEXE", dotExe)
 			}
 
 			if got := removeLoop(tt.args.gobin, tt.args.force, tt.args.target); got != tt.want {
@@ -237,7 +244,7 @@ func Test_removeLoop_windowsSuffixCaseInsensitive(t *testing.T) {
 	origGOOS := GOOS
 	GOOS = goosWindows
 	t.Cleanup(func() { GOOS = origGOOS })
-	t.Setenv("GOEXE", ".exe")
+	t.Setenv("GOEXE", dotExe)
 
 	gobin := t.TempDir()
 	binaryPath := filepath.Join(gobin, "gopls.EXE")
@@ -284,7 +291,7 @@ func Test_isSafeBinaryName(t *testing.T) {
 		{name: "simple name", input: testBinMytool, want: true},
 		{name: "with extension", input: testBinMytoolExe, want: true},
 		{name: "empty", input: "", want: false},
-		{name: "whitespace only", input: "   ", want: false},
+		{name: "whitespace only", input: whitespaceOnly, want: false},
 		{name: "leading and trailing whitespace", input: " mytool ", want: false},
 		{name: "absolute path", input: "/usr/bin/tool", want: false},
 		{name: "forward slash", input: "sub/tool", want: false},
@@ -305,6 +312,7 @@ func Test_isSafeBinaryName(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // mutates package-level stdinIsTerminal
 func Test_removeLoop_nonTTYWithoutForceFailsFast(t *testing.T) {
 	// Not parallel: this test mutates the package-level stdinIsTerminal,
 	// which is also mutated by Test_removeLoop.
@@ -337,6 +345,7 @@ func Test_removeLoop_nonTTYWithoutForceFailsFast(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // mutates package-level stdinIsTerminal
 func Test_removeLoop_nonTTYWithForceStillRemoves(t *testing.T) {
 	// Not parallel: this test mutates the package-level stdinIsTerminal,
 	// which is also mutated by Test_removeLoop.
@@ -388,29 +397,29 @@ func Test_isSafeBinaryName_propertyStaysInGobin(t *testing.T) {
 
 	// Adversarial inputs that quick may not easily generate.
 	adversarial := []string{
-		"",                // empty
-		"   ",             // whitespace only
-		" tool ",          // surrounding whitespace
-		".",               // current dir
-		"..",              // parent dir
-		"../escape",       // parent traversal
-		"../../escape",    // deeper traversal
-		"/abs/path",       // absolute
-		`C:\Windows\tool`, // windows absolute
-		"C:tool",          // windows drive-relative (colon)
-		"sub/tool",        // forward slash
-		`sub\tool`,        // backslash
-		"tool\x00.exe",    // embedded NUL
-		"tool\nname",      // embedded newline (control char)
-		"tool\tname",      // embedded tab (control char)
-		"a",               // exact-length minimal name (len 1)
-		"e",               // len(s) shorter than typical suffix
-		"gopls",           // plain valid name
-		"gopls.exe",       // valid name with extension
-		"ｇｏｐｌｓ",           // unicode full-width look-alike
-		"tool/../escape",  // traversal hidden mid-string
-		"./tool",          // dot-slash prefix
-		"‮" + "exe.sh",    // right-to-left override look-alike
+		"",                  // empty
+		whitespaceOnly,      // whitespace only
+		" tool ",            // surrounding whitespace
+		".",                 // current dir
+		"..",                // parent dir
+		"../escape",         // parent traversal
+		"../../escape",      // deeper traversal
+		"/abs/path",         // absolute
+		`C:\Windows\tool`,   // windows absolute
+		"C:tool",            // windows drive-relative (colon)
+		"sub/tool",          // forward slash
+		`sub\tool`,          // backslash
+		"tool\x00.exe",      // embedded NUL
+		"tool\nname",        // embedded newline (control char)
+		"tool\tname",        // embedded tab (control char)
+		"a",                 // exact-length minimal name (len 1)
+		"e",                 // len(s) shorter than typical suffix
+		"gopls",             // plain valid name
+		goplsExe,            // valid name with extension
+		"ｇｏｐｌｓ",             // unicode full-width look-alike
+		"tool/../escape",    // traversal hidden mid-string
+		"./tool",            // dot-slash prefix
+		"\u202e" + "exe.sh", // right-to-left override look-alike
 	}
 	for _, s := range adversarial {
 		if !invariant(s) {
@@ -427,19 +436,19 @@ func Test_hasSuffixFold(t *testing.T) {
 		suffix string
 		want   bool
 	}{
-		{name: "exact match same case", s: ".exe", suffix: ".exe", want: true},
-		{name: "case-insensitive match", s: "gopls.EXE", suffix: ".exe", want: true},
-		{name: "case-insensitive match reversed", s: "gopls.exe", suffix: ".EXE", want: true},
-		{name: "suffix present lowercase", s: "tool.exe", suffix: ".exe", want: true},
-		{name: "no suffix match", s: "tool.bin", suffix: ".exe", want: false},
-		{name: "s shorter than suffix", s: "ex", suffix: ".exe", want: false},
-		{name: "s one char shorter than suffix", s: ".ex", suffix: ".exe", want: false},
+		{name: "exact match same case", s: dotExe, suffix: dotExe, want: true},
+		{name: "case-insensitive match", s: "gopls.EXE", suffix: dotExe, want: true},
+		{name: "case-insensitive match reversed", s: goplsExe, suffix: ".EXE", want: true},
+		{name: "suffix present lowercase", s: "tool.exe", suffix: dotExe, want: true},
+		{name: "no suffix match", s: "tool.bin", suffix: dotExe, want: false},
+		{name: "s shorter than suffix", s: "ex", suffix: dotExe, want: false},
+		{name: "s one char shorter than suffix", s: ".ex", suffix: dotExe, want: false},
 		{name: "empty suffix matches anything", s: "tool", suffix: "", want: true},
 		{name: "empty suffix and empty s", s: "", suffix: "", want: true},
-		{name: "empty s nonempty suffix", s: "", suffix: ".exe", want: false},
-		{name: "equal length match", s: "abc", suffix: "abc", want: true},
-		{name: "equal length mismatch", s: "abc", suffix: "xyz", want: false},
-		{name: "suffix in middle only", s: ".exe.bin", suffix: ".exe", want: false},
+		{name: "empty s nonempty suffix", s: "", suffix: dotExe, want: false},
+		{name: "equal length match", s: abcLiteral, suffix: abcLiteral, want: true},
+		{name: "equal length mismatch", s: abcLiteral, suffix: "xyz", want: false},
+		{name: "suffix in middle only", s: ".exe.bin", suffix: dotExe, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
