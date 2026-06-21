@@ -44,6 +44,30 @@ func collectResults(ch <-chan updateResult, total int, onResult func(prefix stri
 	return result, results
 }
 
+// summarizeResults builds the one-line summary printed in --quiet mode from the
+// per-package results. isCheck selects the check wording (update-available)
+// over the update wording (updated). Failures are counted first because a
+// failed result may still carry a non-error status.
+func summarizeResults(results []updateResult, isCheck bool) string {
+	var updated, upToDate, available, failed int
+	for _, v := range results {
+		switch {
+		case v.err != nil:
+			failed++
+		case v.status == statusUpdateAvailable:
+			available++
+		case v.status == statusUpdated:
+			updated++
+		case v.status == statusUpToDate:
+			upToDate++
+		}
+	}
+	if isCheck {
+		return fmt.Sprintf("gup: %d update available, %d up-to-date, %d failed", available, upToDate, failed)
+	}
+	return fmt.Sprintf("gup: %d updated, %d up-to-date, %d failed", updated, upToDate, failed)
+}
+
 // executePackages runs worker over each package with signal-based cancellation
 // and a per-package timeout, then reports results via collectResults. It is the
 // shared operation engine used by update, check, import, and migrate. It returns

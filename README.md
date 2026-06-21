@@ -163,6 +163,21 @@ If you want to update binaries, the following command.
            $ gup update mimixbox
 ```
 
+### Quiet output for large tool sets
+`check` and `update` print every binary by default, which is noisy when you have many tools installed. Pass `--quiet` (`-q`) to suppress the up-to-date lines and show only the binaries that were updated (or have an update available) plus failures, followed by a one-line summary. Errors are always written to STDERR, so they stay visible.
+```shell
+$ gup update --quiet
+github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup: 1 updated, 8 up-to-date, 0 failed
+
+$ gup check -q
+github.com/nao1215/gup (current: v0.7.0, latest: v0.7.1 / go1.22.4)
+
+If you want to update binaries, run the following command.
+           $ gup update gup
+gup: 1 update available, 8 up-to-date, 0 failed
+```
+
 ### Machine-readable JSON output (for scripting / CI)
 `list`, `check`, and `update` accept `--json`, printing a JSON array instead of the human-readable output (which stays the default).
 

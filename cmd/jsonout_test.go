@@ -253,7 +253,7 @@ func Test_updateWithChannels_jsonOutput(t *testing.T) {
 	var recs []jsonPackage
 	var result int
 	out := captureCheckOutput(t, func() int {
-		result, _, _ = updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, true)
+		result, _, _ = updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, true, false)
 		return result
 	})
 

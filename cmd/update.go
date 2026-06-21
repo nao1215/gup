@@ -68,6 +68,7 @@ using the current installed Go toolchain.`,
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
+	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only updated/failed binaries plus a summary")
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -107,6 +108,12 @@ func gup(cmd *cobra.Command, args []string) int {
 	}
 
 	jsonOut, err := getFlagBool(cmd, "json")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
+	quiet, err := getFlagBool(cmd, "quiet")
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -182,7 +189,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout, jsonOut)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout, jsonOut, quiet)
 
 	if !dryRun && (shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := mergeConfigPackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -243,12 +250,12 @@ type updateResult struct {
 	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
+func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
 	verCache := newLatestVerCache()
 
-	if !jsonOut {
+	if !jsonOut && !quiet {
 		print.Info("update binary under $GOPATH/bin or $GOBIN")
 	}
 	if dryRun {
@@ -372,6 +379,14 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
 		onResult = func(prefix string, v updateResult) {
+			if quiet {
+				// In quiet mode show only binaries that were actually updated,
+				// without the [i/n] progress counter (which would be sparse).
+				if v.updated {
+					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+				}
+				return
+			}
 			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
 		}
 	}
@@ -384,6 +399,8 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 			print.Err(err)
 			result = 1
 		}
+	} else if quiet {
+		print.Info(summarizeResults(results, false))
 	}
 
 	desktopNotifyIfNeeded(result, notification)
