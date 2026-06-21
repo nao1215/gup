@@ -1453,6 +1453,56 @@ func TestGetLatestVerWithContext_Cancel(t *testing.T) {
 	}
 }
 
+// errorCauseAfterPrefix returns the part of the error message after the
+// "<prefix>:\n" header, trimmed. It is empty when the error carries no cause.
+func errorCauseAfterPrefix(t *testing.T, err error, prefix string) string {
+	t.Helper()
+	return strings.TrimSpace(strings.TrimPrefix(err.Error(), prefix+":"))
+}
+
+// TestInstallWithContext_EmptyStderrFallback covers issue #298: when the go
+// subprocess fails without writing to stderr (as a killed process does), the
+// error must still name a cause (from err.Error()) instead of being empty.
+func TestInstallWithContext_EmptyStderrFallback(t *testing.T) {
+	oldGoExe := goExe
+	defer func() { goExe = oldGoExe }()
+	// A missing command fails on every OS while leaving stderr empty, and with
+	// context.Background() ctx.Err() is nil so the fallback branch is reached.
+	goExe = "gup-nonexistent-go-command-for-test"
+
+	err := InstallWithContext(context.Background(), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("InstallWithContext should fail when the go command is missing")
+	}
+	if !strings.Contains(err.Error(), "can't install") {
+		t.Errorf("error should report the install failure, got: %v", err)
+	}
+	prefix := fmt.Sprintf("can't install %s", timeoutTestImportPath)
+	if errorCauseAfterPrefix(t, err, prefix) == "" {
+		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
+	}
+}
+
+// TestGetVerWithContext_EmptyStderrFallback is the GetVerWithContext counterpart
+// of TestInstallWithContext_EmptyStderrFallback (issue #298).
+func TestGetVerWithContext_EmptyStderrFallback(t *testing.T) {
+	oldGoExe := goExe
+	defer func() { goExe = oldGoExe }()
+	goExe = "gup-nonexistent-go-command-for-test"
+
+	_, err := GetVerWithContext(context.Background(), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("GetVerWithContext should fail when the go command is missing")
+	}
+	if !strings.Contains(err.Error(), "can't check") {
+		t.Errorf("error should report the version-check failure, got: %v", err)
+	}
+	prefix := fmt.Sprintf("can't check %s", timeoutTestImportPath)
+	if errorCauseAfterPrefix(t, err, prefix) == "" {
+		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
+	}
+}
+
 // benchBinarySources are real Go binaries (with build info) used to populate
 // synthetic GOBIN directories for benchmarks.
 func benchBinarySources(b *testing.B) []string {

@@ -415,7 +415,13 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 			}
 			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 		}
-		return fmt.Errorf("can't install %s:\n%s", importPath, stderr.String())
+		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
+		// fall back to err (e.g. "signal: killed") to always name a cause.
+		detail := stderr.String()
+		if strings.TrimSpace(detail) == "" {
+			detail = err.Error()
+		}
+		return fmt.Errorf("can't install %s:\n%s", importPath, detail)
 	}
 	return nil
 }
@@ -449,7 +455,13 @@ func GetVerWithContext(ctx context.Context, modulePath, ref string) (string, err
 			}
 			return "", fmt.Errorf("version check of %s canceled: %w", modulePath, ctxErr)
 		}
-		return "", fmt.Errorf("can't check %s:\n%s", modulePath, stderr.String())
+		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
+		// fall back to err (e.g. "signal: killed") to always name a cause.
+		detail := stderr.String()
+		if strings.TrimSpace(detail) == "" {
+			detail = err.Error()
+		}
+		return "", fmt.Errorf("can't check %s:\n%s", modulePath, detail)
 	}
 	return strings.TrimRight(string(out), "\n"), nil
 }
