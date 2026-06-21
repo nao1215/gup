@@ -68,6 +68,30 @@ nix profile install nixpkgs#gogup
 ### Install from Package or Binary
 [The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
 
+## Verifying release integrity
+Every release ships supply-chain metadata so you can verify what you download:
+
+- **Signed checksums** — `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sig` and `checksums.txt.pem`.
+- **SBOM** — an SPDX Software Bill of Materials is attached to each release archive.
+- **Build provenance** — SLSA build provenance is attested via GitHub OIDC.
+
+Verify the signed checksums (then check your archive against `checksums.txt`):
+
+```shell
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+Verify the build provenance of a downloaded artifact with the GitHub CLI:
+
+```shell
+gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
 
 ## How to use
 ### Update all binaries
