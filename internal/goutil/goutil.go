@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"debug/buildinfo"
+	stderrors "errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -277,6 +278,8 @@ func (gp *GoPaths) StartDryRunMode() error {
 	switch {
 	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, tmpDir); err != nil {
+			// Avoid leaking the temp dir when the env mutation fails.
+			_ = gp.removeTmpDir()
 			// Wrap error to avoid OS dependent error message during testing.
 			return errors.Wrapf(
 				err,
@@ -286,6 +289,7 @@ func (gp *GoPaths) StartDryRunMode() error {
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
+			_ = gp.removeTmpDir()
 			return errors.Wrapf(
 				err,
 				"failed to set GOPATH to env variable. key: %v, value: %v",
@@ -293,18 +297,23 @@ func (gp *GoPaths) StartDryRunMode() error {
 			)
 		}
 	default:
+		_ = gp.removeTmpDir()
 		return errors.New("$GOPATH and $GOBIN is not set")
 	}
 	return nil
 }
 
-// EndDryRunMode restore the GOBIN or GOPATH settings.
+// EndDryRunMode restore the GOBIN or GOPATH settings and remove the temporary
+// directory. The temp dir is always removed, even when restoring the env
+// variable fails, so a failed restore does not leak the directory (see issue
+// #297). Any restore and removal errors are joined into the returned error.
 func (gp *GoPaths) EndDryRunMode() error {
+	var restoreErr error
 	switch {
 	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
 			// Wrap error to avoid OS dependent error message during testing.
-			return errors.Wrapf(
+			restoreErr = errors.Wrapf(
 				err,
 				"failed to set GOBIN to env variable. key: %v, value: %v",
 				keyGoBin, gp.GOBIN,
@@ -312,20 +321,22 @@ func (gp *GoPaths) EndDryRunMode() error {
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
-			return errors.Wrapf(
+			restoreErr = errors.Wrapf(
 				err,
 				"failed to set GOPATH to env variable. key: %v, value: %v",
 				keyGoPath, gp.GOPATH,
 			)
 		}
 	default:
-		return errors.New("$GOPATH and $GOBIN is not set")
+		restoreErr = errors.New("$GOPATH and $GOBIN is not set")
 	}
 
+	var removeErr error
 	if err := gp.removeTmpDir(); err != nil {
-		return errors.Wrap(err, "temporary directory for dry run remains")
+		removeErr = errors.Wrap(err, "temporary directory for dry run remains")
 	}
-	return nil
+
+	return stderrors.Join(restoreErr, removeErr)
 }
 
 // removeTmpDir remove tmporary directory for dry run
