@@ -71,11 +71,15 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, err := getPackageInfoByTargets(args)
+	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
+	// When the installed Go version can't be detected, behave as
+	// --ignore-go-update so check does not report every binary as outdated
+	// (see issue #296).
+	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 
 	if len(pkgs) == 0 {

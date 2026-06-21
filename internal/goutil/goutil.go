@@ -510,12 +510,20 @@ func IsStdCmd(importPath string) bool {
 // GetPackageInformation return golang package information including the latest
 // installed Go toolchain version. Use it for commands that compare Go versions
 // (check, update). Binary info is read in parallel using a worker pool.
-func GetPackageInformation(binList []string) []Package {
+//
+// The second return value reports whether the installed Go version was
+// detected. When it is false, callers must disable Go-version comparison
+// (behave as --ignore-go-update); otherwise a transient "go version" failure
+// stamps "unknown" on every package and forces a needless reinstall of all
+// binaries (see issue #296).
+func GetPackageInformation(binList []string) ([]Package, bool) {
 	goVer, err := GetInstalledGoVersion()
 	if err != nil {
-		goVer = unknown
+		print.Warn(fmt.Sprintf("failed to detect installed Go version (%v); "+
+			"skipping Go-version comparison this run. Module versions are still checked.", err))
+		return collectPackageInformation(binList, unknown), false
 	}
-	return collectPackageInformation(binList, goVer)
+	return collectPackageInformation(binList, goVer), true
 }
 
 // GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips

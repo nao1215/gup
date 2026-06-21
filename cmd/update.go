@@ -118,11 +118,15 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, err := getPackageInfoByTargets(args)
+	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
+	// When the installed Go version can't be detected, behave as
+	// --ignore-go-update so a transient "go version" failure does not force
+	// every binary to reinstall (see issue #296).
+	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
 
 	excludePkgList, err := getFlagStringSlice(cmd, "exclude")
 	if err != nil {
@@ -670,14 +674,18 @@ func getPackageInfo() ([]goutil.Package, error) {
 	return goutil.GetPackageInformationWithoutGoVersion(binList), nil
 }
 
-func getPackageInfoByTargets(targets []string) ([]goutil.Package, error) {
+// getPackageInfoByTargets returns the packages to process and a bool reporting
+// whether the installed Go version was detected. When the bool is false,
+// callers must disable Go-version comparison (see issue #296).
+func getPackageInfoByTargets(targets []string) ([]goutil.Package, bool, error) {
 	binList, err := getBinaryPathList()
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't get package info", err)
+		return nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
 	filtered := filterBinaryPathListByTargets(binList, targets)
-	return goutil.GetPackageInformation(filtered), nil
+	pkgs, goVersionAvailable := goutil.GetPackageInformation(filtered)
+	return pkgs, goVersionAvailable, nil
 }
 
 func filterBinaryPathListByTargets(binList, targets []string) []string {
