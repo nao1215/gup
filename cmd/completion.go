@@ -22,6 +22,8 @@ func newCompletionCmd() *cobra.Command {
 		Long: `Generate shell completions (bash, fish, zsh, powershell) for the gup command.
 With a shell name as argument, output completion for the shell to standard output.
 Use --install to write bash/fish/zsh completion files to the user shell config paths.`,
+		Example: `  gup completion bash
+  gup completion --install`,
 		Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
 		ValidArgs: []string{shellBash, "fish", "zsh", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {

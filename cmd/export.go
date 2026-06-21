@@ -17,6 +17,8 @@ Use export/import if you want to install the same Go binaries
 across multiple systems. This sub-command writes gup.json
 (default: $XDG_CONFIG_HOME/gup/gup.json), and the target system can
 apply it with 'gup import'.`,
+		Example: `  gup export
+  gup export --output > gup.json`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {

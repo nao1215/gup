@@ -28,6 +28,8 @@ across multiple systems.
 First, run 'gup export' on the source environment and copy gup.json.
 Then run 'gup import' on the target environment to install the
 versions recorded in that gup.json.`,
+		Example: `  gup import
+  gup import --file gup.json`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {

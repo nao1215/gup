@@ -342,6 +342,46 @@ func TestExecute_Version(t *testing.T) {
 	}
 }
 
+// TestExecute_RootVersionFlag verifies the top-level --version / -V flag prints
+// the same version information as the "gup version" subcommand (issue #325).
+func TestExecute_RootVersionFlag(t *testing.T) {
+	for _, arg := range []string{"--version", "-V"} {
+		t.Run(arg, func(t *testing.T) {
+			b := bytes.NewBufferString("")
+			c := newRootCmd()
+			c.SetOut(b)
+			c.SetArgs([]string{arg})
+			if err := c.Execute(); err != nil {
+				t.Fatalf("Execute(%s) error = %v", arg, err)
+			}
+			got := strings.TrimRight(b.String(), "\n")
+			if got != cmdinfo.GetVersion() {
+				t.Errorf("gup %s = %q, want %q", arg, got, cmdinfo.GetVersion())
+			}
+		})
+	}
+}
+
+// TestSubcommandExamples verifies the root command and every subcommand ship
+// copy-paste-friendly Example help mentioning the command (issue #326).
+func TestSubcommandExamples(t *testing.T) {
+	root := newRootCmd()
+	if root.Example == "" {
+		t.Error("root command should define an Example")
+	}
+
+	subs := root.Commands()
+	if len(subs) == 0 {
+		t.Fatal("expected the root command to have subcommands")
+	}
+	for _, sub := range subs {
+		want := "gup " + sub.Name()
+		if !strings.Contains(sub.Example, want) {
+			t.Errorf("%q Example = %q, want it to contain %q", sub.Name(), sub.Example, want)
+		}
+	}
+}
+
 func TestExecute_List(t *testing.T) {
 	setupXDGBase(t)
 

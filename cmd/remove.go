@@ -21,6 +21,8 @@ func newRemoveCmd() *cobra.Command {
 		Long: `Remove command in $GOPATH/bin or $GOBIN.
 If you want to specify multiple binaries at once, separate them with space.
 [e.g.] gup remove a_cmd b_cmd c_cmd`,
+		Example: `  gup remove gopls
+  gup remove --force air`,
 		Args: requireMinArgs(1,
 			"requires at least one binary name",
 			"gup remove gopls",

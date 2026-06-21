@@ -54,6 +54,8 @@ migrate is add-only: it never deletes files in AFTER_PATH, and by default it
 skips binaries that already exist there. Use --force to reinstall over them.
 
 If BINARY arguments are given, only those binaries are migrated.`,
+		Example: `  gup migrate /old/gobin /new/gobin
+  gup migrate /old/gobin /new/gobin gopls`,
 		Args: requireMinArgs(migrateMinArgs,
 			"requires BEFORE_PATH and AFTER_PATH",
 			"gup migrate /old/gobin /new/gobin"),
