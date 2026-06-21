@@ -81,7 +81,7 @@ Verify the signed checksums (then check your archive against `checksums.txt`):
 cosign verify-blob \
   --certificate checksums.txt.pem \
   --signature checksums.txt.sig \
-  --certificate-identity-regexp 'https://github.com/nao1215/gup/.*' \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt
 sha256sum --check --ignore-missing checksums.txt

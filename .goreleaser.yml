@@ -65,10 +65,10 @@ changelog:
       order: 999
   filters:
     exclude:
-      - "^test:"
-      - "^chore:"
-      - "^style:"
-      - "^ci:"
+      - "^tests?(\\(.+\\))?!?:"
+      - "^chore(\\(.+\\))?!?:"
+      - "^style(\\(.+\\))?!?:"
+      - "^ci(\\(.+\\))?!?:"
       - "Merge pull request"
       - "Merge branch"
 # Software Bill of Materials for every release archive (issue #285).

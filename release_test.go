@@ -62,7 +62,14 @@ func Test_goreleaser_curatedChangelog(t *testing.T) {
 		}
 	}
 
-	for _, want := range []string{"features", "bug fixes", "performance", "documentation"} {
+	for _, want := range []string{
+		"breaking changes",
+		"features",
+		"bug fixes",
+		"performance",
+		"documentation",
+		"others",
+	} {
 		if !hasTitleContaining(titles, want) {
 			t.Errorf("changelog.groups is missing a %q category; got titles %v", want, keys(titles))
 		}
@@ -103,16 +110,7 @@ func Test_goreleaser_supplyChain(t *testing.T) {
 // the cosign installer, and an attestation step.
 func Test_releaseWorkflow_provenanceAndSigning(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(".github/workflows/release.yml")
-	if err != nil {
-		t.Fatalf("failed to read release workflow: %v", err)
-	}
-	content := string(raw)
-
-	doc := map[string]any{}
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("release.yml is not valid YAML: %v", err)
-	}
+	doc := readYAMLFile(t, ".github/workflows/release.yml")
 
 	perms, ok := doc["permissions"].(map[string]any)
 	if !ok {
@@ -125,12 +123,52 @@ func Test_releaseWorkflow_provenanceAndSigning(t *testing.T) {
 		t.Errorf("release workflow needs 'attestations: write' for provenance, got %v", perms["attestations"])
 	}
 
-	if !strings.Contains(content, "sigstore/cosign-installer") {
-		t.Error("release workflow does not install cosign")
+	// Validate the structured jobs.release.steps[*].uses rather than raw text so
+	// a substring elsewhere in the file cannot make this pass by accident.
+	uses := releaseStepUses(t, doc)
+	if !anyHasPrefix(uses, "sigstore/cosign-installer") {
+		t.Errorf("release workflow does not install cosign; steps use: %v", uses)
 	}
-	if !strings.Contains(content, "attest-build-provenance") {
-		t.Error("release workflow does not attest build provenance")
+	if !anyHasPrefix(uses, "actions/attest-build-provenance") {
+		t.Errorf("release workflow does not attest build provenance; steps use: %v", uses)
 	}
+}
+
+// releaseStepUses returns every `uses:` value of the jobs.release.steps entries.
+func releaseStepUses(t *testing.T, doc map[string]any) []string {
+	t.Helper()
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no jobs block")
+	}
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'release' job")
+	}
+	steps, ok := release["steps"].([]any)
+	if !ok {
+		t.Fatal("release job has no steps")
+	}
+	uses := make([]string, 0, len(steps))
+	for _, s := range steps {
+		step, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		if u, ok := step["uses"].(string); ok {
+			uses = append(uses, u)
+		}
+	}
+	return uses
+}
+
+func anyHasPrefix(values []string, prefix string) bool {
+	for _, v := range values {
+		if strings.HasPrefix(v, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasTitleContaining(titles map[string]bool, want string) bool {
