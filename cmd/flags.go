@@ -46,7 +46,7 @@ const timeoutFlagName = "timeout"
 // go subprocesses (update, check, import, migrate).
 func addTimeoutFlag(cmd *cobra.Command) {
 	cmd.Flags().Duration(timeoutFlagName, defaultGoOpTimeout,
-		"per-package timeout for go operations (e.g. 90s, 5m); 0 disables the timeout")
+		"per-package timeout for go operations (e.g. 90s, 5m); default 0 means no timeout, so a slow go install is never killed")
 }
 
 // getTimeoutFlag reads the shared --timeout flag.

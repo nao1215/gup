@@ -411,7 +411,7 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return fmt.Errorf("install of %s timed out: %w", importPath, ctxErr)
+				return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
 			}
 			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 		}
@@ -451,7 +451,7 @@ func GetVerWithContext(ctx context.Context, modulePath, ref string) (string, err
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return "", fmt.Errorf("version check of %s timed out: %w", modulePath, ctxErr)
+				return "", fmt.Errorf("version check of %s timed out; run `go list -m %s@%s` manually or raise --timeout (0 disables it): %w", modulePath, modulePath, ref, ctxErr)
 			}
 			return "", fmt.Errorf("version check of %s canceled: %w", modulePath, ctxErr)
 		}
