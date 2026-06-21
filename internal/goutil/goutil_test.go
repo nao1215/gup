@@ -640,33 +640,35 @@ func TestVersionUpToDate_golden(t *testing.T) {
 	}
 }
 
-func TestIsStdCmd(t *testing.T) {
+func Test_isModuleBinary(t *testing.T) {
+	// The argument is the binary's main module path (buildinfo Main.Path), not
+	// its import path.
 	for _, tt := range []struct {
-		name       string
-		importPath string
-		want       bool
+		name           string
+		mainModulePath string
+		want           bool
 	}{
-		{name: "cmd/go is standard", importPath: "cmd/go", want: true},
-		{name: "cmd/gofmt is standard", importPath: "cmd/gofmt", want: true},
-		{name: "cmd/vet is standard", importPath: "cmd/vet", want: true},
-		{name: "fmt is standard", importPath: "fmt", want: true},
-		{name: "github.com third-party", importPath: "github.com/nao1215/gup", want: false},
-		{name: "golang.org third-party", importPath: "golang.org/x/tools/cmd/goimports", want: false},
-		{name: "example.com third-party", importPath: "example.com/foo/bar", want: false},
-		{name: "empty string", importPath: "", want: false},
+		{name: "stdlib/toolchain has no main module", mainModulePath: "", want: false},
+		{name: "github.com third-party", mainModulePath: "github.com/nao1215/gup", want: true},
+		{name: "golang.org third-party", mainModulePath: "golang.org/x/tools", want: true},
+		// Dotless hosts are still third-party modules and must not be dropped
+		// as if they were the standard library (issue #299).
+		{name: "dotless localhost host", mainModulePath: "localhost/tool", want: true},
+		{name: "dotless internal registry host", mainModulePath: "registry/team/tool", want: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsStdCmd(tt.importPath)
+			got := isModuleBinary(tt.mainModulePath)
 			if got != tt.want {
-				t.Errorf("IsStdCmd(%q) = %v, want %v", tt.importPath, got, tt.want)
+				t.Errorf("isModuleBinary(%q) = %v, want %v", tt.mainModulePath, got, tt.want)
 			}
 		})
 	}
 }
 
 func TestGetPackageInformation_std_cmd_filtered(t *testing.T) {
-	// Find gofmt binary, which is a standard library command (Path: "cmd/gofmt").
-	// GetPackageInformation should filter it out via IsStdCmd.
+	// Find gofmt binary, which is a standard library command (Path: "cmd/gofmt",
+	// no main module). GetPackageInformation should filter it out because it
+	// records no main module.
 	ctx := context.Background()
 	goroot, err := exec.CommandContext(ctx, "go", "env", "GOROOT").Output()
 	if err != nil {
