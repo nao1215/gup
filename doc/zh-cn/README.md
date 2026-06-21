@@ -10,6 +10,9 @@
 
 [English](../../README.md) | [日本語](../ja/README.md) | [Русский](../ru/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md)
 
+<!-- gup:translation-sync -->
+> 📖 本文档为翻译版本，可能落后于作为权威来源的 [英文 README](../../README.md)。
+
 # gup - 更新通过"go install"安装的二进制文件
 
 ![sample](../img/sample.gif)

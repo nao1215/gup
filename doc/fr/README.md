@@ -10,6 +10,9 @@
 
 [日本語](../ja/README.md) | [Русский](../ru/README.md) | [中文](../zh-cn/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [English](../../README.md)
 
+<!-- gup:translation-sync -->
+> 📖 Ce document est une traduction et peut être en retard par rapport au [README anglais](../../README.md), qui fait foi.
+
 # gup - Mettre à jour les binaires installés par "go install"
 
 ![sample](../img/sample.gif)
