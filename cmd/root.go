@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/completion"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,9 @@ oh-my-zsh alias is disabled (e.g. $ \gup update).
 If you find gup useful, please consider sponsoring the project:
   https://github.com/sponsors/nao1215
 `,
+		Example: `  gup update
+  gup update --dry-run
+  gup list`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			noColor, err := getFlagBool(cmd, noColorFlagName)
 			if err != nil {
@@ -44,6 +48,13 @@ If you find gup useful, please consider sponsoring the project:
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
 	addNoColorFlag(cmd)
+
+	// Support the standard top-level "gup --version" / "gup -V" while keeping
+	// the "gup version" subcommand. The template reuses cmdinfo.GetVersion() so
+	// both paths print identical output (issue #325).
+	cmd.Version = cmdinfo.GetVersion()
+	cmd.SetVersionTemplate("{{.Version}}\n")
+	cmd.Flags().BoolP("version", "V", false, "version for gup")
 
 	cmd.AddCommand(newCheckCmd())
 	cmd.AddCommand(newCompletionCmd())
