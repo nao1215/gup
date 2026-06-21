@@ -45,6 +45,14 @@ var (
 	keyGoPath = "GOPATH" //nolint:gochecknoglobals
 	// osMkdirTemp is a copy of os.MkdirTemp to ease testing.
 	osMkdirTemp = os.MkdirTemp //nolint:gochecknoglobals
+	// goCommandContext builds the *exec.Cmd used to run the go toolchain. It is a
+	// variable so tests can swap in the standard "helper process" pattern
+	// (re-executing the test binary) and exercise the subprocess-driven helpers
+	// deterministically without network access. Production code always uses the
+	// default, which simply runs goExe with the given arguments.
+	goCommandContext = func(ctx context.Context, args ...string) *exec.Cmd { //nolint:gochecknoglobals
+		return exec.CommandContext(ctx, goExe, args...) //#nosec G204 -- args are built internally, not from untrusted input
+	}
 )
 
 // GoPaths has $GOBIN and $GOPATH
@@ -404,7 +412,7 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 	}
 
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, goExe, "install", fmt.Sprintf("%s@%s", importPath, version)) //#nosec
+	cmd := goCommandContext(ctx, "install", fmt.Sprintf("%s@%s", importPath, version))
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
@@ -445,7 +453,7 @@ func GetVerWithContext(ctx context.Context, modulePath, ref string) (string, err
 		ctx = context.Background()
 	}
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@"+ref) //#nosec
+	cmd := goCommandContext(ctx, "list", "-m", "-f", "{{.Version}}", modulePath+"@"+ref)
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
@@ -643,7 +651,7 @@ var requiredAsPathRegex = regexp.MustCompile(`(?m)but was required as:\s*(\S+)`)
 // GetInstalledGoVersion return installed go version.
 func GetInstalledGoVersion() (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(context.Background(), goExe, "version")
+	cmd := goCommandContext(context.Background(), "version")
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

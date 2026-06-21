@@ -55,8 +55,21 @@ func remove(cmd *cobra.Command, args []string) int {
 
 const goosWindows = "windows"
 
+// exeSuffix is the Windows executable file extension.
+const exeSuffix = ".exe"
+
 // GOOS is wrapper for runtime.GOOS variable. It's for unit test.
 var GOOS = runtime.GOOS //nolint:gochecknoglobals
+
+// stdinIsTerminal reports whether os.Stdin is connected to a terminal (TTY).
+// It is a package-level variable so that it can be overridden in unit tests.
+var stdinIsTerminal = func() bool { //nolint:gochecknoglobals
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) != 0
+}
 
 func removeLoop(gobin string, force bool, target []string) int {
 	result := 0
@@ -82,6 +95,11 @@ func removeLoop(gobin string, force bool, target []string) int {
 			continue
 		}
 		if !force {
+			if !stdinIsTerminal() {
+				print.Err(fmt.Errorf("gup remove requires confirmation, but stdin is not a TTY.\nUse --force to skip confirmation"))
+				result = 1
+				continue
+			}
 			if !print.Question(fmt.Sprintf("remove %s?", target)) {
 				print.Info("cancel removal " + target)
 				continue
@@ -106,7 +124,7 @@ func normalizeExecSuffix(goos, goExe string) string {
 
 	goExe = strings.TrimSpace(goExe)
 	if goExe == "" {
-		return ".exe"
+		return exeSuffix
 	}
 	return goExe
 }
