@@ -252,7 +252,7 @@ func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notificati
 		return updateResult{updated: true, pkg: p}
 	}
 
-	result := executePackages(pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
+	result, _ := executePackages(pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
 		if v.skipped {
 			print.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
 			return

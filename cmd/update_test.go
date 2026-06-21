@@ -865,7 +865,7 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0); got != 0 {
+	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldModule, newModule}, latestCalls); diff != "" {
@@ -934,7 +934,7 @@ func Test_update_modulePathChangedOnInstall(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0); got != 0 {
+	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldImport, newImport}, installCalls); diff != "" {
@@ -1390,7 +1390,7 @@ func Test_updateWithChannels_emptyImportPath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1 (empty import path)", result)
 	}
@@ -1412,7 +1412,7 @@ func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1469,7 +1469,7 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, 0)
+	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, 0, false)
 
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
@@ -1546,7 +1546,7 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, 0, false)
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -1586,7 +1586,7 @@ func Test_updateWithChannels_emptyModulePath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1610,7 +1610,7 @@ func Test_updateWithChannels_getLatestVerError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
@@ -1639,7 +1639,7 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1712,7 +1712,7 @@ func Test_updateWithChannels_notify(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, true, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, true, 1, true, channelMap, 0, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() with notify = %d, want 0", result)
 	}
@@ -1740,7 +1740,7 @@ func Test_updateWithChannels_installError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
@@ -1777,7 +1777,7 @@ func Test_updateWithChannels_mainChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0)
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}

@@ -149,6 +149,31 @@ check binary under $GOPATH/bin or $GOBIN
 If you want to update binaries, the following command.
            $ gup update mimixbox
 ```
+
+### Machine-readable JSON output (for scripting / CI)
+`list`, `check`, and `update` accept `--json`, printing a JSON array instead of the human-readable output (which stays the default).
+
+```shell
+$ gup check --json
+[
+  {
+    "name": "gup",
+    "import_path": "github.com/nao1215/gup",
+    "module_path": "github.com/nao1215/gup",
+    "channel": "latest",
+    "current_version": "v1.0.0",
+    "latest_version": "v1.1.0",
+    "current_go_version": "go1.22.4",
+    "installed_go_version": "go1.22.4",
+    "status": "update-available"
+  }
+]
+```
+
+Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, and `error` (omitted when absent). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
+
+The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
+
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
 `gup.json` stores import path, binary version, and update channel (`latest` / `main` / `master`).

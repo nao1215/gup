@@ -160,7 +160,7 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 		}
 	}
 
-	result := executePackages(pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
+	result, _ := executePackages(pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
 		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
 	})
 
