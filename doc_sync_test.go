@@ -52,6 +52,66 @@ func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	}
 }
 
+// Test_translatedReadmes_haveRequiredSections asserts that every section the
+// English README carries (issue #306: Benchmark, release integrity, Migrate) is
+// also present in each translation, keyed off language-independent content so a
+// missing section is caught even though headings are translated.
+func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
+	t.Parallel()
+	// requiredSectionMarkers maps a human-readable section name to a set of
+	// language-independent strings that the section's content always carries
+	// verbatim, regardless of the translation language. Section HEADINGS are fully
+	// translated (e.g. "## Benchmark" becomes "## 基准测试" / "## Бенчмарк"), so we
+	// cannot key the presence check off heading text. Instead we key off the
+	// stable, untranslated payload each section is built around: shell commands,
+	// URLs, tool names, and the literal command synopsis. These are identical in
+	// every README, so their presence is a robust proxy for "this section exists,
+	// translated, in this file". The test fails if any translation drops one of the
+	// sections the English README carries (issue #306).
+	requiredSectionMarkers := map[string][]string{
+		// Benchmark: the comparison table and measurement note.
+		"Benchmark": {
+			"https://github.com/Gelio/go-global-update", // benchmarked competitor (table row)
+			"AMD Ryzen AI Max+ 395",                     // measurement environment note
+		},
+		// Verifying release integrity: the cosign / SLSA verification commands.
+		"Verifying release integrity": {
+			"cosign verify-blob",                  // signed-checksum verification command
+			"gh attestation verify gup_<version>", // SLSA build-provenance command
+		},
+		// Migrate: the command synopsis and the mise rationale link.
+		"Migrate": {
+			"gup migrate BEFORE_PATH AFTER_PATH [BINARY...]", // command synopsis
+			"https://mise.jdx.dev/",                          // "why this is useful" link
+		},
+	}
+	translatedREADMEs := []string{
+		"doc/ja/README.md",
+		"doc/es/README.md",
+		"doc/fr/README.md",
+		"doc/ko/README.md",
+		"doc/ru/README.md",
+		"doc/zh-cn/README.md",
+	}
+	for _, path := range translatedREADMEs {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", path, err)
+			}
+			content := string(raw)
+			for section, markers := range requiredSectionMarkers {
+				for _, marker := range markers {
+					if !strings.Contains(content, marker) {
+						t.Errorf("%s is missing the %q section: expected to find %q", path, section, marker)
+					}
+				}
+			}
+		})
+	}
+}
+
 func Test_translatedReadmes_haveSyncBanner(t *testing.T) {
 	t.Parallel()
 	// translatedREADMEs are the localized READMEs that must stay in sync with, or

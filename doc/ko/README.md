@@ -64,6 +64,30 @@ nix profile install nixpkgs#gogup
 ### 패키지 또는 바이너리에서 설치
 [릴리스 페이지](https://github.com/nao1215/gup/releases)에는 .deb, .rpm, .apk 형식의 패키지가 포함되어 있습니다. gup 명령어는 내부적으로 go 명령어를 사용하므로 golang 설치가 필요합니다.
 
+## 릴리스 무결성 검증
+모든 릴리스에는 다운로드한 항목을 검증할 수 있도록 공급망 메타데이터가 함께 제공됩니다.
+
+- **서명된 체크섬** — `checksums.txt`는 [cosign](https://github.com/sigstore/cosign)(키리스)으로 서명되어 `checksums.txt.sig`와 `checksums.txt.pem`을 생성합니다.
+- **SBOM** — 각 릴리스 아카이브에 SPDX 소프트웨어 자재 명세서(Software Bill of Materials)가 첨부됩니다.
+- **빌드 출처** — SLSA 빌드 출처(provenance)는 GitHub OIDC를 통해 증명됩니다.
+
+서명된 체크섬을 검증하세요(그런 다음 아카이브를 `checksums.txt`와 대조하세요).
+
+```shell
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+GitHub CLI로 다운로드한 아티팩트의 빌드 출처를 검증하세요.
+
+```shell
+gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
 
 ## 사용 방법
 ### 모든 바이너리 업데이트
@@ -206,6 +230,47 @@ $ gup export --output > gup.json
 $ gup import --file=gup.json
 ```
 
+### 바이너리를 새 $GOBIN으로 마이그레이션
+
+```shell
+gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
+```
+
+`gup migrate`는 각 바이너리의 빌드 정보에 기록된 정확한 `import path@version`을
+사용하여 `BEFORE_PATH` 아래의 Go 바이너리를 `AFTER_PATH`로 다시 설치합니다
+(절대로 조용히 `@latest`로 업그레이드하지 않습니다). 내부적으로는 단순히
+`GOBIN`을 `AFTER_PATH`로 설정하고 일반적인 `go install` 경로를 실행하므로,
+바이너리는 현재 사용 중인 Go 툴체인으로 다시 빌드됩니다.
+
+#### 이것이 유용한 이유 (예: `mise`와 함께)
+
+[`mise`](https://mise.jdx.dev/)로 Go를 관리할 때, Go를 업데이트하면 Go 버전마다
+`$GOBIN`의 실제 경로가 바뀔 수 있습니다. 그 결과 이전 `$GOBIN` 아래에 설치한
+도구들이 새 Go에서는 더 이상 보이지 않게 됩니다. `gup migrate`를 사용하면
+이전 `$GOBIN`의 동일한 Go 도구 세트를 새 `$GOBIN`으로 다시 설치할 수 있습니다.
+
+```shell
+# 이전 GOBIN의 모든 go-install 도구를 새 GOBIN으로 다시 설치
+$ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/installs/go/1.25.0/bin
+
+# 특정 바이너리만 마이그레이션
+$ gup migrate /old/gobin /new/gobin gopls air
+```
+
+`migrate`는 추가 전용(add-only)입니다.
+
+- `AFTER_PATH`의 파일을 삭제하거나 정리하지 않습니다.
+- `AFTER_PATH`에 이미 존재하는 바이너리는 기본적으로 건너뜁니다. 덮어쓰며 다시
+  설치하려면 `--force`를 사용하세요.
+- `AFTER_PATH`가 존재하지 않으면 자동으로 생성됩니다.
+- `BEFORE_PATH`와 `AFTER_PATH`는 서로 다른 디렉터리여야 합니다.
+
+import path 또는 버전을 확인할 수 없는 바이너리와 개발 빌드(`devel` / `(devel)`)는
+업그레이드되지 않고 건너뛰므로, 로컬 또는 재현 불가능한 빌드는 절대 깨지지 않습니다.
+
+지원되는 플래그: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
+`--force`.
+
 ### man 페이지 생성 (linux, mac용)
 man 하위 명령어는 /usr/share/man/man1 아래에 man 페이지를 생성합니다.
 ```shell
@@ -247,6 +312,17 @@ $ gup update --notify
 ![success](../img/notify_success.png)
 ![warning](../img/notify_warning.png)
 
+
+## 벤치마크
+gup은 업데이트를 병렬로 실행하므로 바이너리를 하나씩 업데이트하는 도구보다 더 빠르게 완료됩니다. 각각 새 버전이 제공되는 9개의 바이너리를 업데이트한 경우:
+
+| 도구                                                          | 전략     | 시간 |
+| ------------------------------------------------------------- | -------- | ---: |
+| gup update                                                    | 병렬     | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | 순차     | 2.9s |
+| `go install` 루프                                             | 순차     | 2.9s |
+
+AMD Ryzen AI Max+ 395(32코어) / 64GB RAM / Ubuntu 26.04 / go 1.26.4에서 측정했으며, Go 모듈 캐시를 워밍업한 상태로 5회 실행한 중앙값입니다. 시간은 각 바이너리의 빌드 시간과 CPU에 따라 달라집니다.
 
 ## 기여하기
 먼저 기여할 시간을 내주셔서 감사합니다! ❤️ 자세한 내용은 [CONTRIBUTING.md](../../CONTRIBUTING.md)를 참조하세요.

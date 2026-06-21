@@ -64,6 +64,30 @@ nix profile install nixpkgs#gogup
 ### 从包或二进制文件安装
 [发布页面](https://github.com/nao1215/gup/releases)包含 .deb、.rpm 和 .apk 格式的包。gup 命令内部使用 go 命令，因此需要安装 golang。
 
+## 验证发布完整性
+每个发布版本都附带供应链元数据，以便您验证所下载的内容：
+
+- **已签名的校验和** — `checksums.txt` 使用 [cosign](https://github.com/sigstore/cosign)（无密钥）签名，生成 `checksums.txt.sig` 和 `checksums.txt.pem`。
+- **SBOM** — 每个发布归档都附有 SPDX 软件物料清单（Software Bill of Materials）。
+- **构建溯源** — 通过 GitHub OIDC 对 SLSA 构建溯源进行证明。
+
+验证已签名的校验和（然后将您的归档与 `checksums.txt` 进行核对）：
+
+```shell
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+使用 GitHub CLI 验证已下载工件的构建溯源：
+
+```shell
+gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
 
 ## 如何使用
 ### 更新所有二进制文件
@@ -207,6 +231,48 @@ $ gup export --output > gup.json
 $ gup import --file=gup.json
 ```
 
+### 将二进制文件迁移到新的 $GOBIN
+
+```shell
+gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
+```
+
+`gup migrate` 会将 `BEFORE_PATH` 下的 Go 二进制文件重新安装到 `AFTER_PATH`，
+使用每个二进制文件构建信息中记录的精确 `import path@version`
+（它绝不会悄悄升级到 `@latest`）。在内部，它只是将 `GOBIN` 设置为
+`AFTER_PATH` 并运行常规的 `go install` 流程，因此这些二进制文件会
+使用当前正在使用的 Go 工具链重新构建。
+
+#### 为什么这很有用（例如配合 `mise`）
+
+当您使用 [`mise`](https://mise.jdx.dev/) 管理 Go 时，更新 Go 可能会
+改变每个 Go 版本对应的 `$GOBIN` 实际路径。结果，您在之前的
+`$GOBIN` 下安装的工具对新的 Go 不再可见。`gup migrate`
+让您可以将相同的 Go 工具集从旧的 `$GOBIN` 重新安装到新的 `$GOBIN`：
+
+```shell
+# 将所有 go-install 工具从旧的 GOBIN 重新安装到新的 GOBIN
+$ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/installs/go/1.25.0/bin
+
+# 仅迁移特定的二进制文件
+$ gup migrate /old/gobin /new/gobin gopls air
+```
+
+`migrate` 是仅追加的：
+
+- 它绝不会删除或清理 `AFTER_PATH` 中的文件。
+- `AFTER_PATH` 中已存在的二进制文件默认会被跳过。使用
+  `--force` 可以覆盖重新安装它们。
+- 当 `AFTER_PATH` 不存在时会自动创建。
+- `BEFORE_PATH` 和 `AFTER_PATH` 必须是不同的目录。
+
+无法解析 import path 或版本的二进制文件，以及开发版构建
+（`devel` / `(devel)`），会被跳过而不是被升级，因此本地或
+不可复现的构建永远不会被破坏。
+
+支持的标志：`--dry-run` (`-n`)、`--notify` (`-N`)、`--jobs` (`-j`)、
+`--force`。
+
 ### 生成手册页（适用于 linux、mac）
 man 子命令在 /usr/share/man/man1 下生成手册页。
 ```shell
@@ -248,6 +314,17 @@ $ gup update --notify
 ![success](../img/notify_success.png)
 ![warning](../img/notify_warning.png)
 
+
+## 基准测试
+gup 并行运行更新，因此比一次更新一个二进制文件的工具完成得更快。更新 9 个各自都有新版本可用的二进制文件：
+
+| 工具                                                          | 策略     | 时间 |
+| ------------------------------------------------------------- | -------- | ---: |
+| gup update                                                    | 并行     | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | 顺序     | 2.9s |
+| `go install` 循环                                             | 顺序     | 2.9s |
+
+在 AMD Ryzen AI Max+ 395（32 核）/ 64 GB 内存 / Ubuntu 26.04 / go 1.26.4 上测量，5 次运行的中位数，Go 模块缓存已预热。时间取决于每个二进制文件的构建时间和您的 CPU。
 
 ## 贡献
 首先，感谢您抽出时间来贡献！❤️ 更多信息请查看 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
