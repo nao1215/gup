@@ -75,6 +75,40 @@ func TestGetLatestVer_unknown_module(t *testing.T) {
 	}
 }
 
+func TestGetVerWithContext_unknown_module(t *testing.T) {
+	out, err := GetVerWithContext(context.Background(), ".", "master")
+
+	// Require to be error
+	if err == nil {
+		t.Fatalf("GetVerWithContext() should return error. got: nil")
+	}
+
+	// Assert to be empty
+	if out != "" {
+		t.Errorf("GetVerWithContext() should return empty string on error. got: %v", out)
+	}
+}
+
+func TestGetVerWithContext_golden(t *testing.T) {
+	// Backup and defer restore
+	oldGoExe := goExe
+	defer func() {
+		goExe = oldGoExe
+	}()
+
+	// Mock the `go` to `echo` command so that the command succeeds and the
+	// requested ref is echoed back as the resolved version.
+	goExe = "echo"
+
+	out, err := GetVerWithContext(context.Background(), "github.com/nao1215/gup", "master")
+	if err != nil {
+		t.Fatalf("GetVerWithContext() should not return error. got: %v", err)
+	}
+	if !strings.Contains(out, "github.com/nao1215/gup@master") {
+		t.Errorf("GetVerWithContext() should query the @master ref. got: %v", out)
+	}
+}
+
 func TestDetectModulePathMismatch(t *testing.T) {
 	tests := []struct {
 		name         string

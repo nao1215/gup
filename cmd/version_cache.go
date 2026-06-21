@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	"github.com/nao1215/gup/internal/goutil"
 )
 
 // latestVerCache deduplicates concurrent getLatestVer calls for the same module path.
@@ -27,14 +29,25 @@ func newLatestVerCache() *latestVerCache {
 	return &latestVerCache{entries: make(map[string]*latestVerEntry)}
 }
 
-// get returns the latest version for the given module path,
-// calling getLatestVer at most once per unique module path.
+// get returns the latest version for the given module path on the @latest
+// channel, calling the fetcher at most once per unique module path.
 func (c *latestVerCache) get(ctx context.Context, modulePath string) (string, error) {
+	return c.getByChannel(ctx, modulePath, goutil.UpdateChannelLatest)
+}
+
+// getByChannel returns the resolved version for the given module path on the
+// requested update channel. Results are cached per (module path, channel) pair
+// so that, for example, a package tracked on @main is not confused with the
+// same module queried on @latest.
+func (c *latestVerCache) getByChannel(ctx context.Context, modulePath string, channel goutil.UpdateChannel) (string, error) {
+	channel = goutil.NormalizeUpdateChannel(string(channel))
+	key := modulePath + "@" + string(channel)
+
 	c.mu.Lock()
-	entry, ok := c.entries[modulePath]
+	entry, ok := c.entries[key]
 	if !ok {
 		entry = &latestVerEntry{}
-		c.entries[modulePath] = entry
+		c.entries[key] = entry
 	}
 	c.mu.Unlock()
 
@@ -61,7 +74,7 @@ func (c *latestVerCache) get(ctx context.Context, modulePath string) (string, er
 		entry.waitCh = make(chan struct{})
 		entry.mu.Unlock()
 
-		version, err := getLatestVerCtx(ctx, modulePath)
+		version, err := fetchVerForChannel(ctx, modulePath, channel)
 
 		entry.mu.Lock()
 		entry.fetching = false
@@ -87,5 +100,33 @@ func (c *latestVerCache) get(ctx context.Context, modulePath string) (string, er
 		close(waitCh)
 
 		return version, err
+	}
+}
+
+// fetchVerForChannel resolves the version that the given update channel would
+// install, mirroring the install-time policy used by 'gup update':
+//   - latest: "$ go list -m ... <module>@latest"
+//   - main:   "$ go list -m ... <module>@main", falling back to @master
+//     (the same @main-with-@master-fallback policy update applies on install)
+//   - master: "$ go list -m ... <module>@master"
+func fetchVerForChannel(ctx context.Context, modulePath string, channel goutil.UpdateChannel) (string, error) {
+	switch goutil.NormalizeUpdateChannel(string(channel)) {
+	case goutil.UpdateChannelMain:
+		ver, err := getVerByRefCtx(ctx, modulePath, string(goutil.UpdateChannelMain))
+		if err == nil {
+			return ver, nil
+		}
+		// Do not fall back when the failure is a cancelled/expired context;
+		// the same cancellation would just hit @master too.
+		if ctx != nil && ctx.Err() != nil {
+			return "", err
+		}
+		return getVerByRefCtx(ctx, modulePath, string(goutil.UpdateChannelMaster))
+	case goutil.UpdateChannelMaster:
+		return getVerByRefCtx(ctx, modulePath, string(goutil.UpdateChannelMaster))
+	case goutil.UpdateChannelLatest:
+		return getLatestVerCtx(ctx, modulePath)
+	default:
+		return getLatestVerCtx(ctx, modulePath)
 	}
 }
