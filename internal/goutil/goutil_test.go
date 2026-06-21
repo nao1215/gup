@@ -813,6 +813,81 @@ func TestGoPaths_EndDryRunMode_fail_to_remove_temp_dir(t *testing.T) {
 	}
 }
 
+// TestGoPaths_EndDryRunMode_removesTmpDir_even_if_restore_fails covers the issue
+// #297 fix: when restoring the env variable fails, the temporary directory must
+// still be removed instead of being leaked.
+func TestGoPaths_EndDryRunMode_removesTmpDir_even_if_restore_fails(t *testing.T) {
+	oldKeyGoBin := keyGoBin
+	defer func() { keyGoBin = oldKeyGoBin }()
+	// An empty key name makes os.Setenv fail, so the env restore errors out.
+	keyGoBin = ""
+
+	// A real temporary directory that EndDryRunMode is expected to remove.
+	tmpDir := filepath.Join(t.TempDir(), "dryrun")
+	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
+		t.Fatalf("failed to set up temp dir: %v", err)
+	}
+
+	gp := GoPaths{GOBIN: "dummy", TmpPath: tmpDir}
+
+	err := gp.EndDryRunMode()
+	if err == nil {
+		t.Fatal("EndDryRunMode() should return error when env restore fails. got: nil")
+	}
+	if !strings.Contains(err.Error(), "failed to set GOBIN to env variable") {
+		t.Errorf("error should report the restore failure. got: %v", err)
+	}
+
+	// The temp directory must be gone even though the restore failed.
+	if _, statErr := os.Stat(tmpDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("temp dir should be removed even when env restore fails. stat err: %v", statErr)
+	}
+}
+
+// TestGoPaths_EndDryRunMode_joins_restore_and_remove_errors verifies that when
+// both the env restore and the temp-dir removal fail, the returned error
+// reports both problems.
+func TestGoPaths_EndDryRunMode_joins_restore_and_remove_errors(t *testing.T) {
+	oldKeyGoBin := keyGoBin
+	defer func() { keyGoBin = oldKeyGoBin }()
+	keyGoBin = "" // env restore fails
+
+	gp := GoPaths{GOBIN: "dummy", TmpPath: "."} // os.RemoveAll(".") fails
+
+	err := gp.EndDryRunMode()
+	if err == nil {
+		t.Fatal("EndDryRunMode() should return error when both restore and removal fail. got: nil")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "failed to set GOBIN to env variable") {
+		t.Errorf("joined error should report the restore failure. got: %v", got)
+	}
+	if !strings.Contains(got, "temporary directory for dry run remains") {
+		t.Errorf("joined error should report the removal failure. got: %v", got)
+	}
+}
+
+// TestGoPaths_StartDryRunMode_removesTmpDir_when_setenv_fails verifies that a
+// failed env mutation during StartDryRunMode does not leak the temp directory.
+func TestGoPaths_StartDryRunMode_removesTmpDir_when_setenv_fails(t *testing.T) {
+	oldKeyGoBin := keyGoBin
+	defer func() { keyGoBin = oldKeyGoBin }()
+	keyGoBin = "" // makes os.Setenv fail after the temp dir is created
+
+	gp := GoPaths{GOBIN: "dummy"}
+
+	err := gp.StartDryRunMode()
+	if err == nil {
+		t.Fatal("StartDryRunMode() should return error when env mutation fails. got: nil")
+	}
+	if gp.TmpPath == "" {
+		t.Fatal("StartDryRunMode() should have created a temp dir before failing")
+	}
+	if _, statErr := os.Stat(gp.TmpPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("temp dir should be removed when StartDryRunMode fails. stat err: %v", statErr)
+	}
+}
+
 func TestGoPaths_StartDryRunMode_fail_to_get_temp_dir(t *testing.T) {
 	// Backup and defer restore
 	OldOsMkdirTemp := osMkdirTemp

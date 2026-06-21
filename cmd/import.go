@@ -112,7 +112,7 @@ func runImport(cmd *cobra.Command, _ []string) int {
 	return installFromConfig(pkgs, dryRun, notify, cpus, timeout)
 }
 
-func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) int {
+func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) (exitCode int) {
 	dryRunManager := goutil.NewGoPaths()
 
 	if dryRun {
@@ -120,6 +120,14 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
 			return 1
 		}
+		// Restore the environment and remove the temp dir via defer so it runs
+		// even if a package install panics (see issue #297).
+		defer func() {
+			if err := dryRunManager.EndDryRunMode(); err != nil {
+				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+				exitCode = 1
+			}
+		}()
 	}
 
 	installer := func(ctx context.Context, p goutil.Package) updateResult {
@@ -163,13 +171,6 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 	result, _ := executePackages(pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
 		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
 	})
-
-	if dryRun {
-		if err := dryRunManager.EndDryRunMode(); err != nil {
-			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
-			return 1
-		}
-	}
 
 	desktopNotifyIfNeeded(result, notification)
 	return result
