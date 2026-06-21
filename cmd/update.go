@@ -243,7 +243,7 @@ type updateResult struct {
 	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut bool) (int, []goutil.Package, map[string]string) {
+func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
 	verCache := newLatestVerCache()
@@ -257,6 +257,14 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 			notify.Warn("gup", "Can not change to dry run mode")
 			return 1, nil, nil
 		}
+		// Restore the environment and remove the temp dir via defer so it runs
+		// even if a package update panics (see issue #297).
+		defer func() {
+			if err := dryRunManager.EndDryRunMode(); err != nil {
+				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+				exitCode = 1
+			}
+		}()
 	}
 
 	updater := func(ctx context.Context, p goutil.Package) updateResult {
@@ -370,13 +378,6 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 
 	// update all packages
 	result, results := executePackages(pkgs, cpus, timeout, updater, onResult)
-
-	if dryRun {
-		if err := dryRunManager.EndDryRunMode(); err != nil {
-			print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
-			return 1, nil, nil
-		}
-	}
 
 	if jsonOut {
 		if err := encodeJSONPackages(resultsToJSONPackages(results)); err != nil {
