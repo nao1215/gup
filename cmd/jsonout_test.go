@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -295,5 +296,90 @@ func Test_doCheck_jsonOutput_errorRecord(t *testing.T) {
 	}
 	if recs[0].Error == "" {
 		t.Errorf("expected non-empty error field")
+	}
+}
+
+// Test_check_jsonFlag exercises the command entry point with --json so the
+// flag-parsing and JSON-dispatch branches in check() are covered.
+func Test_check_jsonFlag(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	origGetLatest := getLatestVer
+	t.Cleanup(func() { getLatestVer = origGetLatest })
+	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+
+	cmd := newCheckCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("failed to set json flag: %v", err)
+	}
+
+	recs := readJSON(t, func() int {
+		return check(cmd, []string{})
+	})
+	if len(recs) == 0 {
+		t.Fatal("expected at least one JSON record from check --json")
+	}
+	for _, r := range recs {
+		if r.Status == "" {
+			t.Errorf("record %q has empty status", r.Name)
+		}
+	}
+}
+
+// Test_list_jsonFlag exercises list() with --json end to end.
+func Test_list_jsonFlag(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	cmd := newListCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("failed to set json flag: %v", err)
+	}
+
+	recs := readJSON(t, func() int {
+		return list(cmd, []string{})
+	})
+	if len(recs) == 0 {
+		t.Fatal("expected at least one JSON record from list --json")
+	}
+	for _, r := range recs {
+		if r.Status != statusInstalled {
+			t.Errorf("list record %q status = %q, want %q", r.Name, r.Status, statusInstalled)
+		}
+	}
+}
+
+// Test_gup_jsonFlag exercises gup() with --json (and --dry-run) so the
+// flag-parsing and JSON-dispatch branches in gup()/updateWithChannels are
+// covered without performing real installs.
+func Test_gup_jsonFlag(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	origGetLatest := getLatestVer
+	origInstallLatest := installLatest
+	t.Cleanup(func() {
+		getLatestVer = origGetLatest
+		installLatest = origInstallLatest
+	})
+	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	installLatest = func(string) error { return nil }
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("failed to set json flag: %v", err)
+	}
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("failed to set dry-run flag: %v", err)
+	}
+
+	var got int
+	recs := readJSON(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0", got)
+	}
+	if len(recs) == 0 {
+		t.Fatal("expected at least one JSON record from update --json")
 	}
 }
