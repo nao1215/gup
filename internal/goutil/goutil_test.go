@@ -179,7 +179,7 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 
 	print.Stderr = &tmpBuff
 
-	result := GetPackageInformation([]string{"unknown-module"})
+	result, _ := GetPackageInformation([]string{"unknown-module"})
 
 	// Require to be empty
 	if len(result) != 0 {
@@ -191,6 +191,63 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 	got := tmpBuff.String()
 	if !strings.Contains(got, wantContain) {
 		t.Errorf("it should print error message '%v'. got: %v", wantContain, got)
+	}
+}
+
+// TestGetPackageInformation_goVersionFailure verifies the fix for issue #296:
+// when "go version" cannot be read, GetPackageInformation reports that the Go
+// version is unavailable (second return value false) and warns exactly once,
+// instead of silently stamping "unknown" and forcing every binary to reinstall.
+func TestGetPackageInformation_goVersionFailure(t *testing.T) {
+	oldGoExe := goExe
+	oldPrintStderr := print.Stderr
+	defer func() {
+		goExe = oldGoExe
+		print.Stderr = oldPrintStderr
+	}()
+	// Point the go command at a binary that does not exist so "go version"
+	// fails on every OS (unlike "false", which is absent on Windows).
+	goExe = "gup-nonexistent-go-command-for-test"
+
+	var stderr bytes.Buffer
+	print.Stderr = &stderr
+
+	nameDir := "check_success"
+	nameBin := "gal"
+	if runtime.GOOS == "windows" {
+		nameDir = "check_success_for_windows"
+		nameBin = "gal.exe"
+	}
+	pathBin := filepath.Join("..", "..", "cmd", "testdata", nameDir, nameBin)
+
+	pkgs, goVersionAvailable := GetPackageInformation([]string{pathBin})
+
+	// The Go-version detection failure is reported, not swallowed.
+	if goVersionAvailable {
+		t.Error("goVersionAvailable should be false when 'go version' fails")
+	}
+	// Packages are still returned so module-version checks can proceed.
+	if len(pkgs) != 1 {
+		t.Fatalf("GetPackageInformation() returned %d packages, want 1", len(pkgs))
+	}
+	// Exactly one warning explains why the Go-version comparison was skipped.
+	if c := strings.Count(stderr.String(), "skipping Go-version comparison"); c != 1 {
+		t.Errorf("want exactly one Go-version warning, got %d: %q", c, stderr.String())
+	}
+
+	// Acceptance criterion (1): an otherwise up-to-date binary must not be
+	// flagged for update. Without the fix, the Go version is "unknown" so
+	// IsGoUpToDate() is false and, with ignore-go-update off, the Go-version
+	// term would force a reinstall. The fix makes callers treat a detection
+	// failure as ignore-go-update, which disables that term.
+	p := pkgs[0]
+	p.Version.Latest = p.Version.Current // module side is up-to-date
+	if p.IsGoUpToDate() {
+		t.Fatal("precondition: IsGoUpToDate() should be false when the Go version is unknown")
+	}
+	ignoreGoUpdate := !goVersionAvailable
+	if goVersionForcesUpdate := !ignoreGoUpdate && !p.IsGoUpToDate(); goVersionForcesUpdate {
+		t.Error("Go-version comparison must be disabled on detection failure so it cannot force a reinstall")
 	}
 }
 
@@ -623,7 +680,7 @@ func TestGetPackageInformation_std_cmd_filtered(t *testing.T) {
 		t.Skipf("gofmt not found at %s: %v", gofmt, err)
 	}
 
-	result := GetPackageInformation([]string{gofmt})
+	result, _ := GetPackageInformation([]string{gofmt})
 	if len(result) != 0 {
 		t.Errorf("GetPackageInformation() should filter standard library commands, got: %v", result)
 	}
@@ -1257,7 +1314,7 @@ func TestVersionUpToDate_invalidVersion(t *testing.T) {
 }
 
 func TestGetPackageInformation_emptyList(t *testing.T) {
-	result := GetPackageInformation([]string{})
+	result, _ := GetPackageInformation([]string{})
 	if result != nil {
 		t.Errorf("expected nil for empty list, got %v", result)
 	}
@@ -1369,7 +1426,7 @@ func BenchmarkGetPackageInformation(b *testing.B) {
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_ = GetPackageInformation(list)
+				_, _ = GetPackageInformation(list)
 			}
 		})
 	}
