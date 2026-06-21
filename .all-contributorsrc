@@ -151,6 +151,69 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "LucasM4r",
+      "name": "Lucas Marchesan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/83995229?v=4",
+      "profile": "https://github.com/LucasM4r",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "hsn10",
+      "name": "Radim Kolar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1170075?v=4",
+      "profile": "https://github.com/hsn10",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "Mohabdo21",
+      "name": "Mohannad Abdulaziz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/139122098?v=4",
+      "profile": "https://github.com/Mohabdo21",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "hu3bi",
+      "name": "Yannick",
+      "avatar_url": "https://avatars.githubusercontent.com/u/132217293?v=4",
+      "profile": "https://github.com/hu3bi",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "dgoalcantara",
+      "name": "Diego Alcântara",
+      "avatar_url": "https://avatars.githubusercontent.com/u/21999506?v=4",
+      "profile": "https://diegoalcantara.com.br",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "Crocmagnon",
+      "name": "Crocmagnon",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3630554?v=4",
+      "profile": "https://gabnotes.org",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "luckman212",
+      "name": "Luke Hamburg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1992842?v=4",
+      "profile": "https://reliable.network",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
