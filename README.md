@@ -1,5 +1,5 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-16-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-32-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
@@ -18,33 +18,6 @@ gup updates binaries installed with `go install`, running the updates in paralle
 gup also manages the tools under `$GOPATH/bin` (`$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tool set on another machine, and `migrate` them into a different `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
-
-## Benchmark
-gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
-
-| Tool                                                          | Strategy   | Time |
-| ------------------------------------------------------------- | ---------- | ---: |
-| gup update                                                    | parallel   | 0.7s |
-| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
-| `go install` loop                                             | sequential | 2.9s |
-
-Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
-
-
-## Feature comparison
-
-| Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
-| --- | --- | --- | --- |
-| Parallel update | Yes (parallel by default; tune with `--jobs`) | No (sequential installs) | Manual (`xargs -P`, `&`/`wait`) |
-| Per-package update channels (`latest`/`main`/`master`) | Yes (persisted per package) | No (`@latest` only) | Manual (`@main`/`@master` each run) |
-| Export/import tool set | Yes (`gup export`, `gup import`) | No | Manual (script via `go version -m`) |
-| Migrate binaries to a new `$GOBIN` | Yes (`gup migrate`) | No | Manual (`GOBIN=… go install …`) |
-| Machine-readable JSON output | Yes (`list`/`check`/`update` + `--json`) | No | No |
-| Shell completion generation/install | Yes (`gup completion`, `--install`) | No | No |
-| Force reinstall up-to-date binaries | No | Yes (`--force`) | Yes (re-run `go install`) |
-| Failure diagnostics / next-step hints | No | Yes | No |
-| `NO_COLOR` support | No | Yes | — |
-| No extra tool required (official toolchain only) | No | No | Yes |
 
 ## Supported OS (unit testing with GitHub Actions)
 
@@ -349,6 +322,32 @@ $ gup update --notify
 ![warning](./doc/img/notify_warning.png)
 
 
+## Benchmark
+gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
+
+| Tool                                                          | Strategy   | Time |
+| ------------------------------------------------------------- | ---------- | ---: |
+| gup update                                                    | parallel   | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
+| `go install` loop                                             | sequential | 2.9s |
+
+Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
+
+## Feature comparison
+
+| Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
+| --- | :-: | :-: | :-: |
+| Parallel update | Yes | No | Manual |
+| Per-package update channels (`latest`/`main`/`master`) | Yes | No | Manual |
+| Export/import tool set | Yes | No | Manual |
+| Migrate binaries to a new `$GOBIN` | Yes | No | Manual |
+| Machine-readable JSON output | Yes | No | No |
+| Shell completion generation/install | Yes | No | No |
+| Force reinstall up-to-date binaries | No | Yes | Yes |
+| Failure diagnostics / next-step hints | No | Yes | No |
+| `NO_COLOR` support | No | Yes | — |
+| No extra tool required (official toolchain only) | No | No | Yes |
+
 ## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
 Developer workflow, quality checklist, and tool management are documented in [CONTRIBUTING.md](./CONTRIBUTING.md).
@@ -402,6 +401,26 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://blog.lenhof.eu.org/"><img src="https://avatars.githubusercontent.com/u/36410287?v=4?s=100" width="100px;" alt="Jean-Yves LENHOF"/><br /><sub><b>Jean-Yves LENHOF</b></sub></a><br /><a href="https://github.com/nao1215/gup/commits?author=jylenhof" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://clarabennett2626.github.io/"><img src="https://avatars.githubusercontent.com/u/261616207?v=4?s=100" width="100px;" alt="Clara Bennett"/><br /><sub><b>Clara Bennett</b></sub></a><br /><a href="https://github.com/nao1215/gup/commits?author=clarabennett2626" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/LucasM4r"><img src="https://avatars.githubusercontent.com/u/83995229?v=4?s=100" width="100px;" alt="Lucas Marchesan"/><br /><sub><b>Lucas Marchesan</b></sub></a><br /><a href="https://github.com/nao1215/gup/commits?author=LucasM4r" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hsn10"><img src="https://avatars.githubusercontent.com/u/1170075?v=4?s=100" width="100px;" alt="Radim Kolar"/><br /><sub><b>Radim Kolar</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Ahsn10" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Mohabdo21"><img src="https://avatars.githubusercontent.com/u/139122098?v=4?s=100" width="100px;" alt="Mohannad Abdulaziz"/><br /><sub><b>Mohannad Abdulaziz</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3AMohabdo21" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hu3bi"><img src="https://avatars.githubusercontent.com/u/132217293?v=4?s=100" width="100px;" alt="Yannick"/><br /><sub><b>Yannick</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Ahu3bi" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://diegoalcantara.com.br"><img src="https://avatars.githubusercontent.com/u/21999506?v=4?s=100" width="100px;" alt="Diego Alcântara"/><br /><sub><b>Diego Alcântara</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Adgoalcantara" title="Bug reports">🐛</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://gabnotes.org"><img src="https://avatars.githubusercontent.com/u/3630554?v=4?s=100" width="100px;" alt="Crocmagnon"/><br /><sub><b>Crocmagnon</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ACrocmagnon" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://reliable.network"><img src="https://avatars.githubusercontent.com/u/1992842?v=4?s=100" width="100px;" alt="Luke Hamburg"/><br /><sub><b>Luke Hamburg</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aluckman212" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://onee3.org"><img src="https://avatars.githubusercontent.com/u/4507647?v=4?s=100" width="100px;" alt="Frederick Zhang"/><br /><sub><b>Frederick Zhang</b></sub></a><br /><a href="#ideas-Frederick888" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/trallnag"><img src="https://avatars.githubusercontent.com/u/24834206?v=4?s=100" width="100px;" alt="Tim Schwenke"/><br /><sub><b>Tim Schwenke</b></sub></a><br /><a href="#ideas-trallnag" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ybrhue"><img src="https://avatars.githubusercontent.com/u/35401453?v=4?s=100" width="100px;" alt="ybrhue"/><br /><sub><b>ybrhue</b></sub></a><br /><a href="#ideas-ybrhue" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://nexiom.net"><img src="https://avatars.githubusercontent.com/u/3214803?v=4?s=100" width="100px;" alt="Samuel D. Leslie"/><br /><sub><b>Samuel D. Leslie</b></sub></a><br /><a href="#ideas-ralish" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://giggio.net"><img src="https://avatars.githubusercontent.com/u/334958?v=4?s=100" width="100px;" alt="Giovanni Bassi"/><br /><sub><b>Giovanni Bassi</b></sub></a><br /><a href="#ideas-giggio" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.craig-wood.com/nick/"><img src="https://avatars.githubusercontent.com/u/536803?v=4?s=100" width="100px;" alt="Nick Craig-Wood"/><br /><sub><b>Nick Craig-Wood</b></sub></a><br /><a href="#ideas-ncw" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://chenrui.dev"><img src="https://avatars.githubusercontent.com/u/1580956?v=4?s=100" width="100px;" alt="Rui Chen"/><br /><sub><b>Rui Chen</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Achenrui333" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/phanirithvij"><img src="https://avatars.githubusercontent.com/u/29627898?v=4?s=100" width="100px;" alt="phanirithvij"/><br /><sub><b>phanirithvij</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aphanirithvij" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Darkcast"><img src="https://avatars.githubusercontent.com/u/1676655?v=4?s=100" width="100px;" alt="Darkcast"/><br /><sub><b>Darkcast</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ADarkcast" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>
