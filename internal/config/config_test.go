@@ -104,6 +104,63 @@ func TestWriteConfFile(t *testing.T) {
 	}
 }
 
+const (
+	verLatest  = "latest"
+	verUnknown = "unknown"
+	verDevel   = "(devel)"
+	verSemver  = "v1.2.3"
+)
+
+func Test_normalizeConfVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty becomes latest", in: "", want: verLatest},
+		{name: "whitespace becomes latest", in: "   ", want: verLatest},
+		{name: "(devel) becomes latest", in: verDevel, want: verLatest},
+		{name: "devel becomes latest", in: "devel", want: verLatest},
+		{name: "unknown becomes latest", in: verUnknown, want: verLatest},
+		{name: "unknown with whitespace becomes latest", in: "  unknown  ", want: verLatest},
+		{name: "latest stays latest", in: verLatest, want: verLatest},
+		{name: "real version is kept", in: verSemver, want: verSemver},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := normalizeConfVersion(tt.in); got != tt.want {
+				t.Errorf("normalizeConfVersion(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// Test_WriteConfFile_normalizesUnknownVersion verifies that "unknown" never
+// reaches gup.json: it is normalized to "latest" like "(devel)" (issue #300).
+func Test_WriteConfFile_normalizesUnknownVersion(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	pkgs := []goutil.Package{
+		{
+			Name:       "tool",
+			ImportPath: "example.com/tool",
+			Version:    &goutil.Version{Current: verUnknown},
+		},
+	}
+	if err := WriteConfFile(&buf, pkgs); err != nil {
+		t.Fatalf("WriteConfFile() error = %v", err)
+	}
+	if strings.Contains(buf.String(), verUnknown) {
+		t.Errorf("gup.json must not persist %q, got:\n%s", verUnknown, buf.String())
+	}
+	if !strings.Contains(buf.String(), `"version": "latest"`) {
+		t.Errorf("%q should be normalized to %q, got:\n%s", verUnknown, verLatest, buf.String())
+	}
+}
+
 func TestReadConfFile(t *testing.T) { //nolint:paralleltest // modifies xdg globals
 	cleanup := withTempXDG(t)
 	defer cleanup()
