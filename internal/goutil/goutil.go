@@ -411,11 +411,17 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return fmt.Errorf("install of %s timed out: %w", importPath, ctxErr)
+				return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
 			}
 			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 		}
-		return fmt.Errorf("can't install %s:\n%s", importPath, stderr.String())
+		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
+		// fall back to err (e.g. "signal: killed") to always name a cause.
+		detail := stderr.String()
+		if strings.TrimSpace(detail) == "" {
+			detail = err.Error()
+		}
+		return fmt.Errorf("can't install %s:\n%s", importPath, detail)
 	}
 	return nil
 }
@@ -445,11 +451,17 @@ func GetVerWithContext(ctx context.Context, modulePath, ref string) (string, err
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return "", fmt.Errorf("version check of %s timed out: %w", modulePath, ctxErr)
+				return "", fmt.Errorf("version check of %s timed out; run `go list -m %s@%s` manually or raise --timeout (0 disables it): %w", modulePath, modulePath, ref, ctxErr)
 			}
 			return "", fmt.Errorf("version check of %s canceled: %w", modulePath, ctxErr)
 		}
-		return "", fmt.Errorf("can't check %s:\n%s", modulePath, stderr.String())
+		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
+		// fall back to err (e.g. "signal: killed") to always name a cause.
+		detail := stderr.String()
+		if strings.TrimSpace(detail) == "" {
+			detail = err.Error()
+		}
+		return "", fmt.Errorf("can't check %s:\n%s", modulePath, detail)
 	}
 	return strings.TrimRight(string(out), "\n"), nil
 }

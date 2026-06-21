@@ -114,7 +114,7 @@ func TestGetFlagStringSlice(t *testing.T) {
 func TestGetTimeoutFlag(t *testing.T) {
 	t.Parallel()
 
-	t.Run("default", func(t *testing.T) {
+	t.Run("default is disabled (no timeout)", func(t *testing.T) {
 		t.Parallel()
 		cmd := &cobra.Command{}
 		addTimeoutFlag(cmd)
@@ -122,8 +122,10 @@ func TestGetTimeoutFlag(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if v != defaultGoOpTimeout {
-			t.Errorf("got %v, want %v", v, defaultGoOpTimeout)
+		// The default must be 0 so a slow "go install" is never killed
+		// (issue #318). This restores the pre-v1.3.0 behavior.
+		if v != 0 {
+			t.Errorf("default timeout should be 0 (disabled), got %v", v)
 		}
 	})
 

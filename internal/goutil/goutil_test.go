@@ -1421,6 +1421,17 @@ func TestInstallWithContext_Timeout(t *testing.T) {
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("error should report a timeout, got: %v", err)
 	}
+	// The timeout error must name the runnable command and the --timeout hint
+	// so users can rerun or relax the limit (issue #318).
+	if !strings.Contains(err.Error(), "go install "+timeoutTestImportPath+"@latest") {
+		t.Errorf("error should include the runnable go install command, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--timeout") {
+		t.Errorf("error should hint at the --timeout flag, got: %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error should wrap context.DeadlineExceeded, got: %v", err)
+	}
 }
 
 func TestInstallWithContext_Cancel(t *testing.T) {
@@ -1441,6 +1452,17 @@ func TestGetLatestVerWithContext_Timeout(t *testing.T) {
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("error should report a timeout, got: %v", err)
 	}
+	// The version-check timeout uses "go list" (not "go install") and hints at
+	// the --timeout flag (issue #318).
+	if !strings.Contains(err.Error(), "go list -m "+timeoutTestImportPath+"@latest") {
+		t.Errorf("error should include the runnable go list command, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "--timeout") {
+		t.Errorf("error should hint at the --timeout flag, got: %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("error should wrap context.DeadlineExceeded, got: %v", err)
+	}
 }
 
 func TestGetLatestVerWithContext_Cancel(t *testing.T) {
@@ -1450,6 +1472,56 @@ func TestGetLatestVerWithContext_Cancel(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "canceled") {
 		t.Errorf("error should report a cancellation, got: %v", err)
+	}
+}
+
+// errorCauseAfterPrefix returns the part of the error message after the
+// "<prefix>:\n" header, trimmed. It is empty when the error carries no cause.
+func errorCauseAfterPrefix(t *testing.T, err error, prefix string) string {
+	t.Helper()
+	return strings.TrimSpace(strings.TrimPrefix(err.Error(), prefix+":"))
+}
+
+// TestInstallWithContext_EmptyStderrFallback covers issue #298: when the go
+// subprocess fails without writing to stderr (as a killed process does), the
+// error must still name a cause (from err.Error()) instead of being empty.
+func TestInstallWithContext_EmptyStderrFallback(t *testing.T) {
+	oldGoExe := goExe
+	defer func() { goExe = oldGoExe }()
+	// A missing command fails on every OS while leaving stderr empty, and with
+	// context.Background() ctx.Err() is nil so the fallback branch is reached.
+	goExe = "gup-nonexistent-go-command-for-test"
+
+	err := InstallWithContext(context.Background(), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("InstallWithContext should fail when the go command is missing")
+	}
+	if !strings.Contains(err.Error(), "can't install") {
+		t.Errorf("error should report the install failure, got: %v", err)
+	}
+	prefix := fmt.Sprintf("can't install %s", timeoutTestImportPath)
+	if errorCauseAfterPrefix(t, err, prefix) == "" {
+		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
+	}
+}
+
+// TestGetVerWithContext_EmptyStderrFallback is the GetVerWithContext counterpart
+// of TestInstallWithContext_EmptyStderrFallback (issue #298).
+func TestGetVerWithContext_EmptyStderrFallback(t *testing.T) {
+	oldGoExe := goExe
+	defer func() { goExe = oldGoExe }()
+	goExe = "gup-nonexistent-go-command-for-test"
+
+	_, err := GetVerWithContext(context.Background(), timeoutTestImportPath, "latest")
+	if err == nil {
+		t.Fatal("GetVerWithContext should fail when the go command is missing")
+	}
+	if !strings.Contains(err.Error(), "can't check") {
+		t.Errorf("error should report the version-check failure, got: %v", err)
+	}
+	prefix := fmt.Sprintf("can't check %s", timeoutTestImportPath)
+	if errorCauseAfterPrefix(t, err, prefix) == "" {
+		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
 	}
 }
 
