@@ -32,7 +32,7 @@ If you want to specify multiple binaries at once, separate them with space.
 			OsExit(remove(cmd, args))
 		},
 	}
-	cmd.Flags().BoolP("force", "f", false, "Forcibly remove the file")
+	cmd.Flags().BoolP("force", "f", false, "forcibly remove the file")
 
 	return cmd
 }

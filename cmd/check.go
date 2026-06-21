@@ -31,11 +31,11 @@ It does not update them.`,
 		},
 	}
 
-	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}
-	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only update-available/failed binaries plus a summary")
 	addTimeoutFlag(cmd)

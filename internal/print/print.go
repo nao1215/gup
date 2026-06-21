@@ -70,7 +70,7 @@ func Question(ask string) bool {
 			if strings.Contains(err.Error(), "expected newline") {
 				return true
 			}
-			fmt.Fprint(os.Stderr, err.Error())
+			Err(err)
 			return false
 		}
 

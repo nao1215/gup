@@ -15,7 +15,7 @@ func newBugReportCmd() *cobra.Command {
 		Use:               "bug-report",
 		Short:             "Submit a bug report at GitHub",
 		Long:              "bug-report opens the default browser to start a bug report which will include useful system information.",
-		Example:           "   gup bug-report",
+		Example:           "  gup bug-report",
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
