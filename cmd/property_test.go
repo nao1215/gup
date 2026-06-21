@@ -17,6 +17,15 @@ const (
 	testDotExe    = ".exe"
 )
 
+// quickConfig returns a quick.Config with a fixed RNG seed so that any failing
+// input is reproducible across local and CI runs.
+func quickConfig() *quick.Config {
+	return &quick.Config{
+		MaxCount: 500,
+		Rand:     rand.New(rand.NewSource(1)),
+	}
+}
+
 // binBaseName generates plausible binary base names: letters/digits with an
 // optional case-mixed ".exe"/".EXE" suffix and optional surrounding spaces. It
 // is bounded so the property checks stay fast and deterministic-ish.
@@ -62,7 +71,7 @@ func TestNormalizeBinaryNameForMatch_properties(t *testing.T) {
 		twice := normalizeBinaryNameForMatch(once)
 		return once == twice
 	}
-	if err := quick.Check(idempotent, &quick.Config{MaxCount: 500}); err != nil {
+	if err := quick.Check(idempotent, quickConfig()); err != nil {
 		t.Errorf("idempotency failed: %v", err)
 	}
 
@@ -82,7 +91,7 @@ func TestNormalizeBinaryNameForMatch_properties(t *testing.T) {
 		// Non-Windows: only whitespace is trimmed; case and .exe are preserved.
 		return got == trimmed
 	}
-	if err := quick.Check(hostContract, &quick.Config{MaxCount: 500}); err != nil {
+	if err := quick.Check(hostContract, quickConfig()); err != nil {
 		t.Errorf("host-specific contract failed: %v", err)
 	}
 }
@@ -126,7 +135,7 @@ func TestBinaryNameFromImportPath_properties(t *testing.T) {
 		}
 		return true
 	}
-	if err := quick.Check(noSeparator, &quick.Config{MaxCount: 500}); err != nil {
+	if err := quick.Check(noSeparator, quickConfig()); err != nil {
 		t.Errorf("no-separator property failed: %v", err)
 	}
 
@@ -142,7 +151,7 @@ func TestBinaryNameFromImportPath_properties(t *testing.T) {
 		}
 		return true
 	}
-	if err := quick.Check(stable, &quick.Config{MaxCount: 500}); err != nil {
+	if err := quick.Check(stable, quickConfig()); err != nil {
 		t.Errorf("stability property failed: %v", err)
 	}
 
