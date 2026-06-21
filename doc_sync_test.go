@@ -15,6 +15,18 @@ import (
 // "this translation may lag behind English" banner in every translated README.
 const translationSyncMarker = "<!-- gup:translation-sync -->"
 
+// canonicalLanguageBar is the language switcher every translated README must
+// carry verbatim, so each doc links to English and to every sibling language
+// (including a self-link). This guards against drift like a missing self-link
+// or a different ordering between translations.
+const canonicalLanguageBar = "[English](../../README.md) | " +
+	"[日本語](../ja/README.md) | " +
+	"[Русский](../ru/README.md) | " +
+	"[中文](../zh-cn/README.md) | " +
+	"[한국어](../ko/README.md) | " +
+	"[Español](../es/README.md) | " +
+	"[Français](../fr/README.md)"
+
 func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	t.Parallel()
 	// requiredEnglishSections lists structural headings the English README must
@@ -66,6 +78,11 @@ func Test_translatedReadmes_haveSyncBanner(t *testing.T) {
 			// Every translation must link back to the English source of truth.
 			if !strings.Contains(content, "../../README.md") {
 				t.Errorf("%s does not link back to the English README (../../README.md)", path)
+			}
+			// Every translation must carry the same language switcher (English +
+			// all siblings + a self-link), so navigation stays consistent.
+			if !strings.Contains(content, canonicalLanguageBar) {
+				t.Errorf("%s is missing the canonical language bar:\n%s", path, canonicalLanguageBar)
 			}
 		})
 	}
