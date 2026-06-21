@@ -8,3 +8,6 @@ Examples:
 
 Flags:
   -h, --help   help for bug-report
+
+Global Flags:
+      --no-color   disable colorized output (also honored via the NO_COLOR environment variable)

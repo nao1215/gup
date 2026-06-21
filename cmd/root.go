@@ -31,10 +31,19 @@ oh-my-zsh alias is disabled (e.g. $ \gup update).
 If you find gup useful, please consider sponsoring the project:
   https://github.com/sponsors/nao1215
 `,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			noColor, err := getFlagBool(cmd, noColorFlagName)
+			if err != nil {
+				return err
+			}
+			applyColorPreference(noColor)
+			return nil
+		},
 	}
 	cmd.CompletionOptions.DisableDefaultCmd = true
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
+	addNoColorFlag(cmd)
 
 	cmd.AddCommand(newCheckCmd())
 	cmd.AddCommand(newCompletionCmd())
