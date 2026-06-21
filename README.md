@@ -33,16 +33,18 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 
 ## Feature comparison
 
-The table below is based on this repository and each alternative tool's public README/help as of 2026-06-21.
-
-| Feature                                                | gup                                      | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop                             |
-| ------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------- | --------------------------------------------- |
-| Parallel update                                        | Yes (`gup update --jobs`)                | No (sequential `go install ...@latest`)                       | No (sequential unless you script parallelism) |
-| Per-package update channels (`latest`/`main`/`master`) | Yes                                      | No                                                            | No                                            |
-| Export/import tool set                                 | Yes (`gup export`, `gup import`)         | No                                                            | No                                            |
-| Migrate binaries to a new `$GOBIN`                     | Yes (`gup migrate`)                      | No                                                            | No                                            |
-| Machine-readable JSON output                           | Yes (`list`/`check`/`update` + `--json`) | No                                                            | No                                            |
-| Shell completion generation/install                    | Yes (`gup completion`, `--install`)      | No                                                            | No                                            |
+| Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
+| --- | --- | --- | --- |
+| Parallel update | Yes (parallel by default; tune with `--jobs`) | No (sequential installs) | Manual (`xargs -P`, `&`/`wait`) |
+| Per-package update channels (`latest`/`main`/`master`) | Yes (persisted per package) | No (`@latest` only) | Manual (`@main`/`@master` each run) |
+| Export/import tool set | Yes (`gup export`, `gup import`) | No | Manual (script via `go version -m`) |
+| Migrate binaries to a new `$GOBIN` | Yes (`gup migrate`) | No | Manual (`GOBIN=… go install …`) |
+| Machine-readable JSON output | Yes (`list`/`check`/`update` + `--json`) | No | No |
+| Shell completion generation/install | Yes (`gup completion`, `--install`) | No | No |
+| Force reinstall up-to-date binaries | No | Yes (`--force`) | Yes (re-run `go install`) |
+| Failure diagnostics / next-step hints | No | Yes | No |
+| `NO_COLOR` support | No | Yes | — |
+| No extra tool required (official toolchain only) | No | No | Yes |
 
 ## Supported OS (unit testing with GitHub Actions)
 
