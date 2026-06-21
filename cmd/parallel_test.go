@@ -146,7 +146,7 @@ func TestCollectResults_AllSuccess(t *testing.T) {
 	close(ch)
 
 	var prefixes []string
-	code := collectResults(ch, len(pkgs), func(prefix string, _ updateResult) {
+	code, _ := collectResults(ch, len(pkgs), func(prefix string, _ updateResult) {
 		prefixes = append(prefixes, prefix)
 	})
 
@@ -171,7 +171,7 @@ func TestCollectResults_WithError(t *testing.T) {
 	close(ch)
 
 	onResultCalls := 0
-	code := collectResults(ch, 2, func(_ string, _ updateResult) {
+	code, _ := collectResults(ch, 2, func(_ string, _ updateResult) {
 		onResultCalls++
 	})
 

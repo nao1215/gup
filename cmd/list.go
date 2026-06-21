@@ -11,7 +11,7 @@ import (
 )
 
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:               "list",
 		Short:             "List command names with package path and version under $GOPATH/bin or $GOBIN",
 		Long:              `List command names with package path and version under $GOPATH/bin or $GOBIN`,
@@ -21,9 +21,11 @@ func newListCmd() *cobra.Command {
 			OsExit(list(cmd, args))
 		},
 	}
+	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
+	return cmd
 }
 
-func list(_ *cobra.Command, _ []string) int {
+func list(cmd *cobra.Command, _ []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
 		print.Err(err)
 		return 1
@@ -39,9 +41,35 @@ func list(_ *cobra.Command, _ []string) int {
 		print.Err("unable to list up package: no package information")
 		return 1
 	}
-	printPackageList(pkgs)
 
+	jsonOut, err := getFlagBool(cmd, "json")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
+	if jsonOut {
+		pkgs = applyCheckChannels(pkgs)
+		if err := encodeJSONPackages(listJSONRecords(pkgs)); err != nil {
+			print.Err(err)
+			return 1
+		}
+		return 0
+	}
+
+	printPackageList(pkgs)
 	return 0
+}
+
+// listJSONRecords builds JSON records for 'list'. list only knows the installed
+// (current) version, so latest/Go-version fields stay empty and status is
+// reported as "installed".
+func listJSONRecords(pkgs []goutil.Package) []jsonPackage {
+	recs := make([]jsonPackage, 0, len(pkgs))
+	for _, p := range pkgs {
+		recs = append(recs, newJSONPackage(p, statusInstalled, nil))
+	}
+	return recs
 }
 
 // PackageList list up command package in $GOPATH/bin or $GOBIN

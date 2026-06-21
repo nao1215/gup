@@ -143,14 +143,14 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 	// @latest always reports v1.0.0 so a main/master binary would look
 	// up-to-date if check wrongly ignored the saved channel.
 	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
-		return "v1.0.0", nil
+		return testVersionOne, nil
 	}
 	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
 		switch ref {
 		case refMain:
 			return "v1.5.0", nil
 		case refMaster:
-			return "v2.0.0", nil
+			return testVersionTwo, nil
 		default:
 			return "", fmt.Errorf("unexpected ref %q", ref)
 		}
@@ -158,11 +158,11 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 
 	pkgs := []goutil.Package{
 		// v1.0.0 == @latest v1.0.0 -> up to date
-		newCheckPkg(testBinLatestTool, "v1.0.0", goutil.UpdateChannelLatest),
+		newCheckPkg(testBinLatestTool, testVersionOne, goutil.UpdateChannelLatest),
 		// v1.0.0 < @main v1.5.0 -> needs update
-		newCheckPkg(testBinMainTool, "v1.0.0", goutil.UpdateChannelMain),
+		newCheckPkg(testBinMainTool, testVersionOne, goutil.UpdateChannelMain),
 		// v2.0.0 == @master v2.0.0 -> up to date
-		newCheckPkg(testBinMasterTool, "v2.0.0", goutil.UpdateChannelMaster),
+		newCheckPkg(testBinMasterTool, testVersionTwo, goutil.UpdateChannelMaster),
 	}
 
 	out := captureCheckOutput(t, func() int {

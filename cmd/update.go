@@ -67,6 +67,7 @@ using the current installed Go toolchain.`,
 		panic(err)
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -100,6 +101,12 @@ func gup(cmd *cobra.Command, args []string) int {
 	cpus = clampJobs(cpus)
 
 	ignoreGoUpdate, err := getFlagBool(cmd, "ignore-go-update")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
+	jsonOut, err := getFlagBool(cmd, "json")
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -171,7 +178,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout, jsonOut)
 
 	if !dryRun && (shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := mergeConfigPackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -223,16 +230,17 @@ type updateResult struct {
 	renamedFrom string // original binary name if renamed during update
 	skipped     bool   // true when the package was intentionally skipped (no error)
 	skipReason  string // human-readable reason when skipped is true
+	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration) (int, []goutil.Package, map[string]string) {
+func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut bool) (int, []goutil.Package, map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
-	succeededPkgs := make([]goutil.Package, 0, len(pkgs))
-	renamedPkgs := map[string]string{} // oldName -> newName
 
 	verCache := newLatestVerCache()
 
-	print.Info("update binary under $GOPATH/bin or $GOBIN")
+	if !jsonOut {
+		print.Info("update binary under $GOPATH/bin or $GOBIN")
+	}
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {
 			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
@@ -280,6 +288,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 				updated: false,
 				pkg:     p,
 				err:     nil,
+				status:  statusUpToDate,
 			}
 		}
 
@@ -324,22 +333,28 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		if updateErr == nil && p.Name != originalName {
 			renamed = originalName
 		}
+		status := statusUpdated
+		if updateErr != nil {
+			status = statusError
+		}
 		return updateResult{
 			updated:     updateErr == nil,
 			pkg:         p,
 			err:         updateErr,
 			renamedFrom: renamed,
+			status:      status,
+		}
+	}
+
+	var onResult func(prefix string, v updateResult)
+	if !jsonOut {
+		onResult = func(prefix string, v updateResult) {
+			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
 		}
 	}
 
 	// update all packages
-	result := executePackages(pkgs, cpus, timeout, updater, func(prefix string, v updateResult) {
-		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
-		succeededPkgs = append(succeededPkgs, v.pkg)
-		if v.renamedFrom != "" {
-			renamedPkgs[v.renamedFrom] = v.pkg.Name
-		}
-	})
+	result, results := executePackages(pkgs, cpus, timeout, updater, onResult)
 
 	if dryRun {
 		if err := dryRunManager.EndDryRunMode(); err != nil {
@@ -348,9 +363,35 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		}
 	}
 
+	if jsonOut {
+		if err := encodeJSONPackages(resultsToJSONPackages(results)); err != nil {
+			print.Err(err)
+			result = 1
+		}
+	}
+
 	desktopNotifyIfNeeded(result, notification)
 
+	succeededPkgs, renamedPkgs := succeededAndRenamed(results)
 	return result, succeededPkgs, renamedPkgs
+}
+
+// succeededAndRenamed derives the successfully-processed packages and the
+// old->new rename map from execution results, so the config-persistence logic
+// works identically in human-readable and --json modes.
+func succeededAndRenamed(results []updateResult) ([]goutil.Package, map[string]string) {
+	succeededPkgs := make([]goutil.Package, 0, len(results))
+	renamedPkgs := map[string]string{} // oldName -> newName
+	for _, v := range results {
+		if v.err != nil {
+			continue
+		}
+		succeededPkgs = append(succeededPkgs, v.pkg)
+		if v.renamedFrom != "" {
+			renamedPkgs[v.renamedFrom] = v.pkg.Name
+		}
+	}
+	return succeededPkgs, renamedPkgs
 }
 
 func desktopNotifyIfNeeded(result int, enable bool) {

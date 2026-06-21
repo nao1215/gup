@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/nao1215/gup/internal/config"
@@ -35,6 +34,7 @@ It does not update them.`,
 		panic(err)
 	}
 	cmd.Flags().Bool("ignore-go-update", false, "Ignore updates to the Go toolchain")
+	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -59,6 +59,12 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	jsonOut, err := getFlagBool(cmd, "json")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	timeout, err := getTimeoutFlag(cmd)
 	if err != nil {
 		print.Err(err)
@@ -78,6 +84,9 @@ func check(cmd *cobra.Command, args []string) int {
 	}
 
 	pkgs = applyCheckChannels(pkgs)
+	if jsonOut {
+		return doCheckJSON(pkgs, cpus, timeout, ignoreGoUpdate)
+	}
 	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate)
 }
 
@@ -105,14 +114,25 @@ func applyCheckChannels(pkgs []goutil.Package) []goutil.Package {
 }
 
 func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	var mu sync.Mutex
-	needUpdatePkgs := []goutil.Package{}
+	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, false)
+}
+
+// doCheckJSON runs the same check as doCheck but emits a JSON array of package
+// records to STDOUT instead of human-readable progress lines.
+func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
+	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, true)
+}
+
+func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, jsonOut bool) int {
 	verCache := newLatestVerCache()
 
-	print.Info("check binary under $GOPATH/bin or $GOBIN")
+	if !jsonOut {
+		print.Info("check binary under $GOPATH/bin or $GOBIN")
+	}
 
 	checker := func(ctx context.Context, p goutil.Package) updateResult {
 		var err error
+		status := statusUpToDate
 		if p.ModulePath == "" {
 			err = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
@@ -137,25 +157,49 @@ func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpd
 
 				shouldUpdate := modulePathChanged || !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 				if shouldUpdate {
-					mu.Lock()
-					needUpdatePkgs = append(needUpdatePkgs, p)
-					mu.Unlock()
+					status = statusUpdateAvailable
 				}
 			}
 		}
 
 		return updateResult{
-			pkg: p,
-			err: err,
+			pkg:    p,
+			err:    err,
+			status: status,
 		}
 	}
 
-	result := executePackages(pkgs, cpus, timeout, checker, func(prefix string, v updateResult) {
-		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
-	})
+	var onResult func(prefix string, v updateResult)
+	if !jsonOut {
+		onResult = func(prefix string, v updateResult) {
+			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
+		}
+	}
 
-	printUpdatablePkgInfo(needUpdatePkgs)
+	result, results := executePackages(pkgs, cpus, timeout, checker, onResult)
+
+	if jsonOut {
+		if err := encodeJSONPackages(resultsToJSONPackages(results)); err != nil {
+			print.Err(err)
+			return 1
+		}
+		return result
+	}
+
+	printUpdatablePkgInfo(collectNeedUpdatePkgs(results))
 	return result
+}
+
+// collectNeedUpdatePkgs returns the packages from successful results whose
+// status indicates an available update, preserving completion order.
+func collectNeedUpdatePkgs(results []updateResult) []goutil.Package {
+	needUpdate := make([]goutil.Package, 0, len(results))
+	for _, v := range results {
+		if v.err == nil && v.status == statusUpdateAvailable {
+			needUpdate = append(needUpdate, v.pkg)
+		}
+	}
+	return needUpdate
 }
 
 func printUpdatablePkgInfo(pkgs []goutil.Package) {
