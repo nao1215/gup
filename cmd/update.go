@@ -21,6 +21,7 @@ import (
 
 var (
 	getLatestVerCtx        = goutil.GetLatestVerWithContext        //nolint:gochecknoglobals // swapped in tests
+	getVerByRefCtx         = goutil.GetVerWithContext              //nolint:gochecknoglobals // swapped in tests
 	installLatestCtx       = goutil.InstallLatestWithContext       //nolint:gochecknoglobals // swapped in tests
 	installMainOrMasterCtx = goutil.InstallMainOrMasterWithContext //nolint:gochecknoglobals // swapped in tests
 	installByVersionUpdCtx = goutil.InstallWithContext             //nolint:gochecknoglobals // swapped in tests

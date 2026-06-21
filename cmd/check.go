@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -75,7 +76,32 @@ func check(cmd *cobra.Command, args []string) int {
 		print.Err("unable to check package: no package information")
 		return 1
 	}
+
+	pkgs = applyCheckChannels(pkgs)
 	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate)
+}
+
+// applyCheckChannels resolves the saved per-package update channel from
+// gup.json so that 'gup check' compares each binary against the same source
+// 'gup update' would install from. The config is located with the same
+// resolution rules used by import/update; when no config exists every package
+// keeps the default @latest behavior.
+func applyCheckChannels(pkgs []goutil.Package) []goutil.Package {
+	confReadPath, resolveErr := config.ResolveImportFilePath("")
+	if resolveErr != nil {
+		// check only reads the config for channel hints and is not the command
+		// targeted by the ambiguity check, so fall back to the user-level config
+		// instead of failing.
+		confReadPath = config.FilePath()
+	}
+
+	confPkgs, err := readConfFileIfExists(confReadPath)
+	if err != nil {
+		print.Warn(fmt.Sprintf("failed to read %s: %s (continuing without config)", confReadPath, err))
+		confPkgs = []goutil.Package{}
+	}
+
+	return applySavedChannels(pkgs, confPkgs)
 }
 
 func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
@@ -92,7 +118,7 @@ func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpd
 		} else {
 			var latestVer string
 			modulePathChanged := false
-			latestVer, err = verCache.get(ctx, p.ModulePath)
+			latestVer, err = verCache.getByChannel(ctx, p.ModulePath, p.UpdateChannel)
 			if err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
@@ -100,7 +126,7 @@ func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpd
 				} else {
 					modulePathChanged = true
 					p = newPkg
-					latestVer, err = verCache.get(ctx, p.ModulePath)
+					latestVer, err = verCache.getByChannel(ctx, p.ModulePath, p.UpdateChannel)
 					if err != nil {
 						err = fmt.Errorf("%s %w", p.Name, err)
 					}

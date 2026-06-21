@@ -417,11 +417,18 @@ func GetLatestVer(modulePath string) (string, error) {
 // GetLatestVerWithContext execute "$ go list -m -f {{.Version}} <importPath>@latest"
 // with context cancellation support.
 func GetLatestVerWithContext(ctx context.Context, modulePath string) (string, error) {
+	return GetVerWithContext(ctx, modulePath, "latest")
+}
+
+// GetVerWithContext execute "$ go list -m -f {{.Version}} <modulePath>@<ref>"
+// with context cancellation support. ref is the version selector understood by
+// the go toolchain, such as "latest", "main", "master" or a concrete version.
+func GetVerWithContext(ctx context.Context, modulePath, ref string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@latest") //#nosec
+	cmd := exec.CommandContext(ctx, goExe, "list", "-m", "-f", "{{.Version}}", modulePath+"@"+ref) //#nosec
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
