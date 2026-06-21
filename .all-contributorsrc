@@ -214,6 +214,60 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "Frederick888",
+      "name": "Frederick Zhang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4507647?v=4",
+      "profile": "https://onee3.org",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "trallnag",
+      "name": "Tim Schwenke",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24834206?v=4",
+      "profile": "https://github.com/trallnag",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "ybrhue",
+      "name": "ybrhue",
+      "avatar_url": "https://avatars.githubusercontent.com/u/35401453?v=4",
+      "profile": "https://github.com/ybrhue",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "ralish",
+      "name": "Samuel D. Leslie",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3214803?v=4",
+      "profile": "https://nexiom.net",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "giggio",
+      "name": "Giovanni Bassi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/334958?v=4",
+      "profile": "https://giggio.net",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "ncw",
+      "name": "Nick Craig-Wood",
+      "avatar_url": "https://avatars.githubusercontent.com/u/536803?v=4",
+      "profile": "http://www.craig-wood.com/nick/",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,

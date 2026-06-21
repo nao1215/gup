@@ -1,5 +1,5 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-23-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-29-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
@@ -410,6 +410,14 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://gabnotes.org"><img src="https://avatars.githubusercontent.com/u/3630554?v=4?s=100" width="100px;" alt="Crocmagnon"/><br /><sub><b>Crocmagnon</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ACrocmagnon" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://reliable.network"><img src="https://avatars.githubusercontent.com/u/1992842?v=4?s=100" width="100px;" alt="Luke Hamburg"/><br /><sub><b>Luke Hamburg</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aluckman212" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://onee3.org"><img src="https://avatars.githubusercontent.com/u/4507647?v=4?s=100" width="100px;" alt="Frederick Zhang"/><br /><sub><b>Frederick Zhang</b></sub></a><br /><a href="#ideas-Frederick888" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/trallnag"><img src="https://avatars.githubusercontent.com/u/24834206?v=4?s=100" width="100px;" alt="Tim Schwenke"/><br /><sub><b>Tim Schwenke</b></sub></a><br /><a href="#ideas-trallnag" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ybrhue"><img src="https://avatars.githubusercontent.com/u/35401453?v=4?s=100" width="100px;" alt="ybrhue"/><br /><sub><b>ybrhue</b></sub></a><br /><a href="#ideas-ybrhue" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://nexiom.net"><img src="https://avatars.githubusercontent.com/u/3214803?v=4?s=100" width="100px;" alt="Samuel D. Leslie"/><br /><sub><b>Samuel D. Leslie</b></sub></a><br /><a href="#ideas-ralish" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://giggio.net"><img src="https://avatars.githubusercontent.com/u/334958?v=4?s=100" width="100px;" alt="Giovanni Bassi"/><br /><sub><b>Giovanni Bassi</b></sub></a><br /><a href="#ideas-giggio" title="Ideas, Planning, & Feedback">🤔</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.craig-wood.com/nick/"><img src="https://avatars.githubusercontent.com/u/536803?v=4?s=100" width="100px;" alt="Nick Craig-Wood"/><br /><sub><b>Nick Craig-Wood</b></sub></a><br /><a href="#ideas-ncw" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
