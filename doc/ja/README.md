@@ -8,15 +8,31 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/nao1215/gup)](https://goreportcard.com/report/github.com/nao1215/gup)
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)
 
-[日本語](./README.md) | [Русский](../ru/README.md) | [中文](../zh-cn/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md)
+[English](../../README.md) | [日本語](../ja/README.md) | [Русский](../ru/README.md) | [中文](../zh-cn/README.md) | [한국어](../ko/README.md) | [Español](../es/README.md) | [Français](../fr/README.md)
+
+<!-- gup:translation-sync -->
+> 📖 これは翻訳版です。最新の情報は、正典である [English README](../../README.md) を参照してください（翻訳は英語版より遅れることがあります）。
 
 # gup - "go install"でインストールしたバイナリを更新
 
 ![sample](../img/sample.gif)
 
-**gup** コマンドは、"go install" でインストールしたバイナリを最新版に更新します。gupはすべてのバイナリを並列で更新するため、非常に高速です。また、\$GOPATH/bin (\$GOBIN) 配下のバイナリを操作するためのサブコマンドも提供しています。Windows、Mac、Linuxで動作するクロスプラットフォーム対応のソフトウェアです。
+**gup** コマンドは、"go install" でインストールしたバイナリを1つずつではなく並列で更新するため、非常に高速です。
+
+gupは `$GOPATH/bin`（`$GOBIN`）配下のツールを管理するサブコマンドも提供します。インストール済みのバイナリを `list`／`check` し、`remove` で削除し、`export`／`import` でツール一式を別マシンに再現し、`migrate` で別の `$GOBIN` へ移行できます。Windows、Mac、Linuxで動作します。
 
 oh-my-zshを使用している場合、gupにはエイリアスが設定されています。そのエイリアスは `gup - git pull --rebase` です。そのため、oh-my-zshのエイリアスを無効にして使用してください（例：$ \gup update）。
+
+## ベンチマーク
+gupは更新を並列実行するため、バイナリを1つずつ更新するツールよりも短時間で完了します。新しいバージョンが利用可能な9個のバイナリを更新した場合:
+
+| ツール | 方式 | 時間 |
+|------|----------|-----:|
+| gup update | 並列 | 0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | 逐次 | 2.9s |
+| `go install` ループ | 逐次 | 2.9s |
+
+計測環境: AMD Ryzen AI Max+ 395（32コア）/ 64 GB RAM / Ubuntu 26.04 / go 1.26.4。ウォームな Go モジュールキャッシュで5回計測した中央値です。時間は各バイナリのビルド時間とCPUに依存します。
 
 ## 破壊的変更（v1.0.0）
 - 設定ファイル形式は `gup.conf` から `gup.json` に変更されました。
@@ -61,6 +77,30 @@ nix profile install nixpkgs#gogup
 ### パッケージまたはバイナリからインストール
 [リリースページ](https://github.com/nao1215/gup/releases) には、.deb、.rpm、.apk形式のパッケージが含まれています。gupコマンドは内部的にgoコマンドを使用するため、Golangのインストールが必要です。
 
+## リリースの完全性を検証する
+各リリースには、ダウンロードしたものを検証できるようにサプライチェーンのメタデータが添付されています:
+
+- **署名付きチェックサム** — `checksums.txt` は [cosign](https://github.com/sigstore/cosign)（keyless）で署名され、`checksums.txt.sig` と `checksums.txt.pem` が生成されます。
+- **SBOM** — 各リリースアーカイブに SPDX 形式のソフトウェア部品表（SBOM）が添付されます。
+- **ビルドプロベナンス** — GitHub OIDC を用いて SLSA ビルドプロベナンスが付与されます。
+
+署名付きチェックサムを検証する（その後アーカイブを `checksums.txt` と照合する）:
+
+```shell
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+GitHub CLI でダウンロードしたアーティファクトのビルドプロベナンスを検証する:
+
+```shell
+gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
 
 ## 使用方法
 ### すべてのバイナリを更新
@@ -153,6 +193,31 @@ check binary under $GOPATH/bin or $GOBIN
 If you want to update binaries, the following command.
           $ gup update mimixbox
 ```
+
+### 機械可読なJSON出力（スクリプト／CI向け）
+`list`、`check`、`update` は `--json` を受け付け、人間向けの出力の代わりにJSON配列を出力します（デフォルトは従来どおり人間向け出力）。
+
+```shell
+$ gup check --json
+[
+  {
+    "name": "gup",
+    "import_path": "github.com/nao1215/gup",
+    "module_path": "github.com/nao1215/gup",
+    "channel": "latest",
+    "current_version": "v1.0.0",
+    "latest_version": "v1.1.0",
+    "current_go_version": "go1.22.4",
+    "installed_go_version": "go1.22.4",
+    "status": "update-available"
+  }
+]
+```
+
+各要素のフィールドは次のとおりです: `name`、`import_path`、`module_path`、`channel`（`latest`／`main`／`master`）、`current_version`、`latest_version`（`list` では空）、`current_go_version`、`installed_go_version`、`status`、`error`（無い場合は省略）。`status` は `installed`（list）、`up-to-date`、`update-available`（check）、`updated`（update）、`error` のいずれかです。
+
+部分的な失敗を含めて出力は常に valid な JSON です（失敗したパッケージは `"status": "error"` になり、エラー詳細はSTDERRに出るためSTDOUTはJSONのみに保たれます）。終了コードは従来と同じで、`check` が `update-available` を報告しても終了コードは `0` のままです。
+
 ### Export／Importサブコマンド
 複数のシステム間で同じGolangバイナリをインストールしたい場合は、export／importサブコマンドを使用します。
 `gup.json` は import path、バイナリバージョン、更新チャネル（`latest` / `main` / `master`）を保存し、`import` はそのバージョンをそのままインストールします。
@@ -202,6 +267,37 @@ $ gup export --output > gup.json
 ※ 環境B (例: debian)
 $ gup import --file=gup.json
 ```
+
+### 新しい$GOBINへのバイナリ移行
+
+```shell
+gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
+```
+
+`gup migrate` は `BEFORE_PATH` 配下のGoバイナリを、各バイナリのビルド情報に記録された `import path@version` のまま `AFTER_PATH` に再インストールします（暗黙に `@latest` へ更新することはありません）。内部的には `GOBIN` を `AFTER_PATH` に設定して通常の `go install` を実行するだけなので、現在使用中のGoツールチェインで再ビルドされます。
+
+#### これが役立つ場面（例: `mise`）
+
+[`mise`](https://mise.jdx.dev/) でGoを管理している場合、Goを更新するとGoのバージョンごとに `$GOBIN` の実体パスが変わることがあります。その結果、以前の `$GOBIN` 配下にインストールしたツールが新しいGoから見えなくなります。`gup migrate` を使うと、古い `$GOBIN` から新しい `$GOBIN` へ同じツール一式を再インストールできます:
+
+```shell
+# 古いGOBINのすべてのgo-installツールを新しいGOBINへ再インストール
+$ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/installs/go/1.25.0/bin
+
+# 特定のバイナリだけを移行
+$ gup migrate /old/gobin /new/gobin gopls air
+```
+
+`migrate` は追加のみを行います:
+
+- `AFTER_PATH` 内のファイルを削除・整理することはありません。
+- `AFTER_PATH` に既に存在するバイナリはデフォルトでスキップされます。上書き再インストールするには `--force` を使用します。
+- `AFTER_PATH` が存在しない場合は自動的に作成されます。
+- `BEFORE_PATH` と `AFTER_PATH` は異なるディレクトリである必要があります。
+
+import path や version を解決できないバイナリ、および開発ビルド（`devel` / `(devel)`）は、更新されずにスキップされます。これにより、ローカルビルドや再現不能なビルドが壊れることはありません。
+
+対応フラグ: `--dry-run`（`-n`）、`--notify`（`-N`）、`--jobs`（`-j`）、`--force`。
 
 ### manページの生成（LinuxとMac用）
 manサブコマンドは/usr/share/man/man1配下にmanページを生成します。
