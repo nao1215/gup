@@ -1,3 +1,15 @@
+## [v1.3.1](https://github.com/nao1215/gup/compare/v1.3.0...v1.3.1) (2026-06-21)
+
+### Bug Fixes
+
+* The per-package `--timeout` added in v1.3.0 is now opt-in and disabled by default (default `0`), so a slow but healthy `go install` is no longer killed as a timeout; this restores the pre-v1.3.0 behavior. Pass `--timeout 5m` (or any duration) to re-enable a bound. (#318)
+* When a `--timeout` bound is hit, the error now names the exact command to rerun (`go install <path>@<version>` or `go list -m <module>@<ref>`) and hints at `--timeout`, so a slow build is easy to diagnose. (#318)
+* `gup update` now decides whether to skip a package using its resolved update channel, so binaries tracked on `@main`/`@master` are no longer skipped or updated based on `@latest`. (#292)
+* `gup update --json` keeps STDOUT valid JSON when `--exclude` is used, instead of leaking a human-readable "Exclude ..." line that broke machine-readable output. (#291)
+* When the installed Go version cannot be detected, gup disables the Go-version comparison for that run (and warns once) instead of treating every binary as outdated and reinstalling all of them. (#296)
+* Dry-run mode now always removes its temporary directory, even when restoring `GOBIN`/`GOPATH` fails, and runs cleanup via `defer` so it is panic-safe. (#297)
+* A killed `go install`/`go list` subprocess that writes nothing to stderr now reports a cause (e.g. `signal: killed`) instead of an empty error message. (#298)
+
 ## [v1.3.0](https://github.com/nao1215/gup/compare/v1.2.0...v1.3.0) (2026-06-21)
 
 ### Features
