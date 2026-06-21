@@ -1,11 +1,70 @@
 package cmd
 
 import (
+	"io"
 	"testing"
 	"time"
 
+	"github.com/fatih/color"
+	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
+
+// Test_applyColorPreference verifies that color is disabled by the --no-color
+// flag or a non-empty NO_COLOR environment variable, and left untouched
+// otherwise (issue #309).
+func Test_applyColorPreference(t *testing.T) {
+	tests := []struct {
+		name       string
+		noColor    bool
+		noColorEnv string
+		want       bool
+	}{
+		{name: "flag true disables color", noColor: true, noColorEnv: "", want: true},
+		{name: "NO_COLOR=1 disables color", noColor: false, noColorEnv: "1", want: true},
+		{name: "non-empty NO_COLOR disables color", noColor: false, noColorEnv: "0", want: true},
+		{name: "flag false and empty NO_COLOR keeps color", noColor: false, noColorEnv: "", want: false},
+		{name: "flag and NO_COLOR both set disable color", noColor: true, noColorEnv: "1", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldNoColor := color.NoColor
+			color.NoColor = false
+			t.Cleanup(func() { color.NoColor = oldNoColor })
+			t.Setenv("NO_COLOR", tt.noColorEnv)
+
+			applyColorPreference(tt.noColor)
+
+			if color.NoColor != tt.want {
+				t.Errorf("applyColorPreference(%v) with NO_COLOR=%q: color.NoColor=%v, want %v",
+					tt.noColor, tt.noColorEnv, color.NoColor, tt.want)
+			}
+		})
+	}
+}
+
+// Test_rootCmd_noColorFlag_disablesColorViaExecute verifies the --no-color
+// persistent flag is inherited by subcommands and applied through the root
+// PersistentPreRunE (issue #309).
+func Test_rootCmd_noColorFlag_disablesColorViaExecute(t *testing.T) {
+	oldNoColor := color.NoColor
+	color.NoColor = false
+	t.Setenv("NO_COLOR", "") // ensure the env var does not interfere
+	t.Cleanup(func() { color.NoColor = oldNoColor })
+
+	orgStdout := print.Stdout
+	print.Stdout = io.Discard // `gup version` prints via print.Info
+	t.Cleanup(func() { print.Stdout = orgStdout })
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"version", "--no-color"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error: %v", err)
+	}
+	if !color.NoColor {
+		t.Error("`gup version --no-color` should disable color via the root PersistentPreRunE")
+	}
+}
 
 func TestGetFlagBool(t *testing.T) {
 	t.Parallel()

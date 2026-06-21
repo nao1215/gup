@@ -321,6 +321,13 @@ $ gup update --notify
 ![success](./doc/img/notify_success.png)
 ![warning](./doc/img/notify_warning.png)
 
+### Disable colorized output
+gup colorizes its output by default. To turn colors off, pass `--no-color` or set the `NO_COLOR` environment variable to a non-empty value (following the [NO_COLOR](https://no-color.org/) convention). This is useful when piping output, in CI logs, or with `NO_COLOR` set globally.
+```shell
+$ gup update --no-color
+$ NO_COLOR=1 gup update
+```
+
 
 ## Benchmark
 gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
@@ -345,7 +352,7 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | Shell completion generation/install | Yes | No | No |
 | Force reinstall up-to-date binaries | No | Yes | Yes |
 | Failure diagnostics / next-step hints | No | Yes | No |
-| `NO_COLOR` support | No | Yes | — |
+| `NO_COLOR` support | Yes | Yes | — |
 | No extra tool required (official toolchain only) | No | No | Yes |
 
 ## Contributing

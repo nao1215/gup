@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -59,4 +61,24 @@ func getTimeoutFlag(cmd *cobra.Command) (time.Duration, error) {
 		return 0, fmt.Errorf("can not parse command line argument (--%s): must be >= 0 (use 0 to disable the timeout)", timeoutFlagName)
 	}
 	return v, nil
+}
+
+// noColorFlagName is the name of the persistent --no-color flag.
+const noColorFlagName = "no-color"
+
+// addNoColorFlag registers the persistent --no-color flag on the root command
+// so every subcommand can disable colorized output.
+func addNoColorFlag(cmd *cobra.Command) {
+	cmd.PersistentFlags().Bool(noColorFlagName, false,
+		"disable colorized output (also honored via the NO_COLOR environment variable)")
+}
+
+// applyColorPreference disables colorized output when the user requests it via
+// the --no-color flag or a non-empty NO_COLOR environment variable (following
+// https://no-color.org/). It never re-enables color, so the automatic non-TTY
+// detection that fatih/color performs at startup is preserved.
+func applyColorPreference(noColor bool) {
+	if noColor || os.Getenv("NO_COLOR") != "" {
+		color.NoColor = true
+	}
 }
