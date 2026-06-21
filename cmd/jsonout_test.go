@@ -14,6 +14,7 @@ import (
 
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -352,24 +353,9 @@ func Test_list_jsonFlag(t *testing.T) {
 // flag-parsing and JSON-dispatch branches in gup()/updateWithChannels are
 // covered without performing real installs.
 func Test_gup_jsonFlag(t *testing.T) {
-	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+	helper_stubUpdateForJSON(t, func(string) error { return nil })
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	t.Cleanup(func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	})
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return nil }
-
-	cmd := newUpdateCmd()
-	if err := cmd.Flags().Set("json", "true"); err != nil {
-		t.Fatalf("failed to set json flag: %v", err)
-	}
-	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
-		t.Fatalf("failed to set dry-run flag: %v", err)
-	}
+	cmd := helper_newJSONDryRunUpdateCmd(t)
 
 	var got int
 	recs := readJSON(t, func() int {
@@ -381,5 +367,129 @@ func Test_gup_jsonFlag(t *testing.T) {
 	}
 	if len(recs) == 0 {
 		t.Fatal("expected at least one JSON record from update --json")
+	}
+}
+
+// helper_stubUpdateForJSON stubs the update operations and points $GOBIN at the
+// check_success fixtures so gup() can run --json end-to-end without real
+// installs. The returned readJSON helper fails the test if STDOUT is not valid
+// JSON, which is exactly the contamination this issue (#291) guards against.
+func helper_stubUpdateForJSON(t *testing.T, install func(string) error) {
+	t.Helper()
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	origGetLatest := getLatestVer
+	origInstallLatest := installLatest
+	t.Cleanup(func() {
+		getLatestVer = origGetLatest
+		installLatest = origInstallLatest
+	})
+	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	installLatest = install
+}
+
+// helper_newJSONDryRunUpdateCmd returns an update command with --json and
+// --dry-run already set, so JSON-mode regression tests don't repeat the flag
+// wiring (and perform no real installs).
+func helper_newJSONDryRunUpdateCmd(t *testing.T) *cobra.Command {
+	t.Helper()
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("failed to set json flag: %v", err)
+	}
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("failed to set dry-run flag: %v", err)
+	}
+	return cmd
+}
+
+// Test_gup_jsonFlag_excludeKeepsStdoutPure verifies that --json keeps STDOUT
+// pure JSON even when --exclude would print a human-readable "Exclude ..." line
+// in normal mode. This is the core regression for issue #291: before the fix,
+// excludePkgs wrote that line to STDOUT (print.Info) and broke JSON parsing.
+func Test_gup_jsonFlag_excludeKeepsStdoutPure(t *testing.T) {
+	helper_stubUpdateForJSON(t, func(string) error { return nil })
+
+	cmd := helper_newJSONDryRunUpdateCmd(t)
+	if err := cmd.Flags().Set("exclude", testBinPosixer); err != nil {
+		t.Fatalf("failed to set exclude flag: %v", err)
+	}
+
+	var got int
+	recs := readJSON(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0", got)
+	}
+	if len(recs) == 0 {
+		t.Fatal("expected JSON records for the non-excluded packages")
+	}
+	for _, r := range recs {
+		if strings.Contains(r.Name, testBinPosixer) {
+			t.Errorf("excluded package %q must not appear in JSON output", r.Name)
+		}
+	}
+}
+
+// Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure verifies that a "not found"
+// warning for an unknown --main target (emitted via print.Warn to STDERR) does
+// not contaminate the JSON written to STDOUT, while the valid packages are still
+// reported. This pins STDOUT purity for the missing-targets edge case.
+func Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure(t *testing.T) {
+	helper_stubUpdateForJSON(t, func(string) error { return nil })
+
+	cmd := helper_newJSONDryRunUpdateCmd(t)
+	if err := cmd.Flags().Set("main", "doesnotexist"); err != nil {
+		t.Fatalf("failed to set main flag: %v", err)
+	}
+
+	var got int
+	recs := readJSON(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0", got)
+	}
+	if len(recs) == 0 {
+		t.Fatal("expected JSON records even when an unknown --main target is given")
+	}
+}
+
+// Test_gup_jsonFlag_partialFailureKeepsStdoutPure verifies that when one package
+// fails to install, its error (emitted via print.Err to STDERR) does not
+// contaminate STDOUT and the JSON still reports a per-package error status.
+func Test_gup_jsonFlag_partialFailureKeepsStdoutPure(t *testing.T) {
+	helper_stubUpdateForJSON(t, func(importPath string) error {
+		if strings.Contains(importPath, testBinPosixer) {
+			return errors.New("install failed")
+		}
+		return nil
+	})
+
+	cmd := helper_newJSONDryRunUpdateCmd(t)
+
+	var got int
+	recs := readJSON(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %d, want 1 (one package failed)", got)
+	}
+
+	statusByName := map[string]string{}
+	for _, r := range recs {
+		statusByName[r.Name] = r.Status
+	}
+	if statusByName[testBinPosixer] != statusError {
+		t.Errorf("%s status = %q, want %q", testBinPosixer, statusByName[testBinPosixer], statusError)
+	}
+	for name, status := range statusByName {
+		if name != testBinPosixer && status == statusError {
+			t.Errorf("package %q unexpectedly reported error status", name)
+		}
 	}
 }

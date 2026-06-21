@@ -147,7 +147,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	}
 
 	pkgs = extractUserSpecifyPkg(pkgs, args)
-	pkgs = excludePkgs(excludePkgList, pkgs)
+	pkgs = excludePkgs(excludePkgList, pkgs, jsonOut)
 
 	if len(pkgs) == 0 {
 		print.Err("unable to update package: no package information or no package under $GOBIN")
@@ -190,7 +190,11 @@ func gup(cmd *cobra.Command, args []string) int {
 	return result
 }
 
-func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Package {
+// excludePkgs drops the binaries named in excludePkgList from pkgs. In JSON mode
+// the human-readable "Exclude ..." notice is suppressed so STDOUT stays valid
+// JSON (the notice goes to STDOUT via print.Info, which would otherwise break
+// machine-readable output; see issue #291).
+func excludePkgs(excludePkgList []string, pkgs []goutil.Package, jsonOut bool) []goutil.Package {
 	excluded := make(map[string]struct{}, len(excludePkgList))
 	for _, name := range excludePkgList {
 		normalized := normalizeBinaryNameForMatch(name)
@@ -203,7 +207,9 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package) []goutil.Packag
 	packageList := []goutil.Package{}
 	for _, v := range pkgs {
 		if _, ok := excluded[normalizeBinaryNameForMatch(v.Name)]; ok {
-			print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
+			if !jsonOut {
+				print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
+			}
 			continue
 		}
 		packageList = append(packageList, v)
