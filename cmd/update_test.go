@@ -1229,12 +1229,12 @@ func Test_latestVerCache_get_contextCanceled(t *testing.T) {
 	cancel()
 
 	cache := newLatestVerCache()
-	_, err := cache.get(ctx, "example.com/tool")
+	_, err := cache.getByChannel(ctx, "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("latestVerCache.get() error = %v, want %v", err, context.Canceled)
 	}
 
-	got, err := cache.get(context.Background(), "example.com/tool")
+	got, err := cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 	if err != nil {
 		t.Fatalf("latestVerCache.get() second call error = %v, want nil", err)
 	}
@@ -1618,13 +1618,17 @@ func Test_updateWithChannels_getLatestVerError(t *testing.T) {
 
 func Test_updateWithChannels_masterChannel(t *testing.T) {
 	origGetLatest := getLatestVer
+	origRef := getVerByRefCtx
 	origInstallByVersionUpd := installByVersionUpd
 	defer func() {
 		getLatestVer = origGetLatest
+		getVerByRefCtx = origRef
 		installByVersionUpd = origInstallByVersionUpd
 	}()
 
 	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	// The skip/update decision resolves the version via the @master ref.
+	getVerByRefCtx = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
 	var calledVersion string
 	installByVersionUpd = func(_, ver string) error { calledVersion = ver; return nil }
 
@@ -1645,6 +1649,154 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 	}
 	if calledVersion != "master" {
 		t.Fatalf("install called with version = %q, want master", calledVersion)
+	}
+}
+
+// Test_updateWithChannels_masterChannel_skipDecisionUsesChannel verifies that
+// the skip/update decision for a package tracked on @master is derived from the
+// @master ref, not from @latest. Here @latest still equals the installed
+// version (so an @latest-based decision would wrongly skip the package), while
+// @master has moved forward and must trigger an update.
+func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T) {
+	origGetLatest := getLatestVer
+	origRef := getVerByRefCtx
+	origInstallByVersionUpd := installByVersionUpd
+	defer func() {
+		getLatestVer = origGetLatest
+		getVerByRefCtx = origRef
+		installByVersionUpd = origInstallByVersionUpd
+	}()
+
+	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+		if ref == string(goutil.UpdateChannelMaster) {
+			return testVersionNine, nil
+		}
+		return "", fmt.Errorf("unexpected ref %q", ref)
+	}
+
+	var installCalled atomic.Bool
+	var calledVersion string
+	installByVersionUpd = func(_, ver string) error {
+		installCalled.Store(true)
+		calledVersion = ver
+		return nil
+	}
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
+		},
+	}
+
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
+	if result != 0 {
+		t.Fatalf("updateWithChannels() = %d, want 0", result)
+	}
+	if !installCalled.Load() {
+		t.Fatal("expected @master install to run, but the package was skipped using the @latest version")
+	}
+	if calledVersion != "master" {
+		t.Fatalf("install called with version = %q, want master", calledVersion)
+	}
+}
+
+// Test_updateWithChannels_masterChannel_latestMovedButMasterSame verifies the
+// reverse failure mode: @latest has moved forward (which would wrongly trigger
+// an update) but the @master ref still matches the installed version, so the
+// package must be skipped.
+func Test_updateWithChannels_masterChannel_latestMovedButMasterSame(t *testing.T) {
+	origGetLatest := getLatestVer
+	origRef := getVerByRefCtx
+	origInstallByVersionUpd := installByVersionUpd
+	defer func() {
+		getLatestVer = origGetLatest
+		getVerByRefCtx = origRef
+		installByVersionUpd = origInstallByVersionUpd
+	}()
+
+	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+		if ref == string(goutil.UpdateChannelMaster) {
+			return testVersionOne, nil
+		}
+		return "", fmt.Errorf("unexpected ref %q", ref)
+	}
+
+	installByVersionUpd = func(_, _ string) error {
+		t.Fatal("install must not run: @master is unchanged")
+		return nil
+	}
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
+		},
+	}
+
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
+	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
+	if result != 0 {
+		t.Fatalf("updateWithChannels() = %d, want 0", result)
+	}
+	if len(succeeded) != 1 {
+		t.Fatalf("succeeded = %d, want 1 (up-to-date package is still a success)", len(succeeded))
+	}
+}
+
+// Test_updateWithChannels_mainChannel_skipDecisionUsesChannel verifies the same
+// channel-aware skip decision for the @main channel: @latest equals the
+// installed version, but @main has moved and must trigger an update.
+func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
+	origGetLatest := getLatestVer
+	origRef := getVerByRefCtx
+	origInstallMain := installMainOrMaster
+	defer func() {
+		getLatestVer = origGetLatest
+		getVerByRefCtx = origRef
+		installMainOrMaster = origInstallMain
+	}()
+
+	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+		if ref == string(goutil.UpdateChannelMain) {
+			return testVersionNine, nil
+		}
+		return "", fmt.Errorf("unexpected ref %q", ref)
+	}
+
+	var installCalled atomic.Bool
+	installMainOrMaster = func(string) error {
+		installCalled.Store(true)
+		return nil
+	}
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersion1224},
+		},
+	}
+
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
+	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, 0, false)
+	if result != 0 {
+		t.Fatalf("updateWithChannels() = %d, want 0", result)
+	}
+	if !installCalled.Load() {
+		t.Fatal("expected @main install to run, but the package was skipped using the @latest version")
 	}
 }
 
@@ -1748,17 +1900,21 @@ func Test_updateWithChannels_installError(t *testing.T) {
 
 func Test_updateWithChannels_mainChannel(t *testing.T) {
 	origGetLatest := getLatestVer
+	origRef := getVerByRefCtx
 	origInstallLatest := installLatest
 	origInstallMain := installMainOrMaster
 	origInstallByVersionUpd := installByVersionUpd
 	defer func() {
 		getLatestVer = origGetLatest
+		getVerByRefCtx = origRef
 		installLatest = origInstallLatest
 		installMainOrMaster = origInstallMain
 		installByVersionUpd = origInstallByVersionUpd
 	}()
 
 	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	// The skip/update decision resolves the version via the @main ref.
+	getVerByRefCtx = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
 	installLatest = func(string) error {
 		t.Fatal("installLatest should not be called for main channel")
 		return nil
