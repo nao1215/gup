@@ -16,6 +16,16 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
+// Package names reused across the parallel tests, extracted to constants to
+// satisfy goconst (repeated string literals).
+const (
+	pkgFail = "fail"
+	pkgSlow = "slow"
+	pkgOK1  = "ok-1"
+	pkgOK2  = "ok-2"
+	pkgOK3  = "ok-3"
+)
+
 func TestForEachPackage(t *testing.T) {
 	t.Parallel()
 
@@ -51,7 +61,7 @@ func TestForEachPackage(t *testing.T) {
 	t.Run("propagates worker errors", func(t *testing.T) {
 		t.Parallel()
 
-		pkgs := []goutil.Package{{Name: "fail"}}
+		pkgs := []goutil.Package{{Name: pkgFail}}
 		wantErr := fmt.Errorf("test error")
 
 		ch := forEachPackage(context.Background(), pkgs, 1, 0, func(_ context.Context, p goutil.Package) updateResult {
@@ -87,7 +97,7 @@ func TestForEachPackage(t *testing.T) {
 	t.Run("applies a per-package timeout", func(t *testing.T) {
 		t.Parallel()
 
-		pkgs := []goutil.Package{{Name: "slow"}}
+		pkgs := []goutil.Package{{Name: pkgSlow}}
 		ch := forEachPackage(context.Background(), pkgs, 1, 10*time.Millisecond,
 			func(ctx context.Context, p goutil.Package) updateResult {
 				<-ctx.Done()
@@ -389,19 +399,19 @@ func TestForEachPackage_TimeoutIsolation(t *testing.T) {
 	failErr := errors.New("boom")
 
 	pkgs := []goutil.Package{
-		{Name: "ok-1"},
-		{Name: "ok-2"},
-		{Name: "ok-3"},
-		{Name: "fail"},
-		{Name: "slow"},
+		{Name: pkgOK1},
+		{Name: pkgOK2},
+		{Name: pkgOK3},
+		{Name: pkgFail},
+		{Name: pkgSlow},
 	}
 
 	ch := forEachPackage(context.Background(), pkgs, 4, timeout,
 		func(ctx context.Context, p goutil.Package) updateResult {
 			switch p.Name {
-			case "fail":
+			case pkgFail:
 				return updateResult{pkg: p, err: failErr}
-			case "slow":
+			case pkgSlow:
 				// Block until the per-package deadline fires.
 				<-ctx.Done()
 				return updateResult{pkg: p, err: ctx.Err()}
@@ -419,7 +429,7 @@ func TestForEachPackage_TimeoutIsolation(t *testing.T) {
 		t.Fatalf("received %d results, want %d", len(results), len(pkgs))
 	}
 
-	for _, name := range []string{"ok-1", "ok-2", "ok-3"} {
+	for _, name := range []string{pkgOK1, pkgOK2, pkgOK3} {
 		if r := results[name]; r.err != nil {
 			t.Errorf("package %s failed but should have succeeded: %v", name, r.err)
 		} else if r.status != statusUpdated {
@@ -427,11 +437,11 @@ func TestForEachPackage_TimeoutIsolation(t *testing.T) {
 		}
 	}
 
-	if r := results["fail"]; !errors.Is(r.err, failErr) {
+	if r := results[pkgFail]; !errors.Is(r.err, failErr) {
 		t.Errorf("fail package err = %v, want %v", r.err, failErr)
 	}
 
-	if r := results["slow"]; !errors.Is(r.err, context.DeadlineExceeded) {
+	if r := results[pkgSlow]; !errors.Is(r.err, context.DeadlineExceeded) {
 		t.Errorf("slow package err = %v, want context.DeadlineExceeded", r.err)
 	}
 }
@@ -445,15 +455,15 @@ func TestExecutePackages_TimeoutIsolation(t *testing.T) {
 	t.Parallel()
 
 	pkgs := []goutil.Package{
-		{Name: "ok-1"},
-		{Name: "ok-2"},
-		{Name: "slow"},
+		{Name: pkgOK1},
+		{Name: pkgOK2},
+		{Name: pkgSlow},
 	}
 
 	var succeeded int64
 	code, results := executePackages(pkgs, 2, 20*time.Millisecond,
 		func(ctx context.Context, p goutil.Package) updateResult {
-			if p.Name == "slow" {
+			if p.Name == pkgSlow {
 				<-ctx.Done()
 				return updateResult{pkg: p, err: ctx.Err()}
 			}
