@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,27 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 )
+
+func Test_migrate_missingArgs(t *testing.T) {
+	cmd := newMigrateCmd()
+	cmd.SetArgs([]string{"only-one-path"})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("migrate with fewer than two paths should fail")
+	}
+	got := err.Error()
+	for _, want := range []string{"requires BEFORE_PATH and AFTER_PATH", "gup migrate /old/gobin /new/gobin"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error should contain %q, got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Usage:") {
+		t.Errorf("error should be concise, not full help, got:\n%s", got)
+	}
+}
 
 const (
 	testImportPathXY   = "github.com/x/y"

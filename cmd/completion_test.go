@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"io"
 	"strings"
 	"testing"
 )
@@ -21,8 +22,21 @@ func TestCompletion_NoArgsRequiresExplicitMode(t *testing.T) {
 
 	cmd := newCompletionCmd()
 	cmd.SetArgs([]string{})
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("completion without args should require --install")
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("completion without args should require a shell name or --install")
+	}
+	got := err.Error()
+	for _, want := range []string{"requires a shell name", "gup completion bash", "gup completion --install"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error should contain %q, got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Usage:") {
+		t.Errorf("error should be concise, not full help, got:\n%s", got)
 	}
 }
 

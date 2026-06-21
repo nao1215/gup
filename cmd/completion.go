@@ -41,7 +41,10 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 				return nil
 			}
 			if len(args) == 0 {
-				return fmt.Errorf("specify shell (bash|fish|zsh|powershell) or use --install to write bash/fish/zsh completion files")
+				return argsGuidance(
+					"requires a shell name (bash, fish, zsh, powershell) or --install",
+					"gup completion bash",
+					"gup completion --install")
 			}
 			switch args[0] {
 			case shellBash:

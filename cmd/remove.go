@@ -21,7 +21,10 @@ func newRemoveCmd() *cobra.Command {
 		Long: `Remove command in $GOPATH/bin or $GOBIN.
 If you want to specify multiple binaries at once, separate them with space.
 [e.g.] gup remove a_cmd b_cmd c_cmd`,
-		Args:              cobra.MinimumNArgs(1),
+		Args: requireMinArgs(1,
+			"requires at least one binary name",
+			"gup remove gopls",
+			"gup remove --force air"),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(remove(cmd, args))
@@ -33,11 +36,6 @@ If you want to specify multiple binaries at once, separate them with space.
 }
 
 func remove(cmd *cobra.Command, args []string) int {
-	if len(args) == 0 {
-		print.Err("no command name specified")
-		return 1
-	}
-
 	force, err := getFlagBool(cmd, "force")
 	if err != nil {
 		print.Err(err)

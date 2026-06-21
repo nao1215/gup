@@ -178,9 +178,22 @@ func Test_remove_flagError(t *testing.T) {
 func Test_remove_noArgs(t *testing.T) {
 	t.Parallel()
 	cmd := newRemoveCmd()
-	got := remove(cmd, []string{})
-	if got != 1 {
-		t.Errorf("remove() = %v, want 1 for no args", got)
+	cmd.SetArgs([]string{})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("remove without args should fail")
+	}
+	got := err.Error()
+	for _, want := range []string{"requires at least one binary name", "gup remove gopls"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error should contain %q, got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Usage:") {
+		t.Errorf("error should be concise, not full help, got:\n%s", got)
 	}
 }
 
