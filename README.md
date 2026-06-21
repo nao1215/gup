@@ -151,54 +151,15 @@ If you want to update binaries, the following command.
 ```
 
 ### Machine-readable JSON output (for scripting / CI)
-`list`, `check`, and `update` accept a `--json` flag that prints a JSON array
-instead of the human-readable output, so the result can be consumed by scripts
-and CI. The human-readable output remains the default.
+`list`, `check`, and `update` accept `--json`, printing a JSON array instead of the human-readable output (which stays the default).
 
 ```shell
-$ gup check --json
-[
-  {
-    "name": "gup",
-    "import_path": "github.com/nao1215/gup",
-    "module_path": "github.com/nao1215/gup",
-    "channel": "latest",
-    "current_version": "v1.0.0",
-    "latest_version": "v1.1.0",
-    "current_go_version": "go1.22.4",
-    "installed_go_version": "go1.22.4",
-    "status": "update-available"
-  }
-]
-```
-
-Each element has the following stable fields:
-
-| Field | Description |
-| ----- | ----------- |
-| `name` | Binary name under `$GOBIN`/`$GOPATH/bin`. |
-| `import_path` | Package import path used by `go install`. |
-| `module_path` | Module path (where `go.mod` lives); may be empty if it cannot be determined. |
-| `channel` | Update channel resolved from `gup.json`: `latest`, `main`, or `master`. |
-| `current_version` | Currently installed version. |
-| `latest_version` | Version available on the channel (empty for `list`, which does not query it). |
-| `current_go_version` | Go toolchain version the binary was built with. |
-| `installed_go_version` | Go toolchain version currently installed. |
-| `status` | One of `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`. |
-| `error` | Error message for the package; omitted when there is no error. |
-
-Notes:
-
-- The array is always valid JSON, including the partial-failure case where some
-  packages have `"status": "error"`. Error details are also printed to STDERR,
-  so STDOUT stays pure JSON.
-- Exit codes are unchanged: the command exits non-zero when any package fails.
-  `check` reporting `update-available` is not an error and exits `0`.
-
-```shell
-# Example: list only the binaries that have an update available.
 $ gup check --json | jq -r '.[] | select(.status == "update-available") | .name'
 ```
+
+Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, and `error` (omitted when absent). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
+
+The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
 
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
