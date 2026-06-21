@@ -64,6 +64,30 @@ nix profile install nixpkgs#gogup
 ### Instalar desde Paquete o Binario
 [La página de releases](https://github.com/nao1215/gup/releases) contiene paquetes en formatos .deb, .rpm y .apk. El comando gup usa el comando go internamente, por lo que se requiere la instalación de golang.
 
+## Verificar la integridad del release
+Cada release incluye metadatos de cadena de suministro para que puedas verificar lo que descargas:
+
+- **Checksums firmados** — `checksums.txt` se firma con [cosign](https://github.com/sigstore/cosign) (sin clave), produciendo `checksums.txt.sig` y `checksums.txt.pem`.
+- **SBOM** — se adjunta un SPDX Software Bill of Materials a cada archivo del release.
+- **Procedencia de la compilación** — la procedencia de compilación SLSA se atestigua mediante GitHub OIDC.
+
+Verifica los checksums firmados (luego comprueba tu archivo contra `checksums.txt`):
+
+```shell
+cosign verify-blob \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.sig \
+  --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
+sha256sum --check --ignore-missing checksums.txt
+```
+
+Verifica la procedencia de compilación de un artefacto descargado con la CLI de GitHub:
+
+```shell
+gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
 
 ## Cómo usar
 ### Actualizar todos los binarios
@@ -207,6 +231,49 @@ $ gup export --output > gup.json
 $ gup import --file=gup.json
 ```
 
+### Migrar binarios a un nuevo $GOBIN
+
+```shell
+gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
+```
+
+`gup migrate` reinstala los binarios de Go bajo `BEFORE_PATH` en `AFTER_PATH`,
+usando el `import path@version` exacto registrado en la build info de cada binario
+(nunca actualiza silenciosamente a `@latest`). Internamente solo establece `GOBIN`
+en `AFTER_PATH` y ejecuta el flujo normal de `go install`, por lo que los binarios
+se recompilan con el toolchain de Go actualmente en uso.
+
+#### Por qué es útil (p. ej. con `mise`)
+
+Cuando gestionas Go con [`mise`](https://mise.jdx.dev/), actualizar Go puede cambiar
+la ruta real de `$GOBIN` por cada versión de Go. Como resultado, las herramientas que
+instalaste bajo el `$GOBIN` anterior dejan de ser visibles para el nuevo Go.
+`gup migrate` te permite reinstalar el mismo conjunto de herramientas de Go desde el
+`$GOBIN` antiguo en el nuevo:
+
+```shell
+# Reinstalar todas las herramientas go-install del GOBIN antiguo en el GOBIN nuevo
+$ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/installs/go/1.25.0/bin
+
+# Migrar solo binarios específicos
+$ gup migrate /old/gobin /new/gobin gopls air
+```
+
+`migrate` es solo de adición (add-only):
+
+- Nunca elimina ni limpia archivos en `AFTER_PATH`.
+- Los binarios que ya existen en `AFTER_PATH` se omiten por defecto. Usa
+  `--force` para reinstalarlos por encima.
+- `AFTER_PATH` se crea automáticamente cuando no existe.
+- `BEFORE_PATH` y `AFTER_PATH` deben ser directorios diferentes.
+
+Los binarios cuyo import path o versión no se puede resolver, y las compilaciones de
+desarrollo (`devel` / `(devel)`), se omiten en lugar de actualizarse, de modo que las
+compilaciones locales o no reproducibles nunca se rompen.
+
+Flags soportados: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
+`--force`.
+
 ### Generar páginas de manual (para linux, mac)
 El subcomando man genera páginas de manual bajo /usr/share/man/man1.
 ```shell
@@ -248,6 +315,17 @@ $ gup update --notify
 ![success](../img/notify_success.png)
 ![warning](../img/notify_warning.png)
 
+
+## Benchmark
+gup ejecuta las actualizaciones en paralelo, por lo que termina más rápido que las herramientas que actualizan los binarios de uno en uno. Actualizando 9 binarios que tenían una versión más reciente disponible:
+
+| Herramienta                                                   | Estrategia | Tiempo |
+| ------------------------------------------------------------- | ---------- | -----: |
+| gup update                                                    | paralelo   |   0.7s |
+| [go-global-update](https://github.com/Gelio/go-global-update) | secuencial |   2.9s |
+| bucle `go install`                                            | secuencial |   2.9s |
+
+Medido en AMD Ryzen AI Max+ 395 (32 núcleos) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, mediana de 5 ejecuciones con la caché de módulos de Go en caliente. Los tiempos dependen del tiempo de compilación de cada binario y de tu CPU.
 
 ## Contribuir
 En primer lugar, ¡gracias por tomarte el tiempo de contribuir! ❤️  Ve [CONTRIBUTING.md](../../CONTRIBUTING.md) para más información.
