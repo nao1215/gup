@@ -22,7 +22,7 @@ const (
 func quickConfig() *quick.Config {
 	return &quick.Config{
 		MaxCount: 500,
-		Rand:     rand.New(rand.NewSource(1)),
+		Rand:     rand.New(rand.NewSource(1)), //nolint:gosec // G404: a fixed non-crypto seed is intentional for reproducible property tests
 	}
 }
 
