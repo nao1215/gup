@@ -22,16 +22,32 @@ If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - gi
 ## Benchmark
 gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
 
-| Tool | Strategy | Time |
-|------|----------|-----:|
-| gup update | parallel | 0.7s |
+| Tool                                                          | Strategy   | Time |
+| ------------------------------------------------------------- | ---------- | ---: |
+| gup update                                                    | parallel   | 0.7s |
 | [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
-| `go install` loop | sequential | 2.9s |
+| `go install` loop                                             | sequential | 2.9s |
 
 Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
 
 
+## Feature comparison
+
+| Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
+| --- | --- | --- | --- |
+| Parallel update | Yes (parallel by default; tune with `--jobs`) | No (sequential installs) | Manual (`xargs -P`, `&`/`wait`) |
+| Per-package update channels (`latest`/`main`/`master`) | Yes (persisted per package) | No (`@latest` only) | Manual (`@main`/`@master` each run) |
+| Export/import tool set | Yes (`gup export`, `gup import`) | No | Manual (script via `go version -m`) |
+| Migrate binaries to a new `$GOBIN` | Yes (`gup migrate`) | No | Manual (`GOBIN=… go install …`) |
+| Machine-readable JSON output | Yes (`list`/`check`/`update` + `--json`) | No | No |
+| Shell completion generation/install | Yes (`gup completion`, `--install`) | No | No |
+| Force reinstall up-to-date binaries | No | Yes (`--force`) | Yes (re-run `go install`) |
+| Failure diagnostics / next-step hints | No | Yes | No |
+| `NO_COLOR` support | No | Yes | — |
+| No extra tool required (official toolchain only) | No | No | Yes |
+
 ## Supported OS (unit testing with GitHub Actions)
+
 - Linux
 - Mac
 - Windows
