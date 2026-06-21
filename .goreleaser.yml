@@ -27,12 +27,64 @@ checksum:
   name_template: "checksums.txt"
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
+# Curated release notes: a short human summary first, then changes grouped by
+# user-facing category (instead of a raw commit dump). See issue #283.
+release:
+  header: |
+    ## gup {{ .Tag }}
+
+    Fast parallel updater and manager for binaries installed with `go install`.
+
+    Install or upgrade, then see the grouped highlights below. Every artifact is
+    signed and ships with an SBOM and build provenance — see
+    [Verifying release integrity](https://github.com/nao1215/gup#verifying-release-integrity).
+  footer: |
+    **Full changelog**: https://github.com/nao1215/gup/compare/{{ .PreviousTag }}...{{ .Tag }}
 changelog:
   sort: asc
+  use: github
+  groups:
+    - title: "Breaking changes"
+      regexp: '^.*?[a-zA-Z]+(\(.+\))??!:.+$'
+      order: 0
+    - title: "Features"
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 1
+    - title: "Bug fixes"
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 2
+    - title: "Performance"
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 3
+    - title: "Documentation"
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 4
+    - title: "Others"
+      order: 999
   filters:
     exclude:
-      - "^docs:"
       - "^test:"
+      - "^chore:"
+      - "^style:"
+      - "^ci:"
+      - "Merge pull request"
+      - "Merge branch"
+# Software Bill of Materials for every release archive (issue #285).
+sboms:
+  - artifacts: archive
+# Keyless artifact signing with cosign. Signing the checksums file transitively
+# covers every published artifact (issue #285).
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
 nfpms:
   - maintainer: 'Naohiro CHIKAMATSU <n.chika156@gmail.com>'
     description: gup - Fast parallel updater and manager for binaries installed with 'go install'
