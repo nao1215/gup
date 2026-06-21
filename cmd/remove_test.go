@@ -18,6 +18,7 @@ const (
 	whitespaceOnly = "   "
 	goplsExe       = "gopls.exe"
 	dotExe         = ".exe"
+	dotUpperExe    = ".EXE"
 	abcLiteral     = "abc"
 )
 
@@ -438,7 +439,7 @@ func Test_hasSuffixFold(t *testing.T) {
 	}{
 		{name: "exact match same case", s: dotExe, suffix: dotExe, want: true},
 		{name: "case-insensitive match", s: "gopls.EXE", suffix: dotExe, want: true},
-		{name: "case-insensitive match reversed", s: goplsExe, suffix: ".EXE", want: true},
+		{name: "case-insensitive match reversed", s: goplsExe, suffix: dotUpperExe, want: true},
 		{name: "suffix present lowercase", s: "tool.exe", suffix: dotExe, want: true},
 		{name: "no suffix match", s: "tool.bin", suffix: dotExe, want: false},
 		{name: "s shorter than suffix", s: "ex", suffix: dotExe, want: false},
