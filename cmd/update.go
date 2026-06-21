@@ -251,11 +251,19 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 
 	updater := func(ctx context.Context, p goutil.Package) updateResult {
 		originalName := p.Name
-		// Collect online latest version if possible; else always update
+		// Resolve the update channel up front so the skip/update decision is
+		// derived from the version the selected channel would install, not from
+		// @latest. Without this, a package tracked on @main/@master would
+		// piggyback on the @latest lookup and could be skipped or updated
+		// incorrectly (see issue #292).
+		channel := packageUpdateChannel(p.Name, p.UpdateChannel, channelMap)
+		p.UpdateChannel = channel
+
+		// Collect online channel version if possible; else always update
 		shouldUpdate := true
 		modulePathChanged := false
 		if p.ModulePath != "" {
-			ver, err := verCache.get(ctx, p.ModulePath)
+			ver, err := verCache.getByChannel(ctx, p.ModulePath, channel)
 			if err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
@@ -268,7 +276,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 				modulePathChanged = true
 				p = newPkg
 
-				ver, err = verCache.get(ctx, p.ModulePath)
+				ver, err = verCache.getByChannel(ctx, p.ModulePath, channel)
 				if err != nil {
 					return updateResult{
 						updated: false,
@@ -298,9 +306,6 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		if p.ImportPath == "" {
 			updateErr = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
-			channel := packageUpdateChannel(p.Name, p.UpdateChannel, channelMap)
-			p.UpdateChannel = channel
-
 			if err := installWithSelectedVersion(ctx, p.ImportPath, channel); err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {

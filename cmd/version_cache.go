@@ -29,12 +29,6 @@ func newLatestVerCache() *latestVerCache {
 	return &latestVerCache{entries: make(map[string]*latestVerEntry)}
 }
 
-// get returns the latest version for the given module path on the @latest
-// channel, calling the fetcher at most once per unique module path.
-func (c *latestVerCache) get(ctx context.Context, modulePath string) (string, error) {
-	return c.getByChannel(ctx, modulePath, goutil.UpdateChannelLatest)
-}
-
 // getByChannel returns the resolved version for the given module path on the
 // requested update channel. Results are cached per (module path, channel) pair
 // so that, for example, a package tracked on @main is not confused with the

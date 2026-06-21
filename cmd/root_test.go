@@ -69,11 +69,17 @@ func helper_stubUpdateOps(t *testing.T) {
 	t.Helper()
 
 	orgGetLatestVer := getLatestVer
+	orgGetVerByRef := getVerByRefCtx
 	orgInstallLatest := installLatest
 	orgInstallMainOrMaster := installMainOrMaster
 	orgInstallByVersionUpd := installByVersionUpd
 
 	getLatestVer = func(string) (string, error) {
+		return testVersionNine, nil
+	}
+	// The channel-aware skip/update decision resolves @main/@master versions
+	// through this ref lookup, so stub it alongside the @latest lookup.
+	getVerByRefCtx = func(context.Context, string, string) (string, error) {
 		return testVersionNine, nil
 	}
 	installLatest = func(string) error {
@@ -88,6 +94,7 @@ func helper_stubUpdateOps(t *testing.T) {
 
 	t.Cleanup(func() {
 		getLatestVer = orgGetLatestVer
+		getVerByRefCtx = orgGetVerByRef
 		installLatest = orgInstallLatest
 		installMainOrMaster = orgInstallMainOrMaster
 		installByVersionUpd = orgInstallByVersionUpd

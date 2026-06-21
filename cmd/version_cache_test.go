@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nao1215/gup/internal/goutil"
 )
 
 func Test_latestVerCache_get_nonContextErrorCached(t *testing.T) {
@@ -21,12 +23,12 @@ func Test_latestVerCache_get_nonContextErrorCached(t *testing.T) {
 	}
 
 	cache := newLatestVerCache()
-	_, err := cache.get(context.Background(), "example.com/tool")
+	_, err := cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, networkErr) {
 		t.Fatalf("latestVerCache.get() error = %v, want %v", err, networkErr)
 	}
 
-	_, err = cache.get(context.Background(), "example.com/tool")
+	_, err = cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, networkErr) {
 		t.Fatalf("latestVerCache.get() cached error = %v, want %v", err, networkErr)
 	}
@@ -53,7 +55,7 @@ func Test_latestVerCache_get_waiterContextCanceled(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, _ = cache.get(context.Background(), "example.com/tool")
+		_, _ = cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 	}()
 
 	select {
@@ -64,7 +66,7 @@ func Test_latestVerCache_get_waiterContextCanceled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := cache.get(ctx, "example.com/tool")
+	_, err := cache.getByChannel(ctx, "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("latestVerCache.get() error = %v, want %v", err, context.Canceled)
 	}
@@ -104,7 +106,7 @@ func Test_latestVerCache_get_waiterSharesFetchedResult(t *testing.T) {
 	errs := make(chan error, 2)
 	go func() {
 		defer wg.Done()
-		v, err := cache.get(context.Background(), "example.com/tool")
+		v, err := cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 		results <- v
 		errs <- err
 	}()
@@ -117,7 +119,7 @@ func Test_latestVerCache_get_waiterSharesFetchedResult(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		v, err := cache.get(context.Background(), "example.com/tool")
+		v, err := cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
 		results <- v
 		errs <- err
 	}()
