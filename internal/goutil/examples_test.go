@@ -27,6 +27,8 @@ func ExampleBinaryPathList() {
 		"examples_test.go",
 		"goutil.go",
 		"goutil_test.go",
+		"helperprocess_test.go",
+		"property_test.go",
 	}
 
 	if cmp.Equal(got, want) {
