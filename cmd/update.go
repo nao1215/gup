@@ -33,6 +33,9 @@ func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update binaries installed by 'go install'",
+		Example: `  gup update
+  gup update --dry-run
+  gup update --exclude foo,bar`,
 		Long: `Update binaries installed by 'go install'
 
 If you execute '$ gup update', gup gets the package path of all commands

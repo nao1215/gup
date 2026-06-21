@@ -10,6 +10,7 @@ func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "version",
 		Short:             "Show " + cmdinfo.Name + " command version information",
+		Example:           "  gup version",
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {

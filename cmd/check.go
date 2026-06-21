@@ -17,6 +17,8 @@ func newCheckCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check the latest version of the binary installed by 'go install'",
+		Example: `  gup check
+  gup check --quiet`,
 		Long: `Check the latest version and build toolchain of the binary installed by 'go install'
 
 check subcommand checks if the binary is the latest version
