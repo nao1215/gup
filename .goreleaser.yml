@@ -1,3 +1,4 @@
+version: 2
 project_name: gup
 env:
   - GO111MODULE=on
@@ -18,15 +19,16 @@ builds:
       - darwin
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
     - completions/*
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 # Curated release notes: a short human summary first, then changes grouped by
 # user-facing category (instead of a raw commit dump). See issue #283.
 release:

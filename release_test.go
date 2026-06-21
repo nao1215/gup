@@ -26,6 +26,16 @@ func readYAMLFile(t *testing.T, path string) map[string]any {
 	return doc
 }
 
+// Test_goreleaser_isVersion2 guards the GoReleaser v2 schema declaration so the
+// config keeps parsing under the v2 toolchain used in CI.
+func Test_goreleaser_isVersion2(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, ".goreleaser.yml")
+	if doc["version"] != 2 {
+		t.Errorf("`.goreleaser.yml` must declare `version: 2`, got %v", doc["version"])
+	}
+}
+
 // Test_goreleaser_curatedChangelog verifies issue #283: release notes are
 // grouped by user-facing categories instead of a raw commit dump.
 func Test_goreleaser_curatedChangelog(t *testing.T) {
