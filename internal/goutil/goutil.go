@@ -518,16 +518,18 @@ func BinaryPathList(path string) ([]string, error) {
 	return list, nil
 }
 
-// IsStdCmd reports whether the given import path belongs to the Go standard library.
-// Standard library paths (e.g., "cmd/go", "cmd/gofmt") never contain a dot in
-// the first path segment, while third-party module paths always start with a
-// domain name that contains a dot (e.g., "github.com/user/repo").
-func IsStdCmd(importPath string) bool {
-	if importPath == "" {
-		return false
-	}
-	firstElem, _, _ := strings.Cut(importPath, "/")
-	return !strings.Contains(firstElem, ".")
+// isModuleBinary reports whether a binary was produced by
+// "go install <module>@<version>" and therefore records a main module path that
+// gup can manage. The argument is the main module path from the binary's build
+// info (debug/buildinfo's Main.Path), not its import path.
+//
+// Standard library and toolchain binaries (e.g. cmd/gofmt) record no main
+// module, as do GOPATH-mode or local "go build" binaries; those are skipped.
+// Using the recorded module instead of a "dotless first import-path element"
+// heuristic avoids misclassifying third-party binaries whose host has no dot,
+// such as localhost/... or an internal registry hostname (issue #299).
+func isModuleBinary(mainModulePath string) bool {
+	return mainModulePath != ""
 }
 
 // GetPackageInformation return golang package information including the latest
@@ -588,7 +590,7 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 					print.Warn(err)
 					continue
 				}
-				if IsStdCmd(info.Path) {
+				if !isModuleBinary(info.Main.Path) {
 					continue
 				}
 				pkg := Package{
