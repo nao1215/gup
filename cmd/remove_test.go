@@ -8,9 +8,18 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/quick"
 
 	"github.com/nao1215/gup/internal/fileutil"
 	"github.com/spf13/cobra"
+)
+
+const (
+	whitespaceOnly = "   "
+	goplsExe       = "gopls.exe"
+	dotExe         = ".exe"
+	dotUpperExe    = ".EXE"
+	abcLiteral     = "abc"
 )
 
 func Test_removeLoop(t *testing.T) {
@@ -126,10 +135,16 @@ func Test_removeLoop(t *testing.T) {
 			}
 			defer funcDefer()
 
+			// mockStdin replaces os.Stdin with a regular file, which is not a TTY.
+			// Pretend stdin is a terminal so the interactive confirmation path runs.
+			origStdinIsTerminal := stdinIsTerminal
+			stdinIsTerminal = func() bool { return true }
+			defer func() { stdinIsTerminal = origStdinIsTerminal }()
+
 			if runtime.GOOS != goosWindows && tt.name == "windows environment and suffix is mismatch" {
 				GOOS = goosWindows
 				defer func() { GOOS = runtime.GOOS }()
-				t.Setenv("GOEXE", ".exe")
+				t.Setenv("GOEXE", dotExe)
 			}
 
 			if got := removeLoop(tt.args.gobin, tt.args.force, tt.args.target); got != tt.want {
@@ -230,7 +245,7 @@ func Test_removeLoop_windowsSuffixCaseInsensitive(t *testing.T) {
 	origGOOS := GOOS
 	GOOS = goosWindows
 	t.Cleanup(func() { GOOS = origGOOS })
-	t.Setenv("GOEXE", ".exe")
+	t.Setenv("GOEXE", dotExe)
 
 	gobin := t.TempDir()
 	binaryPath := filepath.Join(gobin, "gopls.EXE")
@@ -277,7 +292,7 @@ func Test_isSafeBinaryName(t *testing.T) {
 		{name: "simple name", input: testBinMytool, want: true},
 		{name: "with extension", input: testBinMytoolExe, want: true},
 		{name: "empty", input: "", want: false},
-		{name: "whitespace only", input: "   ", want: false},
+		{name: "whitespace only", input: whitespaceOnly, want: false},
 		{name: "leading and trailing whitespace", input: " mytool ", want: false},
 		{name: "absolute path", input: "/usr/bin/tool", want: false},
 		{name: "forward slash", input: "sub/tool", want: false},
@@ -293,6 +308,154 @@ func Test_isSafeBinaryName(t *testing.T) {
 			got := isSafeBinaryName(tt.input)
 			if got != tt.want {
 				t.Errorf("isSafeBinaryName(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+//nolint:paralleltest // mutates package-level stdinIsTerminal
+func Test_removeLoop_nonTTYWithoutForceFailsFast(t *testing.T) {
+	// Not parallel: this test mutates the package-level stdinIsTerminal,
+	// which is also mutated by Test_removeLoop.
+	gobin := t.TempDir()
+	binaryPath := filepath.Join(gobin, testBinPosixer)
+	if err := os.WriteFile(binaryPath, []byte("dummy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	target := testBinPosixer
+	if GOOS == goosWindows {
+		target += normalizeExecSuffix(GOOS, os.Getenv("GOEXE"))
+		if err := os.Rename(binaryPath, filepath.Join(gobin, target)); err != nil {
+			t.Fatal(err)
+		}
+		binaryPath = filepath.Join(gobin, target)
+	}
+
+	origStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { stdinIsTerminal = origStdinIsTerminal })
+
+	// Without --force and without a TTY, removeLoop must fail fast (exit 1)
+	// and must NOT attempt interactive confirmation nor remove the file.
+	if got := removeLoop(gobin, false, []string{target}); got != 1 {
+		t.Fatalf("removeLoop() = %v, want 1 for non-TTY without --force", got)
+	}
+	if !fileutil.IsFile(binaryPath) {
+		t.Fatalf("file must not be removed when confirmation is required but stdin is not a TTY: %s", binaryPath)
+	}
+}
+
+//nolint:paralleltest // mutates package-level stdinIsTerminal
+func Test_removeLoop_nonTTYWithForceStillRemoves(t *testing.T) {
+	// Not parallel: this test mutates the package-level stdinIsTerminal,
+	// which is also mutated by Test_removeLoop.
+	gobin := t.TempDir()
+	target := testBinPosixer
+	if GOOS == goosWindows {
+		target += normalizeExecSuffix(GOOS, os.Getenv("GOEXE"))
+	}
+	binaryPath := filepath.Join(gobin, target)
+	if err := os.WriteFile(binaryPath, []byte("dummy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	origStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { stdinIsTerminal = origStdinIsTerminal })
+
+	// --force must skip confirmation regardless of TTY state.
+	if got := removeLoop(gobin, true, []string{target}); got != 0 {
+		t.Fatalf("removeLoop() = %v, want 0 for non-TTY with --force", got)
+	}
+	if fileutil.IsFile(binaryPath) {
+		t.Fatalf("file must be removed with --force: %s", binaryPath)
+	}
+}
+
+// Test_isSafeBinaryName_propertyStaysInGobin is a property-based test asserting
+// the security invariant: any name accepted by isSafeBinaryName can only resolve
+// to a file located directly inside $GOBIN, i.e.
+//
+//	isSafeBinaryName(s) == true  =>  filepath.Dir(filepath.Join(gobin, s)) == gobin
+//
+// This is the last line of defense against path traversal in `gup remove`.
+func Test_isSafeBinaryName_propertyStaysInGobin(t *testing.T) {
+	t.Parallel()
+
+	gobin := filepath.Clean(t.TempDir())
+
+	invariant := func(s string) bool {
+		if !isSafeBinaryName(s) {
+			return true // property only constrains accepted names
+		}
+		return filepath.Dir(filepath.Join(gobin, s)) == gobin
+	}
+
+	if err := quick.Check(invariant, &quick.Config{MaxCount: 100000}); err != nil {
+		t.Errorf("isSafeBinaryName property violated: %v", err)
+	}
+
+	// Adversarial inputs that quick may not easily generate.
+	adversarial := []string{
+		"",                  // empty
+		whitespaceOnly,      // whitespace only
+		" tool ",            // surrounding whitespace
+		".",                 // current dir
+		"..",                // parent dir
+		"../escape",         // parent traversal
+		"../../escape",      // deeper traversal
+		"/abs/path",         // absolute
+		`C:\Windows\tool`,   // windows absolute
+		"C:tool",            // windows drive-relative (colon)
+		"sub/tool",          // forward slash
+		`sub\tool`,          // backslash
+		"tool\x00.exe",      // embedded NUL
+		"tool\nname",        // embedded newline (control char)
+		"tool\tname",        // embedded tab (control char)
+		"a",                 // exact-length minimal name (len 1)
+		"e",                 // len(s) shorter than typical suffix
+		"gopls",             // plain valid name
+		goplsExe,            // valid name with extension
+		"ｇｏｐｌｓ",             // unicode full-width look-alike
+		"tool/../escape",    // traversal hidden mid-string
+		"./tool",            // dot-slash prefix
+		"\u202e" + "exe.sh", // right-to-left override look-alike
+	}
+	for _, s := range adversarial {
+		if !invariant(s) {
+			t.Errorf("invariant violated for adversarial input %q: accepted name resolves outside gobin", s)
+		}
+	}
+}
+
+func Test_hasSuffixFold(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		s      string
+		suffix string
+		want   bool
+	}{
+		{name: "exact match same case", s: dotExe, suffix: dotExe, want: true},
+		{name: "case-insensitive match", s: "gopls.EXE", suffix: dotExe, want: true},
+		{name: "case-insensitive match reversed", s: goplsExe, suffix: dotUpperExe, want: true},
+		{name: "suffix present lowercase", s: "tool.exe", suffix: dotExe, want: true},
+		{name: "no suffix match", s: "tool.bin", suffix: dotExe, want: false},
+		{name: "s shorter than suffix", s: "ex", suffix: dotExe, want: false},
+		{name: "s one char shorter than suffix", s: ".ex", suffix: dotExe, want: false},
+		{name: "empty suffix matches anything", s: "tool", suffix: "", want: true},
+		{name: "empty suffix and empty s", s: "", suffix: "", want: true},
+		{name: "empty s nonempty suffix", s: "", suffix: dotExe, want: false},
+		{name: "equal length match", s: abcLiteral, suffix: abcLiteral, want: true},
+		{name: "equal length mismatch", s: abcLiteral, suffix: "xyz", want: false},
+		{name: "suffix in middle only", s: ".exe.bin", suffix: dotExe, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := hasSuffixFold(tt.s, tt.suffix); got != tt.want {
+				t.Errorf("hasSuffixFold(%q, %q) = %v, want %v", tt.s, tt.suffix, got, tt.want)
 			}
 		})
 	}
