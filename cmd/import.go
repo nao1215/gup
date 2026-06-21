@@ -20,7 +20,7 @@ var installByVersionCtx = goutil.InstallWithContext //nolint:gochecknoglobals //
 func newImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
-		Short: "Install commands according to gup.json.",
+		Short: "Install commands according to gup.json",
 		Long: `Install commands according to gup.json.
 
 Use export/import if you want to install the same Go binaries
@@ -43,7 +43,7 @@ versions recorded in that gup.json.`,
 	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
 		panic(err)
 	}
-	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "Specify the number of CPU cores to use")
+	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
 	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
 		panic(err)
 	}

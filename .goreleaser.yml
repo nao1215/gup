@@ -89,7 +89,7 @@ signs:
     output: true
 nfpms:
   - maintainer: 'Naohiro CHIKAMATSU <n.chika156@gmail.com>'
-    description: gup - Fast parallel updater and manager for binaries installed with 'go install'
+    description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'
     homepage: https://github.com/nao1215/gup
     license: Apache License 2.0
     formats:
@@ -111,7 +111,7 @@ nfpms:
           mode: 0644
 brews:
   - name: gup
-    description: gup - Fast parallel updater and manager for binaries installed with 'go install'
+    description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'
     license: Apache License 2.0
     repository:
       owner: nao1215

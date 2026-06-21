@@ -10,7 +10,7 @@ import (
 func newExportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
-		Short: "Export installed binaries and their versions under $GOPATH/bin or $GOBIN to gup.json.",
+		Short: "Export installed binaries and their versions under $GOPATH/bin or $GOBIN to gup.json",
 		Long: `Export installed binaries and their versions under $GOPATH/bin or $GOBIN to gup.json.
 
 Use export/import if you want to install the same Go binaries

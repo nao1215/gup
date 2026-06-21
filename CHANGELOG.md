@@ -1,3 +1,35 @@
+## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
+
+### Features
+
+* Add a top-level `--version`/`-V` flag in addition to the existing `gup version` subcommand. (#326)
+* Add a `--quiet`/`-q` output mode to `check` and `update` that hides the up-to-date lines and prints only changed/updatable binaries, failures, and a one-line summary. Errors still go to STDERR. (#290)
+* Respect the [`NO_COLOR`](https://no-color.org/) environment variable and add a `--no-color` flag to disable colorized output. (#309)
+* Show concise, actionable guidance (the correct usage line) when a required argument is missing, instead of dumping the full help. (#324)
+
+### Bug Fixes
+
+* `gup remove` now fails fast with a clear message in non-interactive execution (when stdin is not a TTY, e.g. CI or a pipe) instead of blocking on stdin or surfacing a raw `EOF`. `--force` still skips confirmation. (#323)
+* Normalize an `unknown`/`(devel)`/empty binary version to `latest` before persisting it to `gup.json`, so later `gup update` runs resolve the package correctly. (#300)
+* Classify binaries by their main module path instead of a dotless-import-path heuristic, fixing the misclassification of tools whose host has no dot (e.g. internal registries). (#299)
+
+### Documentation
+
+* Add practical examples to the root command and the major subcommands' help. (#325)
+* Sync the Benchmark, release-integrity, and Migrate sections into all five translated READMEs, and add a test that fails when a translation is missing one of these sections. (#306)
+* Document the top-level `--version` flag, the non-TTY `remove` behavior, and the `--json`/`--quiet` precedence in the README.
+
+### Tests
+
+* Add a helper-process test seam for `goExe`-based subprocess calls, plus property-based tests for version comparison, name normalization, and config round-trip. (#301, #305)
+* Cover parallel-execution invariants: result count, timeout isolation, and CPU clamping. (#304)
+* Make `config_file` rename injectable and cover the backup-swap restore-failure worst case. (#302)
+* Add a property-based test for the path-traversal guard in `gup remove`. (#303)
+
+### Others
+
+* Tidy help-text consistency (flag-description casing, `Short` punctuation, example indentation) and give the non-interactive `remove` error a labeled STDERR message.
+
 ## [v1.3.1](https://github.com/nao1215/gup/compare/v1.3.0...v1.3.1) (2026-06-21)
 
 ### Bug Fixes

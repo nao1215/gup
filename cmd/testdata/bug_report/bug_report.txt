@@ -4,7 +4,7 @@ Usage:
   gup bug-report [flags]
 
 Examples:
-   gup bug-report
+  gup bug-report
 
 Flags:
   -h, --help   help for bug-report

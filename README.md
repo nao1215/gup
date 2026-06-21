@@ -83,6 +83,13 @@ gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
 ```
 
 ## How to use
+### Check the gup version
+Print the version with either the `version` subcommand or the top-level `--version`/`-V` flag.
+```shell
+$ gup --version
+$ gup version
+```
+
 ### Update all binaries
 `gup update` updates every binary under `$GOBIN`, in parallel.
 
@@ -138,6 +145,8 @@ $ gup remove --force gal
 removed /home/nao/.go/bin/gal
 ```
 
+In non-interactive execution (when stdin is not a TTY, e.g. CI or a pipe), `gup remove` no longer blocks waiting for confirmation. It fails fast with a clear message; pass `--force` to remove without confirmation.
+
 ### Check if the binary is the latest version
 If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
 ```shell
@@ -164,7 +173,7 @@ If you want to update binaries, the following command.
 ```
 
 ### Quiet output for large tool sets
-`check` and `update` print every binary by default, which is noisy when you have many tools installed. Pass `--quiet` (`-q`) to suppress the up-to-date lines and show only the binaries that were updated (or have an update available) plus failures, followed by a one-line summary. Errors are always written to STDERR, so they stay visible.
+`check` and `update` print every binary by default, which is noisy when you have many tools installed. Pass `--quiet` (`-q`) to suppress the up-to-date lines and show only the binaries that were updated (or have an update available) plus failures, followed by a one-line summary. Errors are always written to STDERR, so they stay visible. When `--json` is also given, `--quiet` is ignored and the full JSON array is printed.
 ```shell
 $ gup update --quiet
 github.com/nao1215/gup (v0.7.0 to v0.7.1)
