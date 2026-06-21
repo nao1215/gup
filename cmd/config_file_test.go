@@ -11,6 +11,11 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 )
 
+// oldImport is the import path used by config-file tests that exercise the
+// air package rename. It is defined at package level so the literal is not
+// duplicated across test cases (goconst).
+const oldImport = "github.com/cosmtrek/air/cmd/air"
+
 func TestRenameWithBackupSwap_Success(t *testing.T) {
 	t.Parallel()
 
@@ -106,13 +111,15 @@ func Test_renameWithReplace_errorWhenSrcMissing(t *testing.T) {
 }
 
 func Test_writeConfigFile_success(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gup.json")
 
 	pkgs := []goutil.Package{
 		{
 			Name:       "air",
-			ImportPath: "github.com/cosmtrek/air/cmd/air",
+			ImportPath: oldImport,
 			Version:    &goutil.Version{Current: "v1.2.3"},
 		},
 	}
@@ -125,7 +132,7 @@ func Test_writeConfigFile_success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config file should exist: %v", err)
 	}
-	if !strings.Contains(string(got), "github.com/cosmtrek/air/cmd/air") {
+	if !strings.Contains(string(got), oldImport) {
 		t.Fatalf("config file content = %q, want it to contain the import path", string(got))
 	}
 
@@ -133,13 +140,15 @@ func Test_writeConfigFile_success(t *testing.T) {
 }
 
 func Test_writeConfigFile_idempotentOverwrite(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, "gup.json")
 
 	pkgs := []goutil.Package{
 		{
 			Name:       "air",
-			ImportPath: "github.com/cosmtrek/air/cmd/air",
+			ImportPath: oldImport,
 			Version:    &goutil.Version{Current: "v1.2.3"},
 		},
 	}
@@ -167,6 +176,7 @@ func Test_writeConfigFile_idempotentOverwrite(t *testing.T) {
 	assertNoTempFiles(t, dir, filepath.Base(path))
 }
 
+//nolint:paralleltest // mutates package-level renameFunc
 func Test_renameWithBackupSwap_restoreFailure(t *testing.T) {
 	origRename := renameFunc
 	t.Cleanup(func() { renameFunc = origRename })
@@ -212,6 +222,7 @@ func Test_renameWithBackupSwap_restoreFailure(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // mutates package-level renameFunc
 func Test_writeConfigFile_noStrayFilesOnRenameFailure(t *testing.T) {
 	origRename := renameFunc
 	t.Cleanup(func() { renameFunc = origRename })
