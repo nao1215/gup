@@ -37,6 +37,10 @@ func Test_englishReadme_hasRequiredSections(t *testing.T) {
 		"## How to install",
 		"## Verifying release integrity",
 		"## How to use",
+		"### Quiet output for large tool sets",
+		"### Machine-readable JSON output",
+		"### Disable colorized output",
+		"## Feature comparison",
 		"## Contributing",
 		"## LICENSE",
 	}
@@ -83,6 +87,25 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 		"Migrate": {
 			"gup migrate BEFORE_PATH AFTER_PATH [BINARY...]", // command synopsis
 			"https://mise.jdx.dev/",                          // "why this is useful" link
+		},
+		// Quiet output: the --quiet/-q example commands.
+		"Quiet output": {
+			"gup update --quiet", // --quiet example
+			"gup check -q",       // short-flag example
+		},
+		// Machine-readable JSON output: the --json command and a stable JSON payload.
+		"Machine-readable JSON output": {
+			"gup check --json",                 // --json example command
+			"\"status\": \"update-available\"", // stable JSON payload from the example
+		},
+		// Disable colorized output: the --no-color / NO_COLOR examples and convention link.
+		"Disable colorized output": {
+			"NO_COLOR=1 gup update", // NO_COLOR env-var example
+			"https://no-color.org/", // NO_COLOR convention link
+		},
+		// Feature comparison: the migrate --force row is unique to this table.
+		"Feature comparison": {
+			"migrate --force", // command-scoped row unique to the comparison table
 		},
 	}
 	translatedREADMEs := []string{
