@@ -30,6 +30,13 @@ jobs:
         uses: sigstore/cosign-installer@v3
       - name: Install Syft (SBOM generator)
         uses: anchore/sbom-action/download-syft@v0
+      - name: Build artifacts for smoke test (snapshot, no publish)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: latest
+          args: release --snapshot --clean --skip=publish,sign,sbom
+      - name: Smoke-test artifacts before publishing
+        run: ./scripts/smoke_artifacts.sh dist
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
