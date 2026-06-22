@@ -62,7 +62,6 @@ func Test_list_not_found_go_command(t *testing.T) {
 
 func Test_list_gobin_is_empty(t *testing.T) {
 	type args struct {
-		cmd  *cobra.Command
 		args []string
 	}
 	tests := []struct {
@@ -73,12 +72,14 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		stderr []string
 	}{
 		{
+			// An empty-but-valid environment is a normal first-run condition,
+			// not an error (#350): list succeeds with an informational note.
 			name:  "gobin is empty",
 			gobin: filepath.Join("testdata", "empty_dir"),
 			args:  args{},
-			want:  1,
+			want:  0,
 			stderr: []string{
-				"gup:ERROR: unable to list up package: no package information",
+				"no binaries are installed under $GOPATH/bin or $GOBIN",
 				"",
 			},
 		},
@@ -136,7 +137,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := list(tt.args.cmd, tt.args.args); got != tt.want {
+			if got := list(newListCmd(), tt.args.args); got != tt.want {
 				t.Errorf("list() = %v, want %v", got, tt.want)
 			}
 			if err := pw.Close(); err != nil {

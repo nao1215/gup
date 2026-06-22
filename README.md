@@ -213,6 +213,14 @@ Each element has these fields: `name`, `import_path`, `module_path`, `channel` (
 
 The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
 
+### Behavior on an empty environment
+An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:
+
+- `list`, `check`, and `update` exit `0`, printing a short informational note (or a valid empty `[]` with `--json`).
+- `export` exits `0` and writes an empty `gup.json`.
+
+Naming a binary that is not installed, or excluding every binary, is still a usage error and exits `1`.
+
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
 `gup.json` stores import path, binary version, and update channel (`latest` / `main` / `master`).

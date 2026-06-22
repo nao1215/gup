@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// emptyEnvMessage is the informational note shown when no Go binaries are
+// installed yet. An empty global environment is treated as a normal first-run
+// condition rather than an error (#350).
+const emptyEnvMessage = "no binaries are installed under $GOPATH/bin or $GOBIN"
+
 // argsGuidance builds a concise, actionable error for a missing-argument
 // situation: a one-line summary followed by one or two example invocations
 // (issue #324). It deliberately stays short and never dumps full help.

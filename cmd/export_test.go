@@ -117,16 +117,6 @@ func Test_export(t *testing.T) {
 			want:   1,
 			stderr: []string{},
 		},
-		{
-			name:  "no package information",
-			gobin: filepath.Join("testdata", "text"),
-			want:  1,
-			stderr: []string{
-				"gup:WARN : could not read Go build info from " + filepath.Join("testdata", "text", "dummy.txt") + ": unrecognized file format",
-				"gup:ERROR: no package information",
-				"",
-			},
-		},
 	}
 
 	if runtime.GOOS == goosWindows {
@@ -167,6 +157,14 @@ func Test_export(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == testNoConfigDir && runtime.GOOS == goosWindows {
+				// This is a Unix permission test: it relies on "/root" being
+				// unwritable. On Windows that path is writable, so the export
+				// (which now writes an empty config on an empty env, #350) would
+				// succeed. Permission tests are skipped on Windows in this repo.
+				t.Skip("config-dir permission test is not portable on Windows")
+			}
+
 			t.Setenv("GOBIN", tt.gobin)
 
 			if tt.name == testNoConfigDir {
@@ -303,6 +301,33 @@ func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("posixer not found in exported config: %+v", exported)
+	}
+}
+
+// Test_export_emptyEnv_writesEmptyConfig verifies the #350 contract: exporting
+// an empty environment succeeds (exit 0) and writes an empty gup.json instead of
+// failing.
+func Test_export_emptyEnv_writesEmptyConfig(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+
+	t.Setenv("GOBIN", t.TempDir()) // existing but empty directory
+
+	if got := export(newExportCmd(), []string{}); got != 0 {
+		t.Fatalf("export() on empty env = %d, want 0", got)
+	}
+
+	pkgs, err := config.ReadConfFile(config.FilePath())
+	if err != nil {
+		t.Fatalf("exported config should be readable: %v", err)
+	}
+	if len(pkgs) != 0 {
+		t.Fatalf("exported config should have no packages, got %d", len(pkgs))
 	}
 }
 

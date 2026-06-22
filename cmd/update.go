@@ -168,8 +168,24 @@ func gup(cmd *cobra.Command, args []string) int {
 	pkgs = excludePkgs(excludePkgList, pkgs, jsonOut)
 
 	if len(pkgs) == 0 {
-		print.Err("unable to update package: no package information or no package under $GOBIN")
-		return 1
+		// With explicit targets or --exclude, an empty result means the user
+		// narrowed everything out: that is a usage error.
+		if len(args) != 0 || len(excludePkgList) != 0 {
+			print.Err("unable to update package: no package information or no package under $GOBIN")
+			return 1
+		}
+		// Otherwise the environment simply has no manageable binaries yet, which
+		// is a normal first-run condition, not an error (#350): emit an empty
+		// JSON array or an informational note and exit 0.
+		if jsonOut {
+			if err := encodeJSONPackages(nil); err != nil {
+				print.Err(err)
+				return 1
+			}
+			return 0
+		}
+		print.Info(emptyEnvMessage)
+		return 0
 	}
 
 	confFile, err := getFlagString(cmd, "file")
