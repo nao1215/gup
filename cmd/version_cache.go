@@ -110,7 +110,7 @@ func fetchVerForChannel(ctx context.Context, modulePath string, channel goutil.U
 		if err == nil {
 			return ver, nil
 		}
-		// Do not fall back when the failure is a cancelled/expired context;
+		// Do not fall back when the failure is a canceled/expired context;
 		// the same cancellation would just hit @master too.
 		if ctx != nil && ctx.Err() != nil {
 			return "", err

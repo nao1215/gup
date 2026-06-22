@@ -401,7 +401,7 @@ func InstallMainOrMasterWithContext(ctx context.Context, importPath string) erro
 	if mainErr == nil {
 		return nil
 	}
-	// A cancelled/expired context would just hit @master too; surface the @main
+	// A canceled/expired context would just hit @master too; surface the @main
 	// error instead of retrying.
 	if ctx != nil && ctx.Err() != nil {
 		return mainErr
