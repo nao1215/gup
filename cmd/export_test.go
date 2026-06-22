@@ -157,6 +157,14 @@ func Test_export(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == testNoConfigDir && runtime.GOOS == goosWindows {
+				// This is a Unix permission test: it relies on "/root" being
+				// unwritable. On Windows that path is writable, so the export
+				// (which now writes an empty config on an empty env, #350) would
+				// succeed. Permission tests are skipped on Windows in this repo.
+				t.Skip("config-dir permission test is not portable on Windows")
+			}
+
 			t.Setenv("GOBIN", tt.gobin)
 
 			if tt.name == testNoConfigDir {
