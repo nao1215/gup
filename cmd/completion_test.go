@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -67,6 +68,9 @@ func TestCompletion_Install(t *testing.T) {
 // 'completion --install' fails fast with a clear message and writes nothing into
 // relative paths under the current working directory.
 func TestCompletion_InstallUnsetHOME(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
+	}
 	stubIsWindows(t, false)
 	t.Setenv("HOME", "")
 
@@ -93,6 +97,9 @@ func TestCompletion_InstallUnsetHOME(t *testing.T) {
 // completion file cannot be written, the command exits non-zero instead of
 // silently succeeding.
 func TestCompletion_InstallWriteErrorFails(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
+	}
 	stubIsWindows(t, false)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
