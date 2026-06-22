@@ -114,9 +114,11 @@ $ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example wi
 
 ### Update binaries with @main, @master, or @latest
 If you want to control update source per binary, use the following options:
-- `--main` (`-m`): update by `@main` (fallback to `@master`)
+- `--main` (`-m`): update by `@main` (falls back to `@master` only when the repository has no `main` branch)
 - `--master`: update by `@master`
 - `--latest`: update by `@latest`
+
+The `@main` → `@master` fallback applies only to a missing `main` branch. Build, network, authentication, timeout, and cancellation failures are reported as-is and never silently install `@master`.
 
 The selected channel is saved to `gup.json` and reused by future `gup update` runs.
 ```shell
@@ -238,11 +240,13 @@ Use export/import when you want to install the same Go binaries across multiple 
 
 By default:
 - `gup export` writes to `$XDG_CONFIG_HOME/gup/gup.json`
-- `gup import` auto-detects config path in this order:
+- `gup import`, `gup check`, and `gup update` auto-detect the config path in this order:
   1) `$XDG_CONFIG_HOME/gup/gup.json` (if exists)
   2) `./gup.json` (if exists)
 
-You can always override the path with `--file`.
+If **both** the user-level `gup.json` and `./gup.json` exist, `import`, `check`, and `update` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`).
+
+`gup export` always resolves saved update channels from the canonical user-level `gup.json`; `--file`/`--output` only change the export destination, so exporting to a new file never resets a package's channel back to `latest`.
 
 ```shell
 ※ Environments A (e.g. ubuntu)

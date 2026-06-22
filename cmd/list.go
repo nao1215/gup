@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
+	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -51,8 +52,15 @@ func list(cmd *cobra.Command, _ []string) int {
 	}
 
 	if jsonOut {
-		pkgs = applyCheckChannels(pkgs)
-		if err := encodeJSONPackages(listJSONRecords(pkgs)); err != nil {
+		annotated, cerr := applyCheckChannels(pkgs, "")
+		if cerr != nil {
+			// list is read-only and is not the command targeted by the
+			// ambiguity check (#342); fall back to the user-level config for
+			// channel hints instead of failing.
+			confPkgs, _ := readConfFileIfExists(config.FilePath())
+			annotated = applySavedChannels(pkgs, confPkgs)
+		}
+		if err := encodeJSONPackages(listJSONRecords(annotated)); err != nil {
 			print.Err(err)
 			return 1
 		}

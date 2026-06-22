@@ -72,6 +72,10 @@ using the current installed Go toolchain.`,
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only updated/failed binaries plus a summary")
+	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write saved update channels")
+	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
+		panic(err)
+	}
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -168,12 +172,18 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	confReadPath, resolveErr := config.ResolveImportFilePath("")
-	if resolveErr != nil {
-		// update only reads the config for channel hints and is not the
-		// command targeted by the ambiguity check, so fall back to the
-		// user-level config instead of failing.
-		confReadPath = config.FilePath()
+	confFile, err := getFlagString(cmd, "file")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+	// When both the user-level config and ./gup.json exist and no --file is
+	// given, fail fast instead of silently choosing one (#342), consistent with
+	// import and check.
+	confReadPath, err := config.ResolveImportFilePath(confFile)
+	if err != nil {
+		print.Err(err)
+		return 1
 	}
 	confWritePath := config.FilePath()
 	if fileutil.IsFile(confReadPath) {

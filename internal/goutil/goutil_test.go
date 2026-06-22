@@ -1364,19 +1364,24 @@ func TestPackage_IsGoUpToDate_customBuildTag(t *testing.T) {
 	}
 }
 
-func TestInstallMainOrMaster_mainFails_masterFails(t *testing.T) {
+func TestInstallMainOrMaster_mainFailsGenericError_noMasterFallback(t *testing.T) {
 	oldGoExe := goExe
 	defer func() { goExe = oldGoExe }()
 
-	// Use a command that will fail for both main and master
+	// "false" exits non-zero with no "unknown revision main" on stderr, i.e. a
+	// generic (non-branch-not-found) failure. Per #340 gup must surface the
+	// @main error and must NOT fall back to @master.
 	goExe = "false"
 
 	err := InstallMainOrMaster("github.com/example/tool")
 	if err == nil {
-		t.Fatal("expected error when both main and master fail")
+		t.Fatal("expected error when @main fails")
 	}
-	if !strings.Contains(err.Error(), "cannot update with @master or @main") {
-		t.Errorf("unexpected error message: %v", err)
+	if !strings.Contains(err.Error(), "can't install github.com/example/tool") {
+		t.Errorf("error should surface the @main install failure, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "cannot update with @master or @main") {
+		t.Errorf("a generic @main failure must not trigger the @master fallback, got: %v", err)
 	}
 }
 
