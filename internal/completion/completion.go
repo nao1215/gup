@@ -2,6 +2,7 @@ package completion
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,18 +11,29 @@ import (
 
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/fileutil"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
-// DeployShellCompletionFileIfNeeded creates the shell completion file.
-// If the file with the same contents already exists, it is not created.
-func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) {
-	if !IsWindows() {
-		makeBashCompletionFileIfNeeded(cmd)
-		makeFishCompletionFileIfNeeded(cmd)
-		makeZshCompletionFileIfNeeded(cmd)
+// DeployShellCompletionFileIfNeeded creates the shell completion files.
+// If a file with the same contents already exists, it is not recreated.
+//
+// It returns a non-nil error when HOME is unset/empty (so completion files are
+// never written into relative paths under the current directory) or when any
+// required completion file cannot be written. Errors from individual shells are
+// aggregated so a single run reports every failure (#343).
+func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
+	if IsWindows() {
+		return nil
 	}
+	if strings.TrimSpace(os.Getenv("HOME")) == "" {
+		return fmt.Errorf("HOME environment variable is not set; cannot determine where to install shell completion files")
+	}
+
+	return errors.Join(
+		makeBashCompletionFileIfNeeded(cmd),
+		makeFishCompletionFileIfNeeded(cmd),
+		makeZshCompletionFileIfNeeded(cmd),
+	)
 }
 
 // IsWindows check whether runtime is windosw or not.
@@ -29,77 +41,71 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
-func makeBashCompletionFileIfNeeded(cmd *cobra.Command) {
+func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if existSameBashCompletionFile(cmd) {
-		return
+		return nil
 	}
 
 	path := bashCompletionFilePath()
 	bashCompletion := new(bytes.Buffer)
 	if err := cmd.GenBashCompletionV2(bashCompletion, false); err != nil {
-		print.Err(fmt.Errorf("can not generate bash completion content: %w", err))
-		return
+		return fmt.Errorf("can not generate bash completion content: %w", err)
 	}
 
 	if !fileutil.IsDir(filepath.Dir(path)) {
 		if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-			print.Err(fmt.Errorf("can not create bash-completion file: %w", err))
-			return
+			return fmt.Errorf("can not create bash-completion file: %w", err)
 		}
 	}
 	fp, err := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileutil.FileModeCreatingFile)
 	if err != nil {
-		print.Err(fmt.Errorf("can not open .bash_completion: %w", err))
-		return
+		return fmt.Errorf("can not open .bash_completion: %w", err)
 	}
 	defer func() {
 		if closeErr := fp.Close(); closeErr != nil {
-			print.Err(fmt.Errorf("can not close .bash_completion: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("can not close .bash_completion: %w", closeErr))
 		}
 	}()
 
 	if _, err := fp.WriteString(bashCompletion.String()); err != nil {
-		print.Err(fmt.Errorf("can not write .bash_completion: %w", err))
-		return
+		return fmt.Errorf("can not write .bash_completion: %w", err)
 	}
+	return err
 }
 
-func makeFishCompletionFileIfNeeded(cmd *cobra.Command) {
+func makeFishCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if isSameFishCompletionFile(cmd) {
-		return
+		return nil
 	}
 
 	path := fishCompletionFilePath()
 	if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-		print.Err(fmt.Errorf("can not create fish-completion file: %w", err))
-		return
+		return fmt.Errorf("can not create fish-completion file: %w", err)
 	}
 
 	if err := cmd.GenFishCompletionFile(path, false); err != nil {
-		print.Err(fmt.Errorf("can not create fish-completion file: %w", err))
-		return
+		return fmt.Errorf("can not create fish-completion file: %w", err)
 	}
+	return nil
 }
 
-func makeZshCompletionFileIfNeeded(cmd *cobra.Command) {
+func makeZshCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if isSameZshCompletionFile(cmd) {
-		return
+		return nil
 	}
 
 	path := zshCompletionFilePath()
 	if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-		print.Err(fmt.Errorf("can not create zsh-completion file: %w", err))
-		return
+		return fmt.Errorf("can not create zsh-completion file: %w", err)
 	}
 
 	if err := cmd.GenZshCompletionFile(path); err != nil {
-		print.Err(fmt.Errorf("can not create zsh-completion file: %w", err))
-		return
+		return fmt.Errorf("can not create zsh-completion file: %w", err)
 	}
-	appendFpathAtZshrcIfNeeded()
+	return appendFpathAtZshrcIfNeeded()
 }
 
-func appendFpathAtZshrcIfNeeded() {
+func appendFpathAtZshrcIfNeeded() (err error) {
 	const zshFpath = `
 # setting for gup command (auto generate)
 fpath=(~/.zsh/completion $fpath)
@@ -107,47 +113,45 @@ autoload -Uz compinit && compinit -i
 `
 	zshrcPath := zshrcPath()
 	if !fileutil.IsFile(zshrcPath) {
-		fp, err := os.OpenFile(filepath.Clean(zshrcPath), os.O_RDWR|os.O_CREATE, fileutil.FileModeCreatingFile)
-		if err != nil {
-			print.Err(fmt.Errorf("can not open .zshrc: %w", err).Error())
-			return
+		fp, openErr := os.OpenFile(filepath.Clean(zshrcPath), os.O_RDWR|os.O_CREATE, fileutil.FileModeCreatingFile)
+		if openErr != nil {
+			return fmt.Errorf("can not open .zshrc: %w", openErr)
 		}
 		defer func() {
 			if closeErr := fp.Close(); closeErr != nil {
-				print.Err(fmt.Errorf("can not close .zshrc: %w", closeErr).Error())
+				err = errors.Join(err, fmt.Errorf("can not close .zshrc: %w", closeErr))
 			}
 		}()
 
-		if _, err := fp.WriteString(zshFpath); err != nil {
-			print.Err(fmt.Errorf("can not write zsh $fpath in .zshrc: %w", err).Error())
+		if _, writeErr := fp.WriteString(zshFpath); writeErr != nil {
+			return fmt.Errorf("can not write zsh $fpath in .zshrc: %w", writeErr)
 		}
-		return
+		return err
 	}
 
-	zshrc, err := os.ReadFile(filepath.Clean(zshrcPath))
-	if err != nil {
-		print.Err(fmt.Errorf("can not read .zshrc: %w", err).Error())
-		return
+	zshrc, readErr := os.ReadFile(filepath.Clean(zshrcPath))
+	if readErr != nil {
+		return fmt.Errorf("can not read .zshrc: %w", readErr)
 	}
 
 	if strings.Contains(string(zshrc), zshFpath) {
-		return
+		return nil
 	}
 
-	fp, err := os.OpenFile(filepath.Clean(zshrcPath), os.O_RDWR|os.O_APPEND, fileutil.FileModeCreatingFile)
-	if err != nil {
-		print.Err(fmt.Errorf("can not open .zshrc: %w", err).Error())
-		return
+	fp, openErr := os.OpenFile(filepath.Clean(zshrcPath), os.O_RDWR|os.O_APPEND, fileutil.FileModeCreatingFile)
+	if openErr != nil {
+		return fmt.Errorf("can not open .zshrc: %w", openErr)
 	}
 	defer func() {
 		if closeErr := fp.Close(); closeErr != nil {
-			print.Err(fmt.Errorf("can not close .zshrc: %w", closeErr).Error())
+			err = errors.Join(err, fmt.Errorf("can not close .zshrc: %w", closeErr))
 		}
 	}()
 
-	if _, err := fp.WriteString(zshFpath); err != nil {
-		print.Err(fmt.Errorf("can not write zsh $fpath in .zshrc: %w", err).Error())
+	if _, writeErr := fp.WriteString(zshFpath); writeErr != nil {
+		return fmt.Errorf("can not write zsh $fpath in .zshrc: %w", writeErr)
 	}
+	return err
 }
 
 func existSameBashCompletionFile(cmd *cobra.Command) bool {
@@ -160,7 +164,8 @@ func existSameBashCompletionFile(cmd *cobra.Command) bool {
 func hasSameBashCompletionContent(cmd *cobra.Command) bool {
 	bashCompletionFileInLocal, err := os.ReadFile(bashCompletionFilePath())
 	if err != nil {
-		print.Err(fmt.Errorf("can not read .bash_completion: %w", err).Error())
+		// The caller only reaches here when the file exists; treat a read error
+		// as "not the same" so the completion file is regenerated.
 		return false
 	}
 

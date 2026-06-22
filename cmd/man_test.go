@@ -104,10 +104,37 @@ func TestMan(t *testing.T) {
 		}
 	})
 
-	t.Run("failure when MANPATH target dir does not exist", func(t *testing.T) {
+	t.Run("success creates a missing MANPATH man1 dir", func(t *testing.T) {
+		// A valid custom MANPATH whose man1 directory does not exist yet must be
+		// created rather than causing a failure (#344).
 		base := t.TempDir()
-		dst := filepath.Join(base, "not-created", "man1")
-		t.Setenv("MANPATH", dst)
+		manpath := filepath.Join(base, "shareman")
+		t.Setenv("MANPATH", manpath)
+
+		if got := man(nil, nil); got != 0 {
+			t.Fatalf("man() = %d, want 0", got)
+		}
+
+		dst := filepath.Join(manpath, "man1")
+		manFiles, err := filepath.Glob(filepath.Join(dst, "*.1.gz"))
+		if err != nil {
+			t.Fatalf("glob failed: %v", err)
+		}
+		if len(manFiles) == 0 {
+			t.Fatalf("man pages were not written to the auto-created dir %s", dst)
+		}
+	})
+
+	t.Run("failure when MANPATH target is not writable", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory permissions")
+		}
+		base := t.TempDir()
+		readonly := filepath.Join(base, "readonly")
+		if err := os.MkdirAll(readonly, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MANPATH", filepath.Join(readonly, "shareman"))
 
 		if got := man(nil, nil); got != 1 {
 			t.Fatalf("man() = %d, want 1", got)

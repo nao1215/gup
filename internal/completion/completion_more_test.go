@@ -1,7 +1,6 @@
 package completion
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,18 +8,7 @@ import (
 	"testing"
 
 	"github.com/nao1215/gup/internal/fileutil"
-	"github.com/nao1215/gup/internal/print"
 )
-
-// capturePrintStderr redirects print.Stderr into a buffer for the test.
-func capturePrintStderr(t *testing.T) *bytes.Buffer {
-	t.Helper()
-	org := print.Stderr
-	buf := &bytes.Buffer{}
-	print.Stderr = buf
-	t.Cleanup(func() { print.Stderr = org })
-	return buf
-}
 
 func TestIsWindows(t *testing.T) {
 	t.Parallel()
@@ -34,14 +22,18 @@ func TestDeployShellCompletionFileIfNeeded(t *testing.T) {
 	cmd := testCompletionCmd()
 
 	if IsWindows() {
-		DeployShellCompletionFileIfNeeded(cmd)
+		if err := DeployShellCompletionFileIfNeeded(cmd); err != nil {
+			t.Errorf("DeployShellCompletionFileIfNeeded() on Windows should be a no-op, got: %v", err)
+		}
 		if fileutil.IsFile(bashCompletionFilePath()) {
 			t.Error("no completion files should be deployed on Windows")
 		}
 		return
 	}
 
-	DeployShellCompletionFileIfNeeded(cmd)
+	if err := DeployShellCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("DeployShellCompletionFileIfNeeded() error = %v", err)
+	}
 
 	for _, path := range []string{
 		bashCompletionFilePath(),
@@ -59,7 +51,30 @@ func TestDeployShellCompletionFileIfNeeded(t *testing.T) {
 
 	// A second run hits the "already up to date" branches and must not error
 	// or duplicate the zshrc fpath block.
-	DeployShellCompletionFileIfNeeded(cmd)
+	if err := DeployShellCompletionFileIfNeeded(cmd); err != nil {
+		t.Errorf("second DeployShellCompletionFileIfNeeded() error = %v", err)
+	}
+}
+
+// TestDeployShellCompletionFileIfNeeded_unsetHOME verifies the #343 contract:
+// with HOME unset, deployment fails fast and writes nothing.
+func TestDeployShellCompletionFileIfNeeded_unsetHOME(t *testing.T) {
+	if IsWindows() {
+		t.Skip("completion install is not supported on Windows")
+	}
+	t.Setenv("HOME", "")
+	t.Chdir(t.TempDir())
+
+	cmd := testCompletionCmd()
+	err := DeployShellCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "HOME") {
+		t.Fatalf("expected an error mentioning HOME, got: %v", err)
+	}
+	for _, stray := range []string{".local", ".config", ".zsh", ".zshrc"} {
+		if _, statErr := os.Stat(stray); statErr == nil {
+			t.Errorf("no %q should be created under the working directory when HOME is unset", stray)
+		}
+	}
 }
 
 func TestExistSameBashCompletionFile(t *testing.T) {
@@ -88,7 +103,9 @@ func TestIsSameFishCompletionFile(t *testing.T) {
 		t.Fatal("isSameFishCompletionFile() = true, want false when no file exists")
 	}
 
-	makeFishCompletionFileIfNeeded(cmd)
+	if err := makeFishCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("makeFishCompletionFileIfNeeded() error = %v", err)
+	}
 
 	if !isSameFishCompletionFile(cmd) {
 		t.Fatal("isSameFishCompletionFile() = false, want true after generation")
@@ -106,7 +123,9 @@ func TestIsSameZshCompletionFile(t *testing.T) {
 		t.Fatal("isSameZshCompletionFile() = true, want false when no file exists")
 	}
 
-	makeZshCompletionFileIfNeeded(cmd)
+	if err := makeZshCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("makeZshCompletionFileIfNeeded() error = %v", err)
+	}
 
 	if !isSameZshCompletionFile(cmd) {
 		t.Fatal("isSameZshCompletionFile() = false, want true after generation")
@@ -121,7 +140,9 @@ func TestAppendFpathAtZshrcIfNeeded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	appendFpathAtZshrcIfNeeded()
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
 
 	data, err := os.ReadFile(zshrcPath())
 	if err != nil {
@@ -132,7 +153,9 @@ func TestAppendFpathAtZshrcIfNeeded(t *testing.T) {
 	}
 
 	// Calling again must not duplicate the block (contains-check branch).
-	appendFpathAtZshrcIfNeeded()
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("second appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
 	data, err = os.ReadFile(zshrcPath())
 	if err != nil {
 		t.Fatal(err)
@@ -155,11 +178,9 @@ func TestMakeBashCompletionFileIfNeeded_MkdirError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := capturePrintStderr(t)
-	makeBashCompletionFileIfNeeded(cmd)
-
-	if !strings.Contains(buf.String(), "can not create bash-completion file") {
-		t.Errorf("expected MkdirAll error, got: %s", buf.String())
+	err := makeBashCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "can not create bash-completion file") {
+		t.Errorf("expected MkdirAll error, got: %v", err)
 	}
 }
 
@@ -176,11 +197,9 @@ func TestMakeBashCompletionFileIfNeeded_OpenError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := capturePrintStderr(t)
-	makeBashCompletionFileIfNeeded(cmd)
-
-	if !strings.Contains(buf.String(), "can not open .bash_completion") {
-		t.Errorf("expected OpenFile error, got: %s", buf.String())
+	err := makeBashCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "can not open .bash_completion") {
+		t.Errorf("expected OpenFile error, got: %v", err)
 	}
 }
 
@@ -197,11 +216,9 @@ func TestMakeFishCompletionFileIfNeeded_GenError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := capturePrintStderr(t)
-	makeFishCompletionFileIfNeeded(cmd)
-
-	if !strings.Contains(buf.String(), "can not create fish-completion file") {
-		t.Errorf("expected fish generation error, got: %s", buf.String())
+	err := makeFishCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "can not create fish-completion file") {
+		t.Errorf("expected fish generation error, got: %v", err)
 	}
 }
 
@@ -218,11 +235,9 @@ func TestMakeZshCompletionFileIfNeeded_GenError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := capturePrintStderr(t)
-	makeZshCompletionFileIfNeeded(cmd)
-
-	if !strings.Contains(buf.String(), "can not create zsh-completion file") {
-		t.Errorf("expected zsh generation error, got: %s", buf.String())
+	err := makeZshCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "can not create zsh-completion file") {
+		t.Errorf("expected zsh generation error, got: %v", err)
 	}
 }
 
@@ -235,11 +250,9 @@ func TestAppendFpathAtZshrcIfNeeded_OpenError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	buf := capturePrintStderr(t)
-	appendFpathAtZshrcIfNeeded()
-
-	if !strings.Contains(buf.String(), "can not open .zshrc") {
-		t.Errorf("expected .zshrc open error, got: %s", buf.String())
+	err := appendFpathAtZshrcIfNeeded()
+	if err == nil || !strings.Contains(err.Error(), "can not open .zshrc") {
+		t.Errorf("expected .zshrc open error, got: %v", err)
 	}
 }
 

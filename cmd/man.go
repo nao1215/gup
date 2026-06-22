@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nao1215/gup/internal/fileutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
@@ -101,6 +102,13 @@ func generateManpages(dst string) error {
 
 func copyManpages(manFiles []string, dst string) error {
 	dst = filepath.Clean(dst)
+
+	// Ensure the target man1 directory exists before writing. A valid custom
+	// MANPATH whose man1 directory is absent should be created rather than
+	// causing a failure; an unwritable target surfaces as a clear error (#344).
+	if err := os.MkdirAll(dst, fileutil.FileModeCreatingDir); err != nil {
+		return fmt.Errorf("can not create man directory %s: %w", dst, err)
+	}
 
 	for _, file := range manFiles {
 		if err := copyOneManpage(filepath.Clean(file), dst); err != nil {

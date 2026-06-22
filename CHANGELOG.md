@@ -9,6 +9,8 @@
 * `gup update --main` and `check` now fall back from `@main` to `@master` only when the `main` branch does not exist. Build, network, proxy, authentication, timeout, and cancellation failures on `@main` are surfaced as-is instead of silently installing `@master`. (#340)
 * `gup export` now preserves each package's saved update channel (`latest`/`main`/`master`) regardless of `--file`/`--output`. Channels are always resolved from the canonical user-level `gup.json`, matched by `import_path` first (with Windows `.exe` name differences normalized), so exporting to a new destination no longer resets channels to `latest`. (#341)
 * `gup check` and `gup update` now fail fast when both the user-level `gup.json` and `./gup.json` exist and `--file` is omitted, instead of silently picking one — matching the existing `gup import` behavior. (#342)
+* `gup completion --install` now exits non-zero when a completion file cannot be written (previously it could print an error but still exit 0), and fails fast with a clear message when `HOME` is unset instead of writing completion files into relative paths under the current directory. (#343)
+* `gup man` now creates the target `man1` directory when it does not exist (e.g. for a valid custom `MANPATH`) instead of failing, and reports a clear error for unwritable targets. (#344)
 
 ## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
 
