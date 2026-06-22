@@ -121,6 +121,18 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 		"Feature comparison": {
 			"migrate --force", // command-scoped row unique to the comparison table
 		},
+		// Generate man-pages: the MANPATH note added when man learned to honor
+		// MANPATH (the literal env-var name is identical in every translation, so a
+		// translation that still carries the old one-line description is caught).
+		"Generate man-pages": {
+			"MANPATH", // man writes under each MANPATH entry's man1 dir
+		},
+		// Shell completion --install: the HOME requirement note. "`HOME`" is
+		// backtick-wrapped and does not collide with "$XDG_CONFIG_HOME" (no
+		// backtick precedes HOME there), so it only matches the --install paragraph.
+		"Shell completion --install": {
+			"`HOME`", // --install fails fast when HOME is empty
+		},
 	}
 	for _, path := range translatedReadmePaths() {
 		t.Run(path, func(t *testing.T) {

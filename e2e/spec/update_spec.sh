@@ -56,4 +56,36 @@ Describe 'gup update'
       The output should include 'v1.0.0'
     End
   End
+
+  Describe 'channel persistence destination'
+    # Regression for the bug where an explicit --file was ignored as the write
+    # destination unless the file already existed, so the channel was silently
+    # saved to the user-level gup.json instead.
+    It 'saves the channel to an explicit --file even when the file does not exist yet'
+      install_fixture gup.test/maintool@main
+      explicit="$E2E_WORK/work/explicit.json"
+      When call gup update --main maintool --file "$explicit"
+      The status should be success
+      The output should include 'maintool'
+      The path "$explicit" should be exist
+      The contents of file "$explicit" should include '"channel": "main"'
+      # The user-level config must NOT be created as a side effect.
+      The path "$XDG_CONFIG_HOME/gup/gup.json" should not be exist
+    End
+  End
+
+  Describe 'ambiguous config'
+    # Regression for #342: when both the user-level config and ./gup.json exist
+    # and no --file is given, update must fail fast instead of silently choosing.
+    It 'fails fast when both the user-level config and ./gup.json exist'
+      install_fixture gup.test/uptodate@v1.0.0
+      mkdir -p "$XDG_CONFIG_HOME/gup"
+      printf '%s\n' '{"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}' > "$XDG_CONFIG_HOME/gup/gup.json"
+      printf '%s\n' '{"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}' > "$E2E_WORK/work/gup.json"
+      When call gup update
+      The status should be failure
+      The stderr should include 'multiple gup.json'
+      The stderr should include '--file'
+    End
+  End
 End

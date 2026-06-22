@@ -214,6 +214,14 @@ $ gup check --json
 
 该数组始终是有效的 JSON，包括部分失败的情况（那些包会得到 `"status": "error"`；错误详情也会写入 STDERR，因此 STDOUT 保持为纯 JSON）。退出码保持不变——`check` 报告 `update-available` 时仍然以 `0` 退出。
 
+### 空环境下的行为
+空的全局环境（尚未通过 `go install` 安装任何二进制文件）被视为正常的首次运行情况，而非错误：
+
+- `list`、`check` 和 `update` 以 `0` 退出，并打印一条简短的提示信息（使用 `--json` 时为有效的空数组 `[]`）。
+- `export` 以 `0` 退出并写入一个空的 `gup.json`。
+
+指定一个未安装的二进制文件，或排除所有二进制文件，仍然是使用错误并以 `1` 退出。
+
 ### 导出/导入子命令
 如果您想在多个系统中安装相同的 golang 二进制文件，可以使用 export/import 子命令。
 `gup.json` 保存 import path、二进制版本和更新通道（`latest` / `main` / `master`）。
@@ -241,11 +249,13 @@ $ gup check --json
 
 默认行为：
 - `gup export` 写入 `$XDG_CONFIG_HOME/gup/gup.json`
-- `gup import` 按以下顺序自动检测配置文件路径：
+- `gup import`、`gup check` 和 `gup update` 按以下顺序自动检测配置文件路径：
   1) `$XDG_CONFIG_HOME/gup/gup.json`（存在时）
   2) `./gup.json`（存在时）
 
-您也可以通过 `--file` 显式指定路径。
+如果用户级 `gup.json` 和 `./gup.json` **同时**存在，`import`、`check` 和 `update` 会立即失败并要求您使用 `--file` 消除歧义，而不会静默地选择其中一个。您始终可以通过 `--file`（`-f`）覆盖路径。
+
+`gup export` 始终从规范的用户级 `gup.json` 解析已保存的更新通道；`--file`/`--output` 只改变导出目标，因此导出到新文件绝不会将软件包的通道重置为 `latest`。
 
 ```shell
 ※ 环境 A（例如 ubuntu）
@@ -308,7 +318,7 @@ $ gup migrate /old/gobin /new/gobin gopls air
 `--force`。
 
 ### 生成手册页（适用于 linux、mac）
-man 子命令在 /usr/share/man/man1 下生成手册页。
+man 子命令默认在 `/usr/share/man/man1` 下生成手册页。如果设置了 `MANPATH`，gup 会改为写入每个条目下的 `man1` 目录，并在其尚不存在时创建它。无法写入的目标会以清晰的错误退出。
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -339,6 +349,8 @@ $ gup completion powershell > gup.ps1
 # 自动安装到默认的用户路径
 $ gup completion --install
 ```
+
+`--install` 需要设置 `HOME`；当 `HOME` 为空时它会立即失败（不会将文件写入当前目录），并且如果任何补全文件无法写入，则以非零状态退出。
 
 ### 桌面通知
 如果您使用 --notify 选项运行 gup，gup 命令会在更新完成后通知您桌面更新是成功还是失败。

@@ -214,6 +214,14 @@ Cada elemento tiene estos campos: `name`, `import_path`, `module_path`, `channel
 
 El array siempre es JSON válido, incluso con fallos parciales (esos paquetes obtienen `"status": "error"`; el detalle del error también va a STDERR para que STDOUT siga siendo JSON puro). Los códigos de salida no cambian: `check` reportando `update-available` sigue saliendo con `0`.
 
+### Comportamiento en un entorno vacío
+Un entorno global vacío (sin binarios instalados aún por `go install`) se trata como una condición normal de primera ejecución, no como un error:
+
+- `list`, `check` y `update` terminan con `0`, mostrando una breve nota informativa (o un array vacío válido `[]` con `--json`).
+- `export` termina con `0` y escribe un `gup.json` vacío.
+
+Nombrar un binario que no está instalado, o excluir todos los binarios, sigue siendo un error de uso y termina con `1`.
+
 ### Subcomando Export／Import
 Usa export/import si quieres instalar los mismos binarios de golang en múltiples sistemas.
 `gup.json` guarda el import path, la versión del binario y el canal de actualización (`latest` / `main` / `master`).
@@ -241,11 +249,13 @@ Usa export/import si quieres instalar los mismos binarios de golang en múltiple
 
 Por defecto:
 - `gup export` escribe en `$XDG_CONFIG_HOME/gup/gup.json`
-- `gup import` detecta automáticamente la ruta en este orden:
+- `gup import`, `gup check` y `gup update` detectan automáticamente la ruta en este orden:
   1) `$XDG_CONFIG_HOME/gup/gup.json` (si existe)
   2) `./gup.json` (si existe)
 
-Puedes sobrescribir la ruta con `--file`.
+Si existen **ambos** archivos `gup.json` (el de nivel de usuario y `./gup.json`), `import`, `check` y `update` fallan de inmediato y te piden desambiguar con `--file`, en lugar de elegir uno en silencio. Siempre puedes sobrescribir la ruta con `--file` (`-f`).
+
+`gup export` siempre resuelve los canales de actualización guardados desde el `gup.json` canónico de nivel de usuario; `--file`/`--output` solo cambian el destino de exportación, por lo que exportar a un archivo nuevo nunca restablece el canal de un paquete a `latest`.
 
 ```shell
 ※ Entorno A (e.g. ubuntu)
@@ -309,7 +319,7 @@ Flags soportados: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
 `--force`.
 
 ### Generar páginas de manual (para linux, mac)
-El subcomando man genera páginas de manual bajo /usr/share/man/man1.
+El subcomando man genera páginas de manual bajo `/usr/share/man/man1` de forma predeterminada. Si `MANPATH` está definido, gup escribe en el directorio `man1` bajo cada entrada, creándolo cuando aún no existe. Un destino donde no se puede escribir termina con un error claro.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -340,6 +350,8 @@ $ gup completion powershell > gup.ps1
 # Instalar archivos automáticamente en rutas predeterminadas del usuario
 $ gup completion --install
 ```
+
+`--install` requiere que `HOME` esté definida; falla de inmediato (sin escribir archivos en el directorio actual) cuando `HOME` está vacía, y termina con un código distinto de cero si algún archivo de completado no se puede escribir.
 
 ### Notificación de escritorio
 Si usas gup con la opción --notify, el comando gup te notificará en tu escritorio si la actualización fue exitosa o no después de que termine la actualización.
