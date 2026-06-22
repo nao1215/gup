@@ -34,7 +34,7 @@ needs no network access. The suite uses [ShellSpec](https://github.com/shellspec
 
 ```shell
 # Install ShellSpec once (see https://github.com/shellspec/shellspec#installation)
-curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/master/install.sh | sh -s -- --yes
+curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/0.28.1/install.sh | sh -s 0.28.1 --yes
 
 # Run the whole offline suite
 make e2e

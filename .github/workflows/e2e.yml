@@ -25,8 +25,9 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Install ShellSpec
+        # Pin to a released version so CI behavior does not drift with upstream master.
         run: |
-          curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/master/install.sh | sh -s -- --yes
+          curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/0.28.1/install.sh | sh -s 0.28.1 --yes
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run offline end-to-end tests
