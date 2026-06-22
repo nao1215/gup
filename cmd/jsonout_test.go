@@ -405,6 +405,61 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 	}
 }
 
+// Test_emptyEnv_jsonEmitsEmptyArray verifies the #350 contract: in an empty
+// environment, list/check/update --json emit a valid empty JSON array and exit 0
+// instead of printing an error.
+func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
+	emptyGobin := t.TempDir()
+
+	t.Run("list --json", func(t *testing.T) {
+		t.Setenv("GOBIN", emptyGobin)
+		cmd := newListCmd()
+		if err := cmd.Flags().Set("json", "true"); err != nil {
+			t.Fatal(err)
+		}
+		var got int
+		recs := readJSON(t, func() int { got = list(cmd, nil); return got })
+		if got != 0 {
+			t.Fatalf("list --json on empty env = %d, want 0", got)
+		}
+		if len(recs) != 0 {
+			t.Fatalf("list --json on empty env should be [], got %d records", len(recs))
+		}
+	})
+
+	t.Run("check --json", func(t *testing.T) {
+		t.Setenv("GOBIN", emptyGobin)
+		cmd := newCheckCmd()
+		if err := cmd.Flags().Set("json", "true"); err != nil {
+			t.Fatal(err)
+		}
+		var got int
+		recs := readJSON(t, func() int { got = check(cmd, nil); return got })
+		if got != 0 {
+			t.Fatalf("check --json on empty env = %d, want 0", got)
+		}
+		if len(recs) != 0 {
+			t.Fatalf("check --json on empty env should be [], got %d records", len(recs))
+		}
+	})
+
+	t.Run("update --json", func(t *testing.T) {
+		t.Setenv("GOBIN", emptyGobin)
+		cmd := newUpdateCmd()
+		if err := cmd.Flags().Set("json", "true"); err != nil {
+			t.Fatal(err)
+		}
+		var got int
+		recs := readJSON(t, func() int { got = gup(cmd, nil); return got })
+		if got != 0 {
+			t.Fatalf("update --json on empty env = %d, want 0", got)
+		}
+		if len(recs) != 0 {
+			t.Fatalf("update --json on empty env should be [], got %d records", len(recs))
+		}
+	})
+}
+
 // Test_gup_jsonFlag exercises gup() with --json (and --dry-run) so the
 // flag-parsing and JSON-dispatch branches in gup()/updateWithChannels are
 // covered without performing real installs.

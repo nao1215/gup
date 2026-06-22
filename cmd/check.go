@@ -102,8 +102,24 @@ func check(cmd *cobra.Command, args []string) int {
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 
 	if len(pkgs) == 0 {
-		print.Err("unable to check package: no package information")
-		return 1
+		// With explicit targets, an empty result means the user named binaries
+		// that are not installed: that is a usage error.
+		if len(args) != 0 {
+			print.Err("unable to check package: no package information")
+			return 1
+		}
+		// Otherwise the environment simply has no manageable binaries yet, which
+		// is a normal first-run condition, not an error (#350): emit an empty
+		// JSON array or an informational note and exit 0.
+		if jsonOut {
+			if err := encodeJSONPackages(nil); err != nil {
+				print.Err(err)
+				return 1
+			}
+			return 0
+		}
+		print.Info(emptyEnvMessage)
+		return 0
 	}
 
 	pkgs, err = applyCheckChannels(pkgs, confFile)

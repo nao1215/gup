@@ -71,9 +71,10 @@ func export(cmd *cobra.Command, _ []string) int {
 	}
 	pkgs = applySavedChannels(pkgs, confPkgs)
 
+	// An empty-but-valid environment is a normal first-run condition, not an
+	// error (#350): export still succeeds and writes an empty configuration.
 	if len(pkgs) == 0 {
-		print.Err("no package information")
-		return 1
+		print.Warn(emptyEnvMessage + "; exporting an empty configuration")
 	}
 
 	if output {

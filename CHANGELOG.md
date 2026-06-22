@@ -4,6 +4,10 @@
 
 * Add a `--file`/`-f` flag to `check` and `update` to select which `gup.json` to read saved update channels from (and write back to, for `update`), consistent with `import`/`export`. (#342)
 
+### Changes
+
+* Treat an empty global environment (no binaries installed by `go install` yet) as a normal first-run condition rather than an error: `list`, `check`, `export`, and `update` now exit 0. `list`/`check`/`update` print an informational note (or emit a valid empty `[]` in `--json` mode), and `export` writes an empty `gup.json`. Naming a non-existent binary or excluding everything is still treated as a usage error (exit 1). (#350)
+
 ### Bug Fixes
 
 * `gup update --main` and `check` now fall back from `@main` to `@master` only when the `main` branch does not exist. Build, network, proxy, authentication, timeout, and cancellation failures on `@main` are surfaced as-is instead of silently installing `@master`. (#340)

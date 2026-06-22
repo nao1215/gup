@@ -26,9 +26,13 @@ func Test_check(t *testing.T) {
 		want  int
 	}{
 		{
+			// testdata/check_fail holds a binary not installed by 'go install',
+			// so gup finds zero manageable binaries. Per #350 this empty-but-valid
+			// state is treated as a friendly first-run success (the unmanageable
+			// binary is still surfaced via a warning).
 			name:  "not go install command in $GOBIN",
 			gobin: filepath.Join("testdata", "check_fail"),
-			want:  1,
+			want:  0,
 		},
 	}
 	for _, tt := range tests {
@@ -51,25 +55,38 @@ func Test_check(t *testing.T) {
 			print.Stdout = orgStdout
 			print.Stderr = orgStderr
 
-			if tt.want == 1 {
-				return
-			}
-
 			buf := bytes.Buffer{}
 			_, err = io.Copy(&buf, pr)
 			if err != nil {
 				t.Error(err)
 			}
 			defer pr.Close()
-			got := strings.Split(buf.String(), "\n")
 
-			if !strings.Contains(got[len(got)-2], "posixer") {
-				t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
-			}
-			if !strings.Contains(got[len(got)-2], "gal") {
-				t.Errorf("gal package is not included in the update target: %s", got[len(got)-2])
+			// An environment with no manageable binaries reports the friendly
+			// first-run note and exits 0 (#350).
+			if !strings.Contains(buf.String(), "no binaries are installed") {
+				t.Errorf("expected empty-environment note, got: %s", buf.String())
 			}
 		})
+	}
+}
+
+// Test_check_namedTargetNotInstalled verifies the #350 boundary: an empty
+// result caused by the user naming a binary that is not installed is a usage
+// error (exit 1), distinct from a genuinely empty environment (exit 0).
+func Test_check_namedTargetNotInstalled(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	var got int
+	out := captureCheckOutput(t, func() int {
+		got = check(newCheckCmd(), []string{"doesnotexist"})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check(non-existent target) = %d, want 1", got)
+	}
+	if !strings.Contains(out, "no package information") {
+		t.Errorf("expected a no-package-information error, got: %s", out)
 	}
 }
 
@@ -189,12 +206,14 @@ func Test_check_gobin_is_empty(t *testing.T) {
 		stderr []string
 	}{
 		{
+			// An empty-but-valid environment is a normal first-run condition,
+			// not an error (#350): check succeeds with an informational note.
 			name:  "gobin is empty",
 			gobin: filepath.Join("testdata", "empty_dir"),
 			args:  args{},
-			want:  1,
+			want:  0,
 			stderr: []string{
-				"gup:ERROR: unable to check package: no package information",
+				"no binaries are installed under $GOPATH/bin or $GOBIN",
 				"",
 			},
 		},

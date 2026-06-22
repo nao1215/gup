@@ -40,11 +40,6 @@ func list(cmd *cobra.Command, _ []string) int {
 		return 1
 	}
 
-	if len(pkgs) == 0 {
-		print.Err("unable to list up package: no package information")
-		return 1
-	}
-
 	jsonOut, err := getFlagBool(cmd, "json")
 	if err != nil {
 		print.Err(err)
@@ -60,10 +55,18 @@ func list(cmd *cobra.Command, _ []string) int {
 			confPkgs, _ := readConfFileIfExists(config.FilePath())
 			annotated = applySavedChannels(pkgs, confPkgs)
 		}
+		// An empty environment yields a valid empty JSON array and exit 0 (#350).
 		if err := encodeJSONPackages(listJSONRecords(annotated)); err != nil {
 			print.Err(err)
 			return 1
 		}
+		return 0
+	}
+
+	// An empty-but-valid environment is a normal first-run condition, not an
+	// error (#350).
+	if len(pkgs) == 0 {
+		print.Info(emptyEnvMessage)
 		return 0
 	}
 
