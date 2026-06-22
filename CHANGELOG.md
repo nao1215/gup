@@ -11,6 +11,7 @@
 * `gup check` and `gup update` now fail fast when both the user-level `gup.json` and `./gup.json` exist and `--file` is omitted, instead of silently picking one — matching the existing `gup import` behavior. (#342)
 * `gup completion --install` now exits non-zero when a completion file cannot be written (previously it could print an error but still exit 0), and fails fast with a clear message when `HOME` is unset instead of writing completion files into relative paths under the current directory. (#343)
 * `gup man` now creates the target `man1` directory when it does not exist (e.g. for a valid custom `MANPATH`) instead of failing, and reports a clear error for unwritable targets. (#344)
+* `gup bug-report` no longer pre-fills a generic placeholder issue title (so reports are less likely to be filed with an empty/placeholder title), now includes the OS alongside the gup version in the generated body, and its help text no longer claims to include broader system information than is actually present. The bug-report issue template is aligned with the command. (#345)
 
 ## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
 

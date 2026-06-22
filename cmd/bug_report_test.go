@@ -5,8 +5,10 @@ package cmd
 import (
 	"bytes"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -61,6 +63,39 @@ func Test_bugReport(t *testing.T) {
 	if gotReturnVal != wantReturnVal {
 		t.Errorf("bugReport() = %d; want %d", gotReturnVal, wantReturnVal)
 	}
+}
+
+// Test_bugReport_noPlaceholderTitle verifies the #345 contract: the generated
+// issue URL no longer pre-fills a generic placeholder title that users tend to
+// submit as-is.
+func Test_bugReport_noPlaceholderTitle(t *testing.T) {
+	t.Parallel()
+
+	cmd := newBugReportCmd()
+	cmd.Version = testVersionZero
+
+	bugReport(cmd, nil, func(s string) bool {
+		if strings.Contains(s, url.QueryEscape("[Bug Report] Title")) {
+			t.Errorf("URL should not pre-fill a placeholder title, got: %s", s)
+		}
+		return true
+	})
+}
+
+// Test_bugReport_includesOS verifies the #345 contract: the generated body
+// includes the OS so reports carry the minimum useful diagnostics.
+func Test_bugReport_includesOS(t *testing.T) {
+	t.Parallel()
+
+	cmd := newBugReportCmd()
+	cmd.Version = testVersionZero
+
+	bugReport(cmd, nil, func(s string) bool {
+		if !strings.Contains(s, runtime.GOOS) {
+			t.Errorf("body should include OS %q, got: %s", runtime.GOOS, s)
+		}
+		return true
+	})
 }
 
 func Test_bugReport_fallbackVersion(t *testing.T) {

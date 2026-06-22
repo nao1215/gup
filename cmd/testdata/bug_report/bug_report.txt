@@ -1,4 +1,4 @@
-bug-report opens the default browser to start a bug report which will include useful system information.
+bug-report opens the default browser to start a bug report pre-filled with your gup version and OS.
 
 Usage:
   gup bug-report [flags]
