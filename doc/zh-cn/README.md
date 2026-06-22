@@ -37,7 +37,7 @@ go install github.com/nao1215/gup@latest
 
 ### 使用 homebrew
 ```shell
-brew install nao1215/gup
+brew install nao1215/tap/gup
 ```
 
 ### 使用 winget（Windows）

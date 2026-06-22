@@ -110,8 +110,9 @@ func validPkgInfo(pkgs []goutil.Package) []goutil.Package {
 
 // applySavedChannels copies each package's saved update channel from confPkgs.
 // Matching prefers import_path (the stable identifier) and falls back to the
-// binary name with the Windows ".exe" suffix normalized, so a channel is not
-// silently reset to @latest across binary renames or cross-OS name differences
+// binary name normalized by normalizeBinName (trimmed, with any case-insensitive
+// ".exe"/".EXE" suffix stripped), so a channel is not silently reset to @latest
+// across binary renames, hand-edited configs, or cross-OS name differences
 // (#341). Packages with no saved entry default to @latest.
 func applySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
 	channelByImportPath := make(map[string]goutil.UpdateChannel, len(confPkgs))
@@ -138,8 +139,18 @@ func applySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
 	return result
 }
 
-// normalizeBinName strips the Windows ".exe" suffix so a binary name compares
-// equal regardless of the OS it was exported from.
+// normalizeBinName makes a binary name comparable regardless of the OS the
+// config was exported from. It trims surrounding whitespace and strips a
+// trailing ".exe" suffix case-insensitively, so a channel saved on Windows
+// ("foo.exe", or a hand-edited "foo.EXE") still matches the same binary named
+// "foo" on any OS (#341). Unlike the exclude-matching normalization in update.go
+// this is intentionally OS-independent: the saved config may originate from a
+// different OS than the one currently running gup.
 func normalizeBinName(name string) string {
-	return strings.TrimSuffix(name, ".exe")
+	name = strings.TrimSpace(name)
+	const exe = ".exe"
+	if len(name) >= len(exe) && strings.EqualFold(name[len(name)-len(exe):], exe) {
+		return name[:len(name)-len(exe)]
+	}
+	return name
 }
