@@ -1938,3 +1938,54 @@ func Test_updateWithChannels_mainChannel(t *testing.T) {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
 }
+
+// Test_update_ambiguousConfigFailsFast verifies the #342 contract for update:
+// when both the user-level config and ./gup.json exist and no --file is given,
+// update fails fast with the ambiguity error instead of silently choosing one
+// config (mirroring import). It must not reach the install path.
+func Test_update_ambiguousConfigFailsFast(t *testing.T) {
+	gobin, err := filepath.Abs(filepath.Join("testdata", "check_success"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", gobin)
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	orgStdout := print.Stdout
+	orgStderr := print.Stderr
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	print.Stdout = pw
+	print.Stderr = pw
+
+	got := gup(newUpdateCmd(), []string{})
+
+	pw.Close()
+	print.Stdout = orgStdout
+	print.Stderr = orgStderr
+
+	buf := bytes.Buffer{}
+	io.Copy(&buf, pr)
+	pr.Close()
+
+	if got != 1 {
+		t.Errorf("update() = %d, want 1", got)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, "--file") {
+		t.Errorf("expected ambiguity error mentioning --file, got: %s", out)
+	}
+}

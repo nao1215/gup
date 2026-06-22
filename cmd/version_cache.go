@@ -110,9 +110,15 @@ func fetchVerForChannel(ctx context.Context, modulePath string, channel goutil.U
 		if err == nil {
 			return ver, nil
 		}
-		// Do not fall back when the failure is a cancelled/expired context;
+		// Do not fall back when the failure is a canceled/expired context;
 		// the same cancellation would just hit @master too.
 		if ctx != nil && ctx.Err() != nil {
+			return "", err
+		}
+		// Fall back to @master only when @main fails because the main branch is
+		// absent. Build/network/auth/other failures surface as-is so a
+		// wrong-branch version is never silently resolved (#340).
+		if !goutil.IsBranchNotFound(err, string(goutil.UpdateChannelMain)) {
 			return "", err
 		}
 		return getVerByRefCtx(ctx, modulePath, string(goutil.UpdateChannelMaster))

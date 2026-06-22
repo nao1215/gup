@@ -20,6 +20,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// testImportPathPosixer is the import path of the posixer fixture binary under
+// testdata/check_success, shared across the export channel-preservation tests.
+const testImportPathPosixer = "github.com/nao1215/posixer"
+
 func Test_validPkgInfo(t *testing.T) {
 	type args struct {
 		pkgs []goutil.Package
@@ -211,6 +215,94 @@ func Test_export(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Test_applySavedChannels_prefersImportPath verifies that the saved channel is
+// matched by import_path first (#341), so a binary keeps its channel even when
+// its name differs from the saved entry.
+func Test_applySavedChannels_prefersImportPath(t *testing.T) {
+	confPkgs := []goutil.Package{
+		{Name: "old-name", ImportPath: "example.com/foo/cmd/foo", UpdateChannel: goutil.UpdateChannelMain},
+	}
+	pkgs := []goutil.Package{
+		{Name: "new-name", ImportPath: "example.com/foo/cmd/foo"},
+	}
+
+	got := applySavedChannels(pkgs, confPkgs)
+	if len(got) != 1 || got[0].UpdateChannel != goutil.UpdateChannelMain {
+		t.Fatalf("channel should be matched by import_path; got %+v", got)
+	}
+}
+
+// Test_applySavedChannels_normalizesExeSuffix verifies that name-based fallback
+// matching ignores the Windows ".exe" suffix difference (#341).
+func Test_applySavedChannels_normalizesExeSuffix(t *testing.T) {
+	confPkgs := []goutil.Package{
+		// Saved on Windows with the .exe suffix and no import path to force the
+		// name-based fallback.
+		{Name: "foo.exe", UpdateChannel: goutil.UpdateChannelMaster},
+	}
+	pkgs := []goutil.Package{
+		{Name: "foo", ImportPath: "example.com/foo"},
+	}
+
+	got := applySavedChannels(pkgs, confPkgs)
+	if len(got) != 1 || got[0].UpdateChannel != goutil.UpdateChannelMaster {
+		t.Fatalf("channel should match across .exe suffix difference; got %+v", got)
+	}
+}
+
+// Test_export_preservesChannelsFromCanonicalConfig verifies the #341 contract:
+// --file changes only the export destination, while saved channels are always
+// resolved from the canonical user-level config. The destination here is a fresh
+// file that has no channel data, so a wrong implementation would reset the
+// channel to "latest".
+func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+
+	// Canonical user-level config records posixer as tracked on @main.
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	canonical := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"main"}]}` + "\n"
+	if err := os.WriteFile(config.FilePath(), []byte(canonical), 0o600); err != nil {
+		t.Fatalf("failed to seed canonical config: %v", err)
+	}
+
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	dest := filepath.Join(t.TempDir(), "exported.json")
+	cmd := newExportCmd()
+	if err := cmd.Flags().Set("file", dest); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+
+	if got := export(cmd, []string{}); got != 0 {
+		t.Fatalf("export() = %d, want 0", got)
+	}
+
+	exported, err := config.ReadConfFile(dest)
+	if err != nil {
+		t.Fatalf("failed to read exported config: %v", err)
+	}
+	var found bool
+	for _, p := range exported {
+		if p.ImportPath == testImportPathPosixer {
+			found = true
+			if p.UpdateChannel != goutil.UpdateChannelMain {
+				t.Fatalf("posixer channel = %q, want %q (preserved from canonical config)", p.UpdateChannel, goutil.UpdateChannelMain)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("posixer not found in exported config: %+v", exported)
 	}
 }
 

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strings"
+
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
@@ -58,9 +60,13 @@ func export(cmd *cobra.Command, _ []string) int {
 		return 1
 	}
 	pkgs = validPkgInfo(pkgs)
-	confPkgs, err := readConfFileIfExists(configPath)
+	// The source of truth for saved channels is always the canonical user-level
+	// config; --file/--output only change the export destination, not where
+	// channels are read from (#341).
+	channelSource := config.FilePath()
+	confPkgs, err := readConfFileIfExists(channelSource)
 	if err != nil {
-		print.Warn("failed to read " + configPath + ": " + err.Error())
+		print.Warn("failed to read " + channelSource + ": " + err.Error())
 		confPkgs = []goutil.Package{}
 	}
 	pkgs = applySavedChannels(pkgs, confPkgs)
@@ -101,20 +107,38 @@ func validPkgInfo(pkgs []goutil.Package) []goutil.Package {
 	return result
 }
 
+// applySavedChannels copies each package's saved update channel from confPkgs.
+// Matching prefers import_path (the stable identifier) and falls back to the
+// binary name with the Windows ".exe" suffix normalized, so a channel is not
+// silently reset to @latest across binary renames or cross-OS name differences
+// (#341). Packages with no saved entry default to @latest.
 func applySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
+	channelByImportPath := make(map[string]goutil.UpdateChannel, len(confPkgs))
 	channelByName := make(map[string]goutil.UpdateChannel, len(confPkgs))
 	for _, p := range confPkgs {
-		channelByName[p.Name] = goutil.NormalizeUpdateChannel(string(p.UpdateChannel))
+		channel := goutil.NormalizeUpdateChannel(string(p.UpdateChannel))
+		if p.ImportPath != "" {
+			channelByImportPath[p.ImportPath] = channel
+		}
+		channelByName[normalizeBinName(p.Name)] = channel
 	}
 
 	result := make([]goutil.Package, 0, len(pkgs))
 	for _, p := range pkgs {
-		channel, ok := channelByName[p.Name]
-		if !ok {
-			channel = goutil.UpdateChannelLatest
+		channel := goutil.UpdateChannelLatest
+		if c, ok := channelByImportPath[p.ImportPath]; ok {
+			channel = c
+		} else if c, ok := channelByName[normalizeBinName(p.Name)]; ok {
+			channel = c
 		}
 		p.UpdateChannel = channel
 		result = append(result, p)
 	}
 	return result
+}
+
+// normalizeBinName strips the Windows ".exe" suffix so a binary name compares
+// equal regardless of the OS it was exported from.
+func normalizeBinName(name string) string {
+	return strings.TrimSuffix(name, ".exe")
 }

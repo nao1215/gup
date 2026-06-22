@@ -376,25 +376,75 @@ func InstallMainOrMaster(importPath string) error {
 	return InstallMainOrMasterWithContext(context.Background(), importPath)
 }
 
+// IsBranchNotFound reports whether err indicates that the given branch (e.g.
+// "main") does not exist in the module's repository, as opposed to a build,
+// network, authentication, or other failure. The go toolchain reports a missing
+// branch as "unknown revision <branch>". This is the only condition under which
+// gup is allowed to fall back from @main to @master (#340); any other failure
+// must surface as-is so a wrong-branch version is never silently installed.
+//
+// The branch is matched as a whole token, so branch "main" does not match
+// "unknown revision mainline".
+func IsBranchNotFound(err error, branch string) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	marker := "unknown revision " + branch
+	for start := 0; ; {
+		i := strings.Index(msg[start:], marker)
+		if i < 0 {
+			return false
+		}
+		after := start + i + len(marker)
+		// The branch token must be followed by the end of the message or a
+		// non-word byte (e.g. newline), so a prefix like "main" in "mainline"
+		// is not treated as a match.
+		if after == len(msg) || !isBranchWordByte(msg[after]) {
+			return true
+		}
+		start = after
+	}
+}
+
+// isBranchWordByte reports whether b is part of a branch-name token (letters,
+// digits, or underscore), matching the \b word-boundary semantics used to
+// delimit the branch name in IsBranchNotFound.
+func isBranchWordByte(b byte) bool {
+	return b == '_' ||
+		(b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9')
+}
+
 // InstallMainOrMasterWithContext executes "$ go install <importPath>@main"
 // or "$ go install <importPath>@master" with context cancellation support.
+//
+// The @master fallback is taken only when @main fails because the main branch
+// does not exist. Build failures, network/proxy/auth errors, timeouts, and
+// cancellations on @main are returned as-is and never trigger a @master install
+// (#340).
 func InstallMainOrMasterWithContext(ctx context.Context, importPath string) error {
 	mainErr := InstallWithContext(ctx, importPath, "main")
-	if mainErr != nil {
-		// Previous error is "invalid version: unknown revision main". Not return this error.
-		masterErr := InstallWithContext(ctx, importPath, "master")
-		if masterErr == nil {
-			return nil
-		}
-		const errMsg = "cannot update with @master or @main using the 'gup'. please update manually."
-		if strings.Contains(mainErr.Error(), "unknown revision main") {
-			return fmt.Errorf("%s\n%w", errMsg, masterErr)
-		} else if strings.Contains(masterErr.Error(), "unknown revision master") {
-			return fmt.Errorf("%s\n%w", errMsg, mainErr)
-		}
-		return fmt.Errorf("%s\n%s\n%w", errMsg, mainErr.Error(), masterErr)
+	if mainErr == nil {
+		return nil
 	}
-	return nil
+	// A canceled/expired context would just hit @master too; surface the @main
+	// error instead of retrying.
+	if ctx != nil && ctx.Err() != nil {
+		return mainErr
+	}
+	// Only a missing main branch justifies trying @master.
+	if !IsBranchNotFound(mainErr, "main") {
+		return mainErr
+	}
+
+	masterErr := InstallWithContext(ctx, importPath, "master")
+	if masterErr == nil {
+		return nil
+	}
+	const errMsg = "cannot update with @master or @main using the 'gup'. please update manually."
+	return fmt.Errorf("%s\n%w", errMsg, masterErr)
 }
 
 // Install executes "$ go install <importPath>@<version>".

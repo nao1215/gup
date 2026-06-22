@@ -245,10 +245,11 @@ func TestInstallMainOrMasterWithContext_helperProcess_masterFallbackSucceeds(t *
 }
 
 func TestInstallMainOrMasterWithContext_helperProcess_bothFail(t *testing.T) {
-	// Both @main and @master fail (exit 1) with distinct stderr. The combined
-	// error must mention the manual-update guidance.
+	// @main is missing (branch-not-found), so @master is tried and also fails
+	// (exit 1). The combined error must mention the manual-update guidance and
+	// surface the @master failure.
 	withHelperProcess(t, helperProcessConfig{
-		stderr: "go: some unrelated failure\n",
+		stderr: "go: unknown revision main\n",
 		exit:   1,
 	})
 
@@ -259,8 +260,53 @@ func TestInstallMainOrMasterWithContext_helperProcess_bothFail(t *testing.T) {
 	if !strings.Contains(err.Error(), "cannot update with @master or @main") {
 		t.Errorf("error should include manual-update guidance. got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "some unrelated failure") {
+	if !strings.Contains(err.Error(), "unknown revision main") {
 		t.Errorf("error should surface the underlying stderr. got: %v", err)
+	}
+}
+
+// TestInstallMainOrMasterWithContext_noFallbackOnGenericMainError verifies the
+// #340 contract: when @main fails for a reason other than a missing branch
+// (e.g. a build failure), gup must NOT silently install from @master. Here the
+// fallback helper would let @master succeed, so a successful return would prove
+// a wrong-branch install slipped through.
+func TestInstallMainOrMasterWithContext_noFallbackOnGenericMainError(t *testing.T) {
+	withHelperProcessMainMasterFallback(t, "go: build failed: some compile error\n")
+
+	err := InstallMainOrMasterWithContext(context.Background(), "github.com/example/tool")
+	if err == nil {
+		t.Fatal("InstallMainOrMasterWithContext() must not fall back to @master when @main fails for non-branch reasons")
+	}
+	if !strings.Contains(err.Error(), "build failed: some compile error") {
+		t.Errorf("error should surface the @main failure. got: %v", err)
+	}
+	if strings.Contains(err.Error(), "cannot update with @master or @main") {
+		t.Errorf("error must not include the @master fallback guidance for a non-branch @main failure. got: %v", err)
+	}
+}
+
+func TestIsBranchNotFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		branch string
+		want   bool
+	}{
+		{"nil error", nil, string(UpdateChannelMain), false},
+		{"main missing", fmt.Errorf("can't install x:\ngo: unknown revision main"), string(UpdateChannelMain), true},
+		{"master missing", fmt.Errorf("go: unknown revision master"), string(UpdateChannelMaster), true},
+		{"build failure is not branch-not-found", fmt.Errorf("build failed: compile error"), string(UpdateChannelMain), false},
+		{"network failure is not branch-not-found", fmt.Errorf("dial tcp: i/o timeout"), string(UpdateChannelMain), false},
+		{"wrong branch name does not match", fmt.Errorf("go: unknown revision master"), string(UpdateChannelMain), false},
+		{"longer branch name is not a partial match", fmt.Errorf("go: unknown revision mainline"), string(UpdateChannelMain), false},
+		{"branch token followed by newline matches", fmt.Errorf("go: unknown revision main\n"), string(UpdateChannelMain), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsBranchNotFound(tt.err, tt.branch); got != tt.want {
+				t.Errorf("IsBranchNotFound(%v, %q) = %v, want %v", tt.err, tt.branch, got, tt.want)
+			}
+		})
 	}
 }
 

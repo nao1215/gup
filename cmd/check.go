@@ -38,6 +38,10 @@ It does not update them.`,
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only update-available/failed binaries plus a summary")
+	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read saved update channels from")
+	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
+		panic(err)
+	}
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -80,6 +84,12 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	confFile, err := getFlagString(cmd, "file")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
@@ -96,7 +106,11 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs = applyCheckChannels(pkgs)
+	pkgs, err = applyCheckChannels(pkgs, confFile)
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
 	if jsonOut {
 		return doCheckJSON(pkgs, cpus, timeout, ignoreGoUpdate)
 	}
@@ -106,15 +120,14 @@ func check(cmd *cobra.Command, args []string) int {
 // applyCheckChannels resolves the saved per-package update channel from
 // gup.json so that 'gup check' compares each binary against the same source
 // 'gup update' would install from. The config is located with the same
-// resolution rules used by import/update; when no config exists every package
-// keeps the default @latest behavior.
-func applyCheckChannels(pkgs []goutil.Package) []goutil.Package {
-	confReadPath, resolveErr := config.ResolveImportFilePath("")
-	if resolveErr != nil {
-		// check only reads the config for channel hints and is not the command
-		// targeted by the ambiguity check, so fall back to the user-level config
-		// instead of failing.
-		confReadPath = config.FilePath()
+// resolution rules used by import/update; when both the user-level config and
+// ./gup.json exist and no --file is given, the choice is ambiguous and an error
+// is returned so check fails fast instead of silently picking one (#342). When
+// no config exists every package keeps the default @latest behavior.
+func applyCheckChannels(pkgs []goutil.Package, confFile string) ([]goutil.Package, error) {
+	confReadPath, err := config.ResolveImportFilePath(confFile)
+	if err != nil {
+		return nil, err
 	}
 
 	confPkgs, err := readConfFileIfExists(confReadPath)
@@ -123,7 +136,7 @@ func applyCheckChannels(pkgs []goutil.Package) []goutil.Package {
 		confPkgs = []goutil.Package{}
 	}
 
-	return applySavedChannels(pkgs, confPkgs)
+	return applySavedChannels(pkgs, confPkgs), nil
 }
 
 func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
