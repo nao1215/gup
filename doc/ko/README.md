@@ -214,6 +214,14 @@ $ gup check --json
 
 배열은 부분 실패가 있더라도 항상 유효한 JSON입니다(해당 패키지는 `"status": "error"`를 가지며, 오류 세부 정보는 STDERR로도 출력되므로 STDOUT은 순수한 JSON으로 유지됩니다). 종료 코드는 변경되지 않습니다—`check`가 `update-available`을 보고하더라도 여전히 `0`으로 종료됩니다.
 
+### 빈 환경에서의 동작
+빈 전역 환경(아직 `go install`로 설치한 바이너리가 하나도 없는 상태)은 오류가 아니라 정상적인 첫 실행 상황으로 처리됩니다.
+
+- `list`, `check`, `update`는 `0`으로 종료하며 짧은 안내 메시지를 출력합니다(`--json` 사용 시 유효한 빈 배열 `[]`).
+- `export`는 `0`으로 종료하고 빈 `gup.json`을 기록합니다.
+
+설치되지 않은 바이너리 이름을 지정하거나 모든 바이너리를 제외하면 여전히 사용 오류이며 `1`로 종료합니다.
+
 ### Export／Import 하위 명령어
 여러 시스템에서 동일한 golang 바이너리를 설치하려면 export／import 하위 명령어를 사용합니다.
 `gup.json`은 import path, 바이너리 버전, 업데이트 채널(`latest` / `main` / `master`)을 저장하며 `import`는 파일에 기록된 버전을 그대로 설치합니다.
@@ -240,11 +248,13 @@ $ gup check --json
 
 기본 동작:
 - `gup export`는 `$XDG_CONFIG_HOME/gup/gup.json`에 기록합니다.
-- `gup import`는 다음 순서로 설정 파일을 자동 탐지합니다.
+- `gup import`, `gup check`, `gup update`는 다음 순서로 설정 파일을 자동 탐지합니다.
   1) `$XDG_CONFIG_HOME/gup/gup.json` (존재하는 경우)
   2) `./gup.json` (존재하는 경우)
 
-`--file` 옵션으로 읽기/쓰기 파일 경로를 명시적으로 지정할 수 있습니다.
+사용자 레벨 `gup.json`과 `./gup.json`이 **모두** 존재하면 `import`, `check`, `update`는 둘 중 하나를 조용히 선택하지 않고 즉시 실패하며 `--file`로 명확히 지정하도록 요구합니다. `--file` (`-f`)로 경로를 덮어쓸 수 있습니다.
+
+`gup export`는 저장된 업데이트 채널을 항상 정규 사용자 레벨 `gup.json`에서 해석합니다. `--file`/`--output`은 내보내기 대상만 바꾸므로, 새 파일로 내보내도 패키지의 채널이 `latest`로 초기화되지 않습니다.
 
 ```shell
 ※ 환경 A (예: ubuntu)
@@ -306,7 +316,7 @@ import path 또는 버전을 확인할 수 없는 바이너리와 개발 빌드(
 `--force`.
 
 ### man 페이지 생성 (linux, mac용)
-man 하위 명령어는 /usr/share/man/man1 아래에 man 페이지를 생성합니다.
+man 하위 명령어는 기본적으로 `/usr/share/man/man1` 아래에 man 페이지를 생성합니다. `MANPATH`가 설정되어 있으면 각 항목 아래의 `man1` 디렉터리에 기록하며, 아직 없으면 생성합니다. 쓸 수 없는 대상이면 명확한 오류와 함께 종료합니다.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -337,6 +347,8 @@ $ gup completion powershell > gup.ps1
 # 기본 사용자 경로에 완성 파일 자동 설치
 $ gup completion --install
 ```
+
+`--install`은 `HOME`이 설정되어 있어야 합니다. `HOME`이 비어 있으면 (현재 디렉터리에 파일을 쓰지 않고) 즉시 실패하며, 보완 파일 중 하나라도 쓸 수 없으면 0이 아닌 코드로 종료합니다.
 
 ### 데스크톱 알림
 --notify 옵션과 함께 gup을 사용하면 업데이트 완료 후 업데이트가 성공했는지 실패했는지 데스크톱에서 알려줍니다.
