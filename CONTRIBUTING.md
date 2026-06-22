@@ -26,7 +26,25 @@ make coverage-tree
 
 ![treemap](./doc/img/cover-tree.svg)
 
-### 4. Manage developer tools with Go tool declarations
+### 4. Run the end-to-end tests (optional but recommended for CLI changes)
+gup has an offline end-to-end suite that exercises the real `gup` binary and the
+real `go` toolchain against a self-contained module proxy, all inside a throwaway
+temp tree. It never touches your real `$HOME`, `~/.config/gup`, or `$GOBIN`, and
+needs no network access. The suite uses [ShellSpec](https://github.com/shellspec/shellspec).
+
+```shell
+# Install ShellSpec once (see https://github.com/shellspec/shellspec#installation)
+curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/master/install.sh | sh -s -- --yes
+
+# Run the whole offline suite
+make e2e
+```
+
+The harness lives under `e2e/`: `e2e/run.sh` builds gup, starts the offline
+module proxy (`e2e/testproxy`), and runs the ShellSpec specs in `e2e/spec/`. The
+same `make e2e` command runs in CI (`.github/workflows/e2e.yml`).
+
+### 5. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.
 Use the command below to add or update tool dependencies:
 

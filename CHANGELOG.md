@@ -22,6 +22,11 @@
 * Fix the Homebrew install command in the README to the correct tap form `brew install nao1215/tap/gup`, and rewrite the feature-comparison table so the force-reinstall row is command-scoped (`update` never reinstalls up-to-date binaries; `migrate --force` reinstalls when the target already exists), removing the previously misleading row. (#349)
 * Sync the newer feature sections into all translated READMEs (`doc/{ja,ru,zh-cn,ko,es,fr}`): Quiet output (`--quiet`/`-q`), machine-readable JSON output (`--json`), disable-colorized output (`NO_COLOR`/`--no-color`), and the feature-comparison table; remove the stale `v1.0.0` breaking-change note. `doc_sync_test.go` now guards these sections so future drift fails CI. (#339)
 
+### Tests
+
+* Add an offline end-to-end test suite (ShellSpec) under `e2e/` that exercises the real `gup` binary in an isolated temp `HOME`/`XDG_CONFIG_HOME`/`GOBIN`, with no network access. It covers `list`, `export --output`, `import --file`, `migrate`, and non-TTY `remove`. Run it with `make e2e`; it also runs in CI (`.github/workflows/e2e.yml`). (#346)
+* Extend the offline E2E suite to cover real `check` and `update` flows through the actual `go` toolchain against a self-contained local module proxy (`e2e/testproxy`): up-to-date vs. update-available, installing a newer version, `--main` success, `@main`→`@master` fallback only on branch-not-found, and no fallback when `@main` exists but fails to build. (#347)
+
 ## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
 
 ### Features
