@@ -3,6 +3,9 @@ package cmd
 
 import (
 	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -58,6 +61,59 @@ func TestCompletion_Install(t *testing.T) {
 	cmd.SetArgs([]string{testFlagInstall})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("completion --install should succeed: %v", err)
+	}
+}
+
+// TestCompletion_InstallUnsetHOME verifies the #343 contract: with HOME unset,
+// 'completion --install' fails fast with a clear message and writes nothing into
+// relative paths under the current working directory.
+func TestCompletion_InstallUnsetHOME(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
+	}
+	stubIsWindows(t, false)
+	t.Setenv("HOME", "")
+
+	// Run from an isolated temp working directory so we can detect stray writes.
+	t.Chdir(t.TempDir())
+
+	cmd := newCompletionCmd()
+	cmd.SetArgs([]string{testFlagInstall})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("completion --install should fail when HOME is unset")
+	}
+	if !strings.Contains(err.Error(), "HOME") {
+		t.Errorf("error should mention HOME, got: %v", err)
+	}
+	for _, stray := range []string{".local", ".config", ".zsh", ".zshrc"} {
+		if _, statErr := os.Stat(stray); statErr == nil {
+			t.Errorf("completion --install must not create %q under the working directory when HOME is unset", stray)
+		}
+	}
+}
+
+// TestCompletion_InstallWriteErrorFails verifies the #343 contract: when a
+// completion file cannot be written, the command exits non-zero instead of
+// silently succeeding.
+func TestCompletion_InstallWriteErrorFails(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
+	}
+	stubIsWindows(t, false)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Place a regular file where the bash-completion parent directory must be
+	// created so MkdirAll fails.
+	if err := os.WriteFile(filepath.Join(home, ".local"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newCompletionCmd()
+	cmd.SetArgs([]string{testFlagInstall})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("completion --install should fail when a completion file cannot be written")
 	}
 }
 

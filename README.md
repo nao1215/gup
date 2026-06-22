@@ -309,7 +309,10 @@ Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
 `--force`.
 
 ### Generate man-pages (for linux, mac)
-man subcommand generates man-pages under /usr/share/man/man1.
+man subcommand generates man-pages under /usr/share/man/man1 by default. If
+`MANPATH` is set, gup writes to the `man1` directory under each entry instead,
+creating it when it does not exist yet. An unwritable target exits with a clear
+error.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -340,6 +343,10 @@ $ gup completion powershell > gup.ps1
 # Install files automatically to default user paths
 $ gup completion --install
 ```
+
+`--install` requires `HOME` to be set; it fails fast (without writing files into
+the current directory) when `HOME` is empty, and exits non-zero if any
+completion file cannot be written.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.

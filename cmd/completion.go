@@ -39,8 +39,7 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 				if isWindows() {
 					return fmt.Errorf("--install is not supported on Windows; run 'gup completion powershell' to output PowerShell completion to stdout")
 				}
-				completion.DeployShellCompletionFileIfNeeded(rootCmd)
-				return nil
+				return completion.DeployShellCompletionFileIfNeeded(rootCmd)
 			}
 			if len(args) == 0 {
 				return argsGuidance(
