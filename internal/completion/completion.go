@@ -41,25 +41,25 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
-func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {
+func makeBashCompletionFileIfNeeded(cmd *cobra.Command) (err error) {
 	if existSameBashCompletionFile(cmd) {
 		return nil
 	}
 
 	path := bashCompletionFilePath()
 	bashCompletion := new(bytes.Buffer)
-	if err := cmd.GenBashCompletionV2(bashCompletion, false); err != nil {
-		return fmt.Errorf("can not generate bash completion content: %w", err)
+	if genErr := cmd.GenBashCompletionV2(bashCompletion, false); genErr != nil {
+		return fmt.Errorf("can not generate bash completion content: %w", genErr)
 	}
 
 	if !fileutil.IsDir(filepath.Dir(path)) {
-		if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-			return fmt.Errorf("can not create bash-completion file: %w", err)
+		if mkErr := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); mkErr != nil {
+			return fmt.Errorf("can not create bash-completion file: %w", mkErr)
 		}
 	}
-	fp, err := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileutil.FileModeCreatingFile)
-	if err != nil {
-		return fmt.Errorf("can not open .bash_completion: %w", err)
+	fp, openErr := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileutil.FileModeCreatingFile)
+	if openErr != nil {
+		return fmt.Errorf("can not open .bash_completion: %w", openErr)
 	}
 	defer func() {
 		if closeErr := fp.Close(); closeErr != nil {
@@ -67,8 +67,8 @@ func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {
 		}
 	}()
 
-	if _, err := fp.WriteString(bashCompletion.String()); err != nil {
-		return fmt.Errorf("can not write .bash_completion: %w", err)
+	if _, writeErr := fp.WriteString(bashCompletion.String()); writeErr != nil {
+		return fmt.Errorf("can not write .bash_completion: %w", writeErr)
 	}
 	return err
 }
