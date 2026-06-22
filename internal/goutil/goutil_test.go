@@ -1368,10 +1368,11 @@ func TestInstallMainOrMaster_mainFailsGenericError_noMasterFallback(t *testing.T
 	oldGoExe := goExe
 	defer func() { goExe = oldGoExe }()
 
-	// "false" exits non-zero with no "unknown revision main" on stderr, i.e. a
-	// generic (non-branch-not-found) failure. Per #340 gup must surface the
-	// @main error and must NOT fall back to @master.
-	goExe = "false"
+	// Point goExe at a path that does not exist so the @main install fails on
+	// every OS (no "unknown revision main" on stderr), i.e. a generic
+	// (non-branch-not-found) failure. Per #340 gup must surface the @main error
+	// and must NOT fall back to @master.
+	goExe = filepath.Join(t.TempDir(), "no-such-go-binary")
 
 	err := InstallMainOrMaster("github.com/example/tool")
 	if err == nil {

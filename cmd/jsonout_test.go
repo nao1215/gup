@@ -367,12 +367,14 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Canonical config records posixer on @main; ./gup.json makes the auto
-	// detection ambiguous.
+	// detection ambiguous and records a DIFFERENT channel (@master), so the test
+	// fails if list reads the local file instead of the canonical config.
 	canonical := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"main"}]}` + "\n"
+	local := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"master"}]}` + "\n"
 	if err := os.WriteFile(config.FilePath(), []byte(canonical), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(config.LocalFilePath(), []byte(canonical), 0o600); err != nil {
+	if err := os.WriteFile(config.LocalFilePath(), []byte(local), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -389,10 +391,17 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 	if got != 0 {
 		t.Fatalf("list --json should succeed despite ambiguous config, got %d", got)
 	}
+	foundPosixer := false
 	for _, r := range recs {
-		if r.ImportPath == testImportPathPosixer && r.Channel != string(goutil.UpdateChannelMain) {
-			t.Errorf("posixer channel = %q, want main (from canonical config fallback)", r.Channel)
+		if r.ImportPath == testImportPathPosixer {
+			foundPosixer = true
+			if r.Channel != string(goutil.UpdateChannelMain) {
+				t.Errorf("posixer channel = %q, want main (from canonical config fallback)", r.Channel)
+			}
 		}
+	}
+	if !foundPosixer {
+		t.Fatal("expected posixer record in list --json output")
 	}
 }
 

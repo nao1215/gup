@@ -298,6 +298,8 @@ func TestIsBranchNotFound(t *testing.T) {
 		{"build failure is not branch-not-found", fmt.Errorf("build failed: compile error"), string(UpdateChannelMain), false},
 		{"network failure is not branch-not-found", fmt.Errorf("dial tcp: i/o timeout"), string(UpdateChannelMain), false},
 		{"wrong branch name does not match", fmt.Errorf("go: unknown revision master"), string(UpdateChannelMain), false},
+		{"longer branch name is not a partial match", fmt.Errorf("go: unknown revision mainline"), string(UpdateChannelMain), false},
+		{"branch token followed by newline matches", fmt.Errorf("go: unknown revision main\n"), string(UpdateChannelMain), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

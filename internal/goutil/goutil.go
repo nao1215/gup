@@ -382,11 +382,39 @@ func InstallMainOrMaster(importPath string) error {
 // branch as "unknown revision <branch>". This is the only condition under which
 // gup is allowed to fall back from @main to @master (#340); any other failure
 // must surface as-is so a wrong-branch version is never silently installed.
+//
+// The branch is matched as a whole token, so branch "main" does not match
+// "unknown revision mainline".
 func IsBranchNotFound(err error, branch string) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "unknown revision "+branch)
+	msg := err.Error()
+	marker := "unknown revision " + branch
+	for start := 0; ; {
+		i := strings.Index(msg[start:], marker)
+		if i < 0 {
+			return false
+		}
+		after := start + i + len(marker)
+		// The branch token must be followed by the end of the message or a
+		// non-word byte (e.g. newline), so a prefix like "main" in "mainline"
+		// is not treated as a match.
+		if after == len(msg) || !isBranchWordByte(msg[after]) {
+			return true
+		}
+		start = after
+	}
+}
+
+// isBranchWordByte reports whether b is part of a branch-name token (letters,
+// digits, or underscore), matching the \b word-boundary semantics used to
+// delimit the branch name in IsBranchNotFound.
+func isBranchWordByte(b byte) bool {
+	return b == '_' ||
+		(b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		(b >= '0' && b <= '9')
 }
 
 // InstallMainOrMasterWithContext executes "$ go install <importPath>@main"
