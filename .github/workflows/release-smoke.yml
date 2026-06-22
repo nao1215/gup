@@ -1,0 +1,39 @@
+name: Release Smoke
+
+# Build the GoReleaser artifacts in snapshot mode (no publishing) and smoke-test
+# them on every PR and push to main, so packaging/archive regressions are caught
+# before a release is ever tagged.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: GoReleaser artifact smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Build release artifacts (snapshot, no publish)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: latest
+          args: release --snapshot --clean --skip=publish,sign,sbom
+
+      - name: Smoke-test artifacts
+        run: ./scripts/smoke_artifacts.sh dist

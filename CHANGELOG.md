@@ -27,6 +27,10 @@
 * Add an offline end-to-end test suite (ShellSpec) under `e2e/` that exercises the real `gup` binary in an isolated temp `HOME`/`XDG_CONFIG_HOME`/`GOBIN`, with no network access. It covers `list`, `export --output`, `import --file`, `migrate`, and non-TTY `remove`. Run it with `make e2e`; it also runs in CI (`.github/workflows/e2e.yml`). (#346)
 * Extend the offline E2E suite to cover real `check` and `update` flows through the actual `go` toolchain against a self-contained local module proxy (`e2e/testproxy`): up-to-date vs. update-available, installing a newer version, `--main` success, `@main`→`@master` fallback only on branch-not-found, and no fallback when `@main` exists but fails to build. (#347)
 
+### CI
+
+* Smoke-test the GoReleaser artifacts before publishing a release: the release workflow now builds a snapshot and runs `scripts/smoke_artifacts.sh` (extracted archive runs `gup --version`, every archive ships the completion files, and the Linux `.deb` installs and runs) before the real `goreleaser release`, so a packaging regression blocks publication. A `Release Smoke` workflow runs the same check on every PR. (#348)
+
 ## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
 
 ### Features
