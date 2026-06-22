@@ -201,10 +201,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err(err)
 		return 1
 	}
-	confWritePath := config.FilePath()
-	if fileutil.IsFile(confReadPath) {
-		confWritePath = confReadPath
-	}
+	confWritePath := resolveConfWritePath(confFile, confReadPath)
 
 	confPkgs, err := readConfFileIfExists(confReadPath)
 	if err != nil {
@@ -228,6 +225,23 @@ func gup(cmd *cobra.Command, args []string) int {
 	}
 
 	return result
+}
+
+// resolveConfWritePath decides where update persists channel and rename data.
+// An explicit --file always wins, even when the file does not exist yet:
+// otherwise "gup update --main x --file new.json" would silently save channels
+// to the user-level config instead of the path the user named (the file is
+// created on first write). Without --file, an already-existing auto-detected
+// config (confReadPath) is reused so updates round-trip, and as a last resort
+// the user-level config path is used.
+func resolveConfWritePath(confFile, confReadPath string) string {
+	if strings.TrimSpace(confFile) != "" {
+		return confReadPath
+	}
+	if fileutil.IsFile(confReadPath) {
+		return confReadPath
+	}
+	return config.FilePath()
 }
 
 // excludePkgs drops the binaries named in excludePkgList from pkgs. In JSON mode

@@ -1374,6 +1374,59 @@ func Test_shouldPersistChannels(t *testing.T) {
 	}
 }
 
+// Test_resolveConfWritePath verifies that an explicit --file is honored as the
+// channel-persistence destination even when the file does not exist yet, so
+// "gup update --main x --file new.json" writes to new.json instead of silently
+// falling back to the user-level config.
+func Test_resolveConfWritePath(t *testing.T) {
+	setupXDGBase(t)
+
+	existing := filepath.Join(t.TempDir(), "existing.json")
+	if err := os.WriteFile(existing, []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(t.TempDir(), "not-created-yet.json")
+
+	tests := []struct {
+		name         string
+		confFile     string
+		confReadPath string
+		want         string
+	}{
+		{
+			name:         "explicit --file to a not-yet-existing path is honored",
+			confFile:     missing,
+			confReadPath: missing,
+			want:         missing,
+		},
+		{
+			name:         "explicit --file to an existing path is honored",
+			confFile:     existing,
+			confReadPath: existing,
+			want:         existing,
+		},
+		{
+			name:         "no --file but auto-detected config exists reuses it",
+			confFile:     "",
+			confReadPath: existing,
+			want:         existing,
+		},
+		{
+			name:         "no --file and no existing config falls back to user-level config",
+			confFile:     "",
+			confReadPath: missing,
+			want:         config.FilePath(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveConfWritePath(tt.confFile, tt.confReadPath); got != tt.want {
+				t.Errorf("resolveConfWritePath(%q, %q) = %q, want %q", tt.confFile, tt.confReadPath, got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_updateWithChannels_emptyImportPath(t *testing.T) {
 	origGetLatest := getLatestVer
 	defer func() { getLatestVer = origGetLatest }()

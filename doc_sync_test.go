@@ -27,6 +27,20 @@ const canonicalLanguageBar = "[English](../../README.md) | " +
 	"[Español](../es/README.md) | " +
 	"[Français](../fr/README.md)"
 
+// translatedReadmePaths returns the localized READMEs that must stay in sync
+// with the English source of truth. Centralizing the list keeps the path
+// strings in one place (so goconst is satisfied) without introducing a global.
+func translatedReadmePaths() []string {
+	return []string{
+		"doc/ja/README.md",
+		"doc/es/README.md",
+		"doc/fr/README.md",
+		"doc/ko/README.md",
+		"doc/ru/README.md",
+		"doc/zh-cn/README.md",
+	}
+}
+
 func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	t.Parallel()
 	// requiredEnglishSections lists structural headings the English README must
@@ -108,15 +122,7 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"migrate --force", // command-scoped row unique to the comparison table
 		},
 	}
-	translatedREADMEs := []string{
-		"doc/ja/README.md",
-		"doc/es/README.md",
-		"doc/fr/README.md",
-		"doc/ko/README.md",
-		"doc/ru/README.md",
-		"doc/zh-cn/README.md",
-	}
-	for _, path := range translatedREADMEs {
+	for _, path := range translatedReadmePaths() {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
@@ -135,19 +141,49 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 	}
 }
 
+// Test_translatedReadmes_haveCanonicalInstallCommands asserts that the
+// copy-pasteable install/usage commands are byte-for-byte identical across the
+// English README and every translation. The section-marker test above only
+// checks that a section EXISTS; it cannot catch a section whose command is
+// present but stale (e.g. a translation still showing `brew install
+// nao1215/gup` after English moved to `brew install nao1215/tap/gup`). Commands
+// are language-independent payload, so they must match verbatim — a mismatch is
+// a copy-paste hazard for users and is exactly the "content exists but is wrong"
+// drift section markers miss.
+func Test_translatedReadmes_haveCanonicalInstallCommands(t *testing.T) {
+	t.Parallel()
+	// canonicalCommands are install/usage one-liners that must appear verbatim in
+	// English and in every translation. Keep this list in sync with the command
+	// blocks in README.md's "How to install" section. The English README is
+	// asserted too, so a typo there is caught instead of silently propagating.
+	canonicalCommands := []string{
+		"go install github.com/nao1215/gup@latest",
+		"brew install nao1215/tap/gup",
+		"winget install --id nao1215.gup",
+		"mise use -g gup@latest",
+		"nix profile install nixpkgs#gogup",
+	}
+	readmes := append([]string{"README.md"}, translatedReadmePaths()...)
+	for _, path := range readmes {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", path, err)
+			}
+			content := string(raw)
+			for _, command := range canonicalCommands {
+				if !strings.Contains(content, command) {
+					t.Errorf("%s is missing or has a stale install command: expected verbatim %q", path, command)
+				}
+			}
+		})
+	}
+}
+
 func Test_translatedReadmes_haveSyncBanner(t *testing.T) {
 	t.Parallel()
-	// translatedREADMEs are the localized READMEs that must stay in sync with, or
-	// be explicitly marked as lagging behind, the English README.
-	translatedREADMEs := []string{
-		"doc/ja/README.md",
-		"doc/es/README.md",
-		"doc/fr/README.md",
-		"doc/ko/README.md",
-		"doc/ru/README.md",
-		"doc/zh-cn/README.md",
-	}
-	for _, path := range translatedREADMEs {
+	for _, path := range translatedReadmePaths() {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
 			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
