@@ -47,6 +47,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - e2e/
 formatters:
   enable:
     - goimports
@@ -56,3 +57,4 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      - e2e/

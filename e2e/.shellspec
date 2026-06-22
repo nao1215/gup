@@ -1,0 +1,3 @@
+--require spec_helper
+--shell bash
+--default-path spec

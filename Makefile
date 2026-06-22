@@ -1,4 +1,4 @@
-.PHONY: build test clean vet fmt chkfmt changelog update-tools help coverage-tree
+.PHONY: build test e2e clean vet fmt chkfmt changelog update-tools help coverage-tree
 
 APP         = gup
 VERSION     = $(shell git describe --tags --abbrev=0)
@@ -28,6 +28,9 @@ clean: ## Clean project
 test: ## Start test
 	env GOOS=$(GOOS) $(GO_TEST) -cover $(GO_PKGROOT) -coverprofile=cover.out
 	$(GO_TOOL) cover -html=cover.out -o cover.html
+
+e2e: ## Run offline end-to-end tests against the real CLI (requires shellspec)
+	./e2e/run.sh
 
 vet: ## Start go vet
 	$(GO_VET) $(GO_PACKAGES)
