@@ -1,4 +1,4 @@
-## Unreleased
+## [v1.5.0](https://github.com/nao1215/gup/compare/v1.4.0...v1.5.0) (2026-06-22)
 
 ### Features
 
@@ -16,16 +16,19 @@
 * `gup completion --install` now exits non-zero when a completion file cannot be written (previously it could print an error but still exit 0), and fails fast with a clear message when `HOME` is unset instead of writing completion files into relative paths under the current directory. (#343)
 * `gup man` now creates the target `man1` directory when it does not exist (e.g. for a valid custom `MANPATH`) instead of failing, and reports a clear error for unwritable targets. (#344)
 * `gup bug-report` no longer pre-fills a generic placeholder issue title (so reports are less likely to be filed with an empty/placeholder title), now includes the OS alongside the gup version in the generated body, and its help text no longer claims to include broader system information than is actually present. The bug-report issue template is aligned with the command. (#345)
+* `gup update --file <path>` now persists update channels and rename bookkeeping to the explicitly named file even when it does not exist yet, instead of silently writing them to the user-level `gup.json`. The export-side saved-channel matching also normalizes the `.exe`/`.EXE` suffix case-insensitively so hand-edited or upper-cased config entries keep their channel. (#358)
 
 ### Documentation
 
 * Fix the Homebrew install command in the README to the correct tap form `brew install nao1215/tap/gup`, and rewrite the feature-comparison table so the force-reinstall row is command-scoped (`update` never reinstalls up-to-date binaries; `migrate --force` reinstalls when the target already exists), removing the previously misleading row. (#349)
 * Sync the newer feature sections into all translated READMEs (`doc/{ja,ru,zh-cn,ko,es,fr}`): Quiet output (`--quiet`/`-q`), machine-readable JSON output (`--json`), disable-colorized output (`NO_COLOR`/`--no-color`), and the feature-comparison table; remove the stale `v1.0.0` breaking-change note. `doc_sync_test.go` now guards these sections so future drift fails CI. (#339)
+* Finish syncing the translated READMEs with the English source: the config-resolution rules (`import`/`check`/`update` fail-fast on an ambiguous `gup.json`, and `export` always resolving saved channels from the canonical user-level config), the empty-environment behavior, `man` honoring `MANPATH`, and `completion --install` requiring `HOME`. (#359)
 
 ### Tests
 
 * Add an offline end-to-end test suite (ShellSpec) under `e2e/` that exercises the real `gup` binary in an isolated temp `HOME`/`XDG_CONFIG_HOME`/`GOBIN`, with no network access. It covers `list`, `export --output`, `import --file`, `migrate`, and non-TTY `remove`. Run it with `make e2e`; it also runs in CI (`.github/workflows/e2e.yml`). (#346)
 * Extend the offline E2E suite to cover real `check` and `update` flows through the actual `go` toolchain against a self-contained local module proxy (`e2e/testproxy`): up-to-date vs. update-available, installing a newer version, `--main` success, `@main`→`@master` fallback only on branch-not-found, and no fallback when `@main` exists but fails to build. (#347)
+* Strengthen the README-sync test to assert the `MANPATH` and `HOME` payloads verbatim across every translation, and extend the E2E suite to cover `update --file` persisting the channel to a not-yet-existing destination and the multiple-`gup.json` ambiguity fail-fast. (#359)
 
 ### CI
 
