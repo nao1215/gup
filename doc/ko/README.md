@@ -61,7 +61,7 @@ nix profile install nixpkgs#gogup
 ## 릴리스 무결성 검증
 모든 릴리스에는 다운로드한 항목을 검증할 수 있도록 공급망 메타데이터가 함께 제공됩니다.
 
-- **서명된 체크섬** — `checksums.txt`는 [cosign](https://github.com/sigstore/cosign)(키리스)으로 서명되어 `checksums.txt.sig`와 `checksums.txt.pem`을 생성합니다.
+- **서명된 체크섬** — `checksums.txt`는 [cosign](https://github.com/sigstore/cosign)(키리스)으로 서명되어 `checksums.txt.sigstore.json`을 생성합니다.
 - **SBOM** — 각 릴리스 아카이브에 SPDX 소프트웨어 자재 명세서(Software Bill of Materials)가 첨부됩니다.
 - **빌드 출처** — SLSA 빌드 출처(provenance)는 GitHub OIDC를 통해 증명됩니다.
 
@@ -69,8 +69,7 @@ nix profile install nixpkgs#gogup
 
 ```shell
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt

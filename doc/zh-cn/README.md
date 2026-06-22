@@ -61,7 +61,7 @@ nix profile install nixpkgs#gogup
 ## 验证发布完整性
 每个发布版本都附带供应链元数据，以便您验证所下载的内容：
 
-- **已签名的校验和** — `checksums.txt` 使用 [cosign](https://github.com/sigstore/cosign)（无密钥）签名，生成 `checksums.txt.sig` 和 `checksums.txt.pem`。
+- **已签名的校验和** — `checksums.txt` 使用 [cosign](https://github.com/sigstore/cosign)（无密钥）签名，生成 `checksums.txt.sigstore.json`。
 - **SBOM** — 每个发布归档都附有 SPDX 软件物料清单（Software Bill of Materials）。
 - **构建溯源** — 通过 GitHub OIDC 对 SLSA 构建溯源进行证明。
 
@@ -69,8 +69,7 @@ nix profile install nixpkgs#gogup
 
 ```shell
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt
