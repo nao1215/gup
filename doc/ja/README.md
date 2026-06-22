@@ -90,7 +90,7 @@ nix profile install nixpkgs#gogup
 ## リリースの完全性を検証する
 各リリースには、ダウンロードしたものを検証できるようにサプライチェーンのメタデータが添付されています:
 
-- **署名付きチェックサム** — `checksums.txt` は [cosign](https://github.com/sigstore/cosign)（keyless）で署名され、`checksums.txt.sig` と `checksums.txt.pem` が生成されます。
+- **署名付きチェックサム** — `checksums.txt` は [cosign](https://github.com/sigstore/cosign)（keyless）で署名され、`checksums.txt.sigstore.json` が生成されます。
 - **SBOM** — 各リリースアーカイブに SPDX 形式のソフトウェア部品表（SBOM）が添付されます。
 - **ビルドプロベナンス** — GitHub OIDC を用いて SLSA ビルドプロベナンスが付与されます。
 
@@ -98,8 +98,7 @@ nix profile install nixpkgs#gogup
 
 ```shell
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt

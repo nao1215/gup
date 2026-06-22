@@ -61,7 +61,7 @@ nix profile install nixpkgs#gogup
 ## Проверка целостности релиза
 Каждый релиз поставляется с метаданными цепочки поставок, чтобы вы могли проверить то, что скачиваете:
 
-- **Подписанные контрольные суммы** — `checksums.txt` подписан с помощью [cosign](https://github.com/sigstore/cosign) (без ключей), создавая `checksums.txt.sig` и `checksums.txt.pem`.
+- **Подписанные контрольные суммы** — `checksums.txt` подписан с помощью [cosign](https://github.com/sigstore/cosign) (без ключей), создавая `checksums.txt.sigstore.json`.
 - **SBOM** — к каждому архиву релиза прикреплена SPDX Software Bill of Materials.
 - **Происхождение сборки** — происхождение сборки SLSA удостоверяется через GitHub OIDC.
 
@@ -69,8 +69,7 @@ nix profile install nixpkgs#gogup
 
 ```shell
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt

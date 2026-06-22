@@ -61,7 +61,7 @@ nix profile install nixpkgs#gogup
 ## Vérifier l'intégrité de la release
 Chaque release est accompagnée de métadonnées de chaîne d'approvisionnement afin que vous puissiez vérifier ce que vous téléchargez :
 
-- **Sommes de contrôle signées** — `checksums.txt` est signé avec [cosign](https://github.com/sigstore/cosign) (sans clé), produisant `checksums.txt.sig` et `checksums.txt.pem`.
+- **Sommes de contrôle signées** — `checksums.txt` est signé avec [cosign](https://github.com/sigstore/cosign) (sans clé), produisant `checksums.txt.sigstore.json`.
 - **SBOM** — un SPDX Software Bill of Materials est joint à chaque archive de release.
 - **Provenance de build** — la provenance de build SLSA est attestée via GitHub OIDC.
 
@@ -69,8 +69,7 @@ Vérifiez les sommes de contrôle signées (puis comparez votre archive à `chec
 
 ```shell
 cosign verify-blob \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp 'https://github.com/nao1215/gup/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   checksums.txt
