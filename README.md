@@ -36,7 +36,7 @@ go install github.com/nao1215/gup@latest
 
 ### Use homebrew
 ```shell
-brew install nao1215/gup
+brew install nao1215/tap/gup
 ```
 
 ### Use winget (Windows)
@@ -391,9 +391,10 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | Per-package update channels (`latest`/`main`/`master`) | Yes | No | Manual |
 | Export/import tool set | Yes | No | Manual |
 | Migrate binaries to a new `$GOBIN` | Yes | No | Manual |
-| Machine-readable JSON output | Yes | No | No |
+| Machine-readable JSON output (`--json`) | Yes | No | No |
 | Shell completion generation/install | Yes | No | No |
-| Force reinstall up-to-date binaries | No | Yes | Yes |
+| `update` reinstalls up-to-date binaries | No | Yes | Yes |
+| `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | No | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
 | No extra tool required (official toolchain only) | No | No | Yes |

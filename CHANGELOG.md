@@ -17,6 +17,11 @@
 * `gup man` now creates the target `man1` directory when it does not exist (e.g. for a valid custom `MANPATH`) instead of failing, and reports a clear error for unwritable targets. (#344)
 * `gup bug-report` no longer pre-fills a generic placeholder issue title (so reports are less likely to be filed with an empty/placeholder title), now includes the OS alongside the gup version in the generated body, and its help text no longer claims to include broader system information than is actually present. The bug-report issue template is aligned with the command. (#345)
 
+### Documentation
+
+* Fix the Homebrew install command in the README to the correct tap form `brew install nao1215/tap/gup`, and rewrite the feature-comparison table so the force-reinstall row is command-scoped (`update` never reinstalls up-to-date binaries; `migrate --force` reinstalls when the target already exists), removing the previously misleading row. (#349)
+* Sync the newer feature sections into all translated READMEs (`doc/{ja,ru,zh-cn,ko,es,fr}`): Quiet output (`--quiet`/`-q`), machine-readable JSON output (`--json`), disable-colorized output (`NO_COLOR`/`--no-color`), and the feature-comparison table; remove the stale `v1.0.0` breaking-change note. `doc_sync_test.go` now guards these sections so future drift fails CI. (#339)
+
 ## [v1.4.0](https://github.com/nao1215/gup/compare/v1.3.1...v1.4.0) (2026-06-22)
 
 ### Features
@@ -34,7 +39,6 @@
 
 ### Documentation
 
-* Add practical examples to the root command and the major subcommands' help. (#325)
 * Sync the Benchmark, release-integrity, and Migrate sections into all five translated READMEs, and add a test that fails when a translation is missing one of these sections. (#306)
 * Document the top-level `--version` flag, the non-TTY `remove` behavior, and the `--json`/`--quiet` precedence in the README.
 

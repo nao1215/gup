@@ -21,12 +21,6 @@ La commande **gup** met à jour les binaires installés par "go install" vers la
 
 Si vous utilisez oh-my-zsh, alors gup a un alias configuré. L'alias est `gup - git pull --rebase`. Par conséquent, assurez-vous que l'alias oh-my-zsh est désactivé (par exemple $ \gup update).
 
-## Changement incompatible (v1.0.0)
-- Le format de configuration est passé de `gup.conf` à `gup.json`.
-- `gup import` ne lit plus `gup.conf`.
-- Le canal de mise à jour par package (`latest` / `main` / `master`) est stocké dans `gup.json`.
-
-
 ## OS supportés (tests unitaires avec GitHub Actions)
 - Linux
 - Mac
@@ -180,6 +174,46 @@ check binary under $GOPATH/bin or $GOBIN
 If you want to update binaries, the following command.
            $ gup update mimixbox
 ```
+
+### Sortie silencieuse pour les grands ensembles d'outils
+Par défaut, `check` et `update` affichent chaque binaire, ce qui devient bruyant lorsque vous avez beaucoup d'outils installés. Passez `--quiet` (`-q`) pour supprimer les lignes des binaires déjà à jour et n'afficher que les binaires qui ont été mis à jour (ou pour lesquels une mise à jour est disponible) ainsi que les échecs, suivis d'un résumé sur une seule ligne. Les erreurs sont toujours écrites sur STDERR, elles restent donc visibles. Lorsque `--json` est également fourni, `--quiet` est ignoré et le tableau JSON complet est affiché.
+```shell
+$ gup update --quiet
+github.com/nao1215/gup (v0.7.0 to v0.7.1)
+gup: 1 updated, 8 up-to-date, 0 failed
+
+$ gup check -q
+github.com/nao1215/gup (current: v0.7.0, latest: v0.7.1 / go1.22.4)
+
+If you want to update binaries, run the following command.
+           $ gup update gup
+gup: 1 update available, 8 up-to-date, 0 failed
+```
+
+### Sortie JSON lisible par machine (pour le scripting / CI)
+`list`, `check` et `update` acceptent `--json`, qui affiche un tableau JSON au lieu de la sortie lisible par un humain (qui reste le comportement par défaut).
+
+```shell
+$ gup check --json
+[
+  {
+    "name": "gup",
+    "import_path": "github.com/nao1215/gup",
+    "module_path": "github.com/nao1215/gup",
+    "channel": "latest",
+    "current_version": "v1.0.0",
+    "latest_version": "v1.1.0",
+    "current_go_version": "go1.22.4",
+    "installed_go_version": "go1.22.4",
+    "status": "update-available"
+  }
+]
+```
+
+Chaque élément possède les champs suivants : `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (vide pour `list`), `current_go_version`, `installed_go_version`, `status` et `error` (omis lorsqu'il est absent). `status` vaut `installed` (list), `up-to-date`, `update-available` (check), `updated` (update) ou `error`.
+
+Le tableau est toujours du JSON valide, y compris en cas d'échecs partiels (ces packages obtiennent `"status": "error"` ; le détail de l'erreur est également envoyé sur STDERR afin que STDOUT reste du JSON pur). Les codes de sortie sont inchangés : `check` signalant `update-available` se termine toujours avec `0`.
+
 ### Sous-commandes Export／Import
 Utilisez export/import si vous voulez installer les mêmes binaires golang sur plusieurs systèmes.
 `gup.json` stocke l'import path, la version du binaire et le canal de mise à jour (`latest` / `main` / `master`).
@@ -315,6 +349,13 @@ $ gup update --notify
 ![success](../img/notify_success.png)
 ![warning](../img/notify_warning.png)
 
+### Désactiver la sortie colorée
+gup colore sa sortie par défaut. Pour désactiver les couleurs, passez `--no-color` ou définissez la variable d'environnement `NO_COLOR` sur une valeur non vide (en suivant la convention [NO_COLOR](https://no-color.org/)). C'est utile lorsque vous redirigez la sortie, dans les journaux de CI, ou avec `NO_COLOR` défini globalement.
+```shell
+$ gup update --no-color
+$ NO_COLOR=1 gup update
+```
+
 
 ## Benchmark
 gup exécute les mises à jour en parallèle, il termine donc plus vite que les outils qui mettent à jour les binaires un par un. Mise à jour de 9 binaires pour lesquels une version plus récente était disponible :
@@ -326,6 +367,22 @@ gup exécute les mises à jour en parallèle, il termine donc plus vite que les 
 | boucle `go install`                                           | séquentielle |  2.9s |
 
 Mesuré sur AMD Ryzen AI Max+ 395 (32 cœurs) / 64 Go de RAM / Ubuntu 26.04 / go 1.26.4, médiane de 5 exécutions avec un cache de modules Go chaud. Les temps dépendent du temps de build de chaque binaire et de votre CPU.
+
+## Comparaison des fonctionnalités
+
+| Fonctionnalité | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
+| --- | :-: | :-: | :-: |
+| Mise à jour en parallèle | Oui | Non | Manuel |
+| Canaux de mise à jour par package (`latest`/`main`/`master`) | Oui | Non | Manuel |
+| Export/import de l'ensemble d'outils | Oui | Non | Manuel |
+| Migration des binaires vers un nouveau `$GOBIN` | Oui | Non | Manuel |
+| Sortie JSON lisible par machine (`--json`) | Oui | Non | Non |
+| Génération/installation de l'autocomplétion shell | Oui | Non | Non |
+| `update` réinstalle les binaires déjà à jour | Non | Oui | Oui |
+| `migrate --force` réinstalle lorsque la cible existe déjà | Oui | Non | Manuel |
+| Diagnostics d'échec / suggestions d'étapes suivantes | Non | Oui | Non |
+| Prise en charge de `NO_COLOR` | Oui | Oui | — |
+| Aucun outil supplémentaire requis (toolchain officielle uniquement) | Non | Non | Oui |
 
 ## Contribuer
 Tout d'abord, merci de prendre le temps de contribuer ! ❤️  Voir [CONTRIBUTING.md](../../CONTRIBUTING.md) pour plus d'informations.
