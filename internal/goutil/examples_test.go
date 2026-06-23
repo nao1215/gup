@@ -253,6 +253,7 @@ func ExampleGoPaths_StartDryRunMode() {
 //	Type: Package
 //
 // ----------------------------------------------------------------------------
+
 func ExamplePackage_SetLatestVer() {
 	packages, _ := goutil.GetPackageInformation([]string{"../../cmd/testdata/check_success/gal"})
 	if len(packages) == 0 {

@@ -34,14 +34,16 @@ func (importPathInput) Generate(rng *rand.Rand, _ int) reflect.Value {
 	seg := func() string {
 		n := 1 + rng.Intn(6)
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for range n {
 			sb.WriteRune(letters[rng.Intn(len(letters))])
 		}
 		return sb.String()
 	}
-	parts := []string{"example.com", seg()}
+	first := seg()
 	extra := rng.Intn(4)
-	for i := 0; i < extra; i++ {
+	parts := make([]string, 0, 2+extra)
+	parts = append(parts, "example.com", first)
+	for range extra {
 		parts = append(parts, seg())
 	}
 	return reflect.ValueOf(importPathInput(strings.Join(parts, "/")))

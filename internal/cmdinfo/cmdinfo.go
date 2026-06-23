@@ -5,10 +5,10 @@ import (
 	"runtime/debug"
 )
 
-// Version value is set by ldflags
+// Version value is set by ldflags.
 var Version string //nolint:gochecknoglobals
 
-// Name is command name
+// Name is command name.
 const Name = "gup"
 
 // GetVersion return gup command version.

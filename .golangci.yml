@@ -5,35 +5,52 @@ linters:
   default: none
   enable:
     - asciicheck
+    - bidichk
     - bodyclose
+    - copyloopvar
     - dogsled
     - durationcheck
     - errcheck
+    - errname
     - errorlint
     - exhaustive
+    - fatcontext
     - forcetypeassert
+    - gocheckcompilerdirectives
     - gochecknoglobals
     - gochecknoinits
     - goconst
     - gocritic
+    - godot
     - gosec
     - govet
     - ineffassign
+    - intrange
+    - makezero
+    - mirror
     - misspell
     - mnd
     - nakedret
+    - nilerr
+    - nilnesserr
     - noctx
     - nolintlint
     - paralleltest
+    - perfsprint
     - prealloc
+    - reassign
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
     - tagliatelle
+    - testableexamples
+    - testifylint
     - thelper
     - unconvert
     - unparam
     - unused
+    - usestdlibvars
+    - wastedassign
     - whitespace
   settings:
     tagliatelle:

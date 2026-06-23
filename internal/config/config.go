@@ -22,7 +22,7 @@ func ptr[T any](v T) *T {
 	return &v
 }
 
-// ConfigFileName is gup command configuration file
+// ConfigFileName is gup command configuration file.
 const ConfigFileName = "gup.json"
 const configSchemaVersion = 1
 
@@ -96,7 +96,7 @@ func ResolveExportFilePath(explicitPath string) string {
 	return FilePath()
 }
 
-// ReadConfFile return contents of configuration-file (package information)
+// ReadConfFile return contents of configuration-file (package information).
 func ReadConfFile(path string) ([]goutil.Package, error) {
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {

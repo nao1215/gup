@@ -27,7 +27,7 @@ func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 		return nil
 	}
 	if strings.TrimSpace(os.Getenv("HOME")) == "" {
-		return fmt.Errorf("HOME environment variable is not set; cannot determine where to install shell completion files")
+		return errors.New("HOME environment variable is not set; cannot determine where to install shell completion files")
 	}
 
 	return errors.Join(

@@ -92,7 +92,7 @@ func Test_NormalizeForMatch_idempotent(t *testing.T) {
 		letters := []rune("abABeExX012")
 		n := rng.Intn(8)
 		var sb strings.Builder
-		for i := 0; i < n; i++ {
+		for range n {
 			sb.WriteRune(letters[rng.Intn(len(letters))])
 		}
 		s := sb.String()

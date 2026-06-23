@@ -113,7 +113,7 @@ func helper_stubImportInstaller(t *testing.T) {
 	})
 }
 
-// Runs a gup command, and return its output split by \n
+// Runs a gup command, and return its output split by \n.
 func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	t.Helper()
 
@@ -451,8 +451,7 @@ func TestExecute_Remove_Force(t *testing.T) {
 	}
 	tests := []test{}
 
-	src := ""
-	dest := ""
+	var src, dest string
 	if runtime.GOOS == goosWindows {
 		tests = append(tests, test{
 			name:   testNameSuccess,
@@ -809,8 +808,7 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	targetPath := ""
-	binName := ""
+	var targetPath, binName string
 	if runtime.GOOS == goosWindows {
 		binName = "gal.exe"
 		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)
@@ -863,8 +861,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	targetPath := ""
-	binName := ""
+	var targetPath, binName string
 	if runtime.GOOS == goosWindows {
 		binName = testBinPosixerExe
 		targetPath = filepath.Join("testdata", "check_success_for_windows", binName)

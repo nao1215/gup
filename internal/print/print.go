@@ -45,7 +45,7 @@ func Err(err interface{}) {
 var OsExit = os.Exit //nolint:gochecknoglobals
 
 // Fatal print dying message at STDERR in red.
-// After print message, process will exit
+// After print message, process will exit.
 func Fatal(err interface{}) {
 	_, _ = fmt.Fprintf(Stderr, "%s:%s: %v\n",
 		cmdinfo.Name, color.RedString("FATAL"), err)
