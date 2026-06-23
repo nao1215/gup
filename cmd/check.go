@@ -108,6 +108,13 @@ func check(cmd *cobra.Command, args []string) int {
 			print.Err("unable to check package: no package information")
 			return 1
 		}
+		// An explicitly named --file must be validated even when no binaries are
+		// installed: honoring explicit user input must not depend on unrelated
+		// environment state (#368).
+		if err := validateExplicitConfFile(confFile); err != nil {
+			print.Err(err)
+			return 1
+		}
 		// Otherwise the environment simply has no manageable binaries yet, which
 		// is a normal first-run condition, not an error (#350): emit an empty
 		// JSON array or an informational note and exit 0.
@@ -146,10 +153,12 @@ func applyCheckChannels(pkgs []goutil.Package, confFile string) ([]goutil.Packag
 		return nil, err
 	}
 
+	// A malformed or unreadable config must fail fast instead of silently
+	// falling back to @latest, which would make check compare against the wrong
+	// channel (#369).
 	confPkgs, err := readConfFileIfExists(confReadPath)
 	if err != nil {
-		print.Warn(fmt.Sprintf("failed to read %s: %s (continuing without config)", confReadPath, err))
-		confPkgs = []goutil.Package{}
+		return nil, err
 	}
 
 	return applySavedChannels(pkgs, confPkgs), nil
