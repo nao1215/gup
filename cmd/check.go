@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/internal/config"
+	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -111,7 +111,7 @@ func check(cmd *cobra.Command, args []string) int {
 		// An explicitly named --file must be validated even when no binaries are
 		// installed: honoring explicit user input must not depend on unrelated
 		// environment state (#368).
-		if err := validateExplicitConfFile(confFile); err != nil {
+		if err := configstate.ValidateExplicitFile(confFile); err != nil {
 			print.Err(err)
 			return 1
 		}
@@ -129,7 +129,7 @@ func check(cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	pkgs, err = applyCheckChannels(pkgs, confFile)
+	pkgs, err = configstate.ResolveAndApplyChannels(pkgs, confFile)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -138,30 +138,6 @@ func check(cmd *cobra.Command, args []string) int {
 		return doCheckJSON(pkgs, cpus, timeout, ignoreGoUpdate)
 	}
 	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate, quiet)
-}
-
-// applyCheckChannels resolves the saved per-package update channel from
-// gup.json so that 'gup check' compares each binary against the same source
-// 'gup update' would install from. The config is located with the same
-// resolution rules used by import/update; when both the user-level config and
-// ./gup.json exist and no --file is given, the choice is ambiguous and an error
-// is returned so check fails fast instead of silently picking one (#342). When
-// no config exists every package keeps the default @latest behavior.
-func applyCheckChannels(pkgs []goutil.Package, confFile string) ([]goutil.Package, error) {
-	confReadPath, err := config.ResolveImportFilePath(confFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// A malformed or unreadable config must fail fast instead of silently
-	// falling back to @latest, which would make check compare against the wrong
-	// channel (#369).
-	confPkgs, err := readConfFileIfExists(confReadPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return applySavedChannels(pkgs, confPkgs), nil
 }
 
 func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
