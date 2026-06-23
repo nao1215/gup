@@ -493,6 +493,100 @@ func TestExecutePackages_TimeoutIsolation(t *testing.T) {
 	}
 }
 
+// TestExecutePackages_StableInputOrder verifies the #365 contract: even when
+// workers finish in the reverse of input order, executePackages returns results
+// in the original input order, so the JSON records derived from them are
+// deterministic across runs. The worker sleeps longer for earlier packages so
+// completion order is inverted relative to input order.
+func TestExecutePackages_StableInputOrder(t *testing.T) {
+	t.Parallel()
+
+	const total = 8
+	pkgs := makePkgs(total)
+
+	// Earlier input index -> longer sleep -> finishes later. Workers only read
+	// this map (built before the run), so concurrent access is safe.
+	sleepByName := make(map[string]time.Duration, total)
+	for i, p := range pkgs {
+		sleepByName[p.Name] = time.Duration(total-i) * 3 * time.Millisecond
+	}
+
+	code, results := executePackages(pkgs, total, 0,
+		func(_ context.Context, p goutil.Package) updateResult {
+			time.Sleep(sleepByName[p.Name])
+			return updateResult{pkg: p, status: statusUpdated}
+		},
+		nil)
+
+	if code != 0 {
+		t.Fatalf("executePackages exit code = %d, want 0", code)
+	}
+	if len(results) != total {
+		t.Fatalf("received %d results, want %d", len(results), total)
+	}
+	for i, r := range results {
+		if want := pkgs[i].Name; r.pkg.Name != want {
+			t.Errorf("results[%d].pkg.Name = %q, want %q (input order)", i, r.pkg.Name, want)
+		}
+	}
+
+	// The JSON records must follow the same input order.
+	recs := resultsToJSONPackages(results)
+	for i, rec := range recs {
+		if want := pkgs[i].Name; rec.Name != want {
+			t.Errorf("json record[%d].Name = %q, want %q (input order)", i, rec.Name, want)
+		}
+	}
+}
+
+// TestExecutePackages_StableInputOrderWithFailures verifies #365 holds when the
+// results are a mix of successes and failures (the update/check --json case):
+// failed and succeeded records stay interleaved in input order, not grouped by
+// outcome or completion time.
+func TestExecutePackages_StableInputOrderWithFailures(t *testing.T) {
+	t.Parallel()
+
+	const total = 10
+	pkgs := makePkgs(total)
+
+	sleepByName := make(map[string]time.Duration, total)
+	for i, p := range pkgs {
+		sleepByName[p.Name] = time.Duration(total-i) * 2 * time.Millisecond
+	}
+
+	// Even-indexed packages fail; odd-indexed succeed.
+	failByName := make(map[string]bool, total)
+	for i, p := range pkgs {
+		failByName[p.Name] = i%2 == 0
+	}
+
+	code, results := executePackages(pkgs, total, 0,
+		func(_ context.Context, p goutil.Package) updateResult {
+			time.Sleep(sleepByName[p.Name])
+			if failByName[p.Name] {
+				return updateResult{pkg: p, err: errors.New("boom"), status: statusError}
+			}
+			return updateResult{pkg: p, status: statusUpdated}
+		},
+		nil)
+
+	if code != 1 {
+		t.Fatalf("executePackages exit code = %d, want 1 (some failed)", code)
+	}
+	if len(results) != total {
+		t.Fatalf("received %d results, want %d", len(results), total)
+	}
+	for i, r := range results {
+		if want := pkgs[i].Name; r.pkg.Name != want {
+			t.Fatalf("results[%d].pkg.Name = %q, want %q (input order preserved across mixed outcomes)", i, r.pkg.Name, want)
+		}
+		wantErr := i%2 == 0
+		if (r.err != nil) != wantErr {
+			t.Errorf("results[%d] err presence = %v, want %v", i, r.err != nil, wantErr)
+		}
+	}
+}
+
 // TestForEachPackage_ProducerCancellation exercises the producer's ctx.Done
 // branch while it is dispatching jobs. With a single worker and a context that
 // is canceled before draining, the producer must emit ctx.Err() results for the

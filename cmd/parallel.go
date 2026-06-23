@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -77,8 +78,13 @@ func summarizeResults(results []updateResult, isCheck bool) string {
 // executePackages runs worker over each package with signal-based cancellation
 // and a per-package timeout, then reports results via collectResults. It is the
 // shared operation engine used by update, check, import, and migrate. It returns
-// the exit code (1 if any package failed) and the per-package results in
-// completion order.
+// the exit code (1 if any package failed) and the per-package results in the
+// original input order.
+//
+// Human-readable progress is still streamed in completion order inside
+// collectResults; only the returned slice is reordered, so machine-readable
+// (--json) output is deterministic across runs regardless of worker scheduling
+// (#365).
 func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
 	worker func(context.Context, goutil.Package) updateResult,
 	onResult func(prefix string, v updateResult)) (int, []updateResult) {
@@ -86,7 +92,11 @@ func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
 	defer stopSignalCancelContext(cancel, signals)
 
 	ch := forEachPackage(ctx, pkgs, cpus, timeout, worker)
-	return collectResults(ch, len(pkgs), onResult)
+	code, results := collectResults(ch, len(pkgs), onResult)
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].inputIndex < results[j].inputIndex
+	})
+	return code, results
 }
 
 // forEachPackage runs fn for each package with a fixed-size worker pool.
@@ -108,18 +118,27 @@ func forEachPackage(ctx context.Context, pkgs []goutil.Package, cpus int, timeou
 		cpus = len(pkgs)
 	}
 
-	jobs := make(chan goutil.Package)
+	// Each job carries the package's position in the input slice so the result
+	// can be reordered back to input order for deterministic --json output,
+	// independent of which worker finishes first (#365).
+	type indexedPackage struct {
+		index int
+		pkg   goutil.Package
+	}
+	jobs := make(chan indexedPackage)
 	var wg sync.WaitGroup
 
 	worker := func() {
 		defer wg.Done()
 
-		for p := range jobs {
+		for job := range jobs {
 			select {
 			case <-ctx.Done():
-				ch <- updateResult{pkg: p, err: ctx.Err()}
+				ch <- updateResult{pkg: job.pkg, err: ctx.Err(), inputIndex: job.index}
 			default:
-				ch <- runWithTimeout(ctx, timeout, p, fn)
+				res := runWithTimeout(ctx, timeout, job.pkg, fn)
+				res.inputIndex = job.index
+				ch <- res
 			}
 		}
 	}
@@ -132,11 +151,11 @@ func forEachPackage(ctx context.Context, pkgs []goutil.Package, cpus int, timeou
 	go func() {
 		defer close(jobs)
 
-		for _, p := range pkgs {
+		for i, p := range pkgs {
 			select {
 			case <-ctx.Done():
-				ch <- updateResult{pkg: p, err: ctx.Err()}
-			case jobs <- p:
+				ch <- updateResult{pkg: p, err: ctx.Err(), inputIndex: i}
+			case jobs <- indexedPackage{index: i, pkg: p}:
 			}
 		}
 	}()
