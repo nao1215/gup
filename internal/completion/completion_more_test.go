@@ -287,6 +287,9 @@ func TestIsSameZshCompletionFile(t *testing.T) {
 // early-returning and leaving completion broken.
 func TestMakeZshCompletionFileIfNeeded_RepairsMissingZshrcBlock(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	// Pin .zshrc/fpath resolution to the temp HOME even if ZDOTDIR is exported,
+	// so the test never touches a real $ZDOTDIR/.zshrc.
+	t.Setenv("ZDOTDIR", "")
 	if IsWindows() {
 		t.Skip("zsh completion is not deployed on Windows")
 	}
@@ -331,6 +334,7 @@ func TestMakeZshCompletionFileIfNeeded_RepairsMissingZshrcBlock(t *testing.T) {
 // old block.
 func TestAppendFpathAtZshrcIfNeeded_RepairsStaleBlock(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
 
 	stale := "# existing config\n\n" + zshFpathMarker + "\n" +
 		"fpath=(/old/wrong/path $fpath)\n" +
@@ -380,6 +384,7 @@ func TestAppendFpathAtZshrcIfNeeded_RepairsStaleBlock(t *testing.T) {
 // while every surrounding line keeps its own line.
 func TestAppendFpathAtZshrcIfNeeded_PreservesSurroundingLines(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
 
 	before := "export PATH=$PATH\n"
 	after := "export EDITOR=vim\n"
@@ -420,6 +425,7 @@ func TestAppendFpathAtZshrcIfNeeded_PreservesSurroundingLines(t *testing.T) {
 // into a complete, single block.
 func TestAppendFpathAtZshrcIfNeeded_RepairsBrokenBlock(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
 
 	broken := "# existing config\n\n" + zshFpathMarker + "\n"
 	if err := os.WriteFile(zshrcPath(), []byte(broken), 0o600); err != nil {
