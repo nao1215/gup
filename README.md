@@ -353,9 +353,14 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-`--install` requires `HOME` to be set; it fails fast (without writing files into
-the current directory) when `HOME` is empty, and exits non-zero if any
-completion file cannot be written.
+`--install` writes to the paths that match your shell/config layout: bash honors
+`XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors
+`XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the
+completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still
+requires `HOME` to be set; it fails fast (without writing files into the current
+directory) when `HOME` is empty, and exits non-zero if any completion file
+cannot be written. Re-running `--install` is idempotent and does not duplicate
+the zsh init snippet in `.zshrc`.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
