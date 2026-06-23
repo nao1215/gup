@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"debug/buildinfo"
-	stderrors "errors"
+	"errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -18,7 +18,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-version"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/pkg/errors"
 )
 
 const unknown = "unknown"
@@ -289,19 +288,17 @@ func (gp *GoPaths) StartDryRunMode() error {
 			// Avoid leaking the temp dir when the env mutation fails.
 			_ = gp.removeTmpDir()
 			// Wrap error to avoid OS dependent error message during testing.
-			return errors.Wrapf(
-				err,
-				"failed to set GOBIN to env variable. key: %v, value: %v",
-				keyGoBin, tmpDir,
+			return fmt.Errorf(
+				"failed to set GOBIN to env variable. key: %v, value: %v: %w",
+				keyGoBin, tmpDir, err,
 			)
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
 			_ = gp.removeTmpDir()
-			return errors.Wrapf(
-				err,
-				"failed to set GOPATH to env variable. key: %v, value: %v",
-				keyGoPath, tmpDir,
+			return fmt.Errorf(
+				"failed to set GOPATH to env variable. key: %v, value: %v: %w",
+				keyGoPath, tmpDir, err,
 			)
 		}
 	default:
@@ -321,18 +318,16 @@ func (gp *GoPaths) EndDryRunMode() error {
 	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
 			// Wrap error to avoid OS dependent error message during testing.
-			restoreErr = errors.Wrapf(
-				err,
-				"failed to set GOBIN to env variable. key: %v, value: %v",
-				keyGoBin, gp.GOBIN,
+			restoreErr = fmt.Errorf(
+				"failed to set GOBIN to env variable. key: %v, value: %v: %w",
+				keyGoBin, gp.GOBIN, err,
 			)
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
-			restoreErr = errors.Wrapf(
-				err,
-				"failed to set GOPATH to env variable. key: %v, value: %v",
-				keyGoPath, gp.GOPATH,
+			restoreErr = fmt.Errorf(
+				"failed to set GOPATH to env variable. key: %v, value: %v: %w",
+				keyGoPath, gp.GOPATH, err,
 			)
 		}
 	default:
@@ -341,10 +336,10 @@ func (gp *GoPaths) EndDryRunMode() error {
 
 	var removeErr error
 	if err := gp.removeTmpDir(); err != nil {
-		removeErr = errors.Wrap(err, "temporary directory for dry run remains")
+		removeErr = fmt.Errorf("temporary directory for dry run remains: %w", err)
 	}
 
-	return stderrors.Join(restoreErr, removeErr)
+	return errors.Join(restoreErr, removeErr)
 }
 
 // removeTmpDir remove tmporary directory for dry run
