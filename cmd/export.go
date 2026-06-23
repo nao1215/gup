@@ -64,10 +64,13 @@ func export(cmd *cobra.Command, _ []string) int {
 	// config; --file/--output only change the export destination, not where
 	// channels are read from (#341).
 	channelSource := config.FilePath()
+	// A malformed channel-source config must fail fast instead of silently
+	// exporting every package as @latest, which would drop intentionally pinned
+	// channels such as @main from the written gup.json (#369).
 	confPkgs, err := readConfFileIfExists(channelSource)
 	if err != nil {
-		print.Warn("failed to read " + channelSource + ": " + err.Error())
-		confPkgs = []goutil.Package{}
+		print.Err(err)
+		return 1
 	}
 	pkgs = applySavedChannels(pkgs, confPkgs)
 

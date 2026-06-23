@@ -164,6 +164,12 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	confFile, err := getFlagString(cmd, "file")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	pkgs = extractUserSpecifyPkg(pkgs, args)
 	pkgs = excludePkgs(excludePkgList, pkgs, jsonOut)
 
@@ -172,6 +178,13 @@ func gup(cmd *cobra.Command, args []string) int {
 		// narrowed everything out: that is a usage error.
 		if len(args) != 0 || len(excludePkgList) != 0 {
 			print.Err("unable to update package: no package information or no package under $GOBIN")
+			return 1
+		}
+		// An explicitly named --file must be validated even when no binaries are
+		// installed: honoring explicit user input must not depend on unrelated
+		// environment state (#368).
+		if err := validateExplicitConfFile(confFile); err != nil {
+			print.Err(err)
 			return 1
 		}
 		// Otherwise the environment simply has no manageable binaries yet, which
@@ -188,11 +201,6 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	confFile, err := getFlagString(cmd, "file")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
 	// When both the user-level config and ./gup.json exist and no --file is
 	// given, fail fast instead of silently choosing one (#342), consistent with
 	// import and check.
@@ -203,10 +211,13 @@ func gup(cmd *cobra.Command, args []string) int {
 	}
 	confWritePath := resolveConfWritePath(confFile, confReadPath)
 
+	// A malformed or unreadable config must fail fast instead of silently
+	// falling back to @latest, which would update from the wrong channel and
+	// then persist that downgrade back to gup.json (#369).
 	confPkgs, err := readConfFileIfExists(confReadPath)
 	if err != nil {
-		print.Warn(fmt.Sprintf("failed to read %s: %s (continuing without config)", confReadPath, err))
-		confPkgs = []goutil.Package{}
+		print.Err(err)
+		return 1
 	}
 
 	channelMap, err := resolveUpdateChannels(pkgs, confPkgs, mainPkgNames, masterPkgNames, latestPkgNames)
@@ -571,6 +582,12 @@ func packageUpdateChannel(name string, fallback goutil.UpdateChannel, channelMap
 }
 
 func readConfFileIfExists(path string) ([]goutil.Package, error) {
+	// A directory passed where a gup.json file is expected is a user mistake,
+	// not "no config": reject it so check/update/export fail fast instead of
+	// silently ignoring the path (#367, #368).
+	if fileutil.IsDir(path) {
+		return nil, fmt.Errorf("%s is a directory, not a gup.json file", path)
+	}
 	if !fileutil.IsFile(path) {
 		return []goutil.Package{}, nil
 	}
@@ -579,6 +596,24 @@ func readConfFileIfExists(path string) ([]goutil.Package, error) {
 		return nil, err
 	}
 	return pkgs, nil
+}
+
+// validateExplicitConfFile validates an explicitly provided --file path so that
+// 'check' and 'update' honor it even on an empty environment, where the normal
+// config read is otherwise skipped (#368). An empty confFile means no --file was
+// given, so there is nothing to validate. A malformed file, an unsupported
+// schema version, or a directory path is reported as an error; a non-existent
+// path is left as "no config", matching the non-empty-environment behavior.
+func validateExplicitConfFile(confFile string) error {
+	if strings.TrimSpace(confFile) == "" {
+		return nil
+	}
+	path, err := config.ResolveImportFilePath(confFile)
+	if err != nil {
+		return err
+	}
+	_, err = readConfFileIfExists(path)
+	return err
 }
 
 func shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames []string) bool {

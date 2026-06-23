@@ -245,6 +245,89 @@ func Test_writeConfigFile_noStrayFilesOnRenameFailure(t *testing.T) {
 	assertNoTempFiles(t, dir, filepath.Base(path))
 }
 
+// Test_writeConfigFile_rejectsEmptyDirectory verifies the #367 contract: an
+// existing empty directory passed as the destination is rejected, the directory
+// survives, and no temp/backup artifacts are left behind.
+func Test_writeConfigFile_rejectsEmptyDirectory(t *testing.T) {
+	t.Parallel()
+
+	parent := t.TempDir()
+	target := filepath.Join(parent, "gup.json")
+	if err := os.Mkdir(target, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	err := writeConfigFile(target, []goutil.Package{{Name: testBinPosixer}})
+	if err == nil {
+		t.Fatal("writeConfigFile() should reject an existing directory path")
+	}
+
+	info, statErr := os.Stat(target)
+	if statErr != nil {
+		t.Fatalf("directory should still exist after failed write: %v", statErr)
+	}
+	if !info.IsDir() {
+		t.Fatal("target should still be a directory, not replaced by a file")
+	}
+	assertNoTempFiles(t, parent, filepath.Base(target))
+}
+
+// Test_writeConfigFile_rejectsNonEmptyDirectory verifies #367 for a directory
+// that has contents: the directory and its child are untouched and no *.bak-* is
+// created next to it.
+func Test_writeConfigFile_rejectsNonEmptyDirectory(t *testing.T) {
+	t.Parallel()
+
+	parent := t.TempDir()
+	target := filepath.Join(parent, "gup.json")
+	if err := os.Mkdir(target, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	child := filepath.Join(target, "keep.txt")
+	if err := os.WriteFile(child, []byte("precious"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeConfigFile(target, []goutil.Package{{Name: testBinPosixer}}); err == nil {
+		t.Fatal("writeConfigFile() should reject a non-empty directory path")
+	}
+
+	if info, statErr := os.Stat(target); statErr != nil || !info.IsDir() {
+		t.Fatalf("directory should survive failed write, stat err = %v", statErr)
+	}
+	if data, readErr := os.ReadFile(filepath.Clean(child)); readErr != nil || string(data) != "precious" {
+		t.Fatalf("directory contents must be unchanged, read err = %v, data = %q", readErr, data)
+	}
+	assertNoTempFiles(t, parent, filepath.Base(target))
+}
+
+// Test_writeConfigFile_regularFileStillWorks is a regression guard ensuring the
+// #367 directory check does not break the normal file-target path.
+func Test_writeConfigFile_regularFileStillWorks(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.json")
+
+	pkg := goutil.Package{Name: testBinPosixer, ImportPath: testImportPathPosixer, Version: &goutil.Version{Current: "v0.1.0"}}
+	if err := writeConfigFile(path, []goutil.Package{pkg}); err != nil {
+		t.Fatalf("writeConfigFile() on a regular file path should succeed, got: %v", err)
+	}
+	if !fileExists(t, path) {
+		t.Fatal("expected the config file to be written")
+	}
+	assertNoTempFiles(t, dir, filepath.Base(path))
+}
+
+func fileExists(t *testing.T, path string) bool {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
 // assertNoTempFiles fails if any leftover temporary or backup files matching the
 // config file's temp/backup naming pattern remain in dir.
 func assertNoTempFiles(t *testing.T, dir, base string) {

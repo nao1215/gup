@@ -18,6 +18,12 @@ var renameFunc = os.Rename //nolint:gochecknoglobals // swapped in tests to simu
 
 func writeConfigFile(path string, pkgs []goutil.Package) (err error) {
 	path = filepath.Clean(path)
+	// Reject an existing directory before any temp/backup files are created, so
+	// a mistaken path (e.g. 'export --file <dir>') cannot replace a directory
+	// tree with a regular file (#367).
+	if fileutil.IsDir(path) {
+		return fmt.Errorf("%s is a directory, not a file", path)
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, fileutil.FileModeCreatingDir); err != nil {
 		return fmt.Errorf("%s: %w", "can not make config directory", err)

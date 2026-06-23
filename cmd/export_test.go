@@ -324,6 +324,103 @@ func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
 	}
 }
 
+// Test_export_rejectsDirectoryDestination verifies the #367 contract through the
+// export command entry point: `export --file <dir>` fails, the directory and its
+// contents survive, and no temp/backup artifacts are left next to it.
+func Test_export_rejectsDirectoryDestination(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	parent := t.TempDir()
+	dest := filepath.Join(parent, "gup.json")
+	if err := os.Mkdir(dest, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	child := filepath.Join(dest, "keep.txt")
+	if err := os.WriteFile(child, []byte("precious"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newExportCmd()
+	if err := cmd.Flags().Set("file", dest); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	if got := export(cmd, []string{}); got != 1 {
+		t.Fatalf("export() = %d, want 1 when --file points to a directory", got)
+	}
+
+	if info, statErr := os.Stat(dest); statErr != nil || !info.IsDir() {
+		t.Fatalf("destination directory should survive, stat err = %v", statErr)
+	}
+	if data, readErr := os.ReadFile(filepath.Clean(child)); readErr != nil || string(data) != "precious" {
+		t.Fatalf("directory contents must be unchanged, read err = %v, data = %q", readErr, data)
+	}
+	assertNoTempFiles(t, parent, filepath.Base(dest))
+}
+
+// Test_export_failsFastOnMalformedChannelSource verifies the #369 contract: a
+// malformed channel-source config makes export fail fast instead of silently
+// exporting every package as @latest.
+func Test_export_failsFastOnMalformedChannelSource(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatalf("failed to seed malformed config: %v", err)
+	}
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	dest := filepath.Join(t.TempDir(), "exported.json")
+	cmd := newExportCmd()
+	if err := cmd.Flags().Set("file", dest); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	if got := export(cmd, []string{}); got != 1 {
+		t.Fatalf("export() = %d, want 1 on malformed channel source", got)
+	}
+	if fileutil.IsFile(dest) {
+		t.Fatal("export must not write a destination file when the channel source is malformed")
+	}
+}
+
+// Test_export_failsFastOnUnsupportedSchema verifies #369 for a config whose
+// schema_version is not supported: export fails fast rather than dropping
+// channels.
+func Test_export_failsFastOnUnsupportedSchema(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	unsupported := `{"schema_version":999,"packages":[]}` + "\n"
+	if err := os.WriteFile(config.FilePath(), []byte(unsupported), 0o600); err != nil {
+		t.Fatalf("failed to seed unsupported-schema config: %v", err)
+	}
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	if got := export(newExportCmd(), []string{}); got != 1 {
+		t.Fatalf("export() = %d, want 1 on unsupported schema_version", got)
+	}
+}
+
 // Test_export_emptyEnv_writesEmptyConfig verifies the #350 contract: exporting
 // an empty environment succeeds (exit 0) and writes an empty gup.json instead of
 // failing.

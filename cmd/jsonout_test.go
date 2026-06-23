@@ -389,11 +389,12 @@ func Test_list_jsonFlag(t *testing.T) {
 	}
 }
 
-// Test_list_jsonFlag_ambiguousConfigFallsBack verifies that list --json is
-// read-only and is NOT subject to the #342 ambiguity hard-error: when both the
-// user-level config and ./gup.json exist, list still succeeds and resolves
-// channel hints from the canonical user-level config.
-func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
+// Test_list_jsonFlag_ambiguousConfigFailsFast verifies the #364 contract: list
+// --json uses the same config-resolution rules as check/update/import, so when
+// both the user-level config and ./gup.json exist and no --file is given, it
+// fails fast with the ambiguity error instead of silently picking one. An
+// explicit --file resolves the ambiguity and annotates the saved channel.
+func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 	gobin, err := filepath.Abs(filepath.Join("testdata", "check_success"))
 	if err != nil {
 		t.Fatal(err)
@@ -405,9 +406,6 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	// Canonical config records posixer on @main; ./gup.json makes the auto
-	// detection ambiguous and records a DIFFERENT channel (@master), so the test
-	// fails if list reads the local file instead of the canonical config.
 	canonical := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"main"}]}` + "\n"
 	local := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"master"}]}` + "\n"
 	if err := os.WriteFile(config.FilePath(), []byte(canonical), 0o600); err != nil {
@@ -417,9 +415,30 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// No --file: the ambiguous config must make list --json fail fast.
+	ambiguousCmd := newListCmd()
+	if err := ambiguousCmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("failed to set json flag: %v", err)
+	}
+	var ambiguousGot int
+	out := captureCheckOutput(t, func() int {
+		ambiguousGot = list(ambiguousCmd, []string{})
+		return ambiguousGot
+	})
+	if ambiguousGot != 1 {
+		t.Errorf("list --json = %d, want 1 on ambiguous config", ambiguousGot)
+	}
+	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, "--file") {
+		t.Errorf("expected ambiguity error mentioning --file, got: %s", out)
+	}
+
+	// Explicit --file resolves the ambiguity and annotates the saved channel.
 	cmd := newListCmd()
 	if err := cmd.Flags().Set("json", "true"); err != nil {
 		t.Fatalf("failed to set json flag: %v", err)
+	}
+	if err := cmd.Flags().Set("file", config.LocalFilePath()); err != nil {
+		t.Fatalf("failed to set file flag: %v", err)
 	}
 
 	var got int
@@ -428,14 +447,14 @@ func Test_list_jsonFlag_ambiguousConfigFallsBack(t *testing.T) {
 		return got
 	})
 	if got != 0 {
-		t.Fatalf("list --json should succeed despite ambiguous config, got %d", got)
+		t.Fatalf("list --json --file should succeed in ambiguous repo state, got %d", got)
 	}
 	foundPosixer := false
 	for _, r := range recs {
 		if r.ImportPath == testImportPathPosixer {
 			foundPosixer = true
-			if r.Channel != string(goutil.UpdateChannelMain) {
-				t.Errorf("posixer channel = %q, want main (from canonical config fallback)", r.Channel)
+			if r.Channel != string(goutil.UpdateChannelMaster) {
+				t.Errorf("posixer channel = %q, want master (from explicit --file ./gup.json)", r.Channel)
 			}
 		}
 	}
