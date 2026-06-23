@@ -339,10 +339,19 @@ func MergePackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, ch
 	// by the same cross-OS name identity used throughout this package, not by raw
 	// string equality, so a hand-edited or cross-OS spelling of the old name (e.g.
 	// "foo.EXE" vs "foo.exe", or an untrimmed name) is still cleaned up.
-	for oldName := range renamedPkgs {
-		if canonical, ok := aliasToKey[nameIdentityKey(oldName)]; ok {
-			delete(byKey, canonical)
+	for oldName, newName := range renamedPkgs {
+		canonical, ok := aliasToKey[nameIdentityKey(oldName)]
+		if !ok {
+			continue
 		}
+		// When the rename did not change import_path, upsert already collapsed the
+		// old and new entries into this one canonical, so the surviving entry is
+		// the fresh package - deleting it would drop the package entirely. Only
+		// remove a genuinely stale pre-rename entry.
+		if kept, ok := byKey[canonical]; ok && nameIdentityKey(kept.Name) == nameIdentityKey(newName) {
+			continue
+		}
+		delete(byKey, canonical)
 	}
 
 	for key, p := range byKey {

@@ -728,3 +728,29 @@ func TestMergePackages_bridgesSplitCanonicals(t *testing.T) {
 		t.Errorf("merged import_path = %q, want %q", got[0].ImportPath, testNewFooPath)
 	}
 }
+
+// TestMergePackages_keepsRenameWithUnchangedImportPath verifies that a rename
+// which does not change import_path (only the binary name) keeps the package:
+// upsert collapses old and new into one canonical via the shared import_path, so
+// the stale-rename cleanup must not delete that surviving fresh entry (#374
+// CodeRabbit).
+func TestMergePackages_keepsRenameWithUnchangedImportPath(t *testing.T) {
+	t.Parallel()
+	const sharedPath = "example.com/same/pkg"
+	confPkgs := []goutil.Package{
+		{Name: testFoo, ImportPath: sharedPath, Version: &goutil.Version{Current: testVer100}, UpdateChannel: goutil.UpdateChannelMain},
+	}
+	succeededPkgs := []goutil.Package{
+		{Name: testBar, ImportPath: sharedPath, Version: &goutil.Version{Current: testVer100, Latest: testVer200}},
+	}
+	channelMap := map[string]goutil.UpdateChannel{testBar: goutil.UpdateChannelMain}
+	renamedPkgs := map[string]string{testFoo: testBar}
+
+	got := MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
+	if len(got) != 1 {
+		t.Fatalf("MergePackages() returned %d entries, want 1 (rename without import_path change must keep the package); got %+v", len(got), got)
+	}
+	if got[0].Name != testBar {
+		t.Errorf("kept entry = %q, want %q", got[0].Name, testBar)
+	}
+}
