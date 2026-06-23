@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
-	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -25,6 +24,10 @@ func newListCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
+	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read saved update channels from (with --json)")
+	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
+		panic(err)
+	}
 	return cmd
 }
 
@@ -46,16 +49,37 @@ func list(cmd *cobra.Command, _ []string) int {
 		return 1
 	}
 
+	confFile, err := getFlagString(cmd, "file")
+	if err != nil {
+		print.Err(err)
+		return 1
+	}
+
 	if jsonOut {
-		annotated, cerr := applyCheckChannels(pkgs, "")
-		if cerr != nil {
-			// list is read-only and is not the command targeted by the
-			// ambiguity check (#342); fall back to the user-level config for
-			// channel hints instead of failing.
-			confPkgs, _ := readConfFileIfExists(config.FilePath())
-			annotated = applySavedChannels(pkgs, confPkgs)
+		// An empty environment has no packages to annotate, so emit a valid
+		// empty JSON array and exit 0 without resolving config (#350). An
+		// explicitly named --file is still validated for consistency with
+		// check/update (#368).
+		if len(pkgs) == 0 {
+			if err := validateExplicitConfFile(confFile); err != nil {
+				print.Err(err)
+				return 1
+			}
+			if err := encodeJSONPackages(listJSONRecords(nil)); err != nil {
+				print.Err(err)
+				return 1
+			}
+			return 0
 		}
-		// An empty environment yields a valid empty JSON array and exit 0 (#350).
+		// Use the same config-resolution rules as check/update/import so the
+		// reported channel matches what those commands would actually use, and
+		// fail fast on an ambiguous or malformed config instead of silently
+		// picking the user-level one (#364).
+		annotated, cerr := applyCheckChannels(pkgs, confFile)
+		if cerr != nil {
+			print.Err(cerr)
+			return 1
+		}
 		if err := encodeJSONPackages(listJSONRecords(annotated)); err != nil {
 			print.Err(err)
 			return 1

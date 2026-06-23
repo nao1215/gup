@@ -288,6 +288,112 @@ func Test_check_ambiguousConfigFailsFast(t *testing.T) {
 	}
 }
 
+// Test_check_emptyEnv_validatesExplicitMalformedFile verifies the #368 contract:
+// an explicitly named --file is validated even when no binaries are installed, so
+// a malformed config makes check fail instead of silently succeeding.
+func Test_check_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	badJSON := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(badJSON, []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newCheckCmd()
+	if err := cmd.Flags().Set("file", badJSON); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func() int {
+		got = check(cmd, []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for a malformed --file on an empty environment", got)
+	}
+	if !strings.Contains(out, badJSON) {
+		t.Errorf("error should name the failing --file %q, got: %s", badJSON, out)
+	}
+}
+
+// Test_check_emptyEnv_validatesExplicitDirectoryFile verifies #368 for a --file
+// that points to a directory rather than a file.
+func Test_check_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	dir := filepath.Join(t.TempDir(), "config-dir")
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newCheckCmd()
+	if err := cmd.Flags().Set("file", dir); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+
+	got := 0
+	_ = captureCheckOutput(t, func() int {
+		got = check(cmd, []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for a directory --file on an empty environment", got)
+	}
+}
+
+// Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem is the #368 regression
+// guard: an empty environment with no explicit config problem still exits 0.
+func Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	got := 0
+	_ = captureCheckOutput(t, func() int {
+		got = check(newCheckCmd(), []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("check() = %d, want 0 on an empty environment with no config problem", got)
+	}
+}
+
+// Test_check_failsFastOnMalformedConfig verifies the #369 contract for check:
+// when the resolved config is malformed, check fails fast (naming the path)
+// instead of continuing without config.
+func Test_check_failsFastOnMalformedConfig(t *testing.T) {
+	gobin, err := filepath.Abs(filepath.Join("testdata", "check_success"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", gobin)
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	confPath := config.FilePath()
+	if err := os.WriteFile(confPath, []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func() int {
+		got = check(newCheckCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 on a malformed config", got)
+	}
+	if !strings.Contains(out, confPath) {
+		t.Errorf("error should name the failing config path %q, got: %s", confPath, out)
+	}
+}
+
 func Test_applySavedChannels(t *testing.T) {
 	confPkgs := []goutil.Package{
 		{Name: testBinMainTool, UpdateChannel: goutil.UpdateChannelMain},

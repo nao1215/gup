@@ -252,7 +252,9 @@ By default:
   1) `$XDG_CONFIG_HOME/gup/gup.json` (if exists)
   2) `./gup.json` (if exists)
 
-If **both** the user-level `gup.json` and `./gup.json` exist, `import`, `check`, and `update` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`).
+If **both** the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
+
+A malformed `gup.json` (invalid JSON or an unsupported `schema_version`) is also treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed.
 
 `gup export` always resolves saved update channels from the canonical user-level `gup.json`; `--file`/`--output` only change the export destination, so exporting to a new file never resets a package's channel back to `latest`.
 

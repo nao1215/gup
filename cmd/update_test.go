@@ -403,6 +403,82 @@ func Test_gup_ignoreGoUpdateFlag(t *testing.T) {
 	}
 }
 
+// Test_gup_emptyEnv_validatesExplicitMalformedFile verifies the #368 contract
+// for update: an explicit --file is validated even when no binaries are
+// installed, so a malformed config fails instead of being silently ignored.
+func Test_gup_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	badJSON := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(badJSON, []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("file", badJSON); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %d, want 1 for a malformed --file on an empty environment", got)
+	}
+	if !strings.Contains(out, badJSON) {
+		t.Errorf("error should name the failing --file %q, got: %s", badJSON, out)
+	}
+}
+
+// Test_gup_emptyEnv_validatesExplicitDirectoryFile verifies #368 for update when
+// --file points to a directory.
+func Test_gup_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	dir := filepath.Join(t.TempDir(), "config-dir")
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("file", dir); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+
+	got := 0
+	_ = captureCheckOutput(t, func() int {
+		got = gup(cmd, []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %d, want 1 for a directory --file on an empty environment", got)
+	}
+}
+
+// Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem is the #368 regression
+// guard: an empty environment with no explicit config problem still exits 0.
+func Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	got := 0
+	_ = captureCheckOutput(t, func() int {
+		got = gup(newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0 on an empty environment with no config problem", got)
+	}
+}
+
+// Test_gup_invalidConfigFile verifies the #369 contract: a malformed gup.json is
+// not silently treated as "no config" (which would downgrade saved channels to
+// @latest); update fails fast and names the failing path instead.
 func Test_gup_invalidConfigFile(t *testing.T) {
 	setupXDGBase(t)
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
@@ -416,8 +492,16 @@ func Test_gup_invalidConfigFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := gup(newUpdateCmd(), []string{}); got != 0 {
-		t.Fatalf("gup() = %v, want %v (invalid config should be warned, not fatal)", got, 0)
+	var got int
+	out := captureCheckOutput(t, func() int {
+		got = gup(newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %v, want %v (malformed config must fail fast)", got, 1)
+	}
+	if !strings.Contains(out, confPath) {
+		t.Errorf("error should name the failing config path %q, got: %s", confPath, out)
 	}
 }
 
