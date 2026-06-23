@@ -291,6 +291,7 @@ type updateResult struct {
 	skipped     bool   // true when the package was intentionally skipped (no error)
 	skipReason  string // human-readable reason when skipped is true
 	status      string // machine-readable status for --json output (see jsonout.go)
+	inputIndex  int    // position of this package in the original input slice (#365)
 }
 
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {

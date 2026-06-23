@@ -6,11 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
@@ -185,6 +187,43 @@ func Test_doCheck_jsonOutput(t *testing.T) {
 	}
 	if got["outdated"] != statusUpdateAvailable {
 		t.Errorf("outdated status = %q, want %q", got["outdated"], statusUpdateAvailable)
+	}
+}
+
+// Test_doCheckJSON_stableInputOrder verifies the #365 contract end-to-end for
+// check --json: even when the latest-version lookup resolves earlier packages
+// last (inverting completion order), the emitted JSON array stays in input
+// order.
+func Test_doCheckJSON_stableInputOrder(t *testing.T) {
+	origLatest := getLatestVerCtx
+	t.Cleanup(func() { getLatestVerCtx = origLatest })
+
+	const total = 6
+	pkgs := make([]goutil.Package, total)
+	sleepByModule := make(map[string]time.Duration, total)
+	for i := 0; i < total; i++ {
+		p := newCheckPkg(fmt.Sprintf("tool-%d", i), testVersionTwo, goutil.UpdateChannelLatest)
+		pkgs[i] = p
+		// Earlier packages resolve slower so they complete last.
+		sleepByModule[p.ModulePath] = time.Duration(total-i) * 3 * time.Millisecond
+	}
+
+	getLatestVerCtx = func(_ context.Context, modulePath string) (string, error) {
+		time.Sleep(sleepByModule[modulePath])
+		return testVersionTwo, nil
+	}
+
+	recs := readJSON(t, func() int {
+		return doCheckJSON(pkgs, total, 0, true)
+	})
+
+	if len(recs) != total {
+		t.Fatalf("got %d records, want %d", len(recs), total)
+	}
+	for i, r := range recs {
+		if want := fmt.Sprintf("tool-%d", i); r.Name != want {
+			t.Errorf("records[%d].Name = %q, want %q (stable input order)", i, r.Name, want)
+		}
 	}
 }
 
