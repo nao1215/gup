@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/fatih/color"
+	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -61,7 +62,7 @@ func list(cmd *cobra.Command, _ []string) int {
 		// explicitly named --file is still validated for consistency with
 		// check/update (#368).
 		if len(pkgs) == 0 {
-			if err := validateExplicitConfFile(confFile); err != nil {
+			if err := configstate.ValidateExplicitFile(confFile); err != nil {
 				print.Err(err)
 				return 1
 			}
@@ -75,7 +76,7 @@ func list(cmd *cobra.Command, _ []string) int {
 		// reported channel matches what those commands would actually use, and
 		// fail fast on an ambiguous or malformed config instead of silently
 		// picking the user-level one (#364).
-		annotated, cerr := applyCheckChannels(pkgs, confFile)
+		annotated, cerr := configstate.ResolveAndApplyChannels(pkgs, confFile)
 		if cerr != nil {
 			print.Err(cerr)
 			return 1

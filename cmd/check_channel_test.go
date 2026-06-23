@@ -220,39 +220,6 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 	}
 }
 
-// Test_applyCheckChannels_ambiguousConfig verifies the #342 contract: when both
-// the user-level config and ./gup.json exist and no --file is given, check fails
-// fast with the same ambiguity error import uses, instead of silently picking
-// one config.
-func Test_applyCheckChannels_ambiguousConfig(t *testing.T) {
-	setupXDGBase(t)
-	chdirToTemp(t)
-
-	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(config.FilePath(), []byte(validImportConf), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	pkgs := []goutil.Package{newCheckPkg(testBinLatestTool, testVersionOne, goutil.UpdateChannelLatest)}
-
-	// No --file: must error.
-	if _, err := applyCheckChannels(pkgs, ""); err == nil {
-		t.Fatal("applyCheckChannels() should fail when both config candidates exist and no --file is given")
-	} else if !strings.Contains(err.Error(), "multiple gup.json") || !strings.Contains(err.Error(), "--file") {
-		t.Fatalf("error should mention the ambiguity and --file, got: %v", err)
-	}
-
-	// Explicit --file resolves the ambiguity.
-	if _, err := applyCheckChannels(pkgs, config.LocalFilePath()); err != nil {
-		t.Fatalf("applyCheckChannels() with explicit --file should succeed, got: %v", err)
-	}
-}
-
 // Test_check_ambiguousConfigFailsFast verifies the whole check command exits
 // non-zero (and never reaches the network) when the config is ambiguous (#342).
 func Test_check_ambiguousConfigFailsFast(t *testing.T) {
@@ -391,33 +358,5 @@ func Test_check_failsFastOnMalformedConfig(t *testing.T) {
 	}
 	if !strings.Contains(out, confPath) {
 		t.Errorf("error should name the failing config path %q, got: %s", confPath, out)
-	}
-}
-
-func Test_applySavedChannels(t *testing.T) {
-	confPkgs := []goutil.Package{
-		{Name: testBinMainTool, UpdateChannel: goutil.UpdateChannelMain},
-		{Name: testBinMasterTool, UpdateChannel: goutil.UpdateChannelMaster},
-		{Name: testBinLatestTool, UpdateChannel: goutil.UpdateChannelLatest},
-	}
-	pkgs := []goutil.Package{
-		{Name: testBinMainTool},
-		{Name: testBinMasterTool},
-		{Name: testBinLatestTool},
-		{Name: "unconfigured"}, // not present in config -> defaults to latest
-	}
-
-	got := applySavedChannels(pkgs, confPkgs)
-
-	want := map[string]goutil.UpdateChannel{
-		testBinMainTool:   goutil.UpdateChannelMain,
-		testBinMasterTool: goutil.UpdateChannelMaster,
-		testBinLatestTool: goutil.UpdateChannelLatest,
-		"unconfigured":    goutil.UpdateChannelLatest,
-	}
-	for _, p := range got {
-		if p.UpdateChannel != want[p.Name] {
-			t.Errorf("applySavedChannels() %s channel = %q, want %q", p.Name, p.UpdateChannel, want[p.Name])
-		}
 	}
 }

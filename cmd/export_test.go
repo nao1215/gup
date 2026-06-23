@@ -219,58 +219,6 @@ func Test_export(t *testing.T) {
 // Test_applySavedChannels_prefersImportPath verifies that the saved channel is
 // matched by import_path first (#341), so a binary keeps its channel even when
 // its name differs from the saved entry.
-func Test_applySavedChannels_prefersImportPath(t *testing.T) {
-	confPkgs := []goutil.Package{
-		{Name: "old-name", ImportPath: "example.com/foo/cmd/foo", UpdateChannel: goutil.UpdateChannelMain},
-	}
-	pkgs := []goutil.Package{
-		{Name: "new-name", ImportPath: "example.com/foo/cmd/foo"},
-	}
-
-	got := applySavedChannels(pkgs, confPkgs)
-	if len(got) != 1 || got[0].UpdateChannel != goutil.UpdateChannelMain {
-		t.Fatalf("channel should be matched by import_path; got %+v", got)
-	}
-}
-
-// Test_applySavedChannels_normalizesExeSuffix verifies that name-based fallback
-// matching ignores the Windows ".exe" suffix difference (#341).
-func Test_applySavedChannels_normalizesExeSuffix(t *testing.T) {
-	confPkgs := []goutil.Package{
-		// Saved on Windows with the .exe suffix and no import path to force the
-		// name-based fallback.
-		{Name: "foo.exe", UpdateChannel: goutil.UpdateChannelMaster},
-	}
-	pkgs := []goutil.Package{
-		{Name: "foo", ImportPath: "example.com/foo"},
-	}
-
-	got := applySavedChannels(pkgs, confPkgs)
-	if len(got) != 1 || got[0].UpdateChannel != goutil.UpdateChannelMaster {
-		t.Fatalf("channel should match across .exe suffix difference; got %+v", got)
-	}
-}
-
-// Test_applySavedChannels_normalizesExeSuffixCaseInsensitively verifies that
-// name-based fallback matching ignores the ".exe" suffix regardless of its case
-// and of surrounding whitespace, so a hand-edited config entry like " foo.EXE "
-// still carries its saved channel over to the binary "foo" (#341).
-func Test_applySavedChannels_normalizesExeSuffixCaseInsensitively(t *testing.T) {
-	confPkgs := []goutil.Package{
-		// Hand-edited entry: upper-case extension and stray whitespace, no import
-		// path so the name-based fallback is exercised.
-		{Name: " foo.EXE ", UpdateChannel: goutil.UpdateChannelMain},
-	}
-	pkgs := []goutil.Package{
-		{Name: "foo", ImportPath: "example.com/foo"},
-	}
-
-	got := applySavedChannels(pkgs, confPkgs)
-	if len(got) != 1 || got[0].UpdateChannel != goutil.UpdateChannelMain {
-		t.Fatalf("channel should match across .EXE case/whitespace difference; got %+v", got)
-	}
-}
-
 // Test_export_preservesChannelsFromCanonicalConfig verifies the #341 contract:
 // --file changes only the export destination, while saved channels are always
 // resolved from the canonical user-level config. The destination here is a fresh

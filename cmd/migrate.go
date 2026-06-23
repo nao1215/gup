@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -278,12 +279,12 @@ func warnMissingMigrateTargets(targets []string, pkgs []goutil.Package, beforePa
 
 	present := make(map[string]struct{}, len(pkgs))
 	for _, p := range pkgs {
-		present[normalizeBinaryNameForMatch(p.Name)] = struct{}{}
+		present[binname.NormalizeForMatch(p.Name)] = struct{}{}
 	}
 
 	seen := make(map[string]struct{}, len(targets))
 	for _, raw := range targets {
-		normalized := normalizeBinaryNameForMatch(raw)
+		normalized := binname.NormalizeForMatch(raw)
 		if normalized == "" {
 			continue
 		}

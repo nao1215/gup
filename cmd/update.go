@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"time"
 
+	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/config"
-	"github.com/nao1215/gup/internal/fileutil"
+	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/print"
@@ -183,7 +183,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		// An explicitly named --file must be validated even when no binaries are
 		// installed: honoring explicit user input must not depend on unrelated
 		// environment state (#368).
-		if err := validateExplicitConfFile(confFile); err != nil {
+		if err := configstate.ValidateExplicitFile(confFile); err != nil {
 			print.Err(err)
 			return 1
 		}
@@ -209,18 +209,19 @@ func gup(cmd *cobra.Command, args []string) int {
 		print.Err(err)
 		return 1
 	}
-	confWritePath := resolveConfWritePath(confFile, confReadPath)
+	confWritePath := configstate.ResolveWritePath(confFile, confReadPath)
 
 	// A malformed or unreadable config must fail fast instead of silently
 	// falling back to @latest, which would update from the wrong channel and
 	// then persist that downgrade back to gup.json (#369).
-	confPkgs, err := readConfFileIfExists(confReadPath)
+	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
 
-	channelMap, err := resolveUpdateChannels(pkgs, confPkgs, mainPkgNames, masterPkgNames, latestPkgNames)
+	channelMap, err := configstate.ResolveChannels(pkgs, confPkgs, mainPkgNames, masterPkgNames, latestPkgNames,
+		func(msg string) { print.Warn(msg) })
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -228,31 +229,14 @@ func gup(cmd *cobra.Command, args []string) int {
 
 	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout, jsonOut, quiet)
 
-	if !dryRun && (shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
-		merged := mergeConfigPackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
+	if !dryRun && (configstate.ShouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
+		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
 		if err := writeConfigFile(confWritePath, merged); err != nil {
 			print.Warn("failed to write " + confWritePath + ": " + err.Error())
 		}
 	}
 
 	return result
-}
-
-// resolveConfWritePath decides where update persists channel and rename data.
-// An explicit --file always wins, even when the file does not exist yet:
-// otherwise "gup update --main x --file new.json" would silently save channels
-// to the user-level config instead of the path the user named (the file is
-// created on first write). Without --file, an already-existing auto-detected
-// config (confReadPath) is reused so updates round-trip, and as a last resort
-// the user-level config path is used.
-func resolveConfWritePath(confFile, confReadPath string) string {
-	if strings.TrimSpace(confFile) != "" {
-		return confReadPath
-	}
-	if fileutil.IsFile(confReadPath) {
-		return confReadPath
-	}
-	return config.FilePath()
 }
 
 // excludePkgs drops the binaries named in excludePkgList from pkgs. In JSON mode
@@ -262,7 +246,7 @@ func resolveConfWritePath(confFile, confReadPath string) string {
 func excludePkgs(excludePkgList []string, pkgs []goutil.Package, jsonOut bool) []goutil.Package {
 	excluded := make(map[string]struct{}, len(excludePkgList))
 	for _, name := range excludePkgList {
-		normalized := normalizeBinaryNameForMatch(name)
+		normalized := binname.NormalizeForMatch(name)
 		if normalized == "" {
 			continue
 		}
@@ -271,7 +255,7 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package, jsonOut bool) [
 
 	packageList := []goutil.Package{}
 	for _, v := range pkgs {
-		if _, ok := excluded[normalizeBinaryNameForMatch(v.Name)]; ok {
+		if _, ok := excluded[binname.NormalizeForMatch(v.Name)]; ok {
 			if !jsonOut {
 				print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
 			}
@@ -280,18 +264,6 @@ func excludePkgs(excludePkgList []string, pkgs []goutil.Package, jsonOut bool) [
 		packageList = append(packageList, v)
 	}
 	return packageList
-}
-
-func normalizeBinaryNameForMatch(name string) string {
-	name = strings.TrimSpace(name)
-	if runtime.GOOS != goosWindows {
-		return name
-	}
-	name = strings.ToLower(name)
-	if strings.HasSuffix(name, ".exe") {
-		return strings.TrimSuffix(name, ".exe")
-	}
-	return name
 }
 
 type updateResult struct {
@@ -336,7 +308,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		// @latest. Without this, a package tracked on @main/@master would
 		// piggyback on the @latest lookup and could be skipped or updated
 		// incorrectly (see issue #292).
-		channel := packageUpdateChannel(p.Name, p.UpdateChannel, channelMap)
+		channel := configstate.PackageChannel(p.Name, p.UpdateChannel, channelMap)
 		p.UpdateChannel = channel
 
 		// Collect online channel version if possible; else always update
@@ -574,179 +546,6 @@ func binaryNameFromImportPathWith(importPath, goos, goExe string) string {
 	return binName
 }
 
-func packageUpdateChannel(name string, fallback goutil.UpdateChannel, channelMap map[string]goutil.UpdateChannel) goutil.UpdateChannel {
-	if channel, ok := channelMap[name]; ok {
-		return goutil.NormalizeUpdateChannel(string(channel))
-	}
-	return goutil.NormalizeUpdateChannel(string(fallback))
-}
-
-func readConfFileIfExists(path string) ([]goutil.Package, error) {
-	// A directory passed where a gup.json file is expected is a user mistake,
-	// not "no config": reject it so check/update/export fail fast instead of
-	// silently ignoring the path (#367, #368).
-	if fileutil.IsDir(path) {
-		return nil, fmt.Errorf("%s is a directory, not a gup.json file", path)
-	}
-	if !fileutil.IsFile(path) {
-		return []goutil.Package{}, nil
-	}
-	pkgs, err := config.ReadConfFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return pkgs, nil
-}
-
-// validateExplicitConfFile validates an explicitly provided --file path so that
-// 'check' and 'update' honor it even on an empty environment, where the normal
-// config read is otherwise skipped (#368). An empty confFile means no --file was
-// given, so there is nothing to validate. A malformed file, an unsupported
-// schema version, or a directory path is reported as an error; a non-existent
-// path is left as "no config", matching the non-empty-environment behavior.
-func validateExplicitConfFile(confFile string) error {
-	if strings.TrimSpace(confFile) == "" {
-		return nil
-	}
-	path, err := config.ResolveImportFilePath(confFile)
-	if err != nil {
-		return err
-	}
-	_, err = readConfFileIfExists(path)
-	return err
-}
-
-func shouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames []string) bool {
-	return len(mainPkgNames) > 0 || len(masterPkgNames) > 0 || len(latestPkgNames) > 0
-}
-
-func resolveUpdateChannels(
-	pkgs []goutil.Package,
-	confPkgs []goutil.Package,
-	mainPkgNames []string,
-	masterPkgNames []string,
-	latestPkgNames []string,
-) (map[string]goutil.UpdateChannel, error) {
-	channelMap := make(map[string]goutil.UpdateChannel, len(pkgs))
-	normalizedToActual := make(map[string]string, len(pkgs))
-	for _, p := range pkgs {
-		channelMap[p.Name] = goutil.UpdateChannelLatest
-		normalizedToActual[normalizeBinaryNameForMatch(p.Name)] = p.Name
-	}
-	for _, p := range confPkgs {
-		if actual, ok := normalizedToActual[normalizeBinaryNameForMatch(p.Name)]; ok {
-			channelMap[actual] = goutil.NormalizeUpdateChannel(string(p.UpdateChannel))
-		}
-	}
-
-	assignedByFlag := map[string]string{}
-	apply := func(flag string, names []string, channel goutil.UpdateChannel) error {
-		for _, raw := range names {
-			name := strings.TrimSpace(raw)
-			if name == "" {
-				continue
-			}
-			normalized := normalizeBinaryNameForMatch(name)
-			if prevFlag, ok := assignedByFlag[normalized]; ok && prevFlag != flag {
-				return fmt.Errorf("same binary (%s) is specified in both --%s and --%s", name, prevFlag, flag)
-			}
-			assignedByFlag[normalized] = flag
-
-			actual, ok := normalizedToActual[normalized]
-			if !ok {
-				print.Warn("not found '" + name + "' package in update target")
-				continue
-			}
-			channelMap[actual] = channel
-		}
-		return nil
-	}
-
-	if err := apply("main", mainPkgNames, goutil.UpdateChannelMain); err != nil {
-		return nil, err
-	}
-	if err := apply("master", masterPkgNames, goutil.UpdateChannelMaster); err != nil {
-		return nil, err
-	}
-	if err := apply(latestKeyword, latestPkgNames, goutil.UpdateChannelLatest); err != nil {
-		return nil, err
-	}
-	return channelMap, nil
-}
-
-func mergeConfigPackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, channelMap map[string]goutil.UpdateChannel, renamedPkgs map[string]string) []goutil.Package {
-	pkgByName := map[string]goutil.Package{}
-	for _, p := range confPkgs {
-		pkgByName[p.Name] = sanitizeConfigPackage(p)
-	}
-	for _, p := range succeededPkgs {
-		if p.Name == "" || p.ImportPath == "" {
-			continue
-		}
-		channel := packageUpdateChannel(p.Name, p.UpdateChannel, channelMap)
-		pkgByName[p.Name] = goutil.Package{
-			Name:          p.Name,
-			ImportPath:    p.ImportPath,
-			Version:       &goutil.Version{Current: persistedVersion(p)},
-			UpdateChannel: channel,
-		}
-	}
-	// Remove stale entries when a binary was renamed during update
-	for oldName := range renamedPkgs {
-		delete(pkgByName, oldName)
-	}
-	for name, channel := range channelMap {
-		p, ok := pkgByName[name]
-		if !ok {
-			continue
-		}
-		p.UpdateChannel = goutil.NormalizeUpdateChannel(string(channel))
-		pkgByName[name] = sanitizeConfigPackage(p)
-	}
-
-	names := make([]string, 0, len(pkgByName))
-	for name := range pkgByName {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	merged := make([]goutil.Package, 0, len(names))
-	for _, name := range names {
-		merged = append(merged, pkgByName[name])
-	}
-	return merged
-}
-
-func sanitizeConfigPackage(p goutil.Package) goutil.Package {
-	version := latestKeyword
-	if p.Version != nil {
-		v := strings.TrimSpace(p.Version.Current)
-		if v != "" {
-			version = v
-		}
-	}
-
-	return goutil.Package{
-		Name:          strings.TrimSpace(p.Name),
-		ImportPath:    strings.TrimSpace(p.ImportPath),
-		Version:       &goutil.Version{Current: version},
-		UpdateChannel: goutil.NormalizeUpdateChannel(string(p.UpdateChannel)),
-	}
-}
-
-func persistedVersion(p goutil.Package) string {
-	if p.Version == nil {
-		return latestKeyword
-	}
-	if latest := strings.TrimSpace(p.Version.Latest); latest != "" && latest != "unknown" {
-		return latest
-	}
-	if current := strings.TrimSpace(p.Version.Current); current != "" {
-		return current
-	}
-	return latestKeyword
-}
-
 func getBinaryPathList() ([]string, error) {
 	goBin, err := goutil.GoBin()
 	if err != nil {
@@ -792,7 +591,7 @@ func filterBinaryPathListByTargets(binList, targets []string) []string {
 
 	targetSet := make(map[string]struct{}, len(targets))
 	for _, rawTarget := range targets {
-		target := normalizeBinaryNameForMatch(rawTarget)
+		target := binname.NormalizeForMatch(rawTarget)
 		if target == "" {
 			continue
 		}
@@ -804,7 +603,7 @@ func filterBinaryPathListByTargets(binList, targets []string) []string {
 
 	filtered := make([]string, 0, len(targetSet))
 	for _, path := range binList {
-		base := normalizeBinaryNameForMatch(filepath.Base(path))
+		base := binname.NormalizeForMatch(filepath.Base(path))
 		if _, ok := targetSet[base]; ok {
 			filtered = append(filtered, path)
 		}
@@ -821,7 +620,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 	targetSet := make(map[string]string, len(targets)) // normalized target -> original (first seen)
 	targetOrder := make([]string, 0, len(targets))
 	for _, rawTarget := range targets {
-		target := normalizeBinaryNameForMatch(rawTarget)
+		target := binname.NormalizeForMatch(rawTarget)
 		if target == "" {
 			continue
 		}
@@ -833,7 +632,7 @@ func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Pac
 
 	matched := make(map[string]struct{}, len(targetSet))
 	for _, v := range pkgs {
-		pkg := normalizeBinaryNameForMatch(v.Name)
+		pkg := binname.NormalizeForMatch(v.Name)
 		if _, ok := targetSet[pkg]; ok {
 			result = append(result, v)
 			matched[pkg] = struct{}{}
