@@ -201,7 +201,7 @@ func Test_doCheckJSON_stableInputOrder(t *testing.T) {
 	const total = 6
 	pkgs := make([]goutil.Package, total)
 	sleepByModule := make(map[string]time.Duration, total)
-	for i := 0; i < total; i++ {
+	for i := range total {
 		p := newCheckPkg(fmt.Sprintf("tool-%d", i), testVersionTwo, goutil.UpdateChannelLatest)
 		pkgs[i] = p
 		// Earlier packages resolve slower so they complete last.

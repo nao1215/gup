@@ -317,7 +317,7 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 	if called {
 		t.Fatal("installer should not run for an existing binary without --force")
 	}
-	if !bytes.Contains([]byte(out), []byte("skip")) {
+	if !strings.Contains(out, "skip") {
 		t.Fatalf("expected skip message, got: %s", out)
 	}
 }
@@ -579,7 +579,7 @@ func Test_runMigrate_sameDirError(t *testing.T) {
 			t.Fatalf("runMigrate() = %d, want 1 for same directory", got)
 		}
 	})
-	if !bytes.Contains([]byte(out), []byte("same directory")) {
+	if !strings.Contains(out, "same directory") {
 		t.Fatalf("expected 'same directory' error, got: %s", out)
 	}
 }

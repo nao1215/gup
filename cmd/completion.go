@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -34,10 +35,10 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 			}
 			if install {
 				if len(args) != 0 {
-					return fmt.Errorf("--install cannot be used with shell argument")
+					return errors.New("--install cannot be used with shell argument")
 				}
 				if isWindows() {
-					return fmt.Errorf("--install is not supported on Windows; run 'gup completion powershell' to output PowerShell completion to stdout")
+					return errors.New("--install is not supported on Windows; run 'gup completion powershell' to output PowerShell completion to stdout")
 				}
 				return completion.DeployShellCompletionFileIfNeeded(rootCmd)
 			}

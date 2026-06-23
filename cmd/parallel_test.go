@@ -43,7 +43,7 @@ func TestForEachPackage(t *testing.T) {
 		})
 
 		got := map[string]bool{}
-		for i := 0; i < len(pkgs); i++ {
+		for range pkgs {
 			r := <-ch
 			if r.err != nil {
 				t.Errorf("unexpected error for %s: %v", r.pkg.Name, r.err)
@@ -62,7 +62,7 @@ func TestForEachPackage(t *testing.T) {
 		t.Parallel()
 
 		pkgs := []goutil.Package{{Name: pkgFail}}
-		wantErr := fmt.Errorf("test error")
+		wantErr := errors.New("test error")
 
 		ch := forEachPackage(context.Background(), pkgs, 1, 0, func(_ context.Context, p goutil.Package) updateResult {
 			return updateResult{pkg: p, err: wantErr}
@@ -117,7 +117,7 @@ func TestForEachPackage(t *testing.T) {
 		ch := forEachPackage(context.Background(), pkgs, 1, 0,
 			func(ctx context.Context, p goutil.Package) updateResult {
 				if _, ok := ctx.Deadline(); ok {
-					return updateResult{pkg: p, err: fmt.Errorf("unexpected deadline with timeout=0")}
+					return updateResult{pkg: p, err: errors.New("unexpected deadline with timeout=0")}
 				}
 				return updateResult{pkg: p}
 			})
@@ -220,7 +220,6 @@ func TestForEachPackage_ResultCountInvariant(t *testing.T) {
 	const total = 64
 
 	for _, cpus := range []int{1, 3, 8, 64, 200} {
-		cpus := cpus
 		t.Run(fmt.Sprintf("cpus=%d", cpus), func(t *testing.T) {
 			t.Parallel()
 
@@ -335,7 +334,6 @@ func TestForEachPackage_CPUClamping(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 

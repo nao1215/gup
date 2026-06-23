@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -96,7 +97,7 @@ func removeLoop(gobin string, force bool, target []string) int {
 		}
 		if !force {
 			if !stdinIsTerminal() {
-				print.Err(fmt.Errorf("gup remove requires confirmation, but stdin is not a TTY.\nUse --force to skip confirmation"))
+				print.Err(errors.New("gup remove requires confirmation, but stdin is not a TTY.\nUse --force to skip confirmation"))
 				result = 1
 				continue
 			}

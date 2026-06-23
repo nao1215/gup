@@ -110,7 +110,7 @@ func listJSONRecords(pkgs []goutil.Package) []jsonPackage {
 	return recs
 }
 
-// PackageList list up command package in $GOPATH/bin or $GOBIN
+// PackageList list up command package in $GOPATH/bin or $GOBIN.
 func printPackageList(pkgs []goutil.Package) {
 	max := 0
 	for _, v := range pkgs {

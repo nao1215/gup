@@ -40,17 +40,17 @@ func DeployIconIfNeeded() {
 	}
 }
 
-// InfoIconPath return absolute path of information.png
+// InfoIconPath return absolute path of information.png.
 func InfoIconPath() string {
 	return filepath.Join(assetsDirPath(), "information.png")
 }
 
-// WarningIconPath return absolute path of information.png
+// WarningIconPath return absolute path of information.png.
 func WarningIconPath() string {
 	return filepath.Join(assetsDirPath(), "warning.png")
 }
 
-// assetsDirPath return absolute path of assets directory
+// assetsDirPath return absolute path of assets directory.
 func assetsDirPath() string {
 	return filepath.Join(config.DirPath(), "assets")
 }

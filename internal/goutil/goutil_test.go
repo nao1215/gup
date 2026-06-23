@@ -1507,7 +1507,7 @@ func TestInstallWithContext_EmptyStderrFallback(t *testing.T) {
 	if !strings.Contains(err.Error(), "can't install") {
 		t.Errorf("error should report the install failure, got: %v", err)
 	}
-	prefix := fmt.Sprintf("can't install %s", timeoutTestImportPath)
+	prefix := "can't install " + timeoutTestImportPath
 	if errorCauseAfterPrefix(t, err, prefix) == "" {
 		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
 	}
@@ -1527,7 +1527,7 @@ func TestGetVerWithContext_EmptyStderrFallback(t *testing.T) {
 	if !strings.Contains(err.Error(), "can't check") {
 		t.Errorf("error should report the version-check failure, got: %v", err)
 	}
-	prefix := fmt.Sprintf("can't check %s", timeoutTestImportPath)
+	prefix := "can't check " + timeoutTestImportPath
 	if errorCauseAfterPrefix(t, err, prefix) == "" {
 		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
 	}
@@ -1557,7 +1557,7 @@ func benchSetupGobin(b *testing.B, n int) string {
 	b.Helper()
 	srcs := benchBinarySources(b)
 	dir := b.TempDir()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		data, err := os.ReadFile(srcs[i%len(srcs)])
 		if err != nil {
 			b.Fatal(err)
@@ -1580,7 +1580,7 @@ func BenchmarkGetPackageInformation(b *testing.B) {
 				b.Fatal(err)
 			}
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_, _ = GetPackageInformation(list)
 			}
 		})
@@ -1592,7 +1592,7 @@ func BenchmarkBinaryPathList(b *testing.B) {
 		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
 			dir := benchSetupGobin(b, n)
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				if _, err := BinaryPathList(dir); err != nil {
 					b.Fatal(err)
 				}
@@ -1602,7 +1602,7 @@ func BenchmarkBinaryPathList(b *testing.B) {
 }
 
 func BenchmarkGetInstalledGoVersion(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		if _, err := GetInstalledGoVersion(); err != nil {
 			b.Fatal(err)
 		}
@@ -1612,7 +1612,7 @@ func BenchmarkGetInstalledGoVersion(b *testing.B) {
 func BenchmarkGoBin(b *testing.B) {
 	b.Setenv("GOBIN", b.TempDir())
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		if _, err := GoBin(); err != nil {
 			b.Fatal(err)
 		}
@@ -1628,7 +1628,7 @@ func BenchmarkGetPackageInformationWithoutGoVersion(b *testing.B) {
 				b.Fatal(err)
 			}
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				_ = GetPackageInformationWithoutGoVersion(list)
 			}
 		})

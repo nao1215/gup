@@ -144,7 +144,7 @@ func forEachPackage(ctx context.Context, pkgs []goutil.Package, cpus int, timeou
 	}
 
 	wg.Add(cpus)
-	for i := 0; i < cpus; i++ {
+	for range cpus {
 		go worker()
 	}
 

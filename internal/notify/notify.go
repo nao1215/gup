@@ -8,7 +8,7 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
-// Info notify information message at desktop
+// Info notify information message at desktop.
 func Info(title, message string) {
 	assets.DeployIconIfNeeded()
 	err := beeep.Notify(title, message, assets.InfoIconPath())
@@ -17,7 +17,7 @@ func Info(title, message string) {
 	}
 }
 
-// Warn notify warning message at desktop
+// Warn notify warning message at desktop.
 func Warn(title, message string) {
 	assets.DeployIconIfNeeded()
 	err := beeep.Notify(title, message, assets.WarningIconPath())

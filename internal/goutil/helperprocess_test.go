@@ -3,6 +3,7 @@ package goutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -293,13 +294,13 @@ func TestIsBranchNotFound(t *testing.T) {
 		want   bool
 	}{
 		{"nil error", nil, string(UpdateChannelMain), false},
-		{"main missing", fmt.Errorf("can't install x:\ngo: unknown revision main"), string(UpdateChannelMain), true},
-		{"master missing", fmt.Errorf("go: unknown revision master"), string(UpdateChannelMaster), true},
-		{"build failure is not branch-not-found", fmt.Errorf("build failed: compile error"), string(UpdateChannelMain), false},
-		{"network failure is not branch-not-found", fmt.Errorf("dial tcp: i/o timeout"), string(UpdateChannelMain), false},
-		{"wrong branch name does not match", fmt.Errorf("go: unknown revision master"), string(UpdateChannelMain), false},
-		{"longer branch name is not a partial match", fmt.Errorf("go: unknown revision mainline"), string(UpdateChannelMain), false},
-		{"branch token followed by newline matches", fmt.Errorf("go: unknown revision main\n"), string(UpdateChannelMain), true},
+		{"main missing", errors.New("can't install x:\ngo: unknown revision main"), string(UpdateChannelMain), true},
+		{"master missing", errors.New("go: unknown revision master"), string(UpdateChannelMaster), true},
+		{"build failure is not branch-not-found", errors.New("build failed: compile error"), string(UpdateChannelMain), false},
+		{"network failure is not branch-not-found", errors.New("dial tcp: i/o timeout"), string(UpdateChannelMain), false},
+		{"wrong branch name does not match", errors.New("go: unknown revision master"), string(UpdateChannelMain), false},
+		{"longer branch name is not a partial match", errors.New("go: unknown revision mainline"), string(UpdateChannelMain), false},
+		{"branch token followed by newline matches", errors.New("go: unknown revision main\n"), string(UpdateChannelMain), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

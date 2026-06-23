@@ -32,7 +32,7 @@ func (validPackageSet) Generate(rng *rand.Rand, _ int) reflect.Value {
 	versions := []string{verSemver, "v0.0.1", verLatest, "v2.0.0-rc.1"}
 
 	pkgs := make(validPackageSet, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		pkgs = append(pkgs, goutil.Package{
 			Name:          fmt.Sprintf("tool%d", i),
 			ImportPath:    fmt.Sprintf("example.com/owner/tool%d", i),

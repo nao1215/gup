@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"debug/buildinfo"
-	stderrors "errors"
+	"errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -18,7 +18,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-version"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/pkg/errors"
 )
 
 const unknown = "unknown"
@@ -55,7 +54,7 @@ var (
 	}
 )
 
-// GoPaths has $GOBIN and $GOPATH
+// GoPaths has $GOBIN and $GOPATH.
 type GoPaths struct {
 	// GOBIN is $GOBIN
 	GOBIN string
@@ -65,7 +64,7 @@ type GoPaths struct {
 	TmpPath string
 }
 
-// Package is package information
+// Package is package information.
 type Package struct {
 	// Name is package name
 	Name string
@@ -118,7 +117,7 @@ func (p *Package) SetLatestVer() {
 	p.Version.Latest = GetPackageVersion(p.Name)
 }
 
-// CurrentToLatestStr returns string about the current version and the latest version
+// CurrentToLatestStr returns string about the current version and the latest version.
 func (p *Package) CurrentToLatestStr() string {
 	if p.IsPackageUpToDate() && p.IsGoUpToDate() {
 		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
@@ -289,19 +288,17 @@ func (gp *GoPaths) StartDryRunMode() error {
 			// Avoid leaking the temp dir when the env mutation fails.
 			_ = gp.removeTmpDir()
 			// Wrap error to avoid OS dependent error message during testing.
-			return errors.Wrapf(
-				err,
-				"failed to set GOBIN to env variable. key: %v, value: %v",
-				keyGoBin, tmpDir,
+			return fmt.Errorf(
+				"failed to set GOBIN to env variable. key: %v, value: %v: %w",
+				keyGoBin, tmpDir, err,
 			)
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
 			_ = gp.removeTmpDir()
-			return errors.Wrapf(
-				err,
-				"failed to set GOPATH to env variable. key: %v, value: %v",
-				keyGoPath, tmpDir,
+			return fmt.Errorf(
+				"failed to set GOPATH to env variable. key: %v, value: %v: %w",
+				keyGoPath, tmpDir, err,
 			)
 		}
 	default:
@@ -321,18 +318,16 @@ func (gp *GoPaths) EndDryRunMode() error {
 	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, gp.GOBIN); err != nil {
 			// Wrap error to avoid OS dependent error message during testing.
-			restoreErr = errors.Wrapf(
-				err,
-				"failed to set GOBIN to env variable. key: %v, value: %v",
-				keyGoBin, gp.GOBIN,
+			restoreErr = fmt.Errorf(
+				"failed to set GOBIN to env variable. key: %v, value: %v: %w",
+				keyGoBin, gp.GOBIN, err,
 			)
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, gp.GOPATH); err != nil {
-			restoreErr = errors.Wrapf(
-				err,
-				"failed to set GOPATH to env variable. key: %v, value: %v",
-				keyGoPath, gp.GOPATH,
+			restoreErr = fmt.Errorf(
+				"failed to set GOPATH to env variable. key: %v, value: %v: %w",
+				keyGoPath, gp.GOPATH, err,
 			)
 		}
 	default:
@@ -341,13 +336,13 @@ func (gp *GoPaths) EndDryRunMode() error {
 
 	var removeErr error
 	if err := gp.removeTmpDir(); err != nil {
-		removeErr = errors.Wrap(err, "temporary directory for dry run remains")
+		removeErr = fmt.Errorf("temporary directory for dry run remains: %w", err)
 	}
 
-	return stderrors.Join(restoreErr, removeErr)
+	return errors.Join(restoreErr, removeErr)
 }
 
-// removeTmpDir remove tmporary directory for dry run
+// removeTmpDir remove tmporary directory for dry run.
 func (gp *GoPaths) removeTmpDir() error {
 	if gp.TmpPath != "" {
 		return os.RemoveAll(gp.TmpPath)
@@ -361,7 +356,7 @@ func CanUseGoCmd() error {
 	return err
 }
 
-// InstallLatest execute "$ go install <importPath>@latest"
+// InstallLatest execute "$ go install <importPath>@latest".
 func InstallLatest(importPath string) error {
 	return InstallLatestWithContext(context.Background(), importPath)
 }
@@ -371,7 +366,7 @@ func InstallLatestWithContext(ctx context.Context, importPath string) error {
 	return InstallWithContext(ctx, importPath, "latest")
 }
 
-// InstallMainOrMaster execute "$ go install <importPath>@main" or "$ go install <importPath>@master"
+// InstallMainOrMaster execute "$ go install <importPath>@main" or "$ go install <importPath>@master".
 func InstallMainOrMaster(importPath string) error {
 	return InstallMainOrMasterWithContext(context.Background(), importPath)
 }
@@ -484,7 +479,7 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 	return nil
 }
 
-// GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest"
+// GetLatestVer execute "$ go list -m -f {{.Version}} <importPath>@latest".
 func GetLatestVer(modulePath string) (string, error) {
 	return GetLatestVerWithContext(context.Background(), modulePath)
 }
@@ -637,7 +632,7 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 	jobs := make(chan int, len(binList))
 	var wg sync.WaitGroup
 
-	for w := 0; w < numWorkers; w++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -681,7 +676,7 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 	return pkgs
 }
 
-// GetPackageVersion return golang package version
+// GetPackageVersion return golang package version.
 func GetPackageVersion(cmdName string) string {
 	goBin, err := GoBin()
 	if err != nil {
