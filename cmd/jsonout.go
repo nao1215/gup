@@ -70,7 +70,9 @@ func resultToJSONPackage(v updateResult) jsonPackage {
 }
 
 // resultsToJSONPackages converts execution results into JSON records, preserving
-// completion order.
+// the order of the given results. executePackages returns results in input
+// order, so --json output stays deterministic across runs regardless of worker
+// completion order (#365).
 func resultsToJSONPackages(results []updateResult) []jsonPackage {
 	recs := make([]jsonPackage, 0, len(results))
 	for _, v := range results {
