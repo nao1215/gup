@@ -281,6 +281,176 @@ func TestIsSameZshCompletionFile(t *testing.T) {
 	}
 }
 
+// TestMakeZshCompletionFileIfNeeded_RepairsMissingZshrcBlock verifies the
+// self-healing contract: when _gup is already up to date but the .zshrc fpath
+// block has been removed, re-running the install restores the block instead of
+// early-returning and leaving completion broken.
+func TestMakeZshCompletionFileIfNeeded_RepairsMissingZshrcBlock(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	// Pin .zshrc/fpath resolution to the temp HOME even if ZDOTDIR is exported,
+	// so the test never touches a real $ZDOTDIR/.zshrc.
+	t.Setenv("ZDOTDIR", "")
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	cmd := testCompletionCmd()
+
+	// First install creates _gup and the .zshrc block.
+	if err := makeZshCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("first makeZshCompletionFileIfNeeded() error = %v", err)
+	}
+	if !isSameZshCompletionFile(cmd) {
+		t.Fatal("precondition: _gup should be up to date after the first install")
+	}
+
+	// Simulate the user deleting gup's block from .zshrc (keeping other config).
+	if err := os.WriteFile(zshrcPath(), []byte("# unrelated config\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-running must restore the block even though _gup itself is unchanged.
+	if err := makeZshCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("second makeZshCompletionFileIfNeeded() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Clean(zshrcPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "fpath=(~/.zsh/completion") {
+		t.Errorf("deleted .zshrc block was not repaired, got:\n%s", data)
+	}
+	if !strings.Contains(string(data), "# unrelated config") {
+		t.Errorf("unrelated .zshrc content was dropped, got:\n%s", data)
+	}
+	if got := strings.Count(string(data), "auto generate"); got != 1 {
+		t.Errorf("fpath block appears %d times, want exactly 1", got)
+	}
+}
+
+// TestAppendFpathAtZshrcIfNeeded_RepairsStaleBlock verifies that a marker that is
+// present but points at an out-of-date completion directory is replaced in place
+// (updated, not duplicated), so the marker-based reconcile actually self-heals an
+// old block.
+func TestAppendFpathAtZshrcIfNeeded_RepairsStaleBlock(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
+
+	stale := "# existing config\n\n" + zshFpathMarker + "\n" +
+		"fpath=(/old/wrong/path $fpath)\n" +
+		"autoload -Uz compinit && compinit -i\n"
+	if err := os.WriteFile(zshrcPath(), []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Clean(zshrcPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "/old/wrong/path") {
+		t.Errorf("stale fpath was not replaced, got:\n%s", data)
+	}
+	if !strings.Contains(string(data), "fpath=(~/.zsh/completion") {
+		t.Errorf("fresh fpath line is missing, got:\n%s", data)
+	}
+	if !strings.Contains(string(data), "# existing config") {
+		t.Errorf("unrelated content was dropped, got:\n%s", data)
+	}
+	if got := strings.Count(string(data), "auto generate"); got != 1 {
+		t.Errorf("fpath block appears %d times, want exactly 1 (replaced, not duplicated)", got)
+	}
+
+	// Repairing again must be a no-op: the now-correct block is left untouched.
+	before := string(data)
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("second appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+	after, err := os.ReadFile(filepath.Clean(zshrcPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != before {
+		t.Errorf("re-running on a correct .zshrc rewrote it:\nbefore:\n%q\nafter:\n%q", before, string(after))
+	}
+}
+
+// TestAppendFpathAtZshrcIfNeeded_PreservesSurroundingLines guards against the
+// reconcile merging adjacent user lines: a stale block wedged between user lines
+// with single-newline spacing (no blank separators) must be repaired in place
+// while every surrounding line keeps its own line.
+func TestAppendFpathAtZshrcIfNeeded_PreservesSurroundingLines(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
+
+	before := "export PATH=$PATH\n"
+	after := "export EDITOR=vim\n"
+	staleBlock := zshFpathMarker + "\n" +
+		"fpath=(/old/wrong/path $fpath)\n" +
+		"autoload -Uz compinit && compinit -i\n"
+	if err := os.WriteFile(zshrcPath(), []byte(before+staleBlock+after), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Clean(zshrcPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	for _, line := range []string{"export PATH=$PATH", "export EDITOR=vim"} {
+		if !strings.Contains(got, line+"\n") {
+			t.Errorf("surrounding line %q lost its own line (possible merge), got:\n%q", line, got)
+		}
+	}
+	if strings.Contains(got, "$PATHexport") || strings.Contains(got, "compinit && compinit -iexport") {
+		t.Errorf("adjacent user lines were merged into the block, got:\n%q", got)
+	}
+	if strings.Contains(got, "/old/wrong/path") {
+		t.Errorf("stale fpath was not replaced, got:\n%q", got)
+	}
+	if got2 := strings.Count(got, "auto generate"); got2 != 1 {
+		t.Errorf("fpath block appears %d times, want exactly 1", got2)
+	}
+}
+
+// TestAppendFpathAtZshrcIfNeeded_RepairsBrokenBlock verifies that a marker left
+// behind without its fpath/autoload lines (a hand-broken block) is reconciled
+// into a complete, single block.
+func TestAppendFpathAtZshrcIfNeeded_RepairsBrokenBlock(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ZDOTDIR", "") // pin .zshrc resolution to the temp HOME
+
+	broken := "# existing config\n\n" + zshFpathMarker + "\n"
+	if err := os.WriteFile(zshrcPath(), []byte(broken), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Clean(zshrcPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "fpath=(~/.zsh/completion") {
+		t.Errorf("broken block was not repaired with the fpath line, got:\n%s", data)
+	}
+	if !strings.Contains(string(data), "autoload -Uz compinit") {
+		t.Errorf("broken block was not repaired with the autoload line, got:\n%s", data)
+	}
+	if got := strings.Count(string(data), "auto generate"); got != 1 {
+		t.Errorf("fpath block appears %d times, want exactly 1", got)
+	}
+}
+
 func TestAppendFpathAtZshrcIfNeeded(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
