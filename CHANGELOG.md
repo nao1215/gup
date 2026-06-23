@@ -1,3 +1,21 @@
+## [v1.5.1](https://github.com/nao1215/gup/compare/v1.5.0...v1.5.1) (2026-06-23)
+
+### Bug Fixes
+
+* `gup check`, `gup update`, and `gup list --json` now fail fast when the resolved `gup.json` is malformed or has an unsupported `schema_version`, instead of silently falling back to `@latest`, and reject a directory passed where a `gup.json` file is expected instead of clobbering it. (#370)
+* `--json` output for the parallel commands (`check`/`update`/`import`/`migrate`) is now emitted in the original input order, making machine-readable output deterministic across runs without changing exit codes, status values, or error semantics. (#371)
+* `gup completion --install` now honors `XDG_DATA_HOME` (bash), `XDG_CONFIG_HOME` (fish), and `ZDOTDIR` (zsh) when choosing where to write completion files and the `.zshrc` snippet. (#372)
+* `gup completion --install` now repairs a deleted, stale, or hand-broken zsh `.zshrc` fpath block on re-install instead of leaving zsh completion broken; an already-correct block is left byte-for-byte unchanged. (#373)
+* Fix a config data-loss case in `gup update`: persisting `gup.json` after a binary rename that kept the same `import_path` could drop the package from the saved config entirely. (#374)
+
+### Code Refactoring
+
+* Centralize the config/state logic that was spread across the `cmd/` commands into a new `internal/configstate` package (config-path resolution, update-channel resolution/merge, and persistence) and unify binary-name matching in `internal/binname`, so `update`/`check`/`list`/`export` interpret the same `gup.json` entry through one consistent package-identity model. No user-visible behavior change. (#374)
+
+### CI
+
+* Generate sigstore bundles during release signing. (#363)
+
 ## [v1.5.0](https://github.com/nao1215/gup/compare/v1.4.0...v1.5.0) (2026-06-22)
 
 ### Features
