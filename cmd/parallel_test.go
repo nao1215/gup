@@ -573,6 +573,9 @@ func TestExecutePackages_StableInputOrderWithFailures(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("executePackages exit code = %d, want 1 (some failed)", code)
 	}
+	if len(results) != total {
+		t.Fatalf("received %d results, want %d", len(results), total)
+	}
 	for i, r := range results {
 		if want := pkgs[i].Name; r.pkg.Name != want {
 			t.Fatalf("results[%d].pkg.Name = %q, want %q (input order preserved across mixed outcomes)", i, r.pkg.Name, want)
