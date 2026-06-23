@@ -105,12 +105,31 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) error {
 	return appendFpathAtZshrcIfNeeded()
 }
 
-func appendFpathAtZshrcIfNeeded() (err error) {
-	const zshFpath = `
-# setting for gup command (auto generate)
-fpath=(~/.zsh/completion $fpath)
+// zshFpathMarker is the comment line that uniquely identifies gup's fpath block
+// in .zshrc. Idempotency keys on this marker rather than the full snippet text so
+// a re-run never appends a second block even if the referenced completion
+// directory differs between runs (e.g. ZDOTDIR toggled while .zshrc resolves to
+// the same file).
+const zshFpathMarker = "# setting for gup command (auto generate)"
+
+// zshFpathSnippet returns the fpath block written to .zshrc. The completion
+// directory it references tracks zshCompletionFilePath: under ZDOTDIR it expands
+// via ${ZDOTDIR} (zsh expands ~ to $HOME, not $ZDOTDIR), otherwise it uses the
+// portable ~/.zsh/completion form (#366).
+func zshFpathSnippet() string {
+	completionDir := "~/.zsh/completion"
+	if strings.TrimSpace(os.Getenv("ZDOTDIR")) != "" {
+		completionDir = "${ZDOTDIR}/.zsh/completion"
+	}
+	return fmt.Sprintf(`
+%s
+fpath=(%s $fpath)
 autoload -Uz compinit && compinit -i
-`
+`, zshFpathMarker, completionDir)
+}
+
+func appendFpathAtZshrcIfNeeded() (err error) {
+	zshFpath := zshFpathSnippet()
 	zshrcPath := zshrcPath()
 	if !fileutil.IsFile(zshrcPath) {
 		fp, openErr := os.OpenFile(filepath.Clean(zshrcPath), os.O_RDWR|os.O_CREATE, fileutil.FileModeCreatingFile)
@@ -134,7 +153,7 @@ autoload -Uz compinit && compinit -i
 		return fmt.Errorf("can not read .zshrc: %w", readErr)
 	}
 
-	if strings.Contains(string(zshrc), zshFpath) {
+	if strings.Contains(string(zshrc), zshFpathMarker) {
 		return nil
 	}
 
@@ -223,22 +242,51 @@ func isSameZshCompletionFile(cmd *cobra.Command) bool {
 	return true
 }
 
+// xdgDataHome returns the base directory for user data files, honoring
+// XDG_DATA_HOME when set and falling back to $HOME/.local/share otherwise (#366).
+func xdgDataHome() string {
+	if dir := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dir != "" {
+		return dir
+	}
+	return filepath.Join(os.Getenv("HOME"), ".local", "share")
+}
+
+// xdgConfigHome returns the base directory for user config files, honoring
+// XDG_CONFIG_HOME when set and falling back to $HOME/.config otherwise (#366).
+func xdgConfigHome() string {
+	if dir := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); dir != "" {
+		return dir
+	}
+	return filepath.Join(os.Getenv("HOME"), ".config")
+}
+
+// zshDotDir returns the directory zsh reads its startup files from, honoring
+// ZDOTDIR when set and falling back to $HOME otherwise (#366). Both the zsh
+// completion files and .zshrc are resolved relative to this directory so the
+// install matches the user's active zsh configuration layout.
+func zshDotDir() string {
+	if dir := strings.TrimSpace(os.Getenv("ZDOTDIR")); dir != "" {
+		return dir
+	}
+	return os.Getenv("HOME")
+}
+
 // bashCompletionFilePath return bash-completion file path.
 func bashCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".local", "share", "bash-completion", "completions", cmdinfo.Name)
+	return filepath.Join(xdgDataHome(), "bash-completion", "completions", cmdinfo.Name)
 }
 
 // fishCompletionFilePath return fish-completion file path.
 func fishCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".config", "fish", "completions", cmdinfo.Name+".fish")
+	return filepath.Join(xdgConfigHome(), "fish", "completions", cmdinfo.Name+".fish")
 }
 
 // zshCompletionFilePath return zsh-completion file path.
 func zshCompletionFilePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".zsh", "completion", "_"+cmdinfo.Name)
+	return filepath.Join(zshDotDir(), ".zsh", "completion", "_"+cmdinfo.Name)
 }
 
 // zshrcPath return .zshrc path.
 func zshrcPath() string {
-	return filepath.Join(os.Getenv("HOME"), ".zshrc")
+	return filepath.Join(zshDotDir(), ".zshrc")
 }
