@@ -17,7 +17,7 @@
 
 ![sample](../img/sample.gif)
 
-gup actualiza y gestiona las herramientas de línea de comandos globales de Go en tu `$GOBIN`. `go install` coloca cada programa en `$GOBIN` (`$GOPATH/bin`) pero nunca lo vuelve a actualizar; gup pone todo el conjunto al día en paralelo. Además, añade los comandos de gestión que le faltan a `go install`: `list`/`check` para ver qué hay instalado, `remove` para eliminar binarios, `export`/`import` para reproducir el conjunto en otra máquina y `migrate` para trasladarlo a un nuevo `$GOBIN`. Se ejecuta en Windows, macOS y Linux.
+gup actualiza y gestiona las herramientas de línea de comandos globales de Go en tu `$GOBIN`. `go install` coloca cada programa en `$GOBIN` (`$GOPATH/bin`) pero nunca lo vuelve a actualizar, no mantiene ningún manifiesto de lo que instaló y no ofrece forma de fijar una herramienta en una versión de la que dependes. gup gestiona ese conjunto de herramientas: pone todo el conjunto al día en paralelo, puede `pin` (fijar) herramientas seleccionadas en versiones exactas y añade los comandos de gestión que le faltan a `go install`: `list`/`check` para ver qué hay instalado, `remove` para eliminar binarios, `export`/`import` para reproducir el conjunto en otra máquina y `migrate` para trasladarlo a un nuevo `$GOBIN`. Se ejecuta en Windows, macOS y Linux.
 
 ## OS Soportados (pruebas unitarias con GitHub Actions)
 - Linux
@@ -126,6 +126,39 @@ El canal seleccionado se guarda en `gup.json` y se reutiliza en futuros `gup upd
 $ gup update --main=gup,lazygit --master=sqly --latest=air
 ```
 
+### Fijar una herramienta en una versión específica
+
+Usa `pin` cuando una herramienta global deba permanecer en una versión específica, por ejemplo cuando necesita coincidir con CI o con un entorno de desarrollo común de todo el equipo.
+
+```shell
+$ gup pin golangci-lint v1.62.0
+$ gup update
+```
+
+Una herramienta fijada se instala con la versión registrada (`go install <import_path>@<version>`), nunca `@latest`. `gup update` la mantiene en esa versión y la reinstala allí si la versión instalada difiere; el resto del conjunto de herramientas sigue actualizándose como de costumbre. La fijación bloquea la versión del módulo, no la compilación de Go, por lo que una herramienta fijada se sigue recompilando en la versión fijada cuando cambia el toolchain de Go (usa `--ignore-go-update` para suprimir eso, exactamente igual que con las herramientas no fijadas). La fijación se almacena en `gup.json` con `channel: "pinned"`:
+
+```json
+{
+  "schema_version": 2,
+  "packages": [
+    {
+      "name": "golangci-lint",
+      "import_path": "github.com/golangci/golangci-lint/cmd/golangci-lint",
+      "version": "v1.62.0",
+      "channel": "pinned"
+    }
+  ]
+}
+```
+
+`gup pin` también acepta la forma `tool@version` (`gup pin golangci-lint@v1.62.0`). La herramienta ya debe estar instalada bajo `$GOBIN`. Para permitir que la herramienta vuelva a actualizarse:
+
+```shell
+$ gup unpin golangci-lint
+```
+
+`gup check` reporta una herramienta fijada como `pinned` cuando está en la versión fijada y compilada con el toolchain de Go actual, o como `pin-mismatch` (con una sugerencia `gup update <name>`) cuando la versión instalada difiere o hay pendiente una recompilación por el toolchain de Go; nunca compara una herramienta fijada contra `@latest`.
+
 ### Listar el nombre del comando con ruta del paquete y versión bajo $GOPATH/bin
 El subcomando list imprime información de comandos bajo $GOPATH/bin o $GOBIN. La información de salida es el nombre del comando, ruta del paquete y versión del comando.
 ![sample](../img/list.png)
@@ -208,7 +241,7 @@ $ gup check --json
 ]
 ```
 
-Cada elemento tiene estos campos: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (vacío para `list`), `current_go_version`, `installed_go_version`, `status` y `error` (se omite cuando no existe). `status` es `installed` (list), `up-to-date`, `update-available` (check), `updated` (update) o `error`.
+Cada elemento tiene estos campos: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`/`pinned`), `current_version`, `latest_version` (vacío para `list` y para paquetes fijados), `pinned_version` (presente solo para `channel: "pinned"`), `current_go_version`, `installed_go_version`, `status`, `error` (se omite cuando no existe) y `hint` (una sugerencia del siguiente paso, presente solo cuando alguna aplica al error). `status` es `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), `pinned`/`pin-mismatch` (un paquete fijado en / fuera de su versión fijada) o `error`.
 
 El array siempre es JSON válido, incluso con fallos parciales (esos paquetes obtienen `"status": "error"`; el detalle del error también va a STDERR para que STDOUT siga siendo JSON puro). Los códigos de salida no cambian: `check` reportando `update-available` sigue saliendo con `0`.
 
@@ -222,8 +255,7 @@ Nombrar un binario que no está instalado, o excluir todos los binarios, sigue s
 
 ### Subcomando Export／Import
 Usa export/import si quieres instalar los mismos binarios de golang en múltiples sistemas.
-`gup.json` guarda el import path, la versión del binario y el canal de actualización (`latest` / `main` / `master`).
-`import` instala exactamente la versión escrita en el archivo.
+`gup.json` guarda el import path, la `version` registrada del binario y su `channel` de actualización (`latest` / `main` / `master` / `pinned`) de cada herramienta. Para `channel: "pinned"`, `version` es la versión objetivo exacta en la que se mantiene la herramienta; para los demás canales es la versión que se registró en el momento de la exportación. `import` instala exactamente la versión escrita en el archivo, y un paquete fijado permanece fijado después de la importación.
 
 ```json
 {
@@ -252,6 +284,10 @@ Por defecto:
   2) `./gup.json` (si existe)
 
 Si existen ambos archivos `gup.json` (el de nivel de usuario y `./gup.json`), `import`, `check` y `update` fallan de inmediato y te piden desambiguar con `--file`, en lugar de elegir uno en silencio. Siempre puedes sobrescribir la ruta con `--file` (`-f`).
+
+`schema_version` es `1` para configuraciones sin paquetes fijados y `2` una vez que algún paquete está fijado, de modo que un entorno que no usa fijaciones sigue produciendo el formato `1` que las versiones más antiguas de gup pueden leer. gup lee tanto `1` como `2`. El canal `pinned` solo es válido bajo `schema_version: 2`; una entrada `pinned` bajo `schema_version: 1`, un paquete fijado sin una versión concreta, un valor de canal desconocido o un `schema_version` no soportado se rechaza.
+
+Un `gup.json` mal formado o inválido (JSON inválido, un canal desconocido, un `schema_version` no soportado o una fijación insegura) se trata como un error en lugar de ignorarse en silencio: `check`, `update` y `export` fallan de inmediato y nombran el archivo problemático, de modo que los canales por paquete guardados nunca se degradan silenciosamente a `latest` porque la configuración no se pudo parsear. Un canal desconocido nunca se normaliza a `latest`.
 
 `gup export` siempre resuelve los canales de actualización guardados desde el `gup.json` canónico de nivel de usuario; `--file`/`--output` solo cambian el destino de exportación, por lo que exportar a un archivo nuevo nunca restablece el canal de un paquete a `latest`.
 
@@ -356,7 +392,7 @@ $ NO_COLOR=1 gup update
 
 
 ## gup vs. `go tool`
-El [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) integrado en Go 1.24 gestiona herramientas con alcance a un único proyecto y registradas en el `go.mod` de ese proyecto, por lo que esas herramientas solo existen dentro de ese módulo. gup gestiona los binarios instalados a nivel de sistema bajo `$GOBIN`, los comandos que ejecutas desde cualquier directorio. Usa `go tool` para las herramientas específicas de cada proyecto y gup para tu caja de herramientas global.
+El [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) integrado en Go 1.24 gestiona herramientas con alcance a un único proyecto y registradas en el `go.mod` de ese proyecto, por lo que esas herramientas solo existen dentro de ese módulo. gup gestiona los binarios instalados a nivel de sistema bajo `$GOBIN`, los comandos que ejecutas desde cualquier directorio y que mantienes junto a tus dotfiles, fijados opcionalmente en las versiones de las que dependes. Usa `go tool` para las herramientas específicas de cada proyecto y gup para tu caja de herramientas global.
 
 ## Comparación de características
 
@@ -365,6 +401,7 @@ El [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) integrado
 | Actualización en paralelo | Sí | No | Manual |
 | Tiempo de actualización (9 binarios) | 0.7s | 2.9s | 2.9s |
 | Canales de actualización por paquete (`latest`/`main`/`master`) | Sí | No | Manual |
+| Fijado / bloqueo de versión | Sí | No | Manual |
 | Exportar/importar conjunto de herramientas | Sí | No | Manual |
 | Migrar binarios a un nuevo `$GOBIN` | Sí | No | Manual |
 | Salida JSON legible por máquinas (`--json`) | Sí | No | No |

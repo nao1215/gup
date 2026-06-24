@@ -111,6 +111,13 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"NO_COLOR=1 gup update", // NO_COLOR env-var example
 			"https://no-color.org/", // NO_COLOR convention link
 		},
+		// Pin a tool to a specific version: the pin/unpin commands and the
+		// pinned-channel JSON are identical in every translation.
+		"Pin a tool to a specific version": {
+			"gup pin golangci-lint v1.62.0", // pin example command
+			"gup unpin golangci-lint",       // unpin example command
+			"\"channel\": \"pinned\"",       // pinned gup.json entry
+		},
 		// Feature comparison: the migrate --force row is unique to this table, and
 		// the benchmark result (folded into this section) carries the competitor
 		// link and the measurement-environment note.
