@@ -210,7 +210,7 @@ $ gup check --json
 ]
 ```
 
-每个元素都有以下字段：`name`、`import_path`、`module_path`、`channel`（`latest`/`main`/`master`）、`current_version`、`latest_version`（`list` 时为空）、`current_go_version`、`installed_go_version`、`status`，、`error`（不存在时省略），以及 `hint`（后续步骤建议，仅当某条建议适用于该错误时才出现）。`status` 可以是 `installed`（list）、`up-to-date`、`update-available`（check）、`updated`（update）或 `error`。
+每个元素都有以下字段：`name`、`import_path`、`module_path`、`channel`（`latest`/`main`/`master`）、`current_version`、`latest_version`（`list` 时为空）、`current_go_version`、`installed_go_version`、`status`、`error`（不存在时省略），以及 `hint`（后续步骤建议，仅当某条建议适用于该错误时才出现）。`status` 可以是 `installed`（list）、`up-to-date`、`update-available`（check）、`updated`（update）或 `error`。
 
 该数组始终是有效的 JSON，包括部分失败的情况（那些包会得到 `"status": "error"`；错误详情也会写入 STDERR，因此 STDOUT 保持为纯 JSON）。退出码保持不变——`check` 报告 `update-available` 时仍然以 `0` 退出。
 

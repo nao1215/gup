@@ -381,7 +381,7 @@ Medido en AMD Ryzen AI Max+ 395 (32 núcleos) / 64 GB RAM / Ubuntu 26.04 / go 1.
 | Generación/instalación de autocompletado de shell | Sí | No | No |
 | `update` reinstala binarios que están al día | No | Sí | Sí |
 | `migrate --force` reinstala cuando el destino ya existe | Sí | No | Manual |
-| Diagnóstico de fallos / sugerencias del siguiente paso | No | Sí | No |
+| Diagnóstico de fallos / sugerencias del siguiente paso | Sí | Sí | No |
 | Soporte de `NO_COLOR` | Sí | Sí | — |
 
 ## FAQ
