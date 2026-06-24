@@ -10,6 +10,7 @@ import (
 )
 
 func TestParseUpdateFlags_defaults(t *testing.T) {
+	t.Parallel()
 	cmd := newUpdateCmd()
 	if err := cmd.ParseFlags(nil); err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
@@ -40,11 +41,12 @@ func TestParseUpdateFlags_defaults(t *testing.T) {
 }
 
 func TestParseUpdateFlags_values(t *testing.T) {
+	t.Parallel()
 	cmd := newUpdateCmd()
 	args := []string{
-		"--dry-run",
-		"--notify",
-		"--jobs", "3",
+		testFlagDryRun,
+		testFlagNotify,
+		testFlagJobs, "3",
 		"--ignore-go-update",
 		"--json",
 		"--quiet",
@@ -86,8 +88,9 @@ func TestParseUpdateFlags_values(t *testing.T) {
 // TestParseUpdateFlags_clampsJobs verifies a non-positive --jobs value is
 // clamped to 1, matching the pre-refactor behavior in gup().
 func TestParseUpdateFlags_clampsJobs(t *testing.T) {
+	t.Parallel()
 	cmd := newUpdateCmd()
-	if err := cmd.ParseFlags([]string{"--jobs", "0"}); err != nil {
+	if err := cmd.ParseFlags([]string{testFlagJobs, "0"}); err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
 	}
 
@@ -103,12 +106,14 @@ func TestParseUpdateFlags_clampsJobs(t *testing.T) {
 // TestParseUpdateFlags_error verifies that a missing/unregistered flag surfaces
 // as an error instead of panicking, so gup() can handle it once.
 func TestParseUpdateFlags_error(t *testing.T) {
+	t.Parallel()
 	if _, err := parseUpdateFlags(&cobra.Command{}); err == nil {
 		t.Error("parseUpdateFlags() error = nil, want error for command without flags")
 	}
 }
 
 func TestParseCheckFlags_defaults(t *testing.T) {
+	t.Parallel()
 	cmd := newCheckCmd()
 	if err := cmd.ParseFlags(nil); err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
@@ -133,9 +138,10 @@ func TestParseCheckFlags_defaults(t *testing.T) {
 }
 
 func TestParseCheckFlags_values(t *testing.T) {
+	t.Parallel()
 	cmd := newCheckCmd()
 	args := []string{
-		"--jobs", "2",
+		testFlagJobs, "2",
 		"--ignore-go-update",
 		"--json",
 		"--quiet",
@@ -165,8 +171,9 @@ func TestParseCheckFlags_values(t *testing.T) {
 }
 
 func TestParseCheckFlags_clampsJobs(t *testing.T) {
+	t.Parallel()
 	cmd := newCheckCmd()
-	if err := cmd.ParseFlags([]string{"--jobs", "-4"}); err != nil {
+	if err := cmd.ParseFlags([]string{testFlagJobs, "-4"}); err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
 	}
 
@@ -180,6 +187,7 @@ func TestParseCheckFlags_clampsJobs(t *testing.T) {
 }
 
 func TestParseCheckFlags_error(t *testing.T) {
+	t.Parallel()
 	if _, err := parseCheckFlags(&cobra.Command{}); err == nil {
 		t.Error("parseCheckFlags() error = nil, want error for command without flags")
 	}
