@@ -50,6 +50,16 @@ func TestHint(t *testing.T) {
 			wantSub: "local checkout",
 		},
 		{
+			// Verified against real output of:
+			//   go install github.com/wagoodman/dive@v0.9.0
+			name: "go.mod replace directives",
+			err: errors.New(`go: github.com/wagoodman/dive@v0.9.0 (in github.com/wagoodman/dive@v0.9.0):
+	The go.mod file for the module providing named packages contains one or
+	more replace directives. It must not contain directives that would cause
+	it to be interpreted differently than if it were the main module.`),
+			wantSub: "`replace` directives",
+		},
+		{
 			name:    "go toolchain too old",
 			err:     errors.New("can't install x:\ngo: module requires go >= 1.23 (running go 1.21.0)"),
 			wantSub: "newer Go toolchain",

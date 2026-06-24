@@ -222,7 +222,7 @@ go: gup.test/moved/cmd/tool@latest: module gup.test/moved@latest found (v1.1.0),
 gup:HINT : The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.
 ```
 
-Hints cover module renames/major-version moves, binaries not installed via `go install`, missing branch/tag, unresolvable/private/deleted repositories, permission and network errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy).
+Hints cover module renames/major-version moves, relocated commands, `go.mod` `replace` directives, binaries not installed via `go install`, missing branch/tag, unresolvable/private/deleted repositories, permission and network errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy).
 
 ### Behavior on an empty environment
 An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:

@@ -76,7 +76,9 @@ echo "e2e: warming module cache..."
 		gup.test/badmaintool@main \
 		gup.test/badmaintool@master \
 		gup.test/moved/cmd/tool@v1.0.0 \
-		gup.test/moved@v1.1.0; do
+		gup.test/moved@v1.1.0 \
+		gup.test/replaced@v1.0.0 \
+		gup.test/replaced@v1.1.0; do
 		go install "$m" >/dev/null 2>&1 || true
 	done
 )

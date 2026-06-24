@@ -41,6 +41,10 @@ type modVersion struct {
 	// proxy reproduce the real "found (vX), but does not contain package ..."
 	// failure a tool hits after it moves its command (e.g. on a /v2 bump).
 	pkgSubdir string
+	// replace, when true, adds a replace directive to this version's go.mod, so
+	// "go install" of this version fails with the real "go.mod file ... contains
+	// one or more replace directives" error.
+	replace bool
 }
 
 // branchRef maps a VCS ref (branch name) to a concrete version the proxy
@@ -58,6 +62,22 @@ const fixtureTime = "2024-01-01T00:00:00Z"
 
 func goMod(module string) string {
 	return "module " + module + "\n\ngo 1.21\n"
+}
+
+// goModWithReplace returns a go.mod carrying a replace directive, which makes
+// "go install" of the module reject it with the real "contains one or more
+// replace directives" error.
+func goModWithReplace(module string) string {
+	return goMod(module) + "\nreplace gup.test/replaced/dep => gup.test/replaced/dep v1.0.0\n"
+}
+
+// moduleGoMod renders the go.mod for one version, with or without a replace
+// directive.
+func moduleGoMod(v modVersion) string {
+	if v.replace {
+		return goModWithReplace(v.module)
+	}
+	return goMod(v.module)
 }
 
 func okMain(msg string) string {
@@ -100,6 +120,12 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		// the diagnostics e2e for the next-step hint.
 		{module: "gup.test/moved", version: "v1.0.0", mainGo: okMain("moved tool v1.0.0"), pkgSubdir: "cmd/tool"},
 		{module: "gup.test/moved", version: "v1.1.0", mainGo: okMain("moved v1.1.0")},
+		// replaced: installable at v1.0.0, but the newer @latest (v1.1.0) adds a
+		// replace directive to go.mod, so "go install" rejects it with the real
+		// "contains one or more replace directives" error. Drives the diagnostics
+		// e2e for the replace-directive next-step hint.
+		{module: "gup.test/replaced", version: "v1.0.0", mainGo: okMain("replaced v1.0.0")},
+		{module: "gup.test/replaced", version: "v1.1.0", mainGo: okMain("replaced v1.1.0"), replace: true},
 	}
 	branches := []branchRef{
 		{"gup.test/maintool", "main", "v0.0.0-20240101000000-00000000000a"},
@@ -116,6 +142,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		"gup.test/mastertool":  {},
 		"gup.test/badmaintool": {"v1.0.0"},
 		"gup.test/moved":       {"v1.0.0", "v1.1.0"},
+		"gup.test/replaced":    {"v1.0.0", "v1.1.0"},
 	}
 	// @latest version per module. The go client resolves @latest even for a
 	// branch install (deprecation lookup), so branch-only modules point @latest
@@ -127,6 +154,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		"gup.test/mastertool":  "v0.0.0-20240101000000-00000000000b",
 		"gup.test/badmaintool": "v1.0.0",
 		"gup.test/moved":       "v1.1.0",
+		"gup.test/replaced":    "v1.1.0",
 	}
 	return versions, branches, lists, latest
 }
@@ -149,7 +177,7 @@ func writeVersion(dir string, v modVersion) error {
 	if err := writeFile(filepath.Join(vdir, v.version+".info"), infoJSON(v.version)); err != nil {
 		return err
 	}
-	if err := writeFile(filepath.Join(vdir, v.version+".mod"), goMod(v.module)); err != nil {
+	if err := writeFile(filepath.Join(vdir, v.version+".mod"), moduleGoMod(v)); err != nil {
 		return err
 	}
 	zipPath := filepath.Join(vdir, v.version+".zip")
@@ -167,7 +195,7 @@ func writeVersion(dir string, v modVersion) error {
 	if v.pkgSubdir != "" {
 		mainGoPath = v.pkgSubdir + "/main.go"
 	}
-	for name, content := range map[string]string{"go.mod": goMod(v.module), mainGoPath: v.mainGo} {
+	for name, content := range map[string]string{"go.mod": moduleGoMod(v), mainGoPath: v.mainGo} {
 		w, werr := zw.Create(prefix + name)
 		if werr != nil {
 			return werr

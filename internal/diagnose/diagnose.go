@@ -54,7 +54,12 @@ var matchers = []matcher{ //nolint:gochecknoglobals
 		// bump: the tool moved to a /v2+ module path, so the old import path is
 		// gone even though the v0/v1 line still resolves.
 		match: contains("does not contain package", "no required module provides package"),
-		hint:  "The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.",
+		hint:  "The module no longer provides this command at its import path. The project likely relocated the command (a separate repo/module) or bumped to a new major version (e.g. a `/v2` module path); check its current install instructions and reinstall with the new path.",
+	},
+	{
+		// `go install` refuses modules whose go.mod carries replace directives.
+		match: contains("replace directives", "replace directive"),
+		hint:  "This module's go.mod uses `replace` directives, which `go install` cannot build. Ask the maintainer to drop them, or clone the repository and run `go install` inside it (gup will then treat the binary as built-from-source and skip it).",
 	},
 	{
 		match: contains("devel-binary copied from local environment", "command-line-arguments"),

@@ -106,5 +106,18 @@ Describe 'gup update'
       The stderr should include 'gup:'
       The stderr should include 'major version'
     End
+
+    # gup.test/replaced installs cleanly at v1.0.0, but its newer @latest
+    # (v1.1.0) adds a replace directive to go.mod, so the real go toolchain
+    # refuses it with "contains one or more replace directives" — the one
+    # diagnostic class go-global-update documented (E004) that gup lacked.
+    It 'prints a next-step hint when the module uses replace directives'
+      install_fixture gup.test/replaced@v1.0.0
+      When call gup update replaced
+      The status should be failure
+      The output should include 'update binary under'
+      The stderr should include 'replace directive'
+      The stderr should include 'go install'
+    End
   End
 End
