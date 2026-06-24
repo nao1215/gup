@@ -97,6 +97,68 @@ using the current installed Go toolchain.`,
 	return cmd
 }
 
+// updateOpts holds the parsed command-line flags for the update command.
+type updateOpts struct {
+	dryRun         bool
+	notify         bool
+	cpus           int // already clamped to >= 1
+	ignoreGoUpdate bool
+	jsonOut        bool
+	quiet          bool
+	timeout        time.Duration
+	excludePkgList []string
+	mainPkgNames   []string
+	masterPkgNames []string
+	latestPkgNames []string
+	confFile       string
+}
+
+// parseUpdateFlags reads every flag of the update command in one place so gup()
+// handles a flag error exactly once. The returned cpus value is already clamped.
+func parseUpdateFlags(cmd *cobra.Command) (updateOpts, error) {
+	var opts updateOpts
+	var err error
+
+	if opts.dryRun, err = getFlagBool(cmd, "dry-run"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.notify, err = getFlagBool(cmd, "notify"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.cpus, err = getFlagInt(cmd, "jobs"); err != nil {
+		return updateOpts{}, err
+	}
+	opts.cpus = clampJobs(opts.cpus)
+	if opts.ignoreGoUpdate, err = getFlagBool(cmd, "ignore-go-update"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.jsonOut, err = getFlagBool(cmd, "json"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.quiet, err = getFlagBool(cmd, "quiet"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.timeout, err = getTimeoutFlag(cmd); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.excludePkgList, err = getFlagStringSlice(cmd, "exclude"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.mainPkgNames, err = getFlagStringSlice(cmd, "main"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.masterPkgNames, err = getFlagStringSlice(cmd, "master"); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.latestPkgNames, err = getFlagStringSlice(cmd, latestKeyword); err != nil {
+		return updateOpts{}, err
+	}
+	if opts.confFile, err = getFlagString(cmd, "file"); err != nil {
+		return updateOpts{}, err
+	}
+	return opts, nil
+}
+
 // gup is main sequence.
 // All errors are handled in this function.
 func gup(cmd *cobra.Command, args []string) int {
@@ -105,44 +167,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	dryRun, err := getFlagBool(cmd, "dry-run")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	notify, err := getFlagBool(cmd, "notify")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	cpus, err := getFlagInt(cmd, "jobs")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-	cpus = clampJobs(cpus)
-
-	ignoreGoUpdate, err := getFlagBool(cmd, "ignore-go-update")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	jsonOut, err := getFlagBool(cmd, "json")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	quiet, err := getFlagBool(cmd, "quiet")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	timeout, err := getTimeoutFlag(cmd)
+	opts, err := parseUpdateFlags(cmd)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -156,64 +181,36 @@ func gup(cmd *cobra.Command, args []string) int {
 	// When the installed Go version can't be detected, behave as
 	// --ignore-go-update so a transient "go version" failure does not force
 	// every binary to reinstall (see issue #296).
-	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
-
-	excludePkgList, err := getFlagStringSlice(cmd, "exclude")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	mainPkgNames, err := getFlagStringSlice(cmd, "main")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-	masterPkgNames, err := getFlagStringSlice(cmd, "master")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-	latestPkgNames, err := getFlagStringSlice(cmd, latestKeyword)
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	confFile, err := getFlagString(cmd, "file")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
+	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
 
 	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
 	// In JSON mode the human-readable "Exclude ..." notice is suppressed so
 	// STDOUT stays valid JSON (the notice goes to STDOUT via print.Info, which
 	// would otherwise break machine-readable output; see issue #291).
 	excludeNotify := func(string) {}
-	if !jsonOut {
+	if !opts.jsonOut {
 		excludeNotify = func(msg string) { print.Info(msg) }
 	}
-	pkgs = pkgselect.Exclude(pkgs, excludePkgList, excludeNotify)
+	pkgs = pkgselect.Exclude(pkgs, opts.excludePkgList, excludeNotify)
 
 	if len(pkgs) == 0 {
 		// With explicit targets or --exclude, an empty result means the user
 		// narrowed everything out: that is a usage error.
-		if len(args) != 0 || len(excludePkgList) != 0 {
+		if len(args) != 0 || len(opts.excludePkgList) != 0 {
 			print.Err("unable to update package: no package information or no package under $GOBIN")
 			return 1
 		}
 		// An explicitly named --file must be validated even when no binaries are
 		// installed: honoring explicit user input must not depend on unrelated
 		// environment state (#368).
-		if err := configstate.ValidateExplicitFile(confFile); err != nil {
+		if err := configstate.ValidateExplicitFile(opts.confFile); err != nil {
 			print.Err(err)
 			return 1
 		}
 		// Otherwise the environment simply has no manageable binaries yet, which
 		// is a normal first-run condition, not an error (#350): emit an empty
 		// JSON array or an informational note and exit 0.
-		if jsonOut {
+		if opts.jsonOut {
 			if err := encodeJSONPackages(nil); err != nil {
 				print.Err(err)
 				return 1
@@ -227,12 +224,12 @@ func gup(cmd *cobra.Command, args []string) int {
 	// When both the user-level config and ./gup.json exist and no --file is
 	// given, fail fast instead of silently choosing one (#342), consistent with
 	// import and check.
-	confReadPath, err := config.ResolveImportFilePath(confFile)
+	confReadPath, err := config.ResolveImportFilePath(opts.confFile)
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
-	confWritePath := configstate.ResolveWritePath(confFile, confReadPath)
+	confWritePath := configstate.ResolveWritePath(opts.confFile, confReadPath)
 
 	// A malformed or unreadable config must fail fast instead of silently
 	// falling back to @latest, which would update from the wrong channel and
@@ -246,16 +243,16 @@ func gup(cmd *cobra.Command, args []string) int {
 	// missingTargets were already reported as "not found ... in $GOBIN" above;
 	// pass them so ResolveChannels does not emit a second, redundant notice for a
 	// name listed both as a positional target and in --main/--master/--latest.
-	channelMap, err := configstate.ResolveChannels(pkgs, confPkgs, mainPkgNames, masterPkgNames, latestPkgNames,
+	channelMap, err := configstate.ResolveChannels(pkgs, confPkgs, opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames,
 		missingTargets, func(msg string) { print.Warn(msg) })
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, dryRun, notify, cpus, ignoreGoUpdate, channelMap, timeout, jsonOut, quiet)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, opts.timeout, opts.jsonOut, opts.quiet)
 
-	if !dryRun && (configstate.ShouldPersistChannels(mainPkgNames, masterPkgNames, latestPkgNames) || len(renamedPkgs) > 0) {
+	if !opts.dryRun && (configstate.ShouldPersistChannels(opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
 		if err := writeConfigFile(confWritePath, merged); err != nil {
 			print.Warn("failed to write " + confWritePath + ": " + err.Error())
