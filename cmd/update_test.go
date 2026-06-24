@@ -800,43 +800,6 @@ func Test_installWithSelectedVersion_contextCanceled(t *testing.T) {
 	}
 }
 
-func Test_latestVerCache_get_contextCanceled(t *testing.T) {
-	origGetLatestVerCtx := getLatestVerCtx
-	defer func() {
-		getLatestVerCtx = origGetLatestVerCtx
-	}()
-
-	callCount := 0
-	getLatestVerCtx = func(ctx context.Context, _ string) (string, error) {
-		callCount++
-		if callCount == 1 {
-			<-ctx.Done()
-			return "", fmt.Errorf("get latest ver: %w", ctx.Err())
-		}
-		return testVersionNine, nil
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	cache := newLatestVerCache()
-	_, err := cache.getByChannel(ctx, "example.com/tool", goutil.UpdateChannelLatest)
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("latestVerCache.get() error = %v, want %v", err, context.Canceled)
-	}
-
-	got, err := cache.getByChannel(context.Background(), "example.com/tool", goutil.UpdateChannelLatest)
-	if err != nil {
-		t.Fatalf("latestVerCache.get() second call error = %v, want nil", err)
-	}
-	if got != testVersionNine {
-		t.Fatalf("latestVerCache.get() second call version = %q, want %q", got, testVersionNine)
-	}
-	if callCount != 2 {
-		t.Fatalf("getLatestVerCtx call count = %d, want 2", callCount)
-	}
-}
-
 func Test_binaryNameFromImportPath(t *testing.T) {
 	t.Setenv("GOEXE", "")
 

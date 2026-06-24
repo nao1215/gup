@@ -16,6 +16,7 @@ import (
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/nao1215/gup/internal/vercache"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,21 @@ var (
 )
 
 const latestKeyword = "latest"
+
+// newVerCache builds the per-(module,channel) version cache used by update and
+// check, wiring the package-level lookup seams into vercache's channel policy.
+// The seams are read at call time (via closures) so tests that swap them before
+// invoking a command still take effect.
+func newVerCache() *vercache.Cache {
+	return vercache.New(vercache.ChannelResolver(
+		func(ctx context.Context, modulePath string) (string, error) {
+			return getLatestVerCtx(ctx, modulePath)
+		},
+		func(ctx context.Context, modulePath, ref string) (string, error) {
+			return getVerByRefCtx(ctx, modulePath, ref)
+		},
+	))
+}
 
 func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -260,7 +276,7 @@ type updateResult struct {
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
-	verCache := newLatestVerCache()
+	verCache := newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("update binary under $GOPATH/bin or $GOBIN")
@@ -295,7 +311,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		shouldUpdate := true
 		modulePathChanged := false
 		if p.ModulePath != "" {
-			ver, err := verCache.getByChannel(ctx, p.ModulePath, channel)
+			ver, err := verCache.Get(ctx, p.ModulePath, channel)
 			if err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
@@ -308,7 +324,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 				modulePathChanged = true
 				p = newPkg
 
-				ver, err = verCache.getByChannel(ctx, p.ModulePath, channel)
+				ver, err = verCache.Get(ctx, p.ModulePath, channel)
 				if err != nil {
 					return updateResult{
 						updated: false,

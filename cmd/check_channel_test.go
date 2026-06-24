@@ -4,7 +4,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,10 +20,9 @@ const (
 	testBinMainTool   = "maintool"
 	testBinMasterTool = "mastertool"
 	testBinLatestTool = "latesttool"
-	testVerMaster     = "v0.0.0-master"
 
-	// refMain and refMaster are the go toolchain version selectors
-	// fetchVerForChannel passes to "go list" for the @main and @master channels.
+	// refMain and refMaster are the go toolchain version selectors that the
+	// version lookups receive for the @main and @master channels.
 	refMain   = string(goutil.UpdateChannelMain)
 	refMaster = string(goutil.UpdateChannelMaster)
 )
@@ -67,104 +65,6 @@ func captureCheckOutput(t *testing.T, fn func() int) string {
 	}
 	_ = pr.Close()
 	return buf.String()
-}
-
-func Test_fetchVerForChannel(t *testing.T) {
-	origLatest := getLatestVerCtx
-	origRef := getVerByRefCtx
-	t.Cleanup(func() {
-		getLatestVerCtx = origLatest
-		getVerByRefCtx = origRef
-	})
-
-	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
-		return "v1.0.0-latest", nil
-	}
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
-		switch ref {
-		case refMain:
-			return "", errors.New("unknown revision main")
-		case refMaster:
-			return testVerMaster, nil
-		default:
-			return "", fmt.Errorf("unexpected ref %q", ref)
-		}
-	}
-
-	tests := []struct {
-		name    string
-		channel goutil.UpdateChannel
-		want    string
-	}{
-		{"latest channel uses go list @latest", goutil.UpdateChannelLatest, "v1.0.0-latest"},
-		{"master channel uses go list @master", goutil.UpdateChannelMaster, testVerMaster},
-		{"main channel falls back to @master when @main is missing", goutil.UpdateChannelMain, testVerMaster},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchVerForChannel(context.Background(), "example.com/mod", tt.channel)
-			if err != nil {
-				t.Fatalf("fetchVerForChannel() error = %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("fetchVerForChannel() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_fetchVerForChannel_mainNoFallbackOnContextError(t *testing.T) {
-	origRef := getVerByRefCtx
-	t.Cleanup(func() { getVerByRefCtx = origRef })
-
-	var refCalls []string
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
-		refCalls = append(refCalls, ref)
-		return "", context.Canceled
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	if _, err := fetchVerForChannel(ctx, "example.com/mod", goutil.UpdateChannelMain); err == nil {
-		t.Fatal("fetchVerForChannel() should return error on context cancellation")
-	}
-	if len(refCalls) != 1 || refCalls[0] != refMain {
-		t.Fatalf("expected only the @main attempt on context cancellation, got %v", refCalls)
-	}
-}
-
-// Test_fetchVerForChannel_mainNoFallbackOnGenericError verifies the #340
-// contract for the version-resolution path: when @main fails for a reason other
-// than a missing branch, fetchVerForChannel must surface that error and must NOT
-// fall back to @master (which would resolve a wrong-branch version).
-func Test_fetchVerForChannel_mainNoFallbackOnGenericError(t *testing.T) {
-	origRef := getVerByRefCtx
-	t.Cleanup(func() { getVerByRefCtx = origRef })
-
-	var refCalls []string
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
-		refCalls = append(refCalls, ref)
-		switch ref {
-		case refMain:
-			return "", errors.New("build failed: some compile error")
-		case refMaster:
-			return testVerMaster, nil
-		default:
-			return "", fmt.Errorf("unexpected ref %q", ref)
-		}
-	}
-
-	_, err := fetchVerForChannel(context.Background(), "example.com/mod", goutil.UpdateChannelMain)
-	if err == nil {
-		t.Fatal("fetchVerForChannel() must not fall back to @master on a non-branch @main failure")
-	}
-	if !strings.Contains(err.Error(), "build failed") {
-		t.Fatalf("fetchVerForChannel() should surface the @main error, got: %v", err)
-	}
-	if len(refCalls) != 1 || refCalls[0] != refMain {
-		t.Fatalf("expected only the @main attempt on a non-branch failure, got %v", refCalls)
-	}
 }
 
 func Test_doCheck_respectsSavedChannels(t *testing.T) {
