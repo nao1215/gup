@@ -13,11 +13,7 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates binaries installed with `go install`, running the updates in parallel instead of one at a time.
-
-gup also manages the tools under `$GOPATH/bin` (`$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tool set on another machine, and `migrate` them into a different `$GOBIN`. Runs on Windows, macOS, and Linux.
-
-If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
+gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again; gup brings the whole set up to date in parallel. It also adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 ## Supported OS (unit testing with GitHub Actions)
 
@@ -33,6 +29,7 @@ If you do not have the Go development environment installed on your system, plea
 ```
 go install github.com/nao1215/gup@latest
 ```
+Building from source needs Go 1.25 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
 
 ### Use homebrew
 ```shell
@@ -60,9 +57,9 @@ nix profile install nixpkgs#gogup
 ## Verifying release integrity
 Every release ships supply-chain metadata so you can verify what you download:
 
-- **Signed checksums** — `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
-- **SBOM** — an SPDX Software Bill of Materials is attached to each release archive.
-- **Build provenance** — SLSA build provenance is attested via GitHub OIDC.
+- Signed checksums: `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
+- SBOM: an SPDX Software Bill of Materials is attached to each release archive.
+- Build provenance: SLSA build provenance is attested via GitHub OIDC.
 
 Verify the signed checksums (then check your archive against `checksums.txt`):
 
@@ -263,7 +260,7 @@ By default:
   1) `$XDG_CONFIG_HOME/gup/gup.json` (if exists)
   2) `./gup.json` (if exists)
 
-If **both** the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
+If both the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
 
 A malformed `gup.json` (invalid JSON or an unsupported `schema_version`) is also treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed.
 
@@ -293,18 +290,11 @@ $ gup import --file=gup.json
 gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
 ```
 
-`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`,
-using the exact `import path@version` recorded in each binary's build info
-(it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to
-`AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt
-with the Go toolchain currently in use.
+`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`, using the exact `import path@version` recorded in each binary's build info (it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to `AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt with the Go toolchain currently in use.
 
 #### Why this is useful (e.g. with `mise`)
 
-When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change
-the real path of `$GOBIN` per Go version. As a result, tools you installed
-under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate`
-lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
+When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change the real path of `$GOBIN` per Go version. As a result, tools you installed under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate` lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
 
 ```shell
 # Reinstall every go-install tool from the old GOBIN into the new GOBIN
@@ -317,23 +307,16 @@ $ gup migrate /old/gobin /new/gobin gopls air
 `migrate` is add-only:
 
 - It never deletes or cleans up files in `AFTER_PATH`.
-- Binaries that already exist in `AFTER_PATH` are skipped by default. Use
-  `--force` to reinstall over them.
+- Binaries that already exist in `AFTER_PATH` are skipped by default. Use `--force` to reinstall over them.
 - `AFTER_PATH` is created automatically when it does not exist.
 - `BEFORE_PATH` and `AFTER_PATH` must be different directories.
 
-Binaries whose import path or version cannot be resolved, and development
-builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local
-or non-reproducible builds are never broken.
+Binaries whose import path or version cannot be resolved, and development builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local or non-reproducible builds are never broken.
 
-Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
-`--force`.
+Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`), `--force`.
 
 ### Generate man-pages (for linux, mac)
-man subcommand generates man-pages under /usr/share/man/man1 by default. If
-`MANPATH` is set, gup writes to the `man1` directory under each entry instead,
-creating it when it does not exist yet. An unwritable target exits with a clear
-error.
+man subcommand generates man-pages under /usr/share/man/man1 by default. If `MANPATH` is set, gup writes to the `man1` directory under each entry instead, creating it when it does not exist yet. An unwritable target exits with a clear error.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -365,14 +348,7 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-`--install` writes to the paths that match your shell/config layout: bash honors
-`XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors
-`XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the
-completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still
-requires `HOME` to be set; it fails fast (without writing files into the current
-directory) when `HOME` is empty, and exits non-zero if any completion file
-cannot be written. Re-running `--install` is idempotent and does not duplicate
-the zsh init snippet in `.zshrc`.
+`--install` writes to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written. Re-running `--install` is idempotent and does not duplicate the zsh init snippet in `.zshrc`.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
@@ -389,6 +365,9 @@ $ gup update --no-color
 $ NO_COLOR=1 gup update
 ```
 
+
+## gup vs. `go tool`
+Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
 
 ## Benchmark
 gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
@@ -415,7 +394,14 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
-| No extra tool required (official toolchain only) | No | No | Yes |
+
+## FAQ
+
+### `gup` fails with `fatal: not a git repository`
+You are probably on oh-my-zsh, which ships a `gup` alias for `git pull --rebase` that shadows this command ([#16](https://github.com/nao1215/gup/issues/16), [#204](https://github.com/nao1215/gup/issues/204)). Remove or rename that alias, or run gup with a leading backslash to bypass it:
+```shell
+$ \gup update
+```
 
 ## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
