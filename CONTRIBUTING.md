@@ -68,6 +68,13 @@ When you change `README.md`:
   that every translated README keeps the sync banner and a link back to English.
 - Run `make test` so `doc_sync_test.go` runs before you open the PR.
 
+## Releasing
+Maintainers cut releases by pushing a `v*` tag. The process is documented in
+[doc/RELEASE.md](./doc/RELEASE.md).
+
+## Need help?
+See [SUPPORT.md](./.github/SUPPORT.md) for where to ask questions and report problems.
+
 ## Contributing Outside of Coding
 You can still make a huge impact even if you are not writing code:
 
