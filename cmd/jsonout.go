@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 
+	"github.com/nao1215/gup/internal/diagnose"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
 )
@@ -35,6 +36,7 @@ type jsonPackage struct {
 	InstalledGoVersion string `json:"installed_go_version"`
 	Status             string `json:"status"`
 	Error              string `json:"error,omitempty"`
+	Hint               string `json:"hint,omitempty"`
 }
 
 // newJSONPackage builds a jsonPackage from package information, the resolved
@@ -59,6 +61,7 @@ func newJSONPackage(p goutil.Package, status string, err error) jsonPackage {
 	if err != nil {
 		rec.Status = statusError
 		rec.Error = err.Error()
+		rec.Hint = diagnose.Hint(err)
 	}
 	return rec
 }

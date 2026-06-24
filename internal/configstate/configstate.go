@@ -204,12 +204,18 @@ func ApplySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
 // A binary named in two conflicting channel flags is an error. A flag naming a
 // binary that is not an update target is reported through warn (a non-fatal
 // notice) and otherwise ignored. warn may be nil.
+//
+// reportedMissing holds target names the caller has already reported as
+// "not found" (e.g. missing positional targets). A flag naming one of those is
+// silently skipped instead of triggering a second, redundant notice for the
+// same name.
 func ResolveChannels(
 	pkgs []goutil.Package,
 	confPkgs []goutil.Package,
 	mainPkgNames []string,
 	masterPkgNames []string,
 	latestPkgNames []string,
+	reportedMissing []string,
 	warn func(string),
 ) (map[string]goutil.UpdateChannel, error) {
 	saved := indexSavedChannels(confPkgs)
@@ -222,6 +228,13 @@ func ResolveChannels(
 		}
 		channelMap[p.Name] = channel
 		normalizedToActual[binname.NormalizeForMatch(p.Name)] = p.Name
+	}
+
+	alreadyReported := make(map[string]struct{}, len(reportedMissing))
+	for _, name := range reportedMissing {
+		if normalized := binname.NormalizeForMatch(name); normalized != "" {
+			alreadyReported[normalized] = struct{}{}
+		}
 	}
 
 	assignedByFlag := map[string]string{}
@@ -239,7 +252,7 @@ func ResolveChannels(
 
 			actual, ok := normalizedToActual[normalized]
 			if !ok {
-				if warn != nil {
+				if _, reported := alreadyReported[normalized]; !reported && warn != nil {
 					warn("not found '" + name + "' package in update target")
 				}
 				continue

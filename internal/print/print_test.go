@@ -167,6 +167,55 @@ func TestErr(t *testing.T) {
 		})
 	}
 }
+func TestHint(t *testing.T) {
+	type args struct {
+		msg string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: testPrintMessage,
+			args: args{
+				msg: testMessage,
+			},
+			want: []string{"gup:HINT : test message", ""},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orgStdout := Stdout
+			orgStderr := Stderr
+			pr, pw, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			Stdout = pw
+			Stderr = pw
+
+			Hint(tt.args.msg)
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
+			Stdout = orgStdout
+			Stderr = orgStderr
+
+			buf := bytes.Buffer{}
+			_, err = io.Copy(&buf, pr)
+			if err != nil {
+				t.Error(err)
+			}
+			got := strings.Split(buf.String(), "\n")
+
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestFatal(t *testing.T) {
 	type args struct {
 		msg string

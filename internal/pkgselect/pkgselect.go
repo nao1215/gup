@@ -49,18 +49,25 @@ func PackageInfo() ([]goutil.Package, error) {
 }
 
 // PackageInfoByTargets returns package information for the installed binaries
-// matching targets (all binaries when targets is empty) together with a bool
-// reporting whether the installed Go version was detected. When the bool is
-// false, callers must disable Go-version comparison (see issue #296).
-func PackageInfoByTargets(targets []string) ([]goutil.Package, bool, error) {
+// matching targets (all binaries when targets is empty), the targets that match
+// no installed binary (for "not found" reporting), and a bool reporting whether
+// the installed Go version was detected. When the bool is false, callers must
+// disable Go-version comparison (see issue #296).
+//
+// "missing" is derived from the binary paths, not from the resolved packages, so
+// a binary that exists in $GOBIN but whose build info can't be read (or that was
+// not installed by 'go install') is never mislabeled as "not found"; it is
+// present but unmanageable, and GetPackageInformation already warns about it.
+func PackageInfoByTargets(targets []string) (pkgs []goutil.Package, missing []string, goVersionAvailable bool, err error) {
 	binList, err := BinaryPaths()
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
+		return nil, nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
 	filtered := FilterBinaryPaths(binList, targets)
-	pkgs, goVersionAvailable := goutil.GetPackageInformation(filtered)
-	return pkgs, goVersionAvailable, nil
+	pkgs, goVersionAvailable = goutil.GetPackageInformation(filtered)
+	missing = MissingTargets(binList, targets)
+	return pkgs, missing, goVersionAvailable, nil
 }
 
 // FilterBinaryPaths returns the subset of binList whose base name matches one of
@@ -95,44 +102,51 @@ func FilterBinaryPaths(binList, targets []string) []string {
 	return filtered
 }
 
-// ExtractByTargets returns the packages whose names match targets, preserving
-// the order of pkgs. When targets is empty pkgs is returned unchanged. For each
-// target that matches no package, warn is called exactly once (duplicate targets
-// are collapsed).
-func ExtractByTargets(pkgs []goutil.Package, targets []string, warn func(string)) []goutil.Package {
-	result := []goutil.Package{}
+// MissingTargets returns the user-specified targets that match no installed
+// binary in binList, preserving first-seen order and collapsing duplicate
+// targets. The returned names are the trimmed originals, suitable for display.
+//
+// A target is "missing" only when no binary in $GOBIN shares its name. A binary
+// that exists but never becomes a Package (build info unreadable, or not
+// installed by 'go install') is NOT reported here: it is present, just
+// unmanageable. Matching the resolved packages instead would mislabel such a
+// binary as "not found", which is the wrong next step for the user.
+func MissingTargets(binList, targets []string) []string {
 	if len(targets) == 0 {
-		return pkgs
+		return nil
 	}
 
-	targetSet := make(map[string]string, len(targets)) // normalized target -> original (first seen)
-	targetOrder := make([]string, 0, len(targets))
+	present := make(map[string]struct{}, len(binList))
+	for _, path := range binList {
+		present[binname.NormalizeForMatch(filepath.Base(path))] = struct{}{}
+	}
+
+	var missing []string
+	seen := make(map[string]struct{}, len(targets))
 	for _, rawTarget := range targets {
-		target := binname.NormalizeForMatch(rawTarget)
-		if target == "" {
+		normalized := binname.NormalizeForMatch(rawTarget)
+		if normalized == "" {
 			continue
 		}
-		if _, exists := targetSet[target]; !exists {
-			targetSet[target] = strings.TrimSpace(rawTarget)
-			targetOrder = append(targetOrder, target)
+		if _, dup := seen[normalized]; dup {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		if _, ok := present[normalized]; !ok {
+			missing = append(missing, strings.TrimSpace(rawTarget))
 		}
 	}
+	return missing
+}
 
-	matched := make(map[string]struct{}, len(targetSet))
-	for _, v := range pkgs {
-		pkg := binname.NormalizeForMatch(v.Name)
-		if _, ok := targetSet[pkg]; ok {
-			result = append(result, v)
-			matched[pkg] = struct{}{}
-		}
+// WarnMissing reports each missing target name (as returned by MissingTargets)
+// through warn, using the standard "not found ... in $GOBIN" wording. warn is
+// called once per name; centralizing the message keeps update and check
+// consistent.
+func WarnMissing(missing []string, warn func(string)) {
+	for _, name := range missing {
+		warn("not found '" + name + "' package in $GOPATH/bin or $GOBIN")
 	}
-
-	for _, target := range targetOrder {
-		if _, ok := matched[target]; !ok {
-			warn("not found '" + targetSet[target] + "' package in $GOPATH/bin or $GOBIN")
-		}
-	}
-	return result
 }
 
 // Exclude returns pkgs with the binaries named in excludeList removed. For each

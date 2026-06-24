@@ -78,53 +78,68 @@ func TestFilterBinaryPaths_windowsExe(t *testing.T) {
 	}
 }
 
-func TestExtractByTargets(t *testing.T) {
+func TestMissingTargets(t *testing.T) {
 	t.Parallel()
 
-	pkgs := []goutil.Package{
-		{Name: "test1"},
-		{Name: nameTest2},
-		{Name: "test3"},
+	binList := []string{
+		filepath.Join("bin", "test1"),
+		filepath.Join("bin", nameTest2),
+		filepath.Join("bin", "test3"),
 	}
 
-	t.Run("returns the matching package", func(t *testing.T) {
+	t.Run("returns nothing when every target matches a binary", func(t *testing.T) {
 		t.Parallel()
-		got := ExtractByTargets(pkgs, []string{nameTest2}, func(string) {})
-		want := []goutil.Package{{Name: nameTest2}}
+		if got := MissingTargets(binList, []string{nameTest2, "test1"}); len(got) != 0 {
+			t.Fatalf("MissingTargets() = %v, want none", got)
+		}
+	})
+
+	t.Run("returns targets that match no binary, in order", func(t *testing.T) {
+		t.Parallel()
+		got := MissingTargets(binList, []string{"test4", nameTest2, "test5"})
+		want := []string{"test4", "test5"}
 		if diff := cmp.Diff(want, got); diff != "" {
 			t.Fatalf("value is mismatch (-want +got):\n%s", diff)
 		}
 	})
 
-	t.Run("returns an empty slice when nothing matches", func(t *testing.T) {
+	t.Run("returns nothing when no targets are given", func(t *testing.T) {
 		t.Parallel()
-		got := ExtractByTargets(pkgs, []string{"test4"}, func(string) {})
-		if diff := cmp.Diff([]goutil.Package{}, got); diff != "" {
-			t.Fatalf("value is mismatch (-want +got):\n%s", diff)
+		if got := MissingTargets(binList, nil); got != nil {
+			t.Fatalf("MissingTargets() = %v, want nil", got)
 		}
 	})
 
-	t.Run("returns the input unchanged when no targets are given", func(t *testing.T) {
+	// A binary present in $GOBIN but absent from the resolved packages (e.g. its
+	// build info can't be read, or it was not installed by 'go install') must NOT
+	// be reported as missing: it is present, just unmanageable. MissingTargets
+	// keys off the binary paths, so naming such a binary yields no "not found"
+	// entry even though GetPackageInformation would drop it.
+	t.Run("present-but-unmanageable binary is not reported missing", func(t *testing.T) {
 		t.Parallel()
-		got := ExtractByTargets(pkgs, nil, func(string) {})
-		if diff := cmp.Diff(pkgs, got); diff != "" {
-			t.Fatalf("value is mismatch (-want +got):\n%s", diff)
+		bins := []string{filepath.Join("bin", "broken")}
+		if got := MissingTargets(bins, []string{"broken"}); len(got) != 0 {
+			t.Fatalf("MissingTargets() = %v, want none (binary exists on disk)", got)
 		}
 	})
 }
 
-func TestExtractByTargets_warnsOncePerMissingTarget(t *testing.T) {
+func TestMissingTargets_dedupAndTrim(t *testing.T) {
 	t.Parallel()
 
-	pkgs := []goutil.Package{{Name: "present"}}
+	binList := []string{filepath.Join("bin", "present")}
+	got := MissingTargets(binList, []string{" " + nameMissing, nameMissing})
+	want := []string{nameMissing}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("value is mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestWarnMissing(t *testing.T) {
+	t.Parallel()
 
 	var warnings []string
-	got := ExtractByTargets(pkgs, []string{nameMissing, nameMissing}, func(msg string) {
-		warnings = append(warnings, msg)
-	})
-	if len(got) != 0 {
-		t.Fatalf("ExtractByTargets() should return no packages, got: %+v", got)
-	}
+	WarnMissing([]string{nameMissing}, func(msg string) { warnings = append(warnings, msg) })
 
 	want := []string{"not found '" + nameMissing + "' package in $GOPATH/bin or $GOBIN"}
 	if diff := cmp.Diff(want, warnings); diff != "" {
@@ -132,18 +147,20 @@ func TestExtractByTargets_warnsOncePerMissingTarget(t *testing.T) {
 	}
 }
 
-func TestExtractByTargets_windowsCaseInsensitive(t *testing.T) {
+func TestMissingTargets_windowsCaseInsensitive(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != goosWindows {
 		t.Skip("windows only")
 	}
 
-	pkgs := []goutil.Package{
-		{Name: "gopls.exe"},
-		{Name: "dlv.exe"},
+	binList := []string{
+		filepath.Join("bin", "gopls.exe"),
+		filepath.Join("bin", "dlv.exe"),
 	}
-	got := ExtractByTargets(pkgs, []string{"GOPLS"}, func(string) {})
-	want := []goutil.Package{{Name: "gopls.exe"}}
+	// "GOPLS" matches "gopls.exe" case-insensitively (so it is not missing),
+	// while "MISSING" matches nothing.
+	got := MissingTargets(binList, []string{"GOPLS", "MISSING"})
+	want := []string{"MISSING"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("value is mismatch (-want +got):\n%s", diff)
 	}
@@ -246,7 +263,7 @@ func TestBinaryPaths(t *testing.T) {
 func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_success"))
 
-	pkgs, _, err := PackageInfoByTargets([]string{"gal"})
+	pkgs, missing, _, err := PackageInfoByTargets([]string{"gal"})
 	if err != nil {
 		t.Fatalf("PackageInfoByTargets() error = %v", err)
 	}
@@ -255,5 +272,27 @@ func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 	}
 	if pkgs[0].Name != "gal" {
 		t.Fatalf("PackageInfoByTargets() name = %q, want gal", pkgs[0].Name)
+	}
+	if len(missing) != 0 {
+		t.Fatalf("PackageInfoByTargets() missing = %v, want none", missing)
+	}
+}
+
+// A target that names a binary present on disk but whose build info can't be
+// read must not be reported as missing (it exists, just can't be managed). This
+// is the regression for the "not found" mislabeling: check_fail/dummy is a
+// non-Go file, so GetPackageInformation drops it, yet it is present.
+func TestPackageInfoByTargets_presentButUnreadableIsNotMissing(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_fail"))
+
+	pkgs, missing, _, err := PackageInfoByTargets([]string{"dummy"})
+	if err != nil {
+		t.Fatalf("PackageInfoByTargets() error = %v", err)
+	}
+	if len(pkgs) != 0 {
+		t.Fatalf("PackageInfoByTargets() returned %d packages, want 0: %+v", len(pkgs), pkgs)
+	}
+	if len(missing) != 0 {
+		t.Fatalf("PackageInfoByTargets() missing = %v, want none (dummy exists on disk)", missing)
 	}
 }

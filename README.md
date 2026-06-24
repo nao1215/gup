@@ -208,9 +208,21 @@ $ gup check --json
 ]
 ```
 
-Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, and `error` (omitted when absent). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
+Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, `error` (omitted when absent), and `hint` (a next-step suggestion, present only when one applies to the error). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
 
 The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
+
+### Failure diagnostics / next-step hints
+When `update` or `check` fails, gup turns the Go toolchain's cryptic output into a short, actionable next step printed on STDERR right after the error (and exposed as the `hint` field with `--json`):
+
+```shell
+$ gup update
+gup:ERROR: [1/1] tool: can't install gup.test/moved/cmd/tool:
+go: gup.test/moved/cmd/tool@latest: module gup.test/moved@latest found (v1.1.0), but does not contain package gup.test/moved/cmd/tool
+gup:HINT : The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.
+```
+
+Hints cover module renames/major-version moves, relocated commands, `go.mod` `replace` directives, binaries not installed via `go install`, missing branch/tag, unresolvable/private/deleted repositories, permission and network errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy).
 
 ### Behavior on an empty environment
 An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:
@@ -401,7 +413,7 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | Shell completion generation/install | Yes | No | No |
 | `update` reinstalls up-to-date binaries | No | Yes | Yes |
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
-| Failure diagnostics / next-step hints | No | Yes | No |
+| Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
 | No extra tool required (official toolchain only) | No | No | Yes |
 

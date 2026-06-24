@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/nao1215/gup/internal/diagnose"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/parallel"
 	"github.com/nao1215/gup/internal/print"
@@ -77,6 +78,9 @@ func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
 			if v.err != nil {
 				exitCode = 1
 				print.Err(fmt.Errorf("%s %s", prefix, v.err.Error()))
+				if hint := diagnose.Hint(v.err); hint != "" {
+					print.Hint(hint)
+				}
 			} else if onResult != nil {
 				onResult(prefix, v)
 			}
