@@ -7,6 +7,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +39,7 @@ func list(cmd *cobra.Command, _ []string) int {
 		return 1
 	}
 
-	pkgs, err := getPackageInfo()
+	pkgs, err := pkgselect.PackageInfo()
 	if err != nil {
 		print.Err(err)
 		return 1

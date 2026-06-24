@@ -9,6 +9,7 @@ import (
 
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -90,7 +91,7 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
+	pkgs, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -99,7 +100,7 @@ func check(cmd *cobra.Command, args []string) int {
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
 	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
-	pkgs = extractUserSpecifyPkg(pkgs, args)
+	pkgs = pkgselect.ExtractByTargets(pkgs, args, func(msg string) { print.Warn(msg) })
 
 	if len(pkgs) == 0 {
 		// With explicit targets, an empty result means the user named binaries
@@ -151,7 +152,7 @@ func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 }
 
 func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
-	verCache := newLatestVerCache()
+	verCache := newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("check binary under $GOPATH/bin or $GOBIN")
@@ -165,7 +166,7 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 		} else {
 			var latestVer string
 			modulePathChanged := false
-			latestVer, err = verCache.getByChannel(ctx, p.ModulePath, p.UpdateChannel)
+			latestVer, err = verCache.Get(ctx, p.ModulePath, p.UpdateChannel)
 			if err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
@@ -173,7 +174,7 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 				} else {
 					modulePathChanged = true
 					p = newPkg
-					latestVer, err = verCache.getByChannel(ctx, p.ModulePath, p.UpdateChannel)
+					latestVer, err = verCache.Get(ctx, p.ModulePath, p.UpdateChannel)
 					if err != nil {
 						err = fmt.Errorf("%s %w", p.Name, err)
 					}

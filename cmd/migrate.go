@@ -12,6 +12,7 @@ import (
 
 	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -125,7 +126,7 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 		print.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
 		return 1
 	}
-	binList = filterBinaryPathListByTargets(binList, binaries)
+	binList = pkgselect.FilterBinaryPaths(binList, binaries)
 	// migrate never reads GoVersion, so skip the "go version" subprocess.
 	pkgs := goutil.GetPackageInformationWithoutGoVersion(binList)
 	warnMissingMigrateTargets(binaries, pkgs, beforePath)
