@@ -13,9 +13,9 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates binaries installed with `go install`, running the updates in parallel instead of one at a time.
+gup is a lightweight toolset manager for the Go command-line tools you install globally — a dotfiles-style companion for the binaries in your `$GOBIN`. Go programs are commonly installed with `go install`, which drops a single binary into `$GOBIN` (`$GOPATH/bin`) and never updates it again. gup keeps that whole set current, updating every binary in parallel, and adds the management commands `go install` lacks: `list`/`check`, `remove`, `export`/`import` to reproduce the set on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
 
-gup also manages the tools under `$GOPATH/bin` (`$GOBIN`): `list` and `check` what is installed, `remove` binaries, `export`/`import` the set to reproduce the same tool set on another machine, and `migrate` them into a different `$GOBIN`. Runs on Windows, macOS, and Linux.
+How is this different from `go tool`? Go's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) (Go 1.24+) manages tools scoped to a single project and recorded in that project's `go.mod`; those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
 
 If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
 
@@ -33,6 +33,7 @@ If you do not have the Go development environment installed on your system, plea
 ```
 go install github.com/nao1215/gup@latest
 ```
+Building from source needs Go 1.25 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
 
 ### Use homebrew
 ```shell
@@ -60,9 +61,9 @@ nix profile install nixpkgs#gogup
 ## Verifying release integrity
 Every release ships supply-chain metadata so you can verify what you download:
 
-- **Signed checksums** — `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
-- **SBOM** — an SPDX Software Bill of Materials is attached to each release archive.
-- **Build provenance** — SLSA build provenance is attested via GitHub OIDC.
+- Signed checksums: `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
+- SBOM: an SPDX Software Bill of Materials is attached to each release archive.
+- Build provenance: SLSA build provenance is attested via GitHub OIDC.
 
 Verify the signed checksums (then check your archive against `checksums.txt`):
 
@@ -263,7 +264,7 @@ By default:
   1) `$XDG_CONFIG_HOME/gup/gup.json` (if exists)
   2) `./gup.json` (if exists)
 
-If **both** the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
+If both the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
 
 A malformed `gup.json` (invalid JSON or an unsupported `schema_version`) is also treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed.
 
@@ -415,7 +416,6 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
-| No extra tool required (official toolchain only) | No | No | Yes |
 
 ## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
