@@ -13,11 +13,10 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup is a lightweight toolset manager for the Go command-line tools you install globally — a dotfiles-style companion for the binaries in your `$GOBIN`. Go programs are commonly installed with `go install`, which drops a single binary into `$GOBIN` (`$GOPATH/bin`) and never updates it again. gup keeps that whole set current, updating every binary in parallel, and adds the management commands `go install` lacks: `list`/`check`, `remove`, `export`/`import` to reproduce the set on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
+gup updates and manages the global Go command-line tools in your `$GOBIN`. Programs installed with `go install` land in `$GOBIN` (`$GOPATH/bin`) and are never updated again; gup brings the whole set up to date in parallel. It also acts as a dotfiles-style manager for that toolbox: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
 
-How is this different from `go tool`? Go's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) (Go 1.24+) manages tools scoped to a single project and recorded in that project's `go.mod`; those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
-
-If you are using oh-my-zsh, then gup has an alias set up. The alias is `gup - git pull --rebase`. Therefore, please make sure that the oh-my-zsh alias is disabled (e.g. $ \gup update).
+## gup vs. `go tool`
+Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
 
 ## Supported OS (unit testing with GitHub Actions)
 
@@ -416,6 +415,14 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
+
+## FAQ
+
+### `gup` fails with `fatal: not a git repository`
+You are probably on oh-my-zsh, which ships a `gup` alias for `git pull --rebase` that shadows this command ([#16](https://github.com/nao1215/gup/issues/16), [#204](https://github.com/nao1215/gup/issues/204)). Remove or rename that alias, or run gup with a leading backslash to bypass it:
+```shell
+$ \gup update
+```
 
 ## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
