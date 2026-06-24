@@ -48,7 +48,7 @@ func TestUpdatePinned_reinstallsAtPinWhenDifferent(t *testing.T) {
 		installLatest = goutil.InstallLatest
 	}()
 
-	p := pinnedTestPkg("v1.1.0", "v1.0.0")
+	p := pinnedTestPkg("v1.1.0", testVersionOne)
 	res := updatePinned(t.Context(), p, false)
 	if !called {
 		t.Fatal("expected go install <path>@<pinned> to be called")
@@ -69,7 +69,7 @@ func TestUpdatePinned_skipsWhenAlreadyAtPin(t *testing.T) {
 	}
 	defer func() { installByVersionUpd = goutil.Install }()
 
-	p := pinnedTestPkg("v1.0.0", "v1.0.0")
+	p := pinnedTestPkg(testVersionOne, testVersionOne)
 	res := updatePinned(t.Context(), p, false)
 	if res.updated {
 		t.Error("updated = true, want false when already at the pin")
@@ -99,11 +99,11 @@ func TestUpdatePinned_emptyPinIsError(t *testing.T) {
 
 func TestCheckPinned_status(t *testing.T) {
 	t.Parallel()
-	match := checkPinned(pinnedTestPkg("v1.0.0", "v1.0.0"), false)
+	match := checkPinned(pinnedTestPkg(testVersionOne, testVersionOne), false)
 	if match.status != statusPinned {
 		t.Errorf("matching pin status = %q, want pinned", match.status)
 	}
-	mismatch := checkPinned(pinnedTestPkg("v1.1.0", "v1.0.0"), false)
+	mismatch := checkPinned(pinnedTestPkg("v1.1.0", testVersionOne), false)
 	if mismatch.status != statusPinMismatch {
 		t.Errorf("differing pin status = %q, want pin-mismatch", mismatch.status)
 	}
@@ -149,7 +149,7 @@ func TestUpdatePinned_reinstallsWhenGoOutdated(t *testing.T) {
 	if !called {
 		t.Fatal("expected a reinstall at the pinned version when the Go toolchain is newer")
 	}
-	if gotVersion != "v1.0.0" {
+	if gotVersion != testVersionOne {
 		t.Errorf("reinstalled at %q, want the pinned v1.0.0 (never @latest)", gotVersion)
 	}
 	if !res.updated || res.status != statusUpdated {
@@ -173,12 +173,12 @@ func TestUpdatePinned_ignoreGoUpdateKeepsPin(t *testing.T) {
 
 func TestPinnedJSONRecord(t *testing.T) {
 	t.Parallel()
-	p := pinnedTestPkg("v1.1.0", "v1.0.0")
+	p := pinnedTestPkg("v1.1.0", testVersionOne)
 	rec := newJSONPackage(p, statusPinMismatch, nil)
 	if rec.Channel != "pinned" {
 		t.Errorf("channel = %q, want pinned", rec.Channel)
 	}
-	if rec.PinnedVersion != "v1.0.0" {
+	if rec.PinnedVersion != testVersionOne {
 		t.Errorf("pinned_version = %q, want v1.0.0", rec.PinnedVersion)
 	}
 	if rec.CurrentVersion != "v1.1.0" {

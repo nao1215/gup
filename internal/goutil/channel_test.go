@@ -1,6 +1,16 @@
 package goutil
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
+
+const (
+	cvV100  = "v1.0.0"
+	cvV110  = "v1.1.0"
+	cvGoCur = "go1.23.0"
+	cvGoOld = "go1.22.0"
+)
 
 func TestNormalizeUpdateChannel_pinned(t *testing.T) {
 	t.Parallel()
@@ -86,8 +96,8 @@ func TestValidatePinnedVersion(t *testing.T) {
 
 func TestPackagePinHelpers(t *testing.T) {
 	t.Parallel()
-	const v100 = "v1.0.0"
-	pinnedMatch := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: v100, Version: &Version{Current: v100}}
+
+	pinnedMatch := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: cvV100, Version: &Version{Current: cvV100}}
 	if !pinnedMatch.IsPinned() {
 		t.Error("IsPinned() = false, want true")
 	}
@@ -95,13 +105,77 @@ func TestPackagePinHelpers(t *testing.T) {
 		t.Error("PinSatisfied() = false, want true for matching version")
 	}
 
-	pinnedMismatch := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: v100, Version: &Version{Current: "v1.1.0"}}
+	pinnedMismatch := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: cvV100, Version: &Version{Current: cvV110}}
 	if pinnedMismatch.PinSatisfied() {
 		t.Error("PinSatisfied() = true, want false for differing version (incl. downgrade)")
 	}
 
-	notPinned := Package{UpdateChannel: UpdateChannelLatest, Version: &Version{Current: "v1.0.0"}}
+	notPinned := Package{UpdateChannel: UpdateChannelLatest, Version: &Version{Current: cvV100}}
 	if notPinned.IsPinned() || notPinned.PinSatisfied() {
 		t.Error("a latest-channel package must not report as pinned/satisfied")
+	}
+
+	// An empty pin target is never satisfied, even if Current is also empty.
+	emptyPin := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: "  ", Version: &Version{Current: ""}}
+	if emptyPin.PinSatisfied() {
+		t.Error("PinSatisfied() = true for an empty pin target, want false")
+	}
+
+	// A nil Version is never satisfied.
+	nilVer := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: cvV100}
+	if nilVer.PinSatisfied() {
+		t.Error("PinSatisfied() = true with nil Version, want false")
+	}
+}
+
+func TestPinnedResultStr(t *testing.T) {
+	t.Parallel()
+
+	// Satisfied pin (version matches, Go current): "pinned <ver>".
+	satisfied := Package{
+		UpdateChannel: UpdateChannelPinned,
+		PinnedVersion: cvV100,
+		Version:       &Version{Current: cvV100},
+		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
+	}
+	if got := satisfied.PinnedResultStr(); !strings.Contains(got, "pinned") || !strings.Contains(got, cvV100) {
+		t.Errorf("satisfied PinnedResultStr() = %q, want it to mention pinned v1.0.0", got)
+	}
+	if strings.Contains(satisfied.PinnedResultStr(), "installed") || strings.Contains(satisfied.PinnedResultStr(), "go1.2") {
+		t.Errorf("satisfied PinnedResultStr() = %q, want no version/Go delta", satisfied.PinnedResultStr())
+	}
+
+	// Version mismatch: "pinned <ver>, installed <other>".
+	mismatch := Package{
+		UpdateChannel: UpdateChannelPinned,
+		PinnedVersion: cvV100,
+		Version:       &Version{Current: cvV110},
+		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
+	}
+	if got := mismatch.PinnedResultStr(); !strings.Contains(got, "installed") || !strings.Contains(got, cvV110) {
+		t.Errorf("mismatch PinnedResultStr() = %q, want it to mention the installed version", got)
+	}
+
+	// Version matches but built with an older Go: a pending rebuild is surfaced.
+	staleGo := Package{
+		UpdateChannel: UpdateChannelPinned,
+		PinnedVersion: cvV100,
+		Version:       &Version{Current: cvV100},
+		GoVersion:     &Version{Current: cvGoOld, Latest: cvGoCur},
+	}
+	got := staleGo.PinnedResultStr()
+	if !strings.Contains(got, cvGoOld) || !strings.Contains(got, cvGoCur) {
+		t.Errorf("stale-Go PinnedResultStr() = %q, want it to show the Go transition", got)
+	}
+
+	// Missing installed version falls back to "unknown".
+	noCurrent := Package{
+		UpdateChannel: UpdateChannelPinned,
+		PinnedVersion: cvV100,
+		Version:       &Version{Current: ""},
+		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
+	}
+	if got := noCurrent.PinnedResultStr(); !strings.Contains(got, unknown) {
+		t.Errorf("no-current PinnedResultStr() = %q, want it to mention unknown", got)
 	}
 }

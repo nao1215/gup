@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// pinPackageInfo lists the binaries gup manages under $GOBIN. It is a seam so
+// tests can drive 'gup pin' without a real $GOBIN populated by 'go install'.
+var pinPackageInfo = pkgselect.PackageInfo //nolint:gochecknoglobals // swapped in tests
+
 const (
 	// pinMinArgs/pinMaxArgs bound the pin command: "gup pin tool@version" (1) or
 	// "gup pin tool version" (2).
@@ -120,7 +124,7 @@ func runPin(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	installed, err := pkgselect.PackageInfo()
+	installed, err := pinPackageInfo()
 	if err != nil {
 		print.Err(err)
 		return 1
