@@ -24,11 +24,17 @@ func ExampleBinaryPathList() {
 	}
 
 	want := []string{
+		"channel.go",
 		"examples_test.go",
 		"goutil.go",
 		"goutil_test.go",
 		"helperprocess_test.go",
+		"install.go",
+		"modpath.go",
+		"paths.go",
+		"pkginfo.go",
 		"property_test.go",
+		"version.go",
 	}
 
 	if cmp.Equal(got, want) {
