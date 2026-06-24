@@ -13,10 +13,7 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates and manages the global Go command-line tools in your `$GOBIN`. Programs installed with `go install` land in `$GOBIN` (`$GOPATH/bin`) and are never updated again; gup brings the whole set up to date in parallel. It also acts as a dotfiles-style manager for that toolbox: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
-
-## gup vs. `go tool`
-Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
+gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again; gup brings the whole set up to date in parallel. It also adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 ## Supported OS (unit testing with GitHub Actions)
 
@@ -293,18 +290,11 @@ $ gup import --file=gup.json
 gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
 ```
 
-`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`,
-using the exact `import path@version` recorded in each binary's build info
-(it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to
-`AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt
-with the Go toolchain currently in use.
+`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`, using the exact `import path@version` recorded in each binary's build info (it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to `AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt with the Go toolchain currently in use.
 
 #### Why this is useful (e.g. with `mise`)
 
-When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change
-the real path of `$GOBIN` per Go version. As a result, tools you installed
-under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate`
-lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
+When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change the real path of `$GOBIN` per Go version. As a result, tools you installed under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate` lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
 
 ```shell
 # Reinstall every go-install tool from the old GOBIN into the new GOBIN
@@ -317,23 +307,16 @@ $ gup migrate /old/gobin /new/gobin gopls air
 `migrate` is add-only:
 
 - It never deletes or cleans up files in `AFTER_PATH`.
-- Binaries that already exist in `AFTER_PATH` are skipped by default. Use
-  `--force` to reinstall over them.
+- Binaries that already exist in `AFTER_PATH` are skipped by default. Use `--force` to reinstall over them.
 - `AFTER_PATH` is created automatically when it does not exist.
 - `BEFORE_PATH` and `AFTER_PATH` must be different directories.
 
-Binaries whose import path or version cannot be resolved, and development
-builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local
-or non-reproducible builds are never broken.
+Binaries whose import path or version cannot be resolved, and development builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local or non-reproducible builds are never broken.
 
-Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
-`--force`.
+Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`), `--force`.
 
 ### Generate man-pages (for linux, mac)
-man subcommand generates man-pages under /usr/share/man/man1 by default. If
-`MANPATH` is set, gup writes to the `man1` directory under each entry instead,
-creating it when it does not exist yet. An unwritable target exits with a clear
-error.
+man subcommand generates man-pages under /usr/share/man/man1 by default. If `MANPATH` is set, gup writes to the `man1` directory under each entry instead, creating it when it does not exist yet. An unwritable target exits with a clear error.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -365,14 +348,7 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-`--install` writes to the paths that match your shell/config layout: bash honors
-`XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors
-`XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the
-completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still
-requires `HOME` to be set; it fails fast (without writing files into the current
-directory) when `HOME` is empty, and exits non-zero if any completion file
-cannot be written. Re-running `--install` is idempotent and does not duplicate
-the zsh init snippet in `.zshrc`.
+`--install` writes to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written. Re-running `--install` is idempotent and does not duplicate the zsh init snippet in `.zshrc`.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
@@ -389,6 +365,9 @@ $ gup update --no-color
 $ NO_COLOR=1 gup update
 ```
 
+
+## gup vs. `go tool`
+Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
 
 ## Benchmark
 gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
