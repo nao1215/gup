@@ -74,10 +74,6 @@ var matchers = []matcher{ //nolint:gochecknoglobals
 		hint:  "The package has no Go files buildable for your platform (see `go env GOOS GOARCH`); this version may not support your OS/architecture.",
 	},
 	{
-		match: contains("permission denied", "operation not permitted"),
-		hint:  "Permission denied while installing. Check write access to your install directory (`go env GOBIN` / `go env GOPATH`) and the module cache.",
-	},
-	{
 		match: contains("no matching versions for query"),
 		hint:  "No published version matches the selected channel. Try another channel (e.g. `--main` or `--master`), or confirm the repository has tagged releases.",
 	},
@@ -86,8 +82,22 @@ var matchers = []matcher{ //nolint:gochecknoglobals
 		hint:  "The requested branch, tag, or version does not exist. Verify the channel (main vs master) or the version selector for this package.",
 	},
 	{
-		match: contains("unrecognized import path", "repository not found", "404 not found", "410 gone", "terminal prompts disabled"),
-		hint:  "The module path could not be resolved. The repository may be private, renamed, or deleted; check the import path and your access/credentials (e.g. GOPRIVATE, SSH/token auth).",
+		// Repository/auth failures are matched before the generic "permission
+		// denied" case below so an SSH auth error ("permission denied
+		// (publickey)") is diagnosed as an access problem, not local write
+		// permission.
+		match: contains("unrecognized import path", "repository not found", "404 not found", "410 gone",
+			"terminal prompts disabled", "permission denied (publickey)", "could not read from remote repository"),
+		hint: "The module path could not be resolved. The repository may be private, renamed, or deleted; check the import path and your access/credentials (e.g. GOPRIVATE, SSH/token auth).",
+	},
+	{
+		// Generic local install-permission error. Exclude the Git/SSH auth case,
+		// which is handled by the repository matcher above.
+		match: func(lower string) bool {
+			return (strings.Contains(lower, "permission denied") || strings.Contains(lower, "operation not permitted")) &&
+				!strings.Contains(lower, "permission denied (publickey)")
+		},
+		hint: "Permission denied while installing. Check write access to your install directory (`go env GOBIN` / `go env GOPATH`) and the module cache.",
 	},
 	{
 		match: contains("dial tcp", "i/o timeout", "connection refused", "tls handshake", "proxyconnect", "no such host", "network is unreachable", "could not connect"),
@@ -118,9 +128,10 @@ func Hint(err error) string {
 	msg := err.Error()
 	lower := strings.ToLower(msg)
 
-	// Timeout/cancellation messages already carry their own remedy.
+	// Timeout/cancellation messages already carry their own remedy. The go
+	// toolchain and context package spell it "canceled" (American).
 	if strings.Contains(lower, "timed out") || strings.Contains(lower, "canceled") ||
-		strings.Contains(lower, "cancelled") || strings.Contains(lower, "deadline exceeded") {
+		strings.Contains(lower, "deadline exceeded") {
 		return ""
 	}
 

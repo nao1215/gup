@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+// subResolved is the distinctive fragment of the repository-resolution hint,
+// shared by several cases that funnel to it.
+const subResolved = "could not be resolved"
+
 func TestHint(t *testing.T) {
 	t.Parallel()
 
@@ -75,6 +79,14 @@ func TestHint(t *testing.T) {
 			wantSub: "Permission denied",
 		},
 		{
+			// An SSH git auth failure also says "permission denied", but it is an
+			// access problem, not a local write-permission one, so it must get the
+			// repository/credentials hint instead.
+			name:    "ssh auth failure is not a write-permission error",
+			err:     errors.New("go: github.com/x@latest: git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository."),
+			wantSub: subResolved,
+		},
+		{
 			name:    "no matching versions",
 			err:     errors.New(`go: github.com/x@latest: no matching versions for query "latest"`),
 			wantSub: "another channel",
@@ -91,14 +103,14 @@ func TestHint(t *testing.T) {
 			//   go list -m example.com/nope/nope@latest
 			name:    "unrecognized import path",
 			err:     errors.New(`go: example.com/nope/nope@latest: unrecognized import path "example.com/nope/nope": reading https://example.com/nope/nope?go-get=1: 404 Not Found`),
-			wantSub: "could not be resolved",
+			wantSub: subResolved,
 		},
 		{
 			// Verified against real output of:
 			//   go list -m github.com/nao1215/<deleted>@latest  (direct git fallback)
 			name:    "deleted or private repository",
 			err:     errors.New("go: module github.com/nao1215/nope: git ls-remote -q https://github.com/nao1215/nope in /cache: exit status 128:\n\tremote: Repository not found.\n\tfatal: repository 'https://github.com/nao1215/nope/' not found"),
-			wantSub: "could not be resolved",
+			wantSub: subResolved,
 		},
 		{
 			name:    "network dial error",

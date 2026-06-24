@@ -117,6 +117,7 @@ Describe 'gup update'
       The status should be failure
       The output should include 'update binary under'
       The stderr should include 'replace directive'
+      The stderr should include 'gup:'
       The stderr should include 'go install'
     End
   End
