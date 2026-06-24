@@ -17,9 +17,7 @@
 
 ![sample](../img/sample.gif)
 
-La commande **gup** met à jour les binaires installés par "go install" vers la dernière version. gup met à jour tous les binaires en parallèle, donc très rapidement. Elle fournit également des sous-commandes pour manipuler les binaires sous \$GOPATH/bin (\$GOBIN). C'est un logiciel multiplateforme qui fonctionne sur Windows, Mac et Linux.
-
-Si vous utilisez oh-my-zsh, alors gup a un alias configuré. L'alias est `gup - git pull --rebase`. Par conséquent, assurez-vous que l'alias oh-my-zsh est désactivé (par exemple $ \gup update).
+gup met à jour et gère les outils Go en ligne de commande installés globalement dans votre `$GOBIN`. `go install` place chaque programme dans `$GOBIN` (`$GOPATH/bin`) mais ne le met plus jamais à jour ensuite ; gup amène l'ensemble complet à la dernière version en parallèle. Il ajoute également les commandes de gestion qui manquent à `go install` : `list`/`check` pour savoir ce qui est installé, `remove` pour supprimer des binaires, `export`/`import` pour reproduire l'ensemble sur une autre machine, et `migrate` pour le déplacer vers un nouveau `$GOBIN`. Fonctionne sur Windows, macOS et Linux.
 
 ## OS supportés (tests unitaires avec GitHub Actions)
 - Linux
@@ -34,6 +32,7 @@ Si vous n'avez pas l'environnement de développement golang installé sur votre 
 ```
 go install github.com/nao1215/gup@latest
 ```
+La compilation depuis les sources nécessite Go 1.25 ou une version plus récente. Sur une version plus ancienne de Go, installez plutôt un binaire de release précompilé ou un package (voir ci-dessous).
 
 ### Utiliser homebrew
 ```shell
@@ -61,9 +60,9 @@ nix profile install nixpkgs#gogup
 ## Vérifier l'intégrité de la release
 Chaque release est accompagnée de métadonnées de chaîne d'approvisionnement afin que vous puissiez vérifier ce que vous téléchargez :
 
-- **Sommes de contrôle signées** — `checksums.txt` est signé avec [cosign](https://github.com/sigstore/cosign) (sans clé), produisant `checksums.txt.sigstore.json`.
-- **SBOM** — un SPDX Software Bill of Materials est joint à chaque archive de release.
-- **Provenance de build** — la provenance de build SLSA est attestée via GitHub OIDC.
+- Sommes de contrôle signées : `checksums.txt` est signé avec [cosign](https://github.com/sigstore/cosign) (sans clé), produisant `checksums.txt.sigstore.json`.
+- SBOM : un SPDX Software Bill of Materials est joint à chaque archive de release.
+- Provenance de build : la provenance de build SLSA est attestée via GitHub OIDC.
 
 Vérifiez les sommes de contrôle signées (puis comparez votre archive à `checksums.txt`) :
 
@@ -252,7 +251,7 @@ Par défaut :
   1) `$XDG_CONFIG_HOME/gup/gup.json` (s'il existe)
   2) `./gup.json` (s'il existe)
 
-Si les **deux** fichiers `gup.json` (celui au niveau utilisateur et `./gup.json`) existent, `import`, `check` et `update` échouent immédiatement et vous demandent de lever l'ambiguïté avec `--file`, au lieu d'en choisir un silencieusement. Vous pouvez toujours forcer le chemin avec `--file` (`-f`).
+Si les deux fichiers `gup.json` (celui au niveau utilisateur et `./gup.json`) existent, `import`, `check` et `update` échouent immédiatement et vous demandent de lever l'ambiguïté avec `--file`, au lieu d'en choisir un silencieusement. Vous pouvez toujours forcer le chemin avec `--file` (`-f`).
 
 `gup export` résout toujours les canaux de mise à jour enregistrés à partir du `gup.json` canonique au niveau utilisateur ; `--file`/`--output` ne changent que la destination d'export, donc exporter vers un nouveau fichier ne réinitialise jamais le canal d'un paquet à `latest`.
 
@@ -280,19 +279,11 @@ $ gup import --file=gup.json
 gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
 ```
 
-`gup migrate` réinstalle les binaires Go situés sous `BEFORE_PATH` dans `AFTER_PATH`,
-en utilisant le `import path@version` exact enregistré dans la build info de chaque
-binaire (il ne met jamais silencieusement à niveau vers `@latest`). En interne, il
-définit simplement `GOBIN` sur `AFTER_PATH` et exécute le flux normal de `go install`,
-de sorte que les binaires sont recompilés avec la toolchain Go actuellement utilisée.
+`gup migrate` réinstalle les binaires Go situés sous `BEFORE_PATH` dans `AFTER_PATH`, en utilisant le `import path@version` exact enregistré dans la build info de chaque binaire (il ne met jamais silencieusement à niveau vers `@latest`). En interne, il définit simplement `GOBIN` sur `AFTER_PATH` et exécute le flux normal de `go install`, de sorte que les binaires sont recompilés avec la toolchain Go actuellement utilisée.
 
 #### Pourquoi c'est utile (par exemple avec `mise`)
 
-Lorsque vous gérez Go avec [`mise`](https://mise.jdx.dev/), mettre à jour Go peut
-changer le chemin réel de `$GOBIN` pour chaque version de Go. Par conséquent, les
-outils que vous avez installés sous le `$GOBIN` précédent ne sont plus visibles pour
-le nouveau Go. `gup migrate` vous permet de réinstaller le même ensemble d'outils Go
-de l'ancien `$GOBIN` vers le nouveau :
+Lorsque vous gérez Go avec [`mise`](https://mise.jdx.dev/), mettre à jour Go peut changer le chemin réel de `$GOBIN` pour chaque version de Go. Par conséquent, les outils que vous avez installés sous le `$GOBIN` précédent ne sont plus visibles pour le nouveau Go. `gup migrate` vous permet de réinstaller le même ensemble d'outils Go de l'ancien `$GOBIN` vers le nouveau :
 
 ```shell
 # Réinstaller tous les outils go-install de l'ancien GOBIN vers le nouveau GOBIN
@@ -305,17 +296,13 @@ $ gup migrate /old/gobin /new/gobin gopls air
 `migrate` fonctionne uniquement en ajout (add-only) :
 
 - Il ne supprime ni ne nettoie jamais les fichiers dans `AFTER_PATH`.
-- Les binaires qui existent déjà dans `AFTER_PATH` sont ignorés par défaut. Utilisez
-  `--force` pour les réinstaller par-dessus.
+- Les binaires qui existent déjà dans `AFTER_PATH` sont ignorés par défaut. Utilisez `--force` pour les réinstaller par-dessus.
 - `AFTER_PATH` est créé automatiquement lorsqu'il n'existe pas.
 - `BEFORE_PATH` et `AFTER_PATH` doivent être des répertoires différents.
 
-Les binaires dont l'import path ou la version ne peut pas être résolu, ainsi que les
-builds de développement (`devel` / `(devel)`), sont ignorés au lieu d'être mis à
-niveau, de sorte que les builds locaux ou non reproductibles ne sont jamais cassés.
+Les binaires dont l'import path ou la version ne peut pas être résolu, ainsi que les builds de développement (`devel` / `(devel)`), sont ignorés au lieu d'être mis à niveau, de sorte que les builds locaux ou non reproductibles ne sont jamais cassés.
 
-Flags pris en charge : `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`),
-`--force`.
+Flags pris en charge : `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`), `--force`.
 
 ### Générer les pages de manuel (pour linux, mac)
 La sous-commande man génère les pages de manuel sous `/usr/share/man/man1` par défaut. Si `MANPATH` est défini, gup écrit dans le répertoire `man1` sous chaque entrée, le créant lorsqu'il n'existe pas encore. Une destination non inscriptible se termine par une erreur claire.
@@ -368,6 +355,9 @@ $ NO_COLOR=1 gup update
 ```
 
 
+## gup vs. `go tool`
+Le [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) intégré à Go 1.24 gère les outils limités à un seul projet et enregistrés dans le `go.mod` de ce projet ; ces outils n'existent donc qu'à l'intérieur de ce module. gup gère les binaires installés à l'échelle du système sous `$GOBIN`, les commandes que vous exécutez depuis n'importe quel répertoire. Utilisez `go tool` pour l'outillage propre à chaque projet et gup pour votre boîte à outils globale.
+
 ## Benchmark
 gup exécute les mises à jour en parallèle, il termine donc plus vite que les outils qui mettent à jour les binaires un par un. Mise à jour de 9 binaires pour lesquels une version plus récente était disponible :
 
@@ -393,7 +383,14 @@ Mesuré sur AMD Ryzen AI Max+ 395 (32 cœurs) / 64 Go de RAM / Ubuntu 26.04 / go
 | `migrate --force` réinstalle lorsque la cible existe déjà | Oui | Non | Manuel |
 | Diagnostics d'échec / suggestions d'étapes suivantes | Non | Oui | Non |
 | Prise en charge de `NO_COLOR` | Oui | Oui | — |
-| Aucun outil supplémentaire requis (toolchain officielle uniquement) | Non | Non | Oui |
+
+## FAQ
+
+### `gup` échoue avec `fatal: not a git repository`
+Vous êtes probablement sur oh-my-zsh, qui fournit un alias `gup` pour `git pull --rebase` masquant cette commande ([#16](https://github.com/nao1215/gup/issues/16), [#204](https://github.com/nao1215/gup/issues/204)). Supprimez ou renommez cet alias, ou exécutez gup avec une barre oblique inverse en préfixe pour le contourner :
+```shell
+$ \gup update
+```
 
 ## Contribuer
 Tout d'abord, merci de prendre le temps de contribuer ! ❤️  Voir [CONTRIBUTING.md](../../CONTRIBUTING.md) pour plus d'informations.
