@@ -311,7 +311,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		// the channel-version lookup below.
 		if channel == goutil.UpdateChannelPinned {
 			p.PinnedVersion = pinnedMap[p.Name]
-			return updatePinned(ctx, p)
+			return updatePinned(ctx, p, ignoreGoUpdate)
 		}
 
 		// Collect online channel version if possible; else always update
@@ -479,12 +479,15 @@ func updateResultStr(p goutil.Package) string {
 
 // updatePinned installs (or keeps) a pinned package at its exact recorded
 // version. It never resolves @latest/@main/@master: the only version that is
-// ever installed is p.PinnedVersion. When the installed version already matches
-// the pin the package is reported as kept; otherwise it is reinstalled at the
-// pinned version (which may be a downgrade). On dry-run the install runs into
-// the throwaway GOBIN like every other update, so the kept/reinstalled outcome
-// is still shown.
-func updatePinned(ctx context.Context, p goutil.Package) updateResult {
+// ever installed is p.PinnedVersion. The pin locks the module version, not the
+// Go build, so the package is still reinstalled (at the pinned version) when the
+// installed binary was built with an older Go toolchain - unless ignoreGoUpdate
+// is set, exactly like an unpinned package. It is kept only when the installed
+// version matches the pin and the Go toolchain is current; otherwise it is
+// reinstalled at the pinned version (which may be a downgrade). On dry-run the
+// install runs into the throwaway GOBIN like every other update, so the
+// kept/reinstalled outcome is still shown.
+func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
 	pinnedVer := strings.TrimSpace(p.PinnedVersion)
 	if pinnedVer == "" {
 		// Defensive: a pinned channel without a target should be impossible because
@@ -502,7 +505,13 @@ func updatePinned(ctx context.Context, p goutil.Package) updateResult {
 	}
 	p.Version.Latest = pinnedVer
 
-	if p.PinSatisfied() {
+	goOutdated := !ignoreGoUpdate && p.GoVersion != nil && !p.IsGoUpToDate()
+	if p.PinSatisfied() && !goOutdated {
+		// Hide any Go-version delta we are intentionally not acting on, so the
+		// human line reads a clean "pinned <ver>" instead of a phantom rebuild.
+		if p.GoVersion != nil {
+			p.GoVersion.Latest = p.GoVersion.Current
+		}
 		return updateResult{
 			updated:    false,
 			pkg:        p,
@@ -530,7 +539,12 @@ func updatePinned(ctx context.Context, p goutil.Package) updateResult {
 		}
 	}
 
+	// The reinstalled binary now matches the pinned version and was built with the
+	// current Go toolchain.
 	p.Version.Current = pinnedVer
+	if p.GoVersion != nil {
+		p.GoVersion.Current = p.GoVersion.Latest
+	}
 	return updateResult{
 		updated: true,
 		pkg:     p,

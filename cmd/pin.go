@@ -125,9 +125,9 @@ func runPin(cmd *cobra.Command, args []string) int {
 		print.Err(err)
 		return 1
 	}
-	pkg, ok := resolveManagedTarget(installed, target)
-	if !ok {
-		print.Err(fmt.Errorf("'%s' is not managed by gup: install it with 'go install' first", target))
+	pkg, err := resolvePinTarget(installed, target)
+	if err != nil {
+		print.Err(err)
 		return 1
 	}
 
@@ -159,11 +159,8 @@ func runPin(cmd *cobra.Command, args []string) int {
 }
 
 func runUnpin(cmd *cobra.Command, args []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
-		return 1
-	}
-
+	// unpin only edits gup.json (channel back to @latest); it never runs the Go
+	// toolchain, so it must not fail when 'go' is absent.
 	target := strings.TrimSpace(args[0])
 	if i := strings.LastIndex(target, "@"); i >= 0 {
 		target = strings.TrimSpace(target[:i])
@@ -206,23 +203,41 @@ func runUnpin(cmd *cobra.Command, args []string) int {
 	return 0
 }
 
-// resolveManagedTarget finds the installed package named by target, matching by
-// import path (when target looks like an import path) and then by cross-OS
-// normalized binary name. It returns false when no installed binary matches, so
-// pinning a tool gup does not manage fails fast.
-func resolveManagedTarget(installed []goutil.Package, target string) (goutil.Package, bool) {
+// resolvePinTarget resolves target to the single installed package that can be
+// pinned. An exact import-path match is unambiguous; otherwise target is matched
+// by cross-OS normalized binary name and must match exactly one installed
+// package - if two managed tools share a binary name, the pin would land on the
+// wrong import path, so this requires the caller to disambiguate with the full
+// import path. It also rejects a tool whose import path gup cannot determine (an
+// old binary without build info): pinning it would write an entry with an empty
+// import_path, which ReadConfFile rejects as invalid, so a single 'gup pin'
+// would break every later check/update/export (export already drops such
+// packages; pin must not be the one command that lets them through).
+func resolvePinTarget(installed []goutil.Package, target string) (goutil.Package, error) {
 	for _, p := range installed {
 		if p.ImportPath != "" && p.ImportPath == target {
-			return p, true
+			return p, nil
 		}
 	}
+
 	want := binname.NormalizeForMatch(target)
-	for _, p := range installed {
-		if binname.NormalizeForMatch(p.Name) == want {
-			return p, true
+	var match *goutil.Package
+	for i := range installed {
+		if binname.NormalizeForMatch(installed[i].Name) != want {
+			continue
 		}
+		if match != nil {
+			return goutil.Package{}, fmt.Errorf("'%s' matches multiple installed binaries; pin by full import path", target)
+		}
+		match = &installed[i]
 	}
-	return goutil.Package{}, false
+	if match == nil {
+		return goutil.Package{}, fmt.Errorf("'%s' is not managed by gup: install it with 'go install' first", target)
+	}
+	if strings.TrimSpace(match.ImportPath) == "" {
+		return goutil.Package{}, fmt.Errorf("can't pin '%s': gup can't determine its import path (it was built by an old Go version); reinstall it with 'go install' first", match.Name)
+	}
+	return *match, nil
 }
 
 // targetPackage builds the minimal package used to identify an unpin target: an

@@ -46,7 +46,6 @@ func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	// requiredEnglishSections lists structural headings the English README must
 	// keep. Add new first-class sections here so a regression is caught early.
 	requiredEnglishSections := []string{
-		"## Benchmark",
 		"## Supported OS",
 		"## How to install",
 		"## Verifying release integrity",
@@ -87,11 +86,6 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 	// translated, in this file". The test fails if any translation drops one of the
 	// sections the English README carries (issue #306).
 	requiredSectionMarkers := map[string][]string{
-		// Benchmark: the comparison table and measurement note.
-		"Benchmark": {
-			"https://github.com/Gelio/go-global-update", // benchmarked competitor (table row)
-			"AMD Ryzen AI Max+ 395",                     // measurement environment note
-		},
 		// Verifying release integrity: the cosign / SLSA verification commands.
 		"Verifying release integrity": {
 			"cosign verify-blob",                  // signed-checksum verification command
@@ -117,9 +111,13 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"NO_COLOR=1 gup update", // NO_COLOR env-var example
 			"https://no-color.org/", // NO_COLOR convention link
 		},
-		// Feature comparison: the migrate --force row is unique to this table.
+		// Feature comparison: the migrate --force row is unique to this table, and
+		// the benchmark result (folded into this section) carries the competitor
+		// link and the measurement-environment note.
 		"Feature comparison": {
 			"migrate --force", // command-scoped row unique to the comparison table
+			"https://github.com/Gelio/go-global-update", // benchmarked competitor (table column)
+			"AMD Ryzen AI Max+ 395",                     // benchmark measurement-environment note
 		},
 		// Generate man-pages: the MANPATH note added when man learned to honor
 		// MANPATH (the literal env-var name is identical in every translation, so a

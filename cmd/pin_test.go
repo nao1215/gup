@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nao1215/gup/internal/goutil"
@@ -51,21 +52,44 @@ func TestParsePinArgs(t *testing.T) {
 	}
 }
 
-func TestResolveManagedTarget(t *testing.T) {
+func TestResolvePinTarget(t *testing.T) {
 	t.Parallel()
 	installed := []goutil.Package{
 		{Name: pinTestTool, ImportPath: pinTestImport},
 		{Name: "gup", ImportPath: pinTestGupImp},
+		{Name: "oldbin", ImportPath: ""}, // built by an old Go version: no import path
 	}
 
-	if p, ok := resolveManagedTarget(installed, pinTestTool); !ok || p.ImportPath != pinTestImport {
-		t.Errorf("by name: ok=%v import=%q", ok, p.ImportPath)
+	if p, err := resolvePinTarget(installed, pinTestTool); err != nil || p.ImportPath != pinTestImport {
+		t.Errorf("by name: err=%v import=%q", err, p.ImportPath)
 	}
-	if p, ok := resolveManagedTarget(installed, pinTestImport); !ok || p.Name != pinTestTool {
-		t.Errorf("by import path: ok=%v name=%q", ok, p.Name)
+	if p, err := resolvePinTarget(installed, pinTestImport); err != nil || p.Name != pinTestTool {
+		t.Errorf("by import path: err=%v name=%q", err, p.Name)
 	}
-	if _, ok := resolveManagedTarget(installed, "not-installed"); ok {
-		t.Error("an unmanaged tool must not resolve")
+	if _, err := resolvePinTarget(installed, "not-installed"); err == nil {
+		t.Error("an unmanaged tool must be rejected")
+	}
+	// Pinning a binary with no import path must fail fast: writing an entry with an
+	// empty import_path would make ReadConfFile reject the whole config afterward.
+	if _, err := resolvePinTarget(installed, "oldbin"); err == nil || !strings.Contains(err.Error(), "import path") {
+		t.Errorf("pinning a binary without an import path must be rejected, got %v", err)
+	}
+}
+
+func TestResolvePinTarget_ambiguousName(t *testing.T) {
+	t.Parallel()
+	// Two managed tools sharing a binary name must not silently pin the wrong one;
+	// the caller is forced to disambiguate with the full import path.
+	installed := []goutil.Package{
+		{Name: testBinTool, ImportPath: "example.com/a/tool"},
+		{Name: testBinTool, ImportPath: "example.com/b/tool"},
+	}
+	if _, err := resolvePinTarget(installed, testBinTool); err == nil || !strings.Contains(err.Error(), "multiple") {
+		t.Errorf("ambiguous name must be rejected, got %v", err)
+	}
+	// The exact import path is still unambiguous.
+	if p, err := resolvePinTarget(installed, "example.com/b/tool"); err != nil || p.ImportPath != "example.com/b/tool" {
+		t.Errorf("exact import path should resolve: err=%v import=%q", err, p.ImportPath)
 	}
 }
 

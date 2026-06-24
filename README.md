@@ -130,7 +130,7 @@ $ gup pin golangci-lint v1.62.0
 $ gup update
 ```
 
-A pinned tool is installed with the recorded version (`go install <import_path>@<version>`), never `@latest`. `gup update` keeps it at that version and reinstalls it there if the installed version differs; the rest of the tool set still updates as usual. The pin is stored in `gup.json` with `channel: "pinned"`:
+A pinned tool is installed with the recorded version (`go install <import_path>@<version>`), never `@latest`. `gup update` keeps it at that version and reinstalls it there if the installed version differs; the rest of the tool set still updates as usual. The pin locks the module version, not the Go build, so a pinned tool is still rebuilt at the pinned version when the Go toolchain changes (use `--ignore-go-update` to suppress that, exactly as for unpinned tools). The pin is stored in `gup.json` with `channel: "pinned"`:
 
 ```json
 {
@@ -152,7 +152,7 @@ A pinned tool is installed with the recorded version (`go install <import_path>@
 $ gup unpin golangci-lint
 ```
 
-`gup check` reports a pinned tool as `pinned` when it is at the pinned version, or `pin-mismatch` (with a `gup update <name>` suggestion) when the installed version differs; it never compares a pinned tool against `@latest`.
+`gup check` reports a pinned tool as `pinned` when it is at the pinned version and built with the current Go toolchain, or `pin-mismatch` (with a `gup update <name>` suggestion) when the installed version differs or a Go-toolchain rebuild is pending; it never compares a pinned tool against `@latest`.
 
 ### List up command name with package path and version under $GOPATH/bin
 list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.

@@ -252,10 +252,10 @@ func schemaVersionFor(pkgs []goutil.Package) int {
 // other channel the existing placeholder normalization applies.
 func versionForChannel(p goutil.Package, channel goutil.UpdateChannel) (string, error) {
 	if channel == goutil.UpdateChannelPinned {
+		// Persist only the explicit pin target. Falling back to Version.Current
+		// (the installed version) could silently write the wrong version - losing a
+		// downgrade pin - so an empty PinnedVersion fails fast instead.
 		version := strings.TrimSpace(p.PinnedVersion)
-		if version == "" && p.Version != nil {
-			version = strings.TrimSpace(p.Version.Current)
-		}
 		if err := goutil.ValidatePinnedVersion(version); err != nil {
 			return "", err
 		}

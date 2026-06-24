@@ -25,21 +25,25 @@ func countFormat(total int) string {
 // failed result may still carry a non-error status.
 //
 // The status cases below cover every non-failed result that check and update
-// produce: check sets statusUpToDate or statusUpdateAvailable, and update sets
-// statusUpToDate or statusUpdated. statusError is reached only with v.err set
-// (counted as failed above), and statusInstalled is list-only, so neither needs
-// a status case here. summarizeResults is not used by other commands.
+// produce: check sets statusUpToDate/statusUpdateAvailable (and, for pinned
+// packages, statusPinned/statusPinMismatch), and update sets
+// statusUpToDate/statusUpdated (and statusPinned when a pin is already
+// satisfied). A satisfied pin counts as up-to-date and an out-of-sync pin counts
+// as an available update, so the summary totals stay consistent with the
+// per-package lines. statusError is reached only with v.err set (counted as
+// failed above), and statusInstalled is list-only, so neither needs a status
+// case here. summarizeResults is not used by other commands.
 func summarizeResults(results []updateResult, isCheck bool) string {
 	var updated, upToDate, available, failed int
 	for _, v := range results {
 		switch {
 		case v.err != nil:
 			failed++
-		case v.status == statusUpdateAvailable:
+		case v.status == statusUpdateAvailable, v.status == statusPinMismatch:
 			available++
 		case v.status == statusUpdated:
 			updated++
-		case v.status == statusUpToDate:
+		case v.status == statusUpToDate, v.status == statusPinned:
 			upToDate++
 		}
 	}

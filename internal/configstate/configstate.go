@@ -548,9 +548,15 @@ func SetPin(confPkgs []goutil.Package, target goutil.Package, version string) ([
 	result := make([]goutil.Package, 0, len(confPkgs)+1)
 	replaced := false
 	for _, p := range confPkgs {
-		if !replaced && sameIdentity(p, pinned) {
-			result = append(result, SanitizePackage(pinned))
-			replaced = true
+		// Drop every entry that matches the pinned package's identity, not just the
+		// first: a hand-edited gup.json with duplicate entries for one package would
+		// otherwise leave a stale duplicate behind that overwrites the new pin on the
+		// next config read.
+		if sameIdentity(p, pinned) {
+			if !replaced {
+				result = append(result, SanitizePackage(pinned))
+				replaced = true
+			}
 			continue
 		}
 		result = append(result, SanitizePackage(p))
