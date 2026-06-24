@@ -9,6 +9,7 @@ import (
 
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -90,7 +91,7 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
+	pkgs, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -99,7 +100,7 @@ func check(cmd *cobra.Command, args []string) int {
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
 	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
-	pkgs = extractUserSpecifyPkg(pkgs, args)
+	pkgs = pkgselect.ExtractByTargets(pkgs, args, func(msg string) { print.Warn(msg) })
 
 	if len(pkgs) == 0 {
 		// With explicit targets, an empty result means the user named binaries

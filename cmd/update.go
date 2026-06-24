@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/notify"
+	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -132,7 +132,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, goVersionAvailable, err := getPackageInfoByTargets(args)
+	pkgs, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -170,8 +170,15 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs = extractUserSpecifyPkg(pkgs, args)
-	pkgs = excludePkgs(excludePkgList, pkgs, jsonOut)
+	pkgs = pkgselect.ExtractByTargets(pkgs, args, func(msg string) { print.Warn(msg) })
+	// In JSON mode the human-readable "Exclude ..." notice is suppressed so
+	// STDOUT stays valid JSON (the notice goes to STDOUT via print.Info, which
+	// would otherwise break machine-readable output; see issue #291).
+	excludeNotify := func(string) {}
+	if !jsonOut {
+		excludeNotify = func(msg string) { print.Info(msg) }
+	}
+	pkgs = pkgselect.Exclude(pkgs, excludePkgList, excludeNotify)
 
 	if len(pkgs) == 0 {
 		// With explicit targets or --exclude, an empty result means the user
@@ -237,33 +244,6 @@ func gup(cmd *cobra.Command, args []string) int {
 	}
 
 	return result
-}
-
-// excludePkgs drops the binaries named in excludePkgList from pkgs. In JSON mode
-// the human-readable "Exclude ..." notice is suppressed so STDOUT stays valid
-// JSON (the notice goes to STDOUT via print.Info, which would otherwise break
-// machine-readable output; see issue #291).
-func excludePkgs(excludePkgList []string, pkgs []goutil.Package, jsonOut bool) []goutil.Package {
-	excluded := make(map[string]struct{}, len(excludePkgList))
-	for _, name := range excludePkgList {
-		normalized := binname.NormalizeForMatch(name)
-		if normalized == "" {
-			continue
-		}
-		excluded[normalized] = struct{}{}
-	}
-
-	packageList := []goutil.Package{}
-	for _, v := range pkgs {
-		if _, ok := excluded[binname.NormalizeForMatch(v.Name)]; ok {
-			if !jsonOut {
-				print.Info(fmt.Sprintf("Exclude '%s' from the update target", v.Name))
-			}
-			continue
-		}
-		packageList = append(packageList, v)
-	}
-	return packageList
 }
 
 type updateResult struct {
@@ -546,109 +526,8 @@ func binaryNameFromImportPathWith(importPath, goos, goExe string) string {
 	return binName
 }
 
-func getBinaryPathList() ([]string, error) {
-	goBin, err := goutil.GoBin()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't find installed binaries", err)
-	}
-
-	binList, err := goutil.BinaryPathList(goBin)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't get binary-paths installed by 'go install'", err)
-	}
-
-	return binList, nil
-}
-
-func getPackageInfo() ([]goutil.Package, error) {
-	binList, err := getBinaryPathList()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", "can't get package info", err)
-	}
-
-	// list and export never read GoVersion, so skip the "go version" subprocess.
-	return goutil.GetPackageInformationWithoutGoVersion(binList), nil
-}
-
-// getPackageInfoByTargets returns the packages to process and a bool reporting
-// whether the installed Go version was detected. When the bool is false,
-// callers must disable Go-version comparison (see issue #296).
-func getPackageInfoByTargets(targets []string) ([]goutil.Package, bool, error) {
-	binList, err := getBinaryPathList()
-	if err != nil {
-		return nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
-	}
-
-	filtered := filterBinaryPathListByTargets(binList, targets)
-	pkgs, goVersionAvailable := goutil.GetPackageInformation(filtered)
-	return pkgs, goVersionAvailable, nil
-}
-
-func filterBinaryPathListByTargets(binList, targets []string) []string {
-	if len(targets) == 0 {
-		return binList
-	}
-
-	targetSet := make(map[string]struct{}, len(targets))
-	for _, rawTarget := range targets {
-		target := binname.NormalizeForMatch(rawTarget)
-		if target == "" {
-			continue
-		}
-		targetSet[target] = struct{}{}
-	}
-	if len(targetSet) == 0 {
-		return []string{}
-	}
-
-	filtered := make([]string, 0, len(targetSet))
-	for _, path := range binList {
-		base := binname.NormalizeForMatch(filepath.Base(path))
-		if _, ok := targetSet[base]; ok {
-			filtered = append(filtered, path)
-		}
-	}
-	return filtered
-}
-
-func extractUserSpecifyPkg(pkgs []goutil.Package, targets []string) []goutil.Package {
-	result := []goutil.Package{}
-	if len(targets) == 0 {
-		return pkgs
-	}
-
-	targetSet := make(map[string]string, len(targets)) // normalized target -> original (first seen)
-	targetOrder := make([]string, 0, len(targets))
-	for _, rawTarget := range targets {
-		target := binname.NormalizeForMatch(rawTarget)
-		if target == "" {
-			continue
-		}
-		if _, exists := targetSet[target]; !exists {
-			targetSet[target] = strings.TrimSpace(rawTarget)
-			targetOrder = append(targetOrder, target)
-		}
-	}
-
-	matched := make(map[string]struct{}, len(targetSet))
-	for _, v := range pkgs {
-		pkg := binname.NormalizeForMatch(v.Name)
-		if _, ok := targetSet[pkg]; ok {
-			result = append(result, v)
-			matched[pkg] = struct{}{}
-		}
-	}
-
-	for _, target := range targetOrder {
-		if _, ok := matched[target]; !ok {
-			print.Warn("not found '" + targetSet[target] + "' package in $GOPATH/bin or $GOBIN")
-		}
-	}
-	return result
-}
-
 func completePathBinaries(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	binList, _ := getBinaryPathList()
+	binList, _ := pkgselect.BinaryPaths()
 	prefix := toComplete
 	if runtime.GOOS == goosWindows {
 		prefix = strings.ToLower(prefix)
