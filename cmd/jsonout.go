@@ -19,6 +19,12 @@ const (
 	statusUpdateAvailable = "update-available"
 	// statusUpdated means 'update' successfully updated the binary.
 	statusUpdated = "updated"
+	// statusPinned means a pinned binary is installed at its pinned version
+	// (check and update both report this when the pin is already satisfied).
+	statusPinned = "pinned"
+	// statusPinMismatch means a pinned binary's installed version differs from its
+	// pinned version, so 'gup update' would reinstall it at the pinned version.
+	statusPinMismatch = "pin-mismatch"
 	// statusError means the package could not be processed; see the error field.
 	statusError = "error"
 )
@@ -26,12 +32,16 @@ const (
 // jsonPackage is the stable, machine-readable record emitted by --json. The
 // field names are part of the public contract documented in the README.
 type jsonPackage struct {
-	Name               string `json:"name"`
-	ImportPath         string `json:"import_path"`
-	ModulePath         string `json:"module_path"`
-	Channel            string `json:"channel"`
-	CurrentVersion     string `json:"current_version"`
-	LatestVersion      string `json:"latest_version"`
+	Name           string `json:"name"`
+	ImportPath     string `json:"import_path"`
+	ModulePath     string `json:"module_path"`
+	Channel        string `json:"channel"`
+	CurrentVersion string `json:"current_version"`
+	LatestVersion  string `json:"latest_version"`
+	// PinnedVersion is the concrete target version of a pinned package. It is
+	// emitted only for channel "pinned"; for every other channel it is omitted so
+	// existing consumers see no new field.
+	PinnedVersion      string `json:"pinned_version,omitempty"`
 	CurrentGoVersion   string `json:"current_go_version"`
 	InstalledGoVersion string `json:"installed_go_version"`
 	Status             string `json:"status"`
@@ -53,6 +63,13 @@ func newJSONPackage(p goutil.Package, status string, err error) jsonPackage {
 	if p.Version != nil {
 		rec.CurrentVersion = p.Version.Current
 		rec.LatestVersion = p.Version.Latest
+	}
+	// A pinned package exposes its target via pinned_version and never reports a
+	// latest_version: gup does not query @latest for a pin, so a latest_version
+	// would be misleading (and empty anyway).
+	if p.IsPinned() {
+		rec.PinnedVersion = p.PinnedVersion
+		rec.LatestVersion = ""
 	}
 	if p.GoVersion != nil {
 		rec.CurrentGoVersion = p.GoVersion.Current
