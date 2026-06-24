@@ -35,6 +35,12 @@ type modVersion struct {
 	module  string // module path, e.g. "gup.test/outdated"
 	version string // semantic or pseudo version
 	mainGo  string // contents of main.go for this version
+	// pkgSubdir places main.go in a subdirectory of the module (e.g. "cmd/tool"),
+	// so the installable import path becomes module+"/"+pkgSubdir. Empty means the
+	// module root. A newer version that omits a previously present subdir lets the
+	// proxy reproduce the real "found (vX), but does not contain package ..."
+	// failure a tool hits after it moves its command (e.g. on a /v2 bump).
+	pkgSubdir string
 }
 
 // branchRef maps a VCS ref (branch name) to a concrete version the proxy
@@ -69,23 +75,31 @@ const badMain = "package main\n\nfunc main() { thisSymbolDoesNotExist() }\n"
 func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]string) {
 	versions := []modVersion{
 		// uptodate: a single version that is also @latest.
-		{"gup.test/uptodate", "v1.0.0", okMain("uptodate v1.0.0")},
+		{module: "gup.test/uptodate", version: "v1.0.0", mainGo: okMain("uptodate v1.0.0")},
 		// outdated: installed at v1.0.0, newer v1.1.0 available as @latest.
-		{"gup.test/outdated", "v1.0.0", okMain("outdated v1.0.0")},
-		{"gup.test/outdated", "v1.1.0", okMain("outdated v1.1.0")},
+		{module: "gup.test/outdated", version: "v1.0.0", mainGo: okMain("outdated v1.0.0")},
+		{module: "gup.test/outdated", version: "v1.1.0", mainGo: okMain("outdated v1.1.0")},
 		// maintool: tracked on @main (resolves to a pseudo-version).
-		{"gup.test/maintool", "v0.0.0-20240101000000-00000000000a", okMain("maintool main")},
+		{module: "gup.test/maintool", version: "v0.0.0-20240101000000-00000000000a", mainGo: okMain("maintool main")},
 		// mastertool: has only a master branch (no main).
-		{"gup.test/mastertool", "v0.0.0-20240101000000-00000000000b", okMain("mastertool master")},
+		{module: "gup.test/mastertool", version: "v0.0.0-20240101000000-00000000000b", mainGo: okMain("mastertool master")},
 		// badmaintool: installable at v1.0.0; @main resolves but does NOT compile;
 		// @master resolves and DOES compile. This proves gup must not fall back to
 		// the working @master when @main fails for a non-branch reason.
 		// The @main and @master pseudo-versions sort NEWER than v1.0.0 (they are
 		// "+1 commit after v1.0.0"), so gup actually attempts the install instead
 		// of treating the installed v1.0.0 as up-to-date.
-		{"gup.test/badmaintool", "v1.0.0", okMain("badmaintool v1.0.0")},
-		{"gup.test/badmaintool", "v1.0.1-0.20240102000000-00000000000c", badMain},
-		{"gup.test/badmaintool", "v1.0.1-0.20240102000000-00000000000d", okMain("badmaintool master")},
+		{module: "gup.test/badmaintool", version: "v1.0.0", mainGo: okMain("badmaintool v1.0.0")},
+		{module: "gup.test/badmaintool", version: "v1.0.1-0.20240102000000-00000000000c", mainGo: badMain},
+		{module: "gup.test/badmaintool", version: "v1.0.1-0.20240102000000-00000000000d", mainGo: okMain("badmaintool master")},
+		// moved: the command lives under cmd/tool at v1.0.0, but the newer
+		// @latest (v1.1.0) no longer contains that package. Installing
+		// gup.test/moved/cmd/tool@v1.1.0 therefore fails with the real
+		// "found (v1.1.0), but does not contain package ..." error a tool emits
+		// after relocating its command (e.g. on a major-version bump). This drives
+		// the diagnostics e2e for the next-step hint.
+		{module: "gup.test/moved", version: "v1.0.0", mainGo: okMain("moved tool v1.0.0"), pkgSubdir: "cmd/tool"},
+		{module: "gup.test/moved", version: "v1.1.0", mainGo: okMain("moved v1.1.0")},
 	}
 	branches := []branchRef{
 		{"gup.test/maintool", "main", "v0.0.0-20240101000000-00000000000a"},
@@ -101,6 +115,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		"gup.test/maintool":    {},
 		"gup.test/mastertool":  {},
 		"gup.test/badmaintool": {"v1.0.0"},
+		"gup.test/moved":       {"v1.0.0", "v1.1.0"},
 	}
 	// @latest version per module. The go client resolves @latest even for a
 	// branch install (deprecation lookup), so branch-only modules point @latest
@@ -111,6 +126,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		"gup.test/maintool":    "v0.0.0-20240101000000-00000000000a",
 		"gup.test/mastertool":  "v0.0.0-20240101000000-00000000000b",
 		"gup.test/badmaintool": "v1.0.0",
+		"gup.test/moved":       "v1.1.0",
 	}
 	return versions, branches, lists, latest
 }
@@ -147,7 +163,11 @@ func writeVersion(dir string, v modVersion) error {
 	defer func() { _ = zf.Close() }()
 	zw := zip.NewWriter(zf)
 	prefix := v.module + "@" + v.version + "/"
-	for name, content := range map[string]string{"go.mod": goMod(v.module), "main.go": v.mainGo} {
+	mainGoPath := "main.go"
+	if v.pkgSubdir != "" {
+		mainGoPath = v.pkgSubdir + "/main.go"
+	}
+	for name, content := range map[string]string{"go.mod": goMod(v.module), mainGoPath: v.mainGo} {
 		w, werr := zw.Create(prefix + name)
 		if werr != nil {
 			return werr

@@ -213,18 +213,16 @@ Each element has these fields: `name`, `import_path`, `module_path`, `channel` (
 The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
 
 ### Failure diagnostics / next-step hints
-When `check` or `update` cannot process a package, gup already holds the Go toolchain's full error output—so instead of leaving you to decipher messages like `no matching versions for query "latest"` or `unrecognized import path`, it prints a short, actionable next step right after the error:
+When `update` or `check` fails, gup turns the Go toolchain's cryptic output into a short, actionable next step printed on STDERR right after the error (and exposed as the `hint` field with `--json`):
 
 ```shell
 $ gup update
-update binary under $GOPATH/bin or $GOBIN
-gup:ERROR: [1/1] air: can't install github.com/cosmtrek/air:
-        module declares its path as: github.com/air-verse/air
-                but was required as: github.com/cosmtrek/air
-gup:HINT : The module appears to have moved to github.com/air-verse/air. gup tries to follow renames automatically; if it still fails, reinstall manually with `go install github.com/air-verse/air@latest`.
+gup:ERROR: [1/1] tool: can't install gup.test/moved/cmd/tool:
+go: gup.test/moved/cmd/tool@latest: module gup.test/moved@latest found (v1.1.0), but does not contain package gup.test/moved/cmd/tool
+gup:HINT : The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.
 ```
 
-Hints cover common, recoverable causes—module renames, a binary not installed via `go install`, a missing branch/tag for the chosen channel, an unresolvable/renamed repository, permission problems, an out-of-date Go toolchain, unsupported `GOOS`/`GOARCH`, and network/proxy errors. They are written to STDERR (so they never pollute `--json` STDOUT) and, in `--json` mode, are also exposed as the per-package `hint` field. gup stays quiet when it cannot offer a confident suggestion (for example, a timeout error already names the manual command and `--timeout` remedy), so a hint always adds signal.
+Hints cover module renames/major-version moves, binaries not installed via `go install`, missing branch/tag, unresolvable/private/deleted repositories, permission and network errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy).
 
 ### Behavior on an empty environment
 An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:

@@ -44,8 +44,17 @@ var goToolchainRegex = regexp.MustCompile(`requires go ?>?=? ?\d`)
 // they win over the broader network/permission fallbacks.
 var matchers = []matcher{ //nolint:gochecknoglobals
 	{
-		match: contains("is not installed by 'go install'", "no required module provides package"),
+		match: contains("is not installed by 'go install'"),
 		hint:  "This binary has no embedded module path. Reinstall it once with `go install <importpath>@latest` so gup can manage it, then run gup again.",
+	},
+	{
+		// "module ... found (vX), but does not contain package ..." is what the
+		// go command reports when the command's import path no longer exists in
+		// the module at the resolved version. The common cause is a major-version
+		// bump: the tool moved to a /v2+ module path, so the old import path is
+		// gone even though the v0/v1 line still resolves.
+		match: contains("does not contain package", "no required module provides package"),
+		hint:  "The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.",
 	},
 	{
 		match: contains("devel-binary copied from local environment", "command-line-arguments"),

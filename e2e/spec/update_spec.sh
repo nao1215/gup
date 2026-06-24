@@ -88,4 +88,23 @@ Describe 'gup update'
       The stderr should include '--file'
     End
   End
+
+  Describe 'failure diagnostics / next-step hints'
+    # gup.test/moved ships its command under cmd/tool at v1.0.0, but the newer
+    # @latest (v1.1.0) no longer contains that package, so the real go toolchain
+    # fails with "found (v1.1.0), but does not contain package ...". This is the
+    # realistic "the tool moved (e.g. /v2 bump)" failure; gup must turn that
+    # cryptic output into an actionable next step.
+    It 'prints a next-step hint when the command path moved away'
+      install_fixture gup.test/moved/cmd/tool@v1.0.0
+      When call gup update tool
+      The status should be failure
+      The output should include 'update binary under'
+      # The raw toolchain error is still surfaced...
+      The stderr should include 'does not contain package'
+      # ...followed by the actionable hint.
+      The stderr should include 'gup:'
+      The stderr should include 'major version'
+    End
+  End
 End

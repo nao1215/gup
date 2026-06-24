@@ -21,12 +21,23 @@ func TestHint(t *testing.T) {
 			wantNone: true,
 		},
 		{
+			// Verified against real output of:
+			//   go install github.com/cosmtrek/air@latest
 			name: "module path mismatch names the new path",
 			err: errors.New(`go: github.com/cosmtrek/air@latest: version constraints conflict:
-	github.com/cosmtrek/air@v1.52.2: parsing go.mod:
+	github.com/cosmtrek/air@v1.65.3: parsing go.mod:
 	module declares its path as: github.com/air-verse/air
 	        but was required as: github.com/cosmtrek/air`),
 			wantSub: "github.com/air-verse/air",
+		},
+		{
+			// Verified against real output of:
+			//   go install github.com/golang-migrate/migrate/cmd/migrate@latest
+			// (the tool moved to a /v4 module path, so its old v1 import path is
+			// gone). This is the realistic "v2+ appeared" failure.
+			name:    "command path gone after major version bump",
+			err:     errors.New("go: github.com/golang-migrate/migrate/cmd/migrate@latest: module github.com/golang-migrate/migrate@latest found (v3.5.4+incompatible), but does not contain package github.com/golang-migrate/migrate/cmd/migrate"),
+			wantSub: "new major version",
 		},
 		{
 			name:    "not installed by go install",
@@ -59,18 +70,24 @@ func TestHint(t *testing.T) {
 			wantSub: "another channel",
 		},
 		{
-			name:    "unknown revision",
-			err:     errors.New("go: github.com/x@main: unknown revision main"),
+			// Verified against real output of:
+			//   go list -m github.com/nao1215/gup@v999.0.0
+			name:    "invalid version",
+			err:     errors.New("go: github.com/nao1215/gup@v999.0.0: invalid version: unknown revision v999.0.0"),
 			wantSub: "does not exist",
 		},
 		{
+			// Verified against real output of:
+			//   go list -m example.com/nope/nope@latest
 			name:    "unrecognized import path",
-			err:     errors.New(`go: github.com/x@latest: unrecognized import path "github.com/x"`),
+			err:     errors.New(`go: example.com/nope/nope@latest: unrecognized import path "example.com/nope/nope": reading https://example.com/nope/nope?go-get=1: 404 Not Found`),
 			wantSub: "could not be resolved",
 		},
 		{
-			name:    "repository not found",
-			err:     errors.New("remote: Repository not found.\nfatal: repository not found"),
+			// Verified against real output of:
+			//   go list -m github.com/nao1215/<deleted>@latest  (direct git fallback)
+			name:    "deleted or private repository",
+			err:     errors.New("go: module github.com/nao1215/nope: git ls-remote -q https://github.com/nao1215/nope in /cache: exit status 128:\n\tremote: Repository not found.\n\tfatal: repository 'https://github.com/nao1215/nope/' not found"),
 			wantSub: "could not be resolved",
 		},
 		{
