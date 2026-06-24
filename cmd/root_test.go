@@ -876,7 +876,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, "--dry-run", "--notify"})
+	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,7 +956,7 @@ func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 		t.Fatalf("assets directory %s should not exist before notify command runs", assetsDirForTest())
 	}
 
-	if _, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, "--dry-run", "--notify"}); err != nil {
+	if _, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify}); err != nil {
 		t.Fatal(err)
 	}
 

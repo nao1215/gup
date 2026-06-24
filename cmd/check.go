@@ -48,44 +48,51 @@ It does not update them.`,
 	return cmd
 }
 
+// checkOpts holds the parsed command-line flags for the check command.
+type checkOpts struct {
+	cpus           int // already clamped to >= 1
+	ignoreGoUpdate bool
+	jsonOut        bool
+	quiet          bool
+	timeout        time.Duration
+	confFile       string
+}
+
+// parseCheckFlags reads every flag of the check command in one place so check()
+// handles a flag error exactly once. The returned cpus value is already clamped.
+func parseCheckFlags(cmd *cobra.Command) (checkOpts, error) {
+	var opts checkOpts
+	var err error
+
+	if opts.cpus, err = getFlagInt(cmd, "jobs"); err != nil {
+		return checkOpts{}, err
+	}
+	opts.cpus = clampJobs(opts.cpus)
+	if opts.ignoreGoUpdate, err = getFlagBool(cmd, "ignore-go-update"); err != nil {
+		return checkOpts{}, err
+	}
+	if opts.jsonOut, err = getFlagBool(cmd, "json"); err != nil {
+		return checkOpts{}, err
+	}
+	if opts.quiet, err = getFlagBool(cmd, "quiet"); err != nil {
+		return checkOpts{}, err
+	}
+	if opts.timeout, err = getTimeoutFlag(cmd); err != nil {
+		return checkOpts{}, err
+	}
+	if opts.confFile, err = getFlagString(cmd, "file"); err != nil {
+		return checkOpts{}, err
+	}
+	return opts, nil
+}
+
 func check(cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
 		print.Err(err)
 		return 1
 	}
 
-	cpus, err := getFlagInt(cmd, "jobs")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-	cpus = clampJobs(cpus)
-
-	ignoreGoUpdate, err := getFlagBool(cmd, "ignore-go-update")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	jsonOut, err := getFlagBool(cmd, "json")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	quiet, err := getFlagBool(cmd, "quiet")
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	timeout, err := getTimeoutFlag(cmd)
-	if err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	confFile, err := getFlagString(cmd, "file")
+	opts, err := parseCheckFlags(cmd)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -99,7 +106,7 @@ func check(cmd *cobra.Command, args []string) int {
 	// When the installed Go version can't be detected, behave as
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
-	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
+	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
 	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
 
 	if len(pkgs) == 0 {
@@ -112,14 +119,14 @@ func check(cmd *cobra.Command, args []string) int {
 		// An explicitly named --file must be validated even when no binaries are
 		// installed: honoring explicit user input must not depend on unrelated
 		// environment state (#368).
-		if err := configstate.ValidateExplicitFile(confFile); err != nil {
+		if err := configstate.ValidateExplicitFile(opts.confFile); err != nil {
 			print.Err(err)
 			return 1
 		}
 		// Otherwise the environment simply has no manageable binaries yet, which
 		// is a normal first-run condition, not an error (#350): emit an empty
 		// JSON array or an informational note and exit 0.
-		if jsonOut {
+		if opts.jsonOut {
 			if err := encodeJSONPackages(nil); err != nil {
 				print.Err(err)
 				return 1
@@ -130,15 +137,15 @@ func check(cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	pkgs, err = configstate.ResolveAndApplyChannels(pkgs, confFile)
+	pkgs, err = configstate.ResolveAndApplyChannels(pkgs, opts.confFile)
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
-	if jsonOut {
-		return doCheckJSON(pkgs, cpus, timeout, ignoreGoUpdate)
+	if opts.jsonOut {
+		return doCheckJSON(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate)
 	}
-	return doCheck(pkgs, cpus, timeout, ignoreGoUpdate, quiet)
+	return doCheck(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate, opts.quiet)
 }
 
 func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
