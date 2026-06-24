@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
 
+	"github.com/nao1215/gup/internal/parallel"
 	"github.com/nao1215/gup/internal/print"
 )
 
@@ -113,7 +113,10 @@ func GetPackageInformationWithoutGoVersion(binList []string) []Package {
 }
 
 // collectPackageInformation reads build info for each binary in parallel and
-// stamps goVer as the latest Go toolchain version on every package.
+// stamps goVer as the latest Go toolchain version on every package. It delegates
+// the bounded worker pool to internal/parallel.Run so the concurrency logic is
+// not duplicated. No context or timeout is used because buildinfo.ReadFile is a
+// fast local read, so onCancel never fires.
 func collectPackageInformation(binList []string, goVer string) []Package {
 	if len(binList) == 0 {
 		return nil
@@ -124,49 +127,35 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 		ok  bool
 	}
 
-	numWorkers := runtime.NumCPU()
-	if numWorkers > len(binList) {
-		numWorkers = len(binList)
-	}
-
-	results := make([]indexedPkg, len(binList))
-	jobs := make(chan int, len(binList))
-	var wg sync.WaitGroup
-
-	for range numWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := range jobs {
-				v := binList[i]
-				info, err := buildinfo.ReadFile(v)
-				if err != nil {
-					print.Warn(err)
-					continue
-				}
-				if !isModuleBinary(info.Main.Path) {
-					continue
-				}
-				pkg := Package{
-					Name:       filepath.Base(v),
-					ImportPath: info.Path,
-					ModulePath: info.Main.Path,
-					Version:    NewVersion(),
-					GoVersion:  NewVersion(),
-				}
-				pkg.Version.Current = info.Main.Version
-				pkg.GoVersion.Current, _, _ = strings.Cut(info.GoVersion, " ")
-				pkg.GoVersion.Latest = goVer
-				results[i] = indexedPkg{pkg: pkg, ok: true}
+	results := parallel.Run(
+		context.Background(),
+		binList,
+		runtime.NumCPU(),
+		0, // no timeout: buildinfo.ReadFile is a fast local read
+		func(_ context.Context, v string) indexedPkg {
+			info, err := buildinfo.ReadFile(v)
+			if err != nil {
+				print.Warn(err)
+				return indexedPkg{}
 			}
-		}()
-	}
-
-	for i := range binList {
-		jobs <- i
-	}
-	close(jobs)
-	wg.Wait()
+			if !isModuleBinary(info.Main.Path) {
+				return indexedPkg{}
+			}
+			pkg := Package{
+				Name:       filepath.Base(v),
+				ImportPath: info.Path,
+				ModulePath: info.Main.Path,
+				Version:    NewVersion(),
+				GoVersion:  NewVersion(),
+			}
+			pkg.Version.Current = info.Main.Version
+			pkg.GoVersion.Current, _, _ = strings.Cut(info.GoVersion, " ")
+			pkg.GoVersion.Latest = goVer
+			return indexedPkg{pkg: pkg, ok: true}
+		},
+		func(_ string, _ error) indexedPkg { return indexedPkg{} },
+		nil,
+	)
 
 	pkgs := make([]Package, 0, len(binList))
 	for _, r := range results {
