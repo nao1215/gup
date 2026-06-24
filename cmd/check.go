@@ -166,6 +166,12 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 	}
 
 	checker := func(ctx context.Context, p goutil.Package) updateResult {
+		// A pinned package is compared against its recorded version, never against
+		// @latest: reporting "update available" for a pin would be wrong.
+		if p.IsPinned() {
+			return checkPinned(p, ignoreGoUpdate)
+		}
+
 		var err error
 		status := statusUpToDate
 		if p.ModulePath == "" {
@@ -210,12 +216,12 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 			if quiet {
 				// In quiet mode show only binaries with an available update,
 				// without the [i/n] progress counter (which would be sparse).
-				if v.status == statusUpdateAvailable {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
+				if v.status == statusUpdateAvailable || v.status == statusPinMismatch {
+					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, checkResultStr(v.pkg)))
 				}
 				return
 			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.VersionCheckResultStr()))
+			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, checkResultStr(v.pkg)))
 		}
 	}
 
@@ -236,12 +242,46 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 	return result
 }
 
+// checkResultStr renders the per-binary check line, using the pinned-specific
+// description for a pinned package and the normal version-check string
+// otherwise.
+func checkResultStr(p goutil.Package) string {
+	if p.IsPinned() {
+		return p.PinnedResultStr()
+	}
+	return p.VersionCheckResultStr()
+}
+
+// checkPinned reports the state of a pinned package without consulting @latest:
+// "pinned" when the installed version matches the pin and the Go toolchain is
+// current (or Go updates are ignored), "pin-mismatch" otherwise (the binary
+// would be reinstalled at the pinned version by 'gup update', either to correct
+// the version or to rebuild with the current Go toolchain). The pin locks the
+// module version, not the Go build, so a Go-toolchain delta is surfaced just as
+// it is for unpinned packages.
+func checkPinned(p goutil.Package, ignoreGoUpdate bool) updateResult {
+	if p.Version == nil {
+		p.Version = &goutil.Version{}
+	}
+	goOutdated := !ignoreGoUpdate && p.GoVersion != nil && !p.IsGoUpToDate()
+	if p.PinSatisfied() && !goOutdated {
+		// Hide a Go delta we are intentionally ignoring so the line reads cleanly.
+		if p.GoVersion != nil {
+			p.GoVersion.Latest = p.GoVersion.Current
+		}
+		return updateResult{pkg: p, status: statusPinned}
+	}
+	return updateResult{pkg: p, status: statusPinMismatch}
+}
+
 // collectNeedUpdatePkgs returns the packages from successful results whose
-// status indicates an available update, preserving completion order.
+// status indicates an available update, preserving completion order. A pinned
+// package whose installed version differs from its pin is included so the
+// follow-up "run gup update ..." hint covers it too.
 func collectNeedUpdatePkgs(results []updateResult) []goutil.Package {
 	needUpdate := make([]goutil.Package, 0, len(results))
 	for _, v := range results {
-		if v.err == nil && v.status == statusUpdateAvailable {
+		if v.err == nil && (v.status == statusUpdateAvailable || v.status == statusPinMismatch) {
 			needUpdate = append(needUpdate, v.pkg)
 		}
 	}

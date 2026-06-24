@@ -22,6 +22,34 @@ type Package struct {
 	GoVersion *Version
 	// UpdateChannel stores preferred update channel.
 	UpdateChannel UpdateChannel
+	// PinnedVersion is the concrete target version when UpdateChannel is
+	// "pinned". It is empty for every other channel. It is kept separate from
+	// Version.Current (the installed version) so a pin can downgrade a binary and
+	// so check/update compare the installed version against the pin target
+	// without consulting @latest.
+	PinnedVersion string
+}
+
+// IsPinned reports whether the package is pinned to a concrete version.
+func (p *Package) IsPinned() bool {
+	return p.UpdateChannel == UpdateChannelPinned
+}
+
+// PinSatisfied reports whether a pinned package's installed version already
+// matches its pinned target. The comparison is exact (not ">="), so a pin that
+// asks for an older version than the one installed is reported as unsatisfied
+// and will be reinstalled at the pinned version.
+func (p *Package) PinSatisfied() bool {
+	if !p.IsPinned() || p.Version == nil {
+		return false
+	}
+	pinned := strings.TrimSpace(p.PinnedVersion)
+	if pinned == "" {
+		// An empty pin target is never "satisfied": treat it as a mismatch so an
+		// invalid pinned package is surfaced, not silently reported as up-to-date.
+		return false
+	}
+	return strings.TrimSpace(p.Version.Current) == pinned
 }
 
 // Version is package version information.
@@ -63,6 +91,31 @@ func (p *Package) CurrentToLatestStr() string {
 		ret += currentGo + " to " + latestGo
 	}
 	return ret
+}
+
+// PinnedResultStr returns a human-readable description of a pinned package's
+// state: kept at the pin, installed at a different version than the pin, or at
+// the pinned version but built with an older Go toolchain (a pending rebuild).
+// A Go delta is shown only when the caller left GoVersion.Current != Latest;
+// check/update zero it out when the delta is being ignored, so this stays quiet.
+func (p *Package) PinnedResultStr() string {
+	pinned := strings.TrimSpace(p.PinnedVersion)
+	current := ""
+	if p.Version != nil {
+		current = strings.TrimSpace(p.Version.Current)
+	}
+	if !p.PinSatisfied() {
+		installed := current
+		if installed == "" {
+			installed = unknown
+		}
+		return "pinned " + color.GreenString(pinned) + ", installed " + color.YellowString(installed)
+	}
+	if p.GoVersion != nil && !p.IsGoUpToDate() {
+		currentGo, latestGo := colorVersionPair(p.GoVersion.Current, p.GoVersion.Latest, "go")
+		return "pinned " + color.GreenString(pinned) + " (" + currentGo + " to " + latestGo + ")"
+	}
+	return "pinned " + color.GreenString(pinned)
 }
 
 // VersionCheckResultStr returns string about command version check.

@@ -99,6 +99,10 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		// outdated: installed at v1.0.0, newer v1.1.0 available as @latest.
 		{module: "gup.test/outdated", version: "v1.0.0", mainGo: okMain("outdated v1.0.0")},
 		{module: "gup.test/outdated", version: "v1.1.0", mainGo: okMain("outdated v1.1.0")},
+		// pinnable: a second tool with v1.0.0 and v1.1.0, used by the pin e2e to
+		// prove a pinned tool stays put while an unpinned one updates in the same run.
+		{module: "gup.test/pinnable", version: "v1.0.0", mainGo: okMain("pinnable v1.0.0")},
+		{module: "gup.test/pinnable", version: "v1.1.0", mainGo: okMain("pinnable v1.1.0")},
 		// maintool: tracked on @main (resolves to a pseudo-version).
 		{module: "gup.test/maintool", version: "v0.0.0-20240101000000-00000000000a", mainGo: okMain("maintool main")},
 		// mastertool: has only a master branch (no main).
@@ -138,6 +142,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 	lists := map[string][]string{
 		"gup.test/uptodate":    {"v1.0.0"},
 		"gup.test/outdated":    {"v1.0.0", "v1.1.0"},
+		"gup.test/pinnable":    {"v1.0.0", "v1.1.0"},
 		"gup.test/maintool":    {},
 		"gup.test/mastertool":  {},
 		"gup.test/badmaintool": {"v1.0.0"},
@@ -150,6 +155,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 	latest := map[string]string{
 		"gup.test/uptodate":    "v1.0.0",
 		"gup.test/outdated":    "v1.1.0",
+		"gup.test/pinnable":    "v1.1.0",
 		"gup.test/maintool":    "v0.0.0-20240101000000-00000000000a",
 		"gup.test/mastertool":  "v0.0.0-20240101000000-00000000000b",
 		"gup.test/badmaintool": "v1.0.0",

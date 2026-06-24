@@ -70,6 +70,8 @@ echo "e2e: warming module cache..."
 		gup.test/uptodate@v1.0.0 \
 		gup.test/outdated@v1.0.0 \
 		gup.test/outdated@v1.1.0 \
+		gup.test/pinnable@v1.0.0 \
+		gup.test/pinnable@v1.1.0 \
 		gup.test/maintool@main \
 		gup.test/mastertool@master \
 		gup.test/badmaintool@v1.0.0 \

@@ -25,6 +25,7 @@ func ExampleBinaryPathList() {
 
 	want := []string{
 		"channel.go",
+		"channel_test.go",
 		"examples_test.go",
 		"goutil.go",
 		"goutil_test.go",

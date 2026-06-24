@@ -142,48 +142,76 @@ func identityKeys(p goutil.Package) []string {
 	return keys
 }
 
-// channelIndex maps saved packages to their update channel under the shared
+// savedEntry is the per-package state recovered from gup.json: the update
+// channel and, for a pinned package, the concrete target version.
+type savedEntry struct {
+	channel       goutil.UpdateChannel
+	pinnedVersion string
+}
+
+// channelIndex maps saved packages to their saved state under the shared
 // identity rule. Each saved entry is registered under all of its identity keys
 // so a lookup can prefer import_path and fall back to name.
-type channelIndex map[string]goutil.UpdateChannel
+type channelIndex map[string]savedEntry
+
+// savedPinnedVersion extracts the concrete pinned target from a saved package,
+// preferring the dedicated PinnedVersion field and falling back to the recorded
+// version. It returns "" for any non-pinned channel.
+func savedPinnedVersion(p goutil.Package) string {
+	if goutil.NormalizeUpdateChannel(string(p.UpdateChannel)) != goutil.UpdateChannelPinned {
+		return ""
+	}
+	if v := strings.TrimSpace(p.PinnedVersion); v != "" {
+		return v
+	}
+	if p.Version != nil {
+		return strings.TrimSpace(p.Version.Current)
+	}
+	return ""
+}
 
 // indexSavedChannels builds a channelIndex from a gup.json package list.
 func indexSavedChannels(confPkgs []goutil.Package) channelIndex {
 	idx := make(channelIndex, len(confPkgs)*maxIdentityKeys)
 	for _, p := range confPkgs {
-		channel := goutil.NormalizeUpdateChannel(string(p.UpdateChannel))
+		entry := savedEntry{
+			channel:       goutil.NormalizeUpdateChannel(string(p.UpdateChannel)),
+			pinnedVersion: savedPinnedVersion(p),
+		}
 		for _, k := range identityKeys(p) {
-			idx[k] = channel
+			idx[k] = entry
 		}
 	}
 	return idx
 }
 
-// channelFor returns the saved channel for p, matching by import_path first and
-// then by normalized name.
-func (idx channelIndex) channelFor(p goutil.Package) (goutil.UpdateChannel, bool) {
+// entryFor returns the saved state for p, matching by import_path first and then
+// by normalized name.
+func (idx channelIndex) entryFor(p goutil.Package) (savedEntry, bool) {
 	for _, k := range identityKeys(p) {
-		if channel, ok := idx[k]; ok {
-			return channel, true
+		if entry, ok := idx[k]; ok {
+			return entry, true
 		}
 	}
-	return "", false
+	return savedEntry{}, false
 }
 
-// ApplySavedChannels copies each package's saved update channel from confPkgs,
-// matching by the shared package identity (import_path first, then cross-OS
-// normalized name), so a channel is not silently reset to @latest across binary
-// renames, hand-edited configs, or cross-OS name differences (#341). Packages
-// with no saved entry default to @latest.
+// ApplySavedChannels copies each package's saved update channel (and pinned
+// target version, when pinned) from confPkgs, matching by the shared package
+// identity (import_path first, then cross-OS normalized name), so a channel is
+// not silently reset to @latest across binary renames, hand-edited configs, or
+// cross-OS name differences (#341). Packages with no saved entry default to
+// @latest.
 func ApplySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
 	saved := indexSavedChannels(confPkgs)
 	result := make([]goutil.Package, 0, len(pkgs))
 	for _, p := range pkgs {
-		channel := goutil.UpdateChannelLatest
-		if c, ok := saved.channelFor(p); ok {
-			channel = c
+		p.UpdateChannel = goutil.UpdateChannelLatest
+		p.PinnedVersion = ""
+		if entry, ok := saved.entryFor(p); ok {
+			p.UpdateChannel = entry.channel
+			p.PinnedVersion = entry.pinnedVersion
 		}
-		p.UpdateChannel = channel
 		result = append(result, p)
 	}
 	return result
@@ -209,6 +237,11 @@ func ApplySavedChannels(pkgs, confPkgs []goutil.Package) []goutil.Package {
 // "not found" (e.g. missing positional targets). A flag naming one of those is
 // silently skipped instead of triggering a second, redundant notice for the
 // same name.
+//
+// The second return value maps each pinned package's name to its concrete pin
+// target version, so the caller installs that exact version instead of @latest.
+// A package moved off the pinned channel by an explicit flag is dropped from the
+// map, so the resolved channel and the pin target can never disagree.
 func ResolveChannels(
 	pkgs []goutil.Package,
 	confPkgs []goutil.Package,
@@ -217,14 +250,18 @@ func ResolveChannels(
 	latestPkgNames []string,
 	reportedMissing []string,
 	warn func(string),
-) (map[string]goutil.UpdateChannel, error) {
+) (map[string]goutil.UpdateChannel, map[string]string, error) {
 	saved := indexSavedChannels(confPkgs)
 	channelMap := make(map[string]goutil.UpdateChannel, len(pkgs))
+	pinnedMap := make(map[string]string, len(pkgs))
 	normalizedToActual := make(map[string]string, len(pkgs))
 	for _, p := range pkgs {
 		channel := goutil.UpdateChannelLatest
-		if c, ok := saved.channelFor(p); ok {
-			channel = c
+		if entry, ok := saved.entryFor(p); ok {
+			channel = entry.channel
+			if entry.pinnedVersion != "" {
+				pinnedMap[p.Name] = entry.pinnedVersion
+			}
 		}
 		channelMap[p.Name] = channel
 		normalizedToActual[binname.NormalizeForMatch(p.Name)] = p.Name
@@ -263,15 +300,23 @@ func ResolveChannels(
 	}
 
 	if err := apply("main", mainPkgNames, goutil.UpdateChannelMain); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := apply("master", masterPkgNames, goutil.UpdateChannelMaster); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := apply(latestKeyword, latestPkgNames, goutil.UpdateChannelLatest); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return channelMap, nil
+	// A binary moved off the pinned channel by an explicit flag is no longer
+	// pinned: drop its pin target so the resolved channel and the pin target can
+	// never disagree.
+	for name, channel := range channelMap {
+		if channel != goutil.UpdateChannelPinned {
+			delete(pinnedMap, name)
+		}
+	}
+	return channelMap, pinnedMap, nil
 }
 
 // PackageChannel returns the resolved channel for the named package, preferring
@@ -339,11 +384,16 @@ func MergePackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, ch
 			continue
 		}
 		channel := PackageChannel(p.Name, p.UpdateChannel, channelMap)
+		pinnedVersion := ""
+		if channel == goutil.UpdateChannelPinned {
+			pinnedVersion = savedPinnedVersion(goutil.Package{UpdateChannel: channel, PinnedVersion: p.PinnedVersion, Version: p.Version})
+		}
 		upsert(goutil.Package{
 			Name:          p.Name,
 			ImportPath:    p.ImportPath,
 			Version:       &goutil.Version{Current: PersistedVersion(p)},
 			UpdateChannel: channel,
+			PinnedVersion: pinnedVersion,
 		})
 	}
 
@@ -370,6 +420,10 @@ func MergePackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, ch
 	for key, p := range byKey {
 		if channel, ok := channelMap[p.Name]; ok {
 			p.UpdateChannel = goutil.NormalizeUpdateChannel(string(channel))
+			// A package moved off the pinned channel keeps no pin target.
+			if p.UpdateChannel != goutil.UpdateChannelPinned {
+				p.PinnedVersion = ""
+			}
 			byKey[key] = SanitizePackage(p)
 		}
 	}
@@ -385,8 +439,13 @@ func MergePackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, ch
 }
 
 // SanitizePackage returns a trimmed, channel-normalized copy of p suitable for
-// writing to gup.json. A missing/blank version is normalized to "latest".
+// writing to gup.json. A missing/blank version is normalized to "latest". A
+// pinned package keeps its concrete pin target in both PinnedVersion and the
+// version field so the pin survives the merge/write cycle and never degrades to
+// "latest".
 func SanitizePackage(p goutil.Package) goutil.Package {
+	channel := goutil.NormalizeUpdateChannel(string(p.UpdateChannel))
+
 	version := latestKeyword
 	if p.Version != nil {
 		v := strings.TrimSpace(p.Version.Current)
@@ -395,19 +454,36 @@ func SanitizePackage(p goutil.Package) goutil.Package {
 		}
 	}
 
+	pinnedVersion := ""
+	if channel == goutil.UpdateChannelPinned {
+		pinnedVersion = savedPinnedVersion(p)
+		if pinnedVersion != "" {
+			version = pinnedVersion
+		}
+	}
+
 	return goutil.Package{
 		Name:          strings.TrimSpace(p.Name),
 		ImportPath:    strings.TrimSpace(p.ImportPath),
 		Version:       &goutil.Version{Current: version},
-		UpdateChannel: goutil.NormalizeUpdateChannel(string(p.UpdateChannel)),
+		UpdateChannel: channel,
+		PinnedVersion: pinnedVersion,
 	}
 }
 
-// PersistedVersion picks the version to persist for p: the freshly resolved
-// latest version when it is a real version, otherwise the current version, and
-// "latest" as a last resort. "unknown" is treated as not-a-version so it is
-// never written back (which would force a needless reinstall; see issue #300).
+// PersistedVersion picks the version to persist for p. A pinned package always
+// persists its concrete pin target, never @latest and never the installed
+// version, so the pin cannot drift. For every other channel it persists the
+// freshly resolved latest version when it is a real version, otherwise the
+// current version, and "latest" as a last resort. "unknown" is treated as
+// not-a-version so it is never written back (which would force a needless
+// reinstall; see issue #300).
 func PersistedVersion(p goutil.Package) string {
+	if goutil.NormalizeUpdateChannel(string(p.UpdateChannel)) == goutil.UpdateChannelPinned {
+		if pinned := savedPinnedVersion(p); pinned != "" {
+			return pinned
+		}
+	}
 	if p.Version == nil {
 		return latestKeyword
 	}
@@ -435,4 +511,79 @@ func normalizeBinName(name string) string {
 		return name[:len(name)-len(exe)]
 	}
 	return name
+}
+
+// sameIdentity reports whether a and b name the same logical package under the
+// shared identity rule (import_path first, then cross-OS normalized name).
+func sameIdentity(a, b goutil.Package) bool {
+	for _, ka := range identityKeys(a) {
+		for _, kb := range identityKeys(b) {
+			if ka == kb {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SetPin returns confPkgs with target pinned to version: the matching entry is
+// rewritten with channel "pinned" and the concrete version, or a new pinned
+// entry is appended when target is not yet present. The version is validated so
+// an unsafe pin can never enter the config. The result is sanitized and sorted
+// so the written file is stable.
+func SetPin(confPkgs []goutil.Package, target goutil.Package, version string) ([]goutil.Package, error) {
+	version = strings.TrimSpace(version)
+	if err := goutil.ValidatePinnedVersion(version); err != nil {
+		return nil, err
+	}
+
+	pinned := goutil.Package{
+		Name:          strings.TrimSpace(target.Name),
+		ImportPath:    strings.TrimSpace(target.ImportPath),
+		Version:       &goutil.Version{Current: version},
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: version,
+	}
+
+	result := make([]goutil.Package, 0, len(confPkgs)+1)
+	replaced := false
+	for _, p := range confPkgs {
+		// Drop every entry that matches the pinned package's identity, not just the
+		// first: a hand-edited gup.json with duplicate entries for one package would
+		// otherwise leave a stale duplicate behind that overwrites the new pin on the
+		// next config read.
+		if sameIdentity(p, pinned) {
+			if !replaced {
+				result = append(result, SanitizePackage(pinned))
+				replaced = true
+			}
+			continue
+		}
+		result = append(result, SanitizePackage(p))
+	}
+	if !replaced {
+		result = append(result, SanitizePackage(pinned))
+	}
+
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result, nil
+}
+
+// RemovePin returns confPkgs with target's pin cleared (channel reset to
+// @latest) and reports whether a pinned entry was actually changed. A target
+// that is absent or not pinned leaves the config unchanged and returns false, so
+// unpin is idempotent.
+func RemovePin(confPkgs []goutil.Package, target goutil.Package) ([]goutil.Package, bool) {
+	changed := false
+	result := make([]goutil.Package, 0, len(confPkgs))
+	for _, p := range confPkgs {
+		if sameIdentity(p, target) && goutil.NormalizeUpdateChannel(string(p.UpdateChannel)) == goutil.UpdateChannelPinned {
+			p.UpdateChannel = goutil.UpdateChannelLatest
+			p.PinnedVersion = ""
+			changed = true
+		}
+		result = append(result, SanitizePackage(p))
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result, changed
 }

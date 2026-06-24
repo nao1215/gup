@@ -243,14 +243,14 @@ func gup(cmd *cobra.Command, args []string) int {
 	// missingTargets were already reported as "not found ... in $GOBIN" above;
 	// pass them so ResolveChannels does not emit a second, redundant notice for a
 	// name listed both as a positional target and in --main/--master/--latest.
-	channelMap, err := configstate.ResolveChannels(pkgs, confPkgs, opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames,
+	channelMap, pinnedMap, err := configstate.ResolveChannels(pkgs, confPkgs, opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames,
 		missingTargets, func(msg string) { print.Warn(msg) })
 	if err != nil {
 		print.Err(err)
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, opts.timeout, opts.jsonOut, opts.quiet)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, pinnedMap, opts.timeout, opts.jsonOut, opts.quiet)
 
 	if !opts.dryRun && (configstate.ShouldPersistChannels(opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -272,7 +272,7 @@ type updateResult struct {
 	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
+func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
 	verCache := newVerCache()
@@ -305,6 +305,14 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		// incorrectly (see issue #292).
 		channel := configstate.PackageChannel(p.Name, p.UpdateChannel, channelMap)
 		p.UpdateChannel = channel
+
+		// A pinned package is installed at its exact recorded version and never
+		// resolves @latest/@main/@master, so it is handled entirely separately from
+		// the channel-version lookup below.
+		if channel == goutil.UpdateChannelPinned {
+			p.PinnedVersion = pinnedMap[p.Name]
+			return updatePinned(ctx, p, ignoreGoUpdate)
+		}
 
 		// Collect online channel version if possible; else always update
 		shouldUpdate := true
@@ -405,11 +413,11 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 				// In quiet mode show only binaries that were actually updated,
 				// without the [i/n] progress counter (which would be sparse).
 				if v.updated {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, updateResultStr(v.pkg)))
 				}
 				return
 			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, v.pkg.CurrentToLatestStr()))
+			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, updateResultStr(v.pkg)))
 		}
 	}
 
@@ -459,6 +467,91 @@ func desktopNotifyIfNeeded(result int, enable bool) {
 	}
 }
 
+// updateResultStr renders the per-binary update line, using the pinned-specific
+// description for a pinned package and the normal current->latest string
+// otherwise.
+func updateResultStr(p goutil.Package) string {
+	if p.IsPinned() {
+		return p.PinnedResultStr()
+	}
+	return p.CurrentToLatestStr()
+}
+
+// updatePinned installs (or keeps) a pinned package at its exact recorded
+// version. It never resolves @latest/@main/@master: the only version that is
+// ever installed is p.PinnedVersion. The pin locks the module version, not the
+// Go build, so the package is still reinstalled (at the pinned version) when the
+// installed binary was built with an older Go toolchain - unless ignoreGoUpdate
+// is set, exactly like an unpinned package. It is kept only when the installed
+// version matches the pin and the Go toolchain is current; otherwise it is
+// reinstalled at the pinned version (which may be a downgrade). On dry-run the
+// install runs into the throwaway GOBIN like every other update, so the
+// kept/reinstalled outcome is still shown.
+func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
+	pinnedVer := strings.TrimSpace(p.PinnedVersion)
+	if pinnedVer == "" {
+		// Defensive: a pinned channel without a target should be impossible because
+		// config validation rejects it, but never silently fall back to @latest.
+		return updateResult{
+			updated: false,
+			pkg:     p,
+			err:     fmt.Errorf("%s: pinned package has no recorded version", p.Name),
+			status:  statusError,
+		}
+	}
+
+	if p.Version == nil {
+		p.Version = &goutil.Version{}
+	}
+	p.Version.Latest = pinnedVer
+
+	goOutdated := !ignoreGoUpdate && p.GoVersion != nil && !p.IsGoUpToDate()
+	if p.PinSatisfied() && !goOutdated {
+		// Hide any Go-version delta we are intentionally not acting on, so the
+		// human line reads a clean "pinned <ver>" instead of a phantom rebuild.
+		if p.GoVersion != nil {
+			p.GoVersion.Latest = p.GoVersion.Current
+		}
+		return updateResult{
+			updated:    false,
+			pkg:        p,
+			skipped:    true,
+			skipReason: "pinned",
+			status:     statusPinned,
+		}
+	}
+
+	if p.ImportPath == "" {
+		return updateResult{
+			updated: false,
+			pkg:     p,
+			err:     fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name),
+			status:  statusError,
+		}
+	}
+
+	if err := installByVersionUpdCtx(ctx, p.ImportPath, pinnedVer); err != nil {
+		return updateResult{
+			updated: false,
+			pkg:     p,
+			err:     fmt.Errorf("%s: %w", p.Name, err),
+			status:  statusError,
+		}
+	}
+
+	// The reinstalled binary now matches the pinned version and was built with the
+	// current Go toolchain.
+	p.Version.Current = pinnedVer
+	if p.GoVersion != nil {
+		p.GoVersion.Current = p.GoVersion.Latest
+	}
+	return updateResult{
+		updated: true,
+		pkg:     p,
+		status:  statusUpdated,
+	}
+}
+
 func installWithSelectedVersion(ctx context.Context, importPath string, channel goutil.UpdateChannel) error {
 	switch goutil.NormalizeUpdateChannel(string(channel)) {
 	case goutil.UpdateChannelLatest:
@@ -467,6 +560,10 @@ func installWithSelectedVersion(ctx context.Context, importPath string, channel 
 		return installMainOrMasterCtx(ctx, importPath)
 	case goutil.UpdateChannelMaster:
 		return installByVersionUpdCtx(ctx, importPath, "master")
+	case goutil.UpdateChannelPinned:
+		// Pinned packages are installed via updatePinned, never here; never silently
+		// degrade a pin to @latest.
+		return fmt.Errorf("pinned package %s must be installed at its recorded version, not via channel install", importPath)
 	default:
 		return installLatestCtx(ctx, importPath)
 	}

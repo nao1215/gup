@@ -24,7 +24,28 @@ func ptr[T any](v T) *T {
 
 // ConfigFileName is gup command configuration file.
 const ConfigFileName = "gup.json"
-const configSchemaVersion = 1
+
+// Config schema versions. v1 is the original format (latest/main/master
+// channels only). v2 adds the "pinned" channel, whose entries carry a concrete
+// target version. A gup.json is written as v2 only when it actually contains a
+// pinned package, so environments with no pins keep producing the v1 format an
+// older gup can still read. Writing "channel": "pinned" into a v1 file would be
+// unsafe because an older gup normalizes unknown channels to @latest; emitting
+// v2 instead makes an older gup fail fast on the unsupported schema_version
+// rather than silently unpin the package.
+const (
+	configSchemaVersionV1 = 1
+	configSchemaVersionV2 = 2
+)
+
+// Placeholder version strings that are normalized to "latest" when persisted,
+// because none of them names a concrete, installable module version.
+const (
+	versionLatest      = "latest"
+	versionDevel       = "devel"
+	versionDevelParen  = "(devel)"
+	versionUnknownWord = "unknown"
+)
 
 type configFile struct {
 	SchemaVersion int             `json:"schema_version"`
@@ -110,8 +131,9 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 	if err := json.Unmarshal(raw, &conf); err != nil {
 		return nil, fmt.Errorf("%s is not valid JSON: %w", path, err)
 	}
-	if conf.SchemaVersion != configSchemaVersion {
-		return nil, fmt.Errorf("%s has unsupported schema_version: %d", path, conf.SchemaVersion)
+	if conf.SchemaVersion != configSchemaVersionV1 && conf.SchemaVersion != configSchemaVersionV2 {
+		return nil, fmt.Errorf("%s has unsupported schema_version: %d (supported: %d, %d)",
+			path, conf.SchemaVersion, configSchemaVersionV1, configSchemaVersionV2)
 	}
 
 	pkgs := make([]goutil.Package, 0, len(conf.Packages))
@@ -123,6 +145,29 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 			return nil, fmt.Errorf("%s contains invalid package entry at index %d", path, i)
 		}
 
+		// Channels are parsed strictly: an unknown channel is an error rather than
+		// being silently treated as @latest, so a misread config can never update a
+		// binary from the wrong source (#pinning safety rule).
+		channel, err := goutil.ParseConfigChannel(v.Channel)
+		if err != nil {
+			return nil, fmt.Errorf("%s package %q: %w", path, name, err)
+		}
+
+		pinnedVersion := ""
+		if channel == goutil.UpdateChannelPinned {
+			// A pinned channel is only meaningful in schema v2. An older gup writes
+			// v1 and normalizes unknown channels to @latest, so a v1 file that claims
+			// "pinned" is ambiguous/hand-edited: fail fast instead of guessing.
+			if conf.SchemaVersion < configSchemaVersionV2 {
+				return nil, fmt.Errorf("%s package %q: channel \"pinned\" requires schema_version %d, but file is schema_version %d",
+					path, name, configSchemaVersionV2, conf.SchemaVersion)
+			}
+			if err := goutil.ValidatePinnedVersion(version); err != nil {
+				return nil, fmt.Errorf("%s package %q: %w", path, name, err)
+			}
+			pinnedVersion = version
+		}
+
 		binVer := goutil.Version{Current: version, Latest: ""}
 		goVer := goutil.Version{Current: "<from gup.json>", Latest: ""}
 		pkgs = append(pkgs, goutil.Package{
@@ -130,7 +175,8 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 			ImportPath:    importPath,
 			Version:       ptr(binVer),
 			GoVersion:     ptr(goVer),
-			UpdateChannel: goutil.NormalizeUpdateChannel(v.Channel),
+			UpdateChannel: channel,
+			PinnedVersion: pinnedVersion,
 		})
 	}
 
@@ -140,16 +186,16 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 // WriteConfFile write package information at configuration-file.
 func WriteConfFile(file io.Writer, pkgs []goutil.Package) error {
 	conf := configFile{
-		SchemaVersion: configSchemaVersion,
+		SchemaVersion: schemaVersionFor(pkgs),
 		Packages:      make([]configPackage, 0, len(pkgs)),
 	}
 
 	for _, v := range pkgs {
-		version := "latest"
-		if v.Version != nil {
-			version = normalizeConfVersion(v.Version.Current)
-		}
 		channel := goutil.NormalizeUpdateChannel(string(v.UpdateChannel))
+		version, err := versionForChannel(v, channel)
+		if err != nil {
+			return fmt.Errorf("can't write package %q: %w", v.Name, err)
+		}
 		conf.Packages = append(conf.Packages, configPackage{
 			Name:       v.Name,
 			ImportPath: v.ImportPath,
@@ -180,8 +226,43 @@ func WriteConfFile(file io.Writer, pkgs []goutil.Package) error {
 // path.
 func normalizeConfVersion(version string) string {
 	version = strings.TrimSpace(version)
-	if version == "" || version == "(devel)" || version == "devel" || version == "unknown" {
-		return "latest"
+	if version == "" || version == versionDevelParen || version == versionDevel || version == versionUnknownWord {
+		return versionLatest
 	}
 	return version
+}
+
+// schemaVersionFor picks the schema version to write: v2 when any package is
+// pinned (so the "pinned" channel is only ever emitted under a schema that
+// understands it), otherwise v1 so environments without pins keep producing a
+// file an older gup can read unchanged.
+func schemaVersionFor(pkgs []goutil.Package) int {
+	for _, v := range pkgs {
+		if goutil.NormalizeUpdateChannel(string(v.UpdateChannel)) == goutil.UpdateChannelPinned {
+			return configSchemaVersionV2
+		}
+	}
+	return configSchemaVersionV1
+}
+
+// versionForChannel returns the version string to persist for a package. For a
+// pinned package the concrete pinned target is written (from PinnedVersion,
+// falling back to the recorded current version) and validated so an unsafe pin
+// is never written to disk - a pin must never degrade into "latest". For every
+// other channel the existing placeholder normalization applies.
+func versionForChannel(p goutil.Package, channel goutil.UpdateChannel) (string, error) {
+	if channel == goutil.UpdateChannelPinned {
+		// Persist only the explicit pin target. Falling back to Version.Current
+		// (the installed version) could silently write the wrong version - losing a
+		// downgrade pin - so an empty PinnedVersion fails fast instead.
+		version := strings.TrimSpace(p.PinnedVersion)
+		if err := goutil.ValidatePinnedVersion(version); err != nil {
+			return "", err
+		}
+		return version, nil
+	}
+	if p.Version != nil {
+		return normalizeConfVersion(p.Version.Current), nil
+	}
+	return versionLatest, nil
 }
