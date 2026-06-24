@@ -1,3 +1,23 @@
+## [v1.6.0](https://github.com/nao1215/gup/compare/v1.5.1...v1.6.0) (2026-06-24)
+
+### Features
+
+* `gup update` and `gup check` now turn the Go toolchain's failure output into a short, actionable next-step hint printed on STDERR right after the error (and exposed as a per-package `hint` field in `--json` output). Hints cover module renames/major-version moves, relocated commands, `go.mod` `replace` directives, binaries not installed via `go install`, missing branch/tag for the selected channel, unresolvable/private/deleted repositories, SSH/auth and network/proxy errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy). (#378)
+
+### Bug Fixes
+
+* `gup update` and `gup check` no longer mislabel a binary that exists in `$GOBIN` but whose build info cannot be read (or that was not installed by `go install`) as "not found": such a binary is reported as unreadable, not missing. The "not found" notice is now derived from the installed binary paths rather than the resolved packages. (#378)
+* `gup update` no longer prints two "not found" notices for the same name when it is supplied both as a positional target and in `--main`/`--master`/`--latest`; the duplicate channel-flag notice is suppressed once the name has already been reported. (#378)
+
+### Code Refactoring
+
+* Extract package selection, online-version caching, and the parallel worker pool out of the `cmd/` layer into new reusable `internal/pkgselect`, `internal/vercache`, and `internal/parallel` packages, keeping `cmd/` a thin wiring/output shell. No user-visible behavior change. (#377)
+* Replace the archived `github.com/pkg/errors` dependency with the standard library `errors`/`fmt`. No user-visible behavior change. (#376)
+
+### CI
+
+* Tighten the golangci-lint configuration and modernize the codebase for Go 1.25. (#376)
+
 ## [v1.5.1](https://github.com/nao1215/gup/compare/v1.5.0...v1.5.1) (2026-06-23)
 
 ### Bug Fixes
