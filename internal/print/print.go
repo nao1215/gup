@@ -41,6 +41,14 @@ func Err(err interface{}) {
 		cmdinfo.Name, color.HiYellowString("ERROR"), err)
 }
 
+// Hint print a next-step suggestion at STDERR in cyan. It is used to follow up
+// an error with actionable guidance (e.g. which command to run next) so a
+// failure is not just reported but explained.
+func Hint(msg string) {
+	_, _ = fmt.Fprintf(Stderr, "%s:%s : %v\n",
+		cmdinfo.Name, color.CyanString("HINT"), msg)
+}
+
 // OsExit is wrapper for  os.Exit(). It's for unit test.
 var OsExit = os.Exit //nolint:gochecknoglobals
 

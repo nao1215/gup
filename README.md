@@ -208,9 +208,23 @@ $ gup check --json
 ]
 ```
 
-Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, and `error` (omitted when absent). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
+Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, `error` (omitted when absent), and `hint` (a next-step suggestion, present only when one applies to the error). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
 
 The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
+
+### Failure diagnostics / next-step hints
+When `check` or `update` cannot process a package, gup already holds the Go toolchain's full error output—so instead of leaving you to decipher messages like `no matching versions for query "latest"` or `unrecognized import path`, it prints a short, actionable next step right after the error:
+
+```shell
+$ gup update
+update binary under $GOPATH/bin or $GOBIN
+gup:ERROR: [1/1] air: can't install github.com/cosmtrek/air:
+        module declares its path as: github.com/air-verse/air
+                but was required as: github.com/cosmtrek/air
+gup:HINT : The module appears to have moved to github.com/air-verse/air. gup tries to follow renames automatically; if it still fails, reinstall manually with `go install github.com/air-verse/air@latest`.
+```
+
+Hints cover common, recoverable causes—module renames, a binary not installed via `go install`, a missing branch/tag for the chosen channel, an unresolvable/renamed repository, permission problems, an out-of-date Go toolchain, unsupported `GOOS`/`GOARCH`, and network/proxy errors. They are written to STDERR (so they never pollute `--json` STDOUT) and, in `--json` mode, are also exposed as the per-package `hint` field. gup stays quiet when it cannot offer a confident suggestion (for example, a timeout error already names the manual command and `--timeout` remedy), so a hint always adds signal.
 
 ### Behavior on an empty environment
 An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:
@@ -401,7 +415,7 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | Shell completion generation/install | Yes | No | No |
 | `update` reinstalls up-to-date binaries | No | Yes | Yes |
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
-| Failure diagnostics / next-step hints | No | Yes | No |
+| Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
 | No extra tool required (official toolchain only) | No | No | Yes |
 
