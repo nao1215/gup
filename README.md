@@ -13,7 +13,7 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again; gup brings the whole set up to date in parallel. It also adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
+gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again, keeps no manifest of what it installed, and offers no way to hold a tool at a version you depend on. gup manages that tool set: it brings the whole set up to date in parallel, can `pin` selected tools to exact versions, and adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
 
 ## Supported OS (unit testing with GitHub Actions)
 
@@ -121,6 +121,39 @@ The selected channel is saved to `gup.json` and reused by future `gup update` ru
 $ gup update --main=gup,lazygit --master=sqly --latest=air
 ```
 
+### Pin a tool to a specific version
+
+Use `pin` when a global tool must stay on a specific version, for example when it needs to match CI or a team-wide development environment.
+
+```shell
+$ gup pin golangci-lint v1.62.0
+$ gup update
+```
+
+A pinned tool is installed with the recorded version (`go install <import_path>@<version>`), never `@latest`. `gup update` keeps it at that version and reinstalls it there if the installed version differs; the rest of the tool set still updates as usual. The pin is stored in `gup.json` with `channel: "pinned"`:
+
+```json
+{
+  "schema_version": 2,
+  "packages": [
+    {
+      "name": "golangci-lint",
+      "import_path": "github.com/golangci/golangci-lint/cmd/golangci-lint",
+      "version": "v1.62.0",
+      "channel": "pinned"
+    }
+  ]
+}
+```
+
+`gup pin` also accepts the `tool@version` form (`gup pin golangci-lint@v1.62.0`). The tool must already be installed under `$GOBIN`. To allow the tool to update again:
+
+```shell
+$ gup unpin golangci-lint
+```
+
+`gup check` reports a pinned tool as `pinned` when it is at the pinned version, or `pin-mismatch` (with a `gup update <name>` suggestion) when the installed version differs; it never compares a pinned tool against `@latest`.
+
 ### List up command name with package path and version under $GOPATH/bin
 list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
 ![list](./doc/img/list.gif)
@@ -205,7 +238,7 @@ $ gup check --json
 ]
 ```
 
-Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`), `current_version`, `latest_version` (empty for `list`), `current_go_version`, `installed_go_version`, `status`, `error` (omitted when absent), and `hint` (a next-step suggestion, present only when one applies to the error). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), or `error`.
+Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`/`pinned`), `current_version`, `latest_version` (empty for `list` and for pinned packages), `pinned_version` (present only for `channel: "pinned"`), `current_go_version`, `installed_go_version`, `status`, `error` (omitted when absent), and `hint` (a next-step suggestion, present only when one applies to the error). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), `pinned`/`pin-mismatch` (a pinned package at / away from its pinned version), or `error`.
 
 The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
 
@@ -231,8 +264,7 @@ Naming a binary that is not installed, or excluding every binary, is still a usa
 
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
-`gup.json` stores import path, binary version, and update channel (`latest` / `main` / `master`).
-`import` installs the exact version written in the file.
+`gup.json` stores each tool's import path, the recorded binary `version`, and its update `channel` (`latest` / `main` / `master` / `pinned`). For `channel: "pinned"`, `version` is the exact target version the tool is held at; for the other channels it is the version that was recorded at export time. `import` installs the exact version written in the file, and a pinned package stays pinned after import.
 
 ```json
 {
@@ -262,7 +294,9 @@ By default:
 
 If both the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
 
-A malformed `gup.json` (invalid JSON or an unsupported `schema_version`) is also treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed.
+`schema_version` is `1` for configs with no pinned packages and `2` once any package is pinned, so an environment that uses no pins keeps producing the `1` format that older gup releases can read. gup reads both `1` and `2`. The `pinned` channel is only valid under `schema_version: 2`; a `pinned` entry under `schema_version: 1`, a pinned package without a concrete version, an unknown channel value, or an unsupported `schema_version` is rejected.
+
+A malformed or invalid `gup.json` (invalid JSON, an unknown channel, an unsupported `schema_version`, or an unsafe pin) is treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed. An unknown channel is never normalized to `latest`.
 
 `gup export` always resolves saved update channels from the canonical user-level `gup.json`; `--file`/`--output` only change the export destination, so exporting to a new file never resets a package's channel back to `latest`.
 
@@ -367,7 +401,7 @@ $ NO_COLOR=1 gup update
 
 
 ## gup vs. `go tool`
-Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory. Use `go tool` for per-project tooling and gup for your global toolbox.
+Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory and keep alongside your dotfiles, optionally pinned to versions you depend on. Use `go tool` for per-project tooling and gup for your global toolbox.
 
 ## Benchmark
 gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
@@ -386,6 +420,7 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | --- | :-: | :-: | :-: |
 | Parallel update | Yes | No | Manual |
 | Per-package update channels (`latest`/`main`/`master`) | Yes | No | Manual |
+| Version pinning / lock | Yes | No | Manual |
 | Export/import tool set | Yes | No | Manual |
 | Migrate binaries to a new `$GOBIN` | Yes | No | Manual |
 | Machine-readable JSON output (`--json`) | Yes | No | No |
