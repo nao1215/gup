@@ -17,6 +17,12 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 )
 
+// errPinnedNotResolvable is returned if a pinned channel ever reaches the
+// version resolver: pinned packages install an exact recorded version and are
+// handled before the cache, so reaching here is a programming error, never a
+// reason to fall back to @latest.
+var errPinnedNotResolvable = errors.New("pinned channel has no resolvable version; install the recorded version directly")
+
 // Resolver looks up the version that the given update channel would install for
 // modulePath. It mirrors the install-time policy of 'gup update'.
 type Resolver func(ctx context.Context, modulePath string, channel goutil.UpdateChannel) (string, error)
@@ -151,6 +157,11 @@ func ChannelResolver(getLatest GetLatestFunc, getByRef GetByRefFunc) Resolver {
 			return getByRef(ctx, modulePath, string(goutil.UpdateChannelMaster))
 		case goutil.UpdateChannelMaster:
 			return getByRef(ctx, modulePath, string(goutil.UpdateChannelMaster))
+		case goutil.UpdateChannelPinned:
+			// A pinned package is installed at its exact recorded version and must
+			// never be resolved against the proxy; callers handle it before reaching
+			// the cache. Surface a clear error instead of silently resolving @latest.
+			return "", errPinnedNotResolvable
 		case goutil.UpdateChannelLatest:
 			return getLatest(ctx, modulePath)
 		default:

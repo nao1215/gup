@@ -8,6 +8,14 @@ import (
 
 const unknown = "unknown"
 
+// develVersion and develVersionParen are the placeholder versions the go
+// toolchain reports for a locally built binary; neither names a concrete,
+// installable module version.
+const (
+	develVersion      = "devel"
+	develVersionParen = "(devel)"
+)
+
 // Internal variables to mock/monkey-patch behaviors in tests.
 var (
 	// goExe is the executable name for the go command.

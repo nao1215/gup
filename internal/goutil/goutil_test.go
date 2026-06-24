@@ -697,6 +697,7 @@ func TestNormalizeUpdateChannel(t *testing.T) {
 		{name: "latest", in: "latest", want: UpdateChannelLatest},
 		{name: "main", in: "main", want: UpdateChannelMain},
 		{name: "master", in: "master", want: UpdateChannelMaster},
+		{name: "pinned", in: "pinned", want: UpdateChannelPinned},
 		{name: "upper case", in: "MAIN", want: UpdateChannelMain},
 		{name: "blank defaults latest", in: "", want: UpdateChannelLatest},
 		{name: "unknown defaults latest", in: "snapshot", want: UpdateChannelLatest},
