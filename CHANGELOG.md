@@ -1,3 +1,26 @@
+## [v1.7.0](https://github.com/nao1215/gup/compare/v1.6.0...v1.7.0) (2026-06-25)
+
+### Features
+
+* Add version pinning. `gup pin <tool> <version>` (also `gup pin <tool>@<version>`) records a tool in `gup.json` under a new `pinned` channel with a concrete version, and `gup unpin <tool>` clears it. `gup update` installs a pinned tool at its exact version with `go install <import_path>@<version>` (never `@latest`), keeps it there, and reinstalls it only when the installed version differs or the Go toolchain changed (suppressible with `--ignore-go-update`), while unpinned tools still update in parallel. `gup check` reports `pinned`/`pin-mismatch` without querying `@latest`, and `--json` gains a `pinned_version` field and the `pinned`/`pin-mismatch` statuses. Pinned state is preserved across `export`/`import`. (#384)
+
+### Bug Fixes
+
+* `gup.json` now uses `schema_version` `2` only when a package is pinned and otherwise stays at `1`, so older gup releases keep reading pin-free configs; channels are parsed strictly so an unknown channel, a `pinned` entry without a concrete version, or `channel: "pinned"` under `schema_version: 1` fails fast instead of being silently downgraded to `@latest`. (#384)
+
+### Code Refactoring
+
+* Split the `internal/goutil` monolith into concern-focused files and reuse `internal/parallel.Run` for package-information collection. No user-visible behavior change. (#380)
+* Consolidate the `update`/`check` flag parsing into `parseUpdateFlags`/`parseCheckFlags` so a flag error is handled in one place. No user-visible behavior change. (#381)
+
+### Docs
+
+* Refresh the README introduction and structure, rewrite `SECURITY.md` to fit gup, split the `go tool` comparison into its own section, fold the benchmark result into the feature-comparison table, and mirror the version-pinning documentation across all translated READMEs. (#383, #384)
+
+### CI
+
+* Pin GitHub Actions to commit SHAs, disable persisted checkout credentials, and cache the release smoke build. (#383)
+
 ## [v1.6.0](https://github.com/nao1215/gup/compare/v1.5.1...v1.6.0) (2026-06-24)
 
 ### Features
