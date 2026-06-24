@@ -91,7 +91,7 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
+	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -100,7 +100,7 @@ func check(cmd *cobra.Command, args []string) int {
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
 	ignoreGoUpdate = ignoreGoUpdate || !goVersionAvailable
-	pkgs = pkgselect.ExtractByTargets(pkgs, args, func(msg string) { print.Warn(msg) })
+	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
 
 	if len(pkgs) == 0 {
 		// With explicit targets, an empty result means the user named binaries

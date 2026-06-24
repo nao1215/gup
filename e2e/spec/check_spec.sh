@@ -22,4 +22,15 @@ Describe 'gup check'
     The output should include '"status": "update-available"'
     The output should include '"latest_version": "v1.1.0"'
   End
+
+  # A file present in $GOBIN whose build info can't be read (here a non-Go junk
+  # binary) must be reported as unreadable, NOT as "not found": it exists, it
+  # just can't be managed. Regression for the missing-target mislabeling.
+  It 'does not mislabel a present-but-unreadable binary as not found'
+    printf 'not a go binary' > "$GOBIN/junk"
+    When call gup check junk
+    The status should be failure
+    The stderr should include 'could not read Go build info'
+    The stderr should not include "not found 'junk'"
+  End
 End

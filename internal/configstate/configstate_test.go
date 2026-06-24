@@ -19,6 +19,7 @@ const (
 	testToolA    = "tool-a"
 	testToolB    = "tool-b"
 	testToolC    = "tool-c"
+	testNope     = "nope"
 	testKeptTool = "kept-tool"
 	testNewTool  = "new-tool"
 	testVer100   = "v1.0.0"
@@ -222,7 +223,7 @@ func TestResolveChannels(t *testing.T) {
 
 	t.Run("assigns channels from flags", func(t *testing.T) {
 		t.Parallel()
-		got, err := ResolveChannels(pkgs, nil, []string{testToolA}, []string{testToolB}, nil, nil)
+		got, err := ResolveChannels(pkgs, nil, []string{testToolA}, []string{testToolB}, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -240,7 +241,7 @@ func TestResolveChannels(t *testing.T) {
 	t.Run("config channel is the default below flags", func(t *testing.T) {
 		t.Parallel()
 		confPkgs := []goutil.Package{{Name: testToolC, UpdateChannel: goutil.UpdateChannelMain}}
-		got, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil)
+		got, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -252,7 +253,7 @@ func TestResolveChannels(t *testing.T) {
 	t.Run("flag overrides config channel", func(t *testing.T) {
 		t.Parallel()
 		confPkgs := []goutil.Package{{Name: testToolC, UpdateChannel: goutil.UpdateChannelMain}}
-		got, err := ResolveChannels(pkgs, confPkgs, nil, nil, []string{testToolC}, nil)
+		got, err := ResolveChannels(pkgs, confPkgs, nil, nil, []string{testToolC}, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -263,7 +264,7 @@ func TestResolveChannels(t *testing.T) {
 
 	t.Run("conflicting flags error", func(t *testing.T) {
 		t.Parallel()
-		_, err := ResolveChannels(pkgs, nil, []string{testToolA}, []string{testToolA}, nil, nil)
+		_, err := ResolveChannels(pkgs, nil, []string{testToolA}, []string{testToolA}, nil, nil, nil)
 		if err == nil || !strings.Contains(err.Error(), "same binary") {
 			t.Fatalf("err = %v, want 'same binary'", err)
 		}
@@ -272,21 +273,21 @@ func TestResolveChannels(t *testing.T) {
 	t.Run("unknown flag name is warned and skipped", func(t *testing.T) {
 		t.Parallel()
 		var warned []string
-		got, err := ResolveChannels(pkgs, nil, []string{"nope"}, nil, nil, func(m string) { warned = append(warned, m) })
+		got, err := ResolveChannels(pkgs, nil, []string{testNope}, nil, nil, nil, func(m string) { warned = append(warned, m) })
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(warned) != 1 || !strings.Contains(warned[0], "nope") {
+		if len(warned) != 1 || !strings.Contains(warned[0], testNope) {
 			t.Fatalf("warn = %v, want a notice mentioning 'nope'", warned)
 		}
-		if _, ok := got["nope"]; ok {
+		if _, ok := got[testNope]; ok {
 			t.Fatal("unknown binary should not be added to the channel map")
 		}
 	})
 
 	t.Run("blank flag name is skipped", func(t *testing.T) {
 		t.Parallel()
-		got, err := ResolveChannels(pkgs, nil, []string{" "}, nil, nil, nil)
+		got, err := ResolveChannels(pkgs, nil, []string{" "}, nil, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -294,6 +295,37 @@ func TestResolveChannels(t *testing.T) {
 			if got[p.Name] != goutil.UpdateChannelLatest {
 				t.Errorf("%s = %q, want latest", p.Name, got[p.Name])
 			}
+		}
+	})
+
+	// A name already reported as a missing positional target must not be warned
+	// again when it also appears in a channel flag: the caller has surfaced it
+	// once already.
+	t.Run("does not re-warn a name already reported missing", func(t *testing.T) {
+		t.Parallel()
+		var warned []string
+		_, err := ResolveChannels(pkgs, nil, []string{testNope}, nil, nil,
+			[]string{testNope}, func(m string) { warned = append(warned, m) })
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(warned) != 0 {
+			t.Fatalf("warn = %v, want no second notice for an already-reported name", warned)
+		}
+	})
+
+	// A different unmatched flag name is still warned even when an unrelated name
+	// was reported missing.
+	t.Run("still warns a distinct unmatched flag name", func(t *testing.T) {
+		t.Parallel()
+		var warned []string
+		_, err := ResolveChannels(pkgs, nil, []string{"other"}, nil, nil,
+			[]string{testNope}, func(m string) { warned = append(warned, m) })
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(warned) != 1 || !strings.Contains(warned[0], "other") {
+			t.Fatalf("warn = %v, want a notice mentioning 'other'", warned)
 		}
 	})
 }
@@ -482,7 +514,7 @@ func TestResolveChannels_honorsSavedChannelByImportPath(t *testing.T) {
 	confPkgs := []goutil.Package{{Name: testOldName, ImportPath: testFooPath, UpdateChannel: goutil.UpdateChannelMain}}
 	pkgs := []goutil.Package{{Name: testNewName, ImportPath: testFooPath}}
 
-	got, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil)
+	got, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -500,7 +532,7 @@ func TestResolveChannels_savedChannelOverridableByFlag(t *testing.T) {
 	pkgs := []goutil.Package{{Name: testNewName, ImportPath: testFooPath}}
 
 	// Without flags the saved @main (matched by import_path) wins over @latest.
-	base, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil)
+	base, err := ResolveChannels(pkgs, confPkgs, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -509,7 +541,7 @@ func TestResolveChannels_savedChannelOverridableByFlag(t *testing.T) {
 	}
 
 	// --latest for the installed binary still overrides the saved channel.
-	got, err := ResolveChannels(pkgs, confPkgs, nil, nil, []string{testNewName}, nil)
+	got, err := ResolveChannels(pkgs, confPkgs, nil, nil, []string{testNewName}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -583,7 +615,7 @@ func TestIdentity_roundTripConsistency(t *testing.T) {
 	}
 
 	// ResolveChannels (update).
-	channelMap, err := ResolveChannels([]goutil.Package{installed}, confPkgs, nil, nil, nil, nil)
+	channelMap, err := ResolveChannels([]goutil.Package{installed}, confPkgs, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

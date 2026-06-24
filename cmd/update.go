@@ -148,7 +148,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
+	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
 	if err != nil {
 		print.Err(err)
 		return 1
@@ -186,7 +186,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	pkgs = pkgselect.ExtractByTargets(pkgs, args, func(msg string) { print.Warn(msg) })
+	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
 	// In JSON mode the human-readable "Exclude ..." notice is suppressed so
 	// STDOUT stays valid JSON (the notice goes to STDOUT via print.Info, which
 	// would otherwise break machine-readable output; see issue #291).
@@ -243,8 +243,11 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	// missingTargets were already reported as "not found ... in $GOBIN" above;
+	// pass them so ResolveChannels does not emit a second, redundant notice for a
+	// name listed both as a positional target and in --main/--master/--latest.
 	channelMap, err := configstate.ResolveChannels(pkgs, confPkgs, mainPkgNames, masterPkgNames, latestPkgNames,
-		func(msg string) { print.Warn(msg) })
+		missingTargets, func(msg string) { print.Warn(msg) })
 	if err != nil {
 		print.Err(err)
 		return 1
