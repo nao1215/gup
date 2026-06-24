@@ -358,22 +358,12 @@ $ NO_COLOR=1 gup update
 ## gup vs. `go tool`
 El [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) integrado en Go 1.24 gestiona herramientas con alcance a un único proyecto y registradas en el `go.mod` de ese proyecto, por lo que esas herramientas solo existen dentro de ese módulo. gup gestiona los binarios instalados a nivel de sistema bajo `$GOBIN`, los comandos que ejecutas desde cualquier directorio. Usa `go tool` para las herramientas específicas de cada proyecto y gup para tu caja de herramientas global.
 
-## Benchmark
-gup ejecuta las actualizaciones en paralelo, por lo que termina más rápido que las herramientas que actualizan los binarios de uno en uno. Actualizando 9 binarios que tenían una versión más reciente disponible:
-
-| Herramienta                                                   | Estrategia | Tiempo |
-| ------------------------------------------------------------- | ---------- | -----: |
-| gup update                                                    | paralelo   |   0.7s |
-| [go-global-update](https://github.com/Gelio/go-global-update) | secuencial |   2.9s |
-| bucle `go install`                                            | secuencial |   2.9s |
-
-Medido en AMD Ryzen AI Max+ 395 (32 núcleos) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, mediana de 5 ejecuciones con la caché de módulos de Go en caliente. Los tiempos dependen del tiempo de compilación de cada binario y de tu CPU.
-
 ## Comparación de características
 
 | Característica | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
 | --- | :-: | :-: | :-: |
 | Actualización en paralelo | Sí | No | Manual |
+| Tiempo de actualización (9 binarios) | 0.7s | 2.9s | 2.9s |
 | Canales de actualización por paquete (`latest`/`main`/`master`) | Sí | No | Manual |
 | Exportar/importar conjunto de herramientas | Sí | No | Manual |
 | Migrar binarios a un nuevo `$GOBIN` | Sí | No | Manual |
@@ -383,6 +373,8 @@ Medido en AMD Ryzen AI Max+ 395 (32 núcleos) / 64 GB RAM / Ubuntu 26.04 / go 1.
 | `migrate --force` reinstala cuando el destino ya existe | Sí | No | Manual |
 | Diagnóstico de fallos / sugerencias del siguiente paso | Sí | Sí | No |
 | Soporte de `NO_COLOR` | Sí | Sí | — |
+
+*Tiempo de actualización: 9 binarios, cada uno con una versión más reciente disponible; gup en paralelo, los demás en secuencia. AMD Ryzen AI Max+ 395 / go 1.26.4, mediana de 5 ejecuciones con caché de módulos en caliente; los tiempos dependen del tiempo de compilación y la CPU.*
 
 ## FAQ
 

@@ -358,22 +358,12 @@ $ NO_COLOR=1 gup update
 ## gup vs. `go tool`
 Le [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) intégré à Go 1.24 gère les outils limités à un seul projet et enregistrés dans le `go.mod` de ce projet ; ces outils n'existent donc qu'à l'intérieur de ce module. gup gère les binaires installés à l'échelle du système sous `$GOBIN`, les commandes que vous exécutez depuis n'importe quel répertoire. Utilisez `go tool` pour l'outillage propre à chaque projet et gup pour votre boîte à outils globale.
 
-## Benchmark
-gup exécute les mises à jour en parallèle, il termine donc plus vite que les outils qui mettent à jour les binaires un par un. Mise à jour de 9 binaires pour lesquels une version plus récente était disponible :
-
-| Outil                                                         | Stratégie    | Temps |
-| ------------------------------------------------------------- | ------------ | ----: |
-| gup update                                                    | parallèle    |  0.7s |
-| [go-global-update](https://github.com/Gelio/go-global-update) | séquentielle |  2.9s |
-| boucle `go install`                                           | séquentielle |  2.9s |
-
-Mesuré sur AMD Ryzen AI Max+ 395 (32 cœurs) / 64 Go de RAM / Ubuntu 26.04 / go 1.26.4, médiane de 5 exécutions avec un cache de modules Go chaud. Les temps dépendent du temps de build de chaque binaire et de votre CPU.
-
 ## Comparaison des fonctionnalités
 
 | Fonctionnalité | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
 | --- | :-: | :-: | :-: |
 | Mise à jour en parallèle | Oui | Non | Manuel |
+| Temps de mise à jour (9 binaires) | 0.7s | 2.9s | 2.9s |
 | Canaux de mise à jour par package (`latest`/`main`/`master`) | Oui | Non | Manuel |
 | Export/import de l'ensemble d'outils | Oui | Non | Manuel |
 | Migration des binaires vers un nouveau `$GOBIN` | Oui | Non | Manuel |
@@ -383,6 +373,8 @@ Mesuré sur AMD Ryzen AI Max+ 395 (32 cœurs) / 64 Go de RAM / Ubuntu 26.04 / go
 | `migrate --force` réinstalle lorsque la cible existe déjà | Oui | Non | Manuel |
 | Diagnostics d'échec / suggestions d'étapes suivantes | Oui | Oui | Non |
 | Prise en charge de `NO_COLOR` | Oui | Oui | — |
+
+*Temps de mise à jour : 9 binaires, chacun avec une version plus récente disponible ; gup en parallèle, les autres en séquentiel. AMD Ryzen AI Max+ 395 / go 1.26.4, médiane de 5 exécutions avec un cache de modules chaud ; les temps dépendent du temps de build et du CPU.*
 
 ## FAQ
 

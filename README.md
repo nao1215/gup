@@ -403,22 +403,12 @@ $ NO_COLOR=1 gup update
 ## gup vs. `go tool`
 Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory and keep alongside your dotfiles, optionally pinned to versions you depend on. Use `go tool` for per-project tooling and gup for your global toolbox.
 
-## Benchmark
-gup runs updates in parallel, so it finishes faster than tools that update binaries one at a time. Updating 9 binaries that each had a newer version available:
-
-| Tool                                                          | Strategy   | Time |
-| ------------------------------------------------------------- | ---------- | ---: |
-| gup update                                                    | parallel   | 0.7s |
-| [go-global-update](https://github.com/Gelio/go-global-update) | sequential | 2.9s |
-| `go install` loop                                             | sequential | 2.9s |
-
-Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.26.4, median of 5 runs with a warm Go module cache. Times depend on each binary's build time and your CPU.
-
 ## Feature comparison
 
 | Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
 | --- | :-: | :-: | :-: |
 | Parallel update | Yes | No | Manual |
+| Update time, 9 binaries | 0.7s | 2.9s | 2.9s |
 | Per-package update channels (`latest`/`main`/`master`) | Yes | No | Manual |
 | Version pinning / lock | Yes | No | Manual |
 | Export/import tool set | Yes | No | Manual |
@@ -429,6 +419,8 @@ Measured on AMD Ryzen AI Max+ 395 (32 cores) / 64 GB RAM / Ubuntu 26.04 / go 1.2
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
+
+*Update time: 9 binaries each with a newer version available; gup updates in parallel, the others sequentially. AMD Ryzen AI Max+ 395 / go 1.26.4, median of 5 runs with a warm module cache; times depend on build time and CPU.*
 
 ## FAQ
 
