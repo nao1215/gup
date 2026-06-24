@@ -18,9 +18,9 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1"
           check-latest: true
@@ -28,7 +28,7 @@ jobs:
       - name: Run tests with coverage report output
         run: go test -cover -coverpkg=./... -coverprofile=cover.out ./...
 
-      - uses: k1LoW/octocov-action@v1
+      - uses: k1LoW/octocov-action@b3b6ee60482a667950f87553abf1df63217235d9 # v1.5.1
         with:
           config: .octocov.yml
           work-dir: .
