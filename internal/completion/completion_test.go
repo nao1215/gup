@@ -16,8 +16,8 @@ func TestHasSameBashCompletionContent_ExactMatch(t *testing.T) {
 	content := generateBashCompletion(t, cmd)
 	writeBashCompletionFile(t, content)
 
-	if !hasSameBashCompletionContent(cmd) {
-		t.Fatal("hasSameBashCompletionContent() = false, want true")
+	if !isSameBashCompletionFile(cmd) {
+		t.Fatal("isSameBashCompletionFile() = false, want true")
 	}
 }
 
@@ -28,8 +28,8 @@ func TestHasSameBashCompletionContent_DifferentButContains(t *testing.T) {
 	content := generateBashCompletion(t, cmd)
 	writeBashCompletionFile(t, append([]byte("# stale header\n"), content...))
 
-	if hasSameBashCompletionContent(cmd) {
-		t.Fatal("hasSameBashCompletionContent() = true, want false")
+	if isSameBashCompletionFile(cmd) {
+		t.Fatal("isSameBashCompletionFile() = true, want false")
 	}
 }
 
