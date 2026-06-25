@@ -49,7 +49,7 @@ func TestUpdatePinned_reinstallsAtPinWhenDifferent(t *testing.T) {
 	}()
 
 	p := pinnedTestPkg("v1.1.0", testVersionOne)
-	res := updatePinned(t.Context(), p, false)
+	res := updatePinned(defaultDependencies(), t.Context(), p, false)
 	if !called {
 		t.Fatal("expected go install <path>@<pinned> to be called")
 	}
@@ -70,7 +70,7 @@ func TestUpdatePinned_skipsWhenAlreadyAtPin(t *testing.T) {
 	defer func() { installByVersionUpd = goutil.Install }()
 
 	p := pinnedTestPkg(testVersionOne, testVersionOne)
-	res := updatePinned(t.Context(), p, false)
+	res := updatePinned(defaultDependencies(), t.Context(), p, false)
 	if res.updated {
 		t.Error("updated = true, want false when already at the pin")
 	}
@@ -91,7 +91,7 @@ func TestUpdatePinned_emptyPinIsError(t *testing.T) {
 	defer func() { installByVersionUpd = goutil.Install }()
 
 	p := pinnedTestPkg("v1.0.0", "")
-	res := updatePinned(t.Context(), p, false)
+	res := updatePinned(defaultDependencies(), t.Context(), p, false)
 	if res.err == nil {
 		t.Fatal("expected an error for a pin with no recorded version, never a silent @latest")
 	}
@@ -145,7 +145,7 @@ func TestUpdatePinned_reinstallsWhenGoOutdated(t *testing.T) {
 	defer func() { installByVersionUpd = goutil.Install }()
 
 	// Version already matches the pin, only the Go toolchain is newer.
-	res := updatePinned(t.Context(), pinnedStaleGo(), false)
+	res := updatePinned(defaultDependencies(), t.Context(), pinnedStaleGo(), false)
 	if !called {
 		t.Fatal("expected a reinstall at the pinned version when the Go toolchain is newer")
 	}
@@ -165,7 +165,7 @@ func TestUpdatePinned_ignoreGoUpdateKeepsPin(t *testing.T) {
 	}
 	defer func() { installByVersionUpd = goutil.Install }()
 
-	res := updatePinned(t.Context(), pinnedStaleGo(), true)
+	res := updatePinned(defaultDependencies(), t.Context(), pinnedStaleGo(), true)
 	if res.updated || res.status != statusPinned {
 		t.Errorf("result updated=%v status=%q, want kept/pinned", res.updated, res.status)
 	}

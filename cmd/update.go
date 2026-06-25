@@ -16,7 +16,6 @@ import (
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/nao1215/gup/internal/vercache"
 	"github.com/spf13/cobra"
 )
 
@@ -29,21 +28,6 @@ var (
 )
 
 const latestKeyword = "latest"
-
-// newVerCache builds the per-(module,channel) version cache used by update and
-// check, wiring the package-level lookup seams into vercache's channel policy.
-// The seams are read at call time (via closures) so tests that swap them before
-// invoking a command still take effect.
-func newVerCache() *vercache.Cache {
-	return vercache.New(vercache.ChannelResolver(
-		func(ctx context.Context, modulePath string) (string, error) {
-			return getLatestVerCtx(ctx, modulePath)
-		},
-		func(ctx context.Context, modulePath, ref string) (string, error) {
-			return getVerByRefCtx(ctx, modulePath, ref)
-		},
-	))
-}
 
 func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -244,7 +228,8 @@ type updateResult struct {
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
-	verCache := newVerCache()
+	deps := defaultDependencies()
+	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("update binary under $GOPATH/bin or $GOBIN")
@@ -280,7 +265,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		// the channel-version lookup below.
 		if channel == goutil.UpdateChannelPinned {
 			p.PinnedVersion = pinnedMap[p.Name]
-			return updatePinned(ctx, p, ignoreGoUpdate)
+			return updatePinned(deps, ctx, p, ignoreGoUpdate)
 		}
 
 		// Collect online channel version if possible; else always update
@@ -330,14 +315,14 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		if p.ImportPath == "" {
 			updateErr = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
-			if err := installWithSelectedVersion(ctx, p.ImportPath, channel); err != nil {
+			if err := installWithSelectedVersion(deps, ctx, p.ImportPath, channel); err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
 					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				} else {
 					installedViaRetry = true
 					p = newPkg
-					if retryErr := installWithSelectedVersion(ctx, p.ImportPath, channel); retryErr != nil {
+					if retryErr := installWithSelectedVersion(deps, ctx, p.ImportPath, channel); retryErr != nil {
 						updateErr = fmt.Errorf("%s: %w", originalName, retryErr)
 					} else {
 						newName := binaryNameFromImportPath(p.ImportPath)
@@ -449,7 +434,7 @@ func updateResultStr(p goutil.Package) string {
 // reinstalled at the pinned version (which may be a downgrade). On dry-run the
 // install runs into the throwaway GOBIN like every other update, so the
 // kept/reinstalled outcome is still shown.
-func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
+func updatePinned(deps dependencies, ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
 	pinnedVer := strings.TrimSpace(p.PinnedVersion)
 	if pinnedVer == "" {
 		// Defensive: a pinned channel without a target should be impossible because
@@ -492,7 +477,7 @@ func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) up
 		}
 	}
 
-	if err := installByVersionUpdCtx(ctx, p.ImportPath, pinnedVer); err != nil {
+	if err := deps.installByVersion(ctx, p.ImportPath, pinnedVer); err != nil {
 		return updateResult{
 			updated: false,
 			pkg:     p,
@@ -514,20 +499,20 @@ func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) up
 	}
 }
 
-func installWithSelectedVersion(ctx context.Context, importPath string, channel goutil.UpdateChannel) error {
+func installWithSelectedVersion(deps dependencies, ctx context.Context, importPath string, channel goutil.UpdateChannel) error {
 	switch goutil.NormalizeUpdateChannel(string(channel)) {
 	case goutil.UpdateChannelLatest:
-		return installLatestCtx(ctx, importPath)
+		return deps.installLatest(ctx, importPath)
 	case goutil.UpdateChannelMain:
-		return installMainOrMasterCtx(ctx, importPath)
+		return deps.installMainOrMaster(ctx, importPath)
 	case goutil.UpdateChannelMaster:
-		return installByVersionUpdCtx(ctx, importPath, "master")
+		return deps.installByVersion(ctx, importPath, "master")
 	case goutil.UpdateChannelPinned:
 		// Pinned packages are installed via updatePinned, never here; never silently
 		// degrade a pin to @latest.
 		return fmt.Errorf("pinned package %s must be installed at its recorded version, not via channel install", importPath)
 	default:
-		return installLatestCtx(ctx, importPath)
+		return deps.installLatest(ctx, importPath)
 	}
 }
 

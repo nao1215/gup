@@ -132,7 +132,7 @@ func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 }
 
 func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
-	verCache := newVerCache()
+	verCache := defaultDependencies().newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("check binary under $GOPATH/bin or $GOBIN")

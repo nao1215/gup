@@ -746,19 +746,16 @@ func modulePathMismatchErr(requiredPath, declaredPath string) error {
 }
 
 func Test_installWithSelectedVersion(t *testing.T) {
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
+	t.Parallel()
 
+	// Inject the install operations directly instead of mutating package
+	// globals, so this test owns its dependencies and runs in parallel.
 	var called string
-	installLatest = func(string) error { called = latestKeyword; return nil }
-	installMainOrMaster = func(string) error { called = "main"; return nil }
-	installByVersionUpd = func(_, v string) error { called = "version:" + v; return nil }
+	deps := dependencies{
+		installLatest:       func(context.Context, string) error { called = latestKeyword; return nil },
+		installMainOrMaster: func(context.Context, string) error { called = "main"; return nil },
+		installByVersion:    func(_ context.Context, _, v string) error { called = "version:" + v; return nil },
+	}
 
 	tests := []struct {
 		channel goutil.UpdateChannel
@@ -771,7 +768,7 @@ func Test_installWithSelectedVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		called = ""
-		if err := installWithSelectedVersion(context.Background(), "example.com/tool", tt.channel); err != nil {
+		if err := installWithSelectedVersion(deps, context.Background(), "example.com/tool", tt.channel); err != nil {
 			t.Errorf("channel=%q: unexpected error: %v", tt.channel, err)
 		}
 		if called != tt.want {
@@ -794,7 +791,7 @@ func Test_installWithSelectedVersion_contextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := installWithSelectedVersion(ctx, "example.com/tool", goutil.UpdateChannelLatest)
+	err := installWithSelectedVersion(defaultDependencies(), ctx, "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), context.Canceled.Error()) {
 		t.Fatalf("installWithSelectedVersion() error = %v, want cancellation to be surfaced", err)
 	}
