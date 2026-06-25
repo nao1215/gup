@@ -377,17 +377,10 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
-		onResult = func(prefix string, v updateResult) {
-			if quiet {
-				// In quiet mode show only binaries that were actually updated,
-				// without the [i/n] progress counter (which would be sparse).
-				if v.updated {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, updateResultStr(v.pkg)))
-				}
-				return
-			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, updateResultStr(v.pkg)))
-		}
+		// In quiet mode show only binaries that were actually updated.
+		onResult = resultLineRenderer(quiet,
+			func(v updateResult) bool { return v.updated },
+			updateResultStr)
 	}
 
 	// update all packages

@@ -53,6 +53,25 @@ func summarizeResults(results []updateResult, isCheck bool) string {
 	return fmt.Sprintf("gup: %d updated, %d up-to-date, %d failed", updated, upToDate, failed)
 }
 
+// resultLineRenderer builds the per-package progress callback shared by update
+// and check. The two commands differ only in two ways, captured as parameters:
+// which results are worth showing in --quiet mode (showInQuiet) and how a
+// package's state is described (resultStr). In quiet mode only the lines passing
+// showInQuiet are printed, without the "[i/n]" counter (which would be sparse);
+// otherwise every line is printed with the counter. The returned callback is
+// passed to executePackages as onResult.
+func resultLineRenderer(quiet bool, showInQuiet func(updateResult) bool, resultStr func(goutil.Package) string) func(string, updateResult) {
+	return func(prefix string, v updateResult) {
+		if quiet {
+			if showInQuiet(v) {
+				print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, resultStr(v.pkg)))
+			}
+			return
+		}
+		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, resultStr(v.pkg)))
+	}
+}
+
 // executePackages runs worker over each package with signal-based cancellation
 // and a per-package timeout, returning the exit code (1 if any package failed)
 // and the per-package results in the original input order. It is the thin

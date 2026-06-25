@@ -185,17 +185,12 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
-		onResult = func(prefix string, v updateResult) {
-			if quiet {
-				// In quiet mode show only binaries with an available update,
-				// without the [i/n] progress counter (which would be sparse).
-				if v.status == statusUpdateAvailable || v.status == statusPinMismatch {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, checkResultStr(v.pkg)))
-				}
-				return
-			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, checkResultStr(v.pkg)))
-		}
+		// In quiet mode show only binaries with an available update.
+		onResult = resultLineRenderer(quiet,
+			func(v updateResult) bool {
+				return v.status == statusUpdateAvailable || v.status == statusPinMismatch
+			},
+			checkResultStr)
 	}
 
 	result, results := executePackages(pkgs, cpus, timeout, checker, onResult)
