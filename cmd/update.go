@@ -65,33 +65,21 @@ using the current installed Go toolchain.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("exclude", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "exclude", completePathBinaries)
 	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("main", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "main", completePathBinaries)
 	cmd.Flags().StringSlice("master", []string{}, "specify binaries which update by @master (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("master", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "master", completePathBinaries)
 	cmd.Flags().StringSlice(latestKeyword, []string{}, "specify binaries which update by @latest (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc(latestKeyword, completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, latestKeyword, completePathBinaries)
 	// cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only updated/failed binaries plus a summary")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write saved update channels")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -453,9 +441,9 @@ func desktopNotifyIfNeeded(result int, enable bool) {
 // otherwise.
 func updateResultStr(p goutil.Package) string {
 	if p.IsPinned() {
-		return p.PinnedResultStr()
+		return pinnedResultStr(p)
 	}
-	return p.CurrentToLatestStr()
+	return currentToLatestStr(p)
 }
 
 // updatePinned installs (or keeps) a pinned package at its exact recorded

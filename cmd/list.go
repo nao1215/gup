@@ -27,9 +27,7 @@ func newListCmd() *cobra.Command {
 	}
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read saved update channels from (with --json)")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	return cmd
 }
 

@@ -40,13 +40,9 @@ versions recorded in that gup.json.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to import")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	addTimeoutFlag(cmd)
 
 	return cmd
