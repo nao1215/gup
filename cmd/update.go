@@ -183,30 +183,11 @@ func gup(cmd *cobra.Command, args []string) int {
 
 	if len(pkgs) == 0 {
 		// With explicit targets or --exclude, an empty result means the user
-		// narrowed everything out: that is a usage error.
-		if len(args) != 0 || len(opts.excludePkgList) != 0 {
-			print.Err("unable to update package: no package information or no package under $GOBIN")
-			return 1
-		}
-		// An explicitly named --file must be validated even when no binaries are
-		// installed: honoring explicit user input must not depend on unrelated
-		// environment state (#368).
-		if err := configstate.ValidateExplicitFile(opts.confFile); err != nil {
-			print.Err(err)
-			return 1
-		}
-		// Otherwise the environment simply has no manageable binaries yet, which
-		// is a normal first-run condition, not an error (#350): emit an empty
-		// JSON array or an informational note and exit 0.
-		if opts.jsonOut {
-			if err := encodeJSONPackages(nil); err != nil {
-				print.Err(err)
-				return 1
-			}
-			return 0
-		}
-		print.Info(emptyEnvMessage)
-		return 0
+		// narrowed everything out: that is a usage error. Otherwise it is a normal
+		// first-run condition handled the same way as check.
+		return handleEmptyEnvironment(opts.confFile, opts.jsonOut,
+			len(args) != 0 || len(opts.excludePkgList) != 0,
+			"unable to update package: no package information or no package under $GOBIN")
 	}
 
 	// When both the user-level config and ./gup.json exist and no --file is
