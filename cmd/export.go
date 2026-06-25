@@ -29,9 +29,7 @@ apply it with 'gup import'.`,
 	}
 	cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to export")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 
 	return cmd
 }

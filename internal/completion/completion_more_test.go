@@ -230,14 +230,14 @@ func TestExistSameBashCompletionFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cmd := testCompletionCmd()
 
-	if existSameBashCompletionFile(cmd) {
-		t.Fatal("existSameBashCompletionFile() = true, want false when no file exists")
+	if isSameBashCompletionFile(cmd) {
+		t.Fatal("isSameBashCompletionFile() = true, want false when no file exists")
 	}
 
 	writeBashCompletionFile(t, generateBashCompletion(t, cmd))
 
-	if !existSameBashCompletionFile(cmd) {
-		t.Fatal("existSameBashCompletionFile() = false, want true after writing matching content")
+	if !isSameBashCompletionFile(cmd) {
+		t.Fatal("isSameBashCompletionFile() = false, want true after writing matching content")
 	}
 }
 
@@ -517,7 +517,7 @@ func TestMakeBashCompletionFileIfNeeded_OpenError(t *testing.T) {
 	}
 
 	err := makeBashCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not open .bash_completion") {
+	if err == nil || !strings.Contains(err.Error(), "can not open bash-completion file") {
 		t.Errorf("expected OpenFile error, got: %v", err)
 	}
 }
@@ -536,7 +536,7 @@ func TestMakeFishCompletionFileIfNeeded_GenError(t *testing.T) {
 	}
 
 	err := makeFishCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not create fish-completion file") {
+	if err == nil || !strings.Contains(err.Error(), "can not open fish-completion file") {
 		t.Errorf("expected fish generation error, got: %v", err)
 	}
 }
@@ -555,7 +555,7 @@ func TestMakeZshCompletionFileIfNeeded_GenError(t *testing.T) {
 	}
 
 	err := makeZshCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not create zsh-completion file") {
+	if err == nil || !strings.Contains(err.Error(), "can not open zsh-completion file") {
 		t.Errorf("expected zsh generation error, got: %v", err)
 	}
 }

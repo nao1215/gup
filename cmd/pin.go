@@ -45,9 +45,7 @@ development environment). Run 'gup unpin' to allow the tool to update again.`,
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	return cmd
 }
 
@@ -68,9 +66,7 @@ nothing and succeeds.`,
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	return cmd
 }
 
