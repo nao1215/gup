@@ -33,16 +33,12 @@ It does not update them.`,
 	}
 
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only update-available/failed binaries plus a summary")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read saved update channels from")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	addTimeoutFlag(cmd)
 
 	return cmd
