@@ -33,16 +33,12 @@ It does not update them.`,
 	}
 
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only update-available/failed binaries plus a summary")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read saved update channels from")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -110,31 +106,8 @@ func check(cmd *cobra.Command, args []string) int {
 	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
 
 	if len(pkgs) == 0 {
-		// With explicit targets, an empty result means the user named binaries
-		// that are not installed: that is a usage error.
-		if len(args) != 0 {
-			print.Err("unable to check package: no package information")
-			return 1
-		}
-		// An explicitly named --file must be validated even when no binaries are
-		// installed: honoring explicit user input must not depend on unrelated
-		// environment state (#368).
-		if err := configstate.ValidateExplicitFile(opts.confFile); err != nil {
-			print.Err(err)
-			return 1
-		}
-		// Otherwise the environment simply has no manageable binaries yet, which
-		// is a normal first-run condition, not an error (#350): emit an empty
-		// JSON array or an informational note and exit 0.
-		if opts.jsonOut {
-			if err := encodeJSONPackages(nil); err != nil {
-				print.Err(err)
-				return 1
-			}
-			return 0
-		}
-		print.Info(emptyEnvMessage)
-		return 0
+		return handleEmptyEnvironment(opts.confFile, opts.jsonOut, len(args) != 0,
+			"unable to check package: no package information")
 	}
 
 	pkgs, err = configstate.ResolveAndApplyChannels(pkgs, opts.confFile)
@@ -159,7 +132,7 @@ func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 }
 
 func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
-	verCache := newVerCache()
+	verCache := defaultDependencies().newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("check binary under $GOPATH/bin or $GOBIN")
@@ -212,17 +185,12 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
-		onResult = func(prefix string, v updateResult) {
-			if quiet {
-				// In quiet mode show only binaries with an available update,
-				// without the [i/n] progress counter (which would be sparse).
-				if v.status == statusUpdateAvailable || v.status == statusPinMismatch {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, checkResultStr(v.pkg)))
-				}
-				return
-			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, checkResultStr(v.pkg)))
-		}
+		// In quiet mode show only binaries with an available update.
+		onResult = resultLineRenderer(quiet,
+			func(v updateResult) bool {
+				return v.status == statusUpdateAvailable || v.status == statusPinMismatch
+			},
+			checkResultStr)
 	}
 
 	result, results := executePackages(pkgs, cpus, timeout, checker, onResult)
@@ -247,9 +215,9 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 // otherwise.
 func checkResultStr(p goutil.Package) string {
 	if p.IsPinned() {
-		return p.PinnedResultStr()
+		return pinnedResultStr(p)
 	}
-	return p.VersionCheckResultStr()
+	return versionCheckResultStr(p)
 }
 
 // checkPinned reports the state of a pinned package without consulting @latest:

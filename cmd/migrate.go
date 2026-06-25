@@ -70,9 +70,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial migration with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	cmd.Flags().Bool("force", false, "reinstall even if the binary already exists in AFTER_PATH")
 	addTimeoutFlag(cmd)
 

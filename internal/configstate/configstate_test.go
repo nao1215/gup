@@ -376,6 +376,46 @@ func TestMergePackages(t *testing.T) {
 	}
 }
 
+// TestMergePackages_offPinnedDropsPinTargetVersion locks in that a package whose
+// stored channel was "pinned" but which an explicit flag has moved to @latest
+// (channelMap says latest) persists the freshly-resolved version, not the stale
+// pin target. PersistedVersion must follow the effective channel from
+// channelMap, not the package's own (now stale) UpdateChannel field, otherwise
+// the written gup.json would record a non-pinned package whose version is still
+// frozen at the old pin (a pin/channel disagreement).
+func TestMergePackages_offPinnedDropsPinTargetVersion(t *testing.T) {
+	t.Parallel()
+
+	// The succeeded package still carries the stale "pinned" channel and the old
+	// pin target, while the resolved channelMap has moved it to @latest.
+	succeededPkgs := []goutil.Package{
+		{
+			Name:          testNewTool,
+			ImportPath:    "github.com/example/new-tool",
+			Version:       &goutil.Version{Current: testVer100, Latest: testVer200},
+			UpdateChannel: goutil.UpdateChannelPinned,
+			PinnedVersion: testVer100,
+		},
+	}
+	channelMap := map[string]goutil.UpdateChannel{
+		testNewTool: goutil.UpdateChannelLatest,
+	}
+
+	got := MergePackages(nil, succeededPkgs, channelMap, nil)
+	if len(got) != 1 {
+		t.Fatalf("MergePackages() returned %d packages, want 1", len(got))
+	}
+	if got[0].UpdateChannel != goutil.UpdateChannelLatest {
+		t.Errorf("channel = %q, want latest", got[0].UpdateChannel)
+	}
+	if got[0].PinnedVersion != "" {
+		t.Errorf("PinnedVersion = %q, want empty once off pinned", got[0].PinnedVersion)
+	}
+	if got[0].Version.Current != testVer200 {
+		t.Errorf("version = %q, want %q (freshly-resolved latest, not stale pin target)", got[0].Version.Current, testVer200)
+	}
+}
+
 func TestSanitizePackage(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

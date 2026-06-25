@@ -16,7 +16,6 @@ import (
 	"github.com/nao1215/gup/internal/notify"
 	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
-	"github.com/nao1215/gup/internal/vercache"
 	"github.com/spf13/cobra"
 )
 
@@ -29,21 +28,6 @@ var (
 )
 
 const latestKeyword = "latest"
-
-// newVerCache builds the per-(module,channel) version cache used by update and
-// check, wiring the package-level lookup seams into vercache's channel policy.
-// The seams are read at call time (via closures) so tests that swap them before
-// invoking a command still take effect.
-func newVerCache() *vercache.Cache {
-	return vercache.New(vercache.ChannelResolver(
-		func(ctx context.Context, modulePath string) (string, error) {
-			return getLatestVerCtx(ctx, modulePath)
-		},
-		func(ctx context.Context, modulePath, ref string) (string, error) {
-			return getVerByRefCtx(ctx, modulePath, ref)
-		},
-	))
-}
 
 func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -65,33 +49,21 @@ using the current installed Go toolchain.`,
 	cmd.Flags().BoolP("dry-run", "n", false, "perform the trial update with no changes")
 	cmd.Flags().BoolP("notify", "N", false, "enable desktop notifications")
 	cmd.Flags().StringSliceP("exclude", "e", []string{}, "specify binaries which should not be updated (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("exclude", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "exclude", completePathBinaries)
 	cmd.Flags().StringSliceP("main", "m", []string{}, "specify binaries which update by @main or @master (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("main", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "main", completePathBinaries)
 	cmd.Flags().StringSlice("master", []string{}, "specify binaries which update by @master (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc("master", completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "master", completePathBinaries)
 	cmd.Flags().StringSlice(latestKeyword, []string{}, "specify binaries which update by @latest (delimiter: ',')")
-	if err := cmd.RegisterFlagCompletionFunc(latestKeyword, completePathBinaries); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, latestKeyword, completePathBinaries)
 	// cmd.Flags().BoolP("main-all", "M", false, "update all binaries by @main or @master (delimiter: ',')")
 	cmd.Flags().IntP("jobs", "j", runtime.NumCPU(), "specify the number of CPU cores to use")
-	if err := cmd.RegisterFlagCompletionFunc("jobs", completeNCPUs); err != nil {
-		panic(err)
-	}
+	mustRegisterFlagCompletion(cmd, "jobs", completeNCPUs)
 	cmd.Flags().Bool("ignore-go-update", false, "ignore updates to the Go toolchain")
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
 	cmd.Flags().BoolP("quiet", "q", false, "suppress up-to-date lines; show only updated/failed binaries plus a summary")
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write saved update channels")
-	if err := cmd.MarkFlagFilename("file", "json"); err != nil {
-		panic(err)
-	}
+	mustMarkFileFlagAsJSON(cmd)
 	addTimeoutFlag(cmd)
 
 	return cmd
@@ -195,30 +167,11 @@ func gup(cmd *cobra.Command, args []string) int {
 
 	if len(pkgs) == 0 {
 		// With explicit targets or --exclude, an empty result means the user
-		// narrowed everything out: that is a usage error.
-		if len(args) != 0 || len(opts.excludePkgList) != 0 {
-			print.Err("unable to update package: no package information or no package under $GOBIN")
-			return 1
-		}
-		// An explicitly named --file must be validated even when no binaries are
-		// installed: honoring explicit user input must not depend on unrelated
-		// environment state (#368).
-		if err := configstate.ValidateExplicitFile(opts.confFile); err != nil {
-			print.Err(err)
-			return 1
-		}
-		// Otherwise the environment simply has no manageable binaries yet, which
-		// is a normal first-run condition, not an error (#350): emit an empty
-		// JSON array or an informational note and exit 0.
-		if opts.jsonOut {
-			if err := encodeJSONPackages(nil); err != nil {
-				print.Err(err)
-				return 1
-			}
-			return 0
-		}
-		print.Info(emptyEnvMessage)
-		return 0
+		// narrowed everything out: that is a usage error. Otherwise it is a normal
+		// first-run condition handled the same way as check.
+		return handleEmptyEnvironment(opts.confFile, opts.jsonOut,
+			len(args) != 0 || len(opts.excludePkgList) != 0,
+			"unable to update package: no package information or no package under $GOBIN")
 	}
 
 	// When both the user-level config and ./gup.json exist and no --file is
@@ -275,7 +228,8 @@ type updateResult struct {
 func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
-	verCache := newVerCache()
+	deps := defaultDependencies()
+	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("update binary under $GOPATH/bin or $GOBIN")
@@ -311,7 +265,7 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		// the channel-version lookup below.
 		if channel == goutil.UpdateChannelPinned {
 			p.PinnedVersion = pinnedMap[p.Name]
-			return updatePinned(ctx, p, ignoreGoUpdate)
+			return updatePinned(deps, ctx, p, ignoreGoUpdate)
 		}
 
 		// Collect online channel version if possible; else always update
@@ -361,14 +315,14 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 		if p.ImportPath == "" {
 			updateErr = fmt.Errorf("%s is not installed by 'go install' (or permission incorrect)", p.Name)
 		} else {
-			if err := installWithSelectedVersion(ctx, p.ImportPath, channel); err != nil {
+			if err := installWithSelectedVersion(deps, ctx, p.ImportPath, channel); err != nil {
 				newPkg, changed := resolveModulePathChange(p, err)
 				if !changed {
 					updateErr = fmt.Errorf("%s: %w", p.Name, err)
 				} else {
 					installedViaRetry = true
 					p = newPkg
-					if retryErr := installWithSelectedVersion(ctx, p.ImportPath, channel); retryErr != nil {
+					if retryErr := installWithSelectedVersion(deps, ctx, p.ImportPath, channel); retryErr != nil {
 						updateErr = fmt.Errorf("%s: %w", originalName, retryErr)
 					} else {
 						newName := binaryNameFromImportPath(p.ImportPath)
@@ -408,17 +362,10 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
-		onResult = func(prefix string, v updateResult) {
-			if quiet {
-				// In quiet mode show only binaries that were actually updated,
-				// without the [i/n] progress counter (which would be sparse).
-				if v.updated {
-					print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, updateResultStr(v.pkg)))
-				}
-				return
-			}
-			print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, updateResultStr(v.pkg)))
-		}
+		// In quiet mode show only binaries that were actually updated.
+		onResult = resultLineRenderer(quiet,
+			func(v updateResult) bool { return v.updated },
+			updateResultStr)
 	}
 
 	// update all packages
@@ -472,9 +419,9 @@ func desktopNotifyIfNeeded(result int, enable bool) {
 // otherwise.
 func updateResultStr(p goutil.Package) string {
 	if p.IsPinned() {
-		return p.PinnedResultStr()
+		return pinnedResultStr(p)
 	}
-	return p.CurrentToLatestStr()
+	return currentToLatestStr(p)
 }
 
 // updatePinned installs (or keeps) a pinned package at its exact recorded
@@ -487,7 +434,7 @@ func updateResultStr(p goutil.Package) string {
 // reinstalled at the pinned version (which may be a downgrade). On dry-run the
 // install runs into the throwaway GOBIN like every other update, so the
 // kept/reinstalled outcome is still shown.
-func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
+func updatePinned(deps dependencies, ctx context.Context, p goutil.Package, ignoreGoUpdate bool) updateResult {
 	pinnedVer := strings.TrimSpace(p.PinnedVersion)
 	if pinnedVer == "" {
 		// Defensive: a pinned channel without a target should be impossible because
@@ -530,7 +477,7 @@ func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) up
 		}
 	}
 
-	if err := installByVersionUpdCtx(ctx, p.ImportPath, pinnedVer); err != nil {
+	if err := deps.installByVersion(ctx, p.ImportPath, pinnedVer); err != nil {
 		return updateResult{
 			updated: false,
 			pkg:     p,
@@ -552,20 +499,20 @@ func updatePinned(ctx context.Context, p goutil.Package, ignoreGoUpdate bool) up
 	}
 }
 
-func installWithSelectedVersion(ctx context.Context, importPath string, channel goutil.UpdateChannel) error {
+func installWithSelectedVersion(deps dependencies, ctx context.Context, importPath string, channel goutil.UpdateChannel) error {
 	switch goutil.NormalizeUpdateChannel(string(channel)) {
 	case goutil.UpdateChannelLatest:
-		return installLatestCtx(ctx, importPath)
+		return deps.installLatest(ctx, importPath)
 	case goutil.UpdateChannelMain:
-		return installMainOrMasterCtx(ctx, importPath)
+		return deps.installMainOrMaster(ctx, importPath)
 	case goutil.UpdateChannelMaster:
-		return installByVersionUpdCtx(ctx, importPath, "master")
+		return deps.installByVersion(ctx, importPath, "master")
 	case goutil.UpdateChannelPinned:
 		// Pinned packages are installed via updatePinned, never here; never silently
 		// degrade a pin to @latest.
 		return fmt.Errorf("pinned package %s must be installed at its recorded version, not via channel install", importPath)
 	default:
-		return installLatestCtx(ctx, importPath)
+		return deps.installLatest(ctx, importPath)
 	}
 }
 

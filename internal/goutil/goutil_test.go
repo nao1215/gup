@@ -9,13 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/print"
 )
@@ -1030,274 +1028,6 @@ func TestGoPaths_StartDryRunMode_fail_if_key_not_set(t *testing.T) {
 //  Type: Package
 // ----------------------------------------------------------------------------
 
-func TestPackage_CurrentToLatestStr_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v1.42.2",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := "up-to-date: v1.42.2"
-	got := pkgInfo.CurrentToLatestStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_CurrentToLatestStr_not_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v0.0.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := "v0.0.1 to v1.9.1"
-	got := pkgInfo.CurrentToLatestStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_CurrentToLatestStr_not_up_to_date_color(t *testing.T) {
-	oldNoColor := color.NoColor
-	color.NoColor = false
-	t.Cleanup(func() { color.NoColor = oldNoColor })
-
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v0.0.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	wantContain := color.YellowString("v0.0.1") + " to " + color.GreenString("v1.9.1")
-	got := pkgInfo.CurrentToLatestStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v2.5.0",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := "up-to-date: v2.5.0"
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_not_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v0.0.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := "current: v0.0.1, latest: v1.9.1"
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_not_up_to_date_color(t *testing.T) {
-	oldNoColor := color.NoColor
-	color.NoColor = false
-	t.Cleanup(func() { color.NoColor = oldNoColor })
-
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v0.0.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.4",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	wantContain := "current: " + color.YellowString("v0.0.1") + ", latest: " + color.GreenString("v1.9.1")
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_go_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v1.9.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.99.9",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := regexp.MustCompile(`up-to-date:.* go1\.99\.9`)
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !wantContain.MatchString(got) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_go_not_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v1.9.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.1",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	// Assert to contain the expected message
-	wantContain := "current: go1.22.1, installed: go1.22.4"
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_VersionCheckResultStr_go_not_up_to_date_color(t *testing.T) {
-	oldNoColor := color.NoColor
-	color.NoColor = false
-	t.Cleanup(func() { color.NoColor = oldNoColor })
-
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		ModulePath: "github.com/dummy_name/dummy/foo",
-		Version: &Version{
-			Current: "v1.9.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.1",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	wantContain := "current: " + color.YellowString("go1.22.1") + ", installed: " + color.GreenString("go1.22.4")
-	got := pkgInfo.VersionCheckResultStr()
-
-	if !strings.Contains(got, wantContain) {
-		t.Errorf("got: %v, want: %v", got, wantContain)
-	}
-}
-
-func TestPackage_CurrentToLatestStr_go_not_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		Version: &Version{
-			Current: "v1.9.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.1",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	got := pkgInfo.CurrentToLatestStr()
-	if !strings.Contains(got, "go1.22.1") || !strings.Contains(got, "go1.22.4") {
-		t.Errorf("expected go version range, got: %v", got)
-	}
-}
-
-func TestPackage_CurrentToLatestStr_go_customBuildTag_color(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		Version: &Version{
-			Current: "v1.9.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.25.0-X:nodwarf5",
-			Latest:  "go1.26.0-X:nodwarf5",
-		},
-	}
-
-	got := pkgInfo.CurrentToLatestStr()
-	if !strings.Contains(got, "go1.25.0-X:nodwarf5") {
-		t.Fatalf("expected current custom go version in output, got: %q", got)
-	}
-	if !strings.Contains(got, "go1.26.0-X:nodwarf5") {
-		t.Fatalf("expected latest custom go version in output, got: %q", got)
-	}
-}
-
 func TestNormalizeGoVersionForCompare(t *testing.T) {
 	tests := []struct {
 		name string
@@ -1319,29 +1049,6 @@ func TestNormalizeGoVersionForCompare(t *testing.T) {
 	}
 }
 
-func TestPackage_CurrentToLatestStr_both_not_up_to_date(t *testing.T) {
-	pkgInfo := Package{
-		Name:       "foo",
-		ImportPath: "github.com/dummy_name/dummy",
-		Version: &Version{
-			Current: "v0.0.1",
-			Latest:  "v1.9.1",
-		},
-		GoVersion: &Version{
-			Current: "go1.22.1",
-			Latest:  "go1.22.4",
-		},
-	}
-
-	got := pkgInfo.CurrentToLatestStr()
-	if !strings.Contains(got, "v0.0.1") || !strings.Contains(got, "v1.9.1") {
-		t.Errorf("expected package version range, got: %v", got)
-	}
-	if !strings.Contains(got, "go1.22.1") || !strings.Contains(got, "go1.22.4") {
-		t.Errorf("expected go version range, got: %v", got)
-	}
-}
-
 func TestPackage_IsGoUpToDate_customBuildTag(t *testing.T) {
 	pkgInfo := Package{
 		Name:       "foo",
@@ -1358,10 +1065,6 @@ func TestPackage_IsGoUpToDate_customBuildTag(t *testing.T) {
 
 	if !pkgInfo.IsGoUpToDate() {
 		t.Fatal("custom Go build tag with ':' should be treated as up-to-date when equal")
-	}
-
-	if got := pkgInfo.CurrentToLatestStr(); !strings.Contains(got, "Already up-to-date") {
-		t.Fatalf("CurrentToLatestStr() = %q, want to include 'Already up-to-date'", got)
 	}
 }
 

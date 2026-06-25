@@ -3,7 +3,6 @@ package goutil
 import (
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/go-version"
 )
 
@@ -71,96 +70,6 @@ func NewVersion() *Version {
 // SetLatestVer set package latest version.
 func (p *Package) SetLatestVer() {
 	p.Version.Latest = GetPackageVersion(p.Name)
-}
-
-// CurrentToLatestStr returns string about the current version and the latest version.
-func (p *Package) CurrentToLatestStr() string {
-	if p.IsPackageUpToDate() && p.IsGoUpToDate() {
-		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
-	}
-	var ret string
-	if p.Version.Current != p.Version.Latest {
-		currentVer, latestVer := colorVersionPair(p.Version.Current, p.Version.Latest, "v")
-		ret += currentVer + " to " + latestVer
-	}
-	if p.GoVersion.Current != p.GoVersion.Latest {
-		if len(ret) != 0 {
-			ret += ", "
-		}
-		currentGo, latestGo := colorVersionPair(p.GoVersion.Current, p.GoVersion.Latest, "go")
-		ret += currentGo + " to " + latestGo
-	}
-	return ret
-}
-
-// PinnedResultStr returns a human-readable description of a pinned package's
-// state: kept at the pin, installed at a different version than the pin, or at
-// the pinned version but built with an older Go toolchain (a pending rebuild).
-// A Go delta is shown only when the caller left GoVersion.Current != Latest;
-// check/update zero it out when the delta is being ignored, so this stays quiet.
-func (p *Package) PinnedResultStr() string {
-	pinned := strings.TrimSpace(p.PinnedVersion)
-	current := ""
-	if p.Version != nil {
-		current = strings.TrimSpace(p.Version.Current)
-	}
-	if !p.PinSatisfied() {
-		installed := current
-		if installed == "" {
-			installed = unknown
-		}
-		return "pinned " + color.GreenString(pinned) + ", installed " + color.YellowString(installed)
-	}
-	if p.GoVersion != nil && !p.IsGoUpToDate() {
-		currentGo, latestGo := colorVersionPair(p.GoVersion.Current, p.GoVersion.Latest, "go")
-		return "pinned " + color.GreenString(pinned) + " (" + currentGo + " to " + latestGo + ")"
-	}
-	return "pinned " + color.GreenString(pinned)
-}
-
-// VersionCheckResultStr returns string about command version check.
-func (p *Package) VersionCheckResultStr() string {
-	if p.IsPackageUpToDate() && p.IsGoUpToDate() {
-		return "Already up-to-date: " + color.GreenString(p.Version.Current) + " / " + color.GreenString(p.GoVersion.Current)
-	}
-	var ret string
-	currentVer, latestVer := colorVersionPair(p.Version.Current, p.Version.Latest, "v")
-	if p.Version.Current == p.Version.Latest {
-		ret += currentVer
-	} else {
-		ret += "current: " + currentVer + ", latest: " + latestVer
-	}
-	ret += " / "
-	currentGo, latestGo := colorVersionPair(p.GoVersion.Current, p.GoVersion.Latest, "go")
-	if p.GoVersion.Current == p.GoVersion.Latest {
-		ret += currentGo
-	} else {
-		ret += "current: " + currentGo + ", installed: " + latestGo
-	}
-	return ret
-}
-
-func colorVersionPair(current, latest, prefix string) (string, string) {
-	upToDate := versionUpToDate
-	if prefix == "go" {
-		upToDate = goVersionUpToDate
-	}
-
-	currentNoPrefix := strings.TrimPrefix(current, prefix)
-	latestNoPrefix := strings.TrimPrefix(latest, prefix)
-	currentUpToDate := upToDate(currentNoPrefix, latestNoPrefix)
-	latestUpToDate := upToDate(latestNoPrefix, currentNoPrefix)
-
-	switch {
-	case currentUpToDate && latestUpToDate:
-		return color.GreenString(current), color.GreenString(latest)
-	case currentUpToDate:
-		return color.GreenString(current), color.YellowString(latest)
-	case latestUpToDate:
-		return color.YellowString(current), color.GreenString(latest)
-	default:
-		return color.YellowString(current), color.YellowString(latest)
-	}
 }
 
 // IsPackageUpToDate checks if the Package (set by the package author) version is up to date.
@@ -245,4 +154,21 @@ func versionUpToDate(current, available string) bool {
 		return true
 	}
 	return false
+}
+
+// VersionUpToDate reports whether current is at least available (current >=
+// available) under semver, treating "unknown" or unparsable versions as not up
+// to date. Any prefix such as "v" must already be stripped by the caller. It is
+// the exported entry point the presentation layer uses to decide colorization,
+// keeping the version-comparison rule owned by goutil while display lives in the
+// cmd layer.
+func VersionUpToDate(current, available string) bool {
+	return versionUpToDate(current, available)
+}
+
+// GoVersionUpToDate is VersionUpToDate for Go toolchain versions: it first
+// normalizes known non-semver separators (e.g. "go1.26.0-X:nodwarf5") so custom
+// toolchains compare correctly. The "go" prefix must already be stripped.
+func GoVersionUpToDate(current, available string) bool {
+	return goVersionUpToDate(current, available)
 }

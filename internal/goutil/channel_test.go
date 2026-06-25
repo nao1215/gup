@@ -1,15 +1,12 @@
 package goutil
 
 import (
-	"strings"
 	"testing"
 )
 
 const (
-	cvV100  = "v1.0.0"
-	cvV110  = "v1.1.0"
-	cvGoCur = "go1.23.0"
-	cvGoOld = "go1.22.0"
+	cvV100 = "v1.0.0"
+	cvV110 = "v1.1.0"
 )
 
 func TestNormalizeUpdateChannel_pinned(t *testing.T) {
@@ -125,57 +122,5 @@ func TestPackagePinHelpers(t *testing.T) {
 	nilVer := Package{UpdateChannel: UpdateChannelPinned, PinnedVersion: cvV100}
 	if nilVer.PinSatisfied() {
 		t.Error("PinSatisfied() = true with nil Version, want false")
-	}
-}
-
-func TestPinnedResultStr(t *testing.T) {
-	t.Parallel()
-
-	// Satisfied pin (version matches, Go current): "pinned <ver>".
-	satisfied := Package{
-		UpdateChannel: UpdateChannelPinned,
-		PinnedVersion: cvV100,
-		Version:       &Version{Current: cvV100},
-		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
-	}
-	if got := satisfied.PinnedResultStr(); !strings.Contains(got, "pinned") || !strings.Contains(got, cvV100) {
-		t.Errorf("satisfied PinnedResultStr() = %q, want it to mention pinned v1.0.0", got)
-	}
-	if strings.Contains(satisfied.PinnedResultStr(), "installed") || strings.Contains(satisfied.PinnedResultStr(), "go1.2") {
-		t.Errorf("satisfied PinnedResultStr() = %q, want no version/Go delta", satisfied.PinnedResultStr())
-	}
-
-	// Version mismatch: "pinned <ver>, installed <other>".
-	mismatch := Package{
-		UpdateChannel: UpdateChannelPinned,
-		PinnedVersion: cvV100,
-		Version:       &Version{Current: cvV110},
-		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
-	}
-	if got := mismatch.PinnedResultStr(); !strings.Contains(got, "installed") || !strings.Contains(got, cvV110) {
-		t.Errorf("mismatch PinnedResultStr() = %q, want it to mention the installed version", got)
-	}
-
-	// Version matches but built with an older Go: a pending rebuild is surfaced.
-	staleGo := Package{
-		UpdateChannel: UpdateChannelPinned,
-		PinnedVersion: cvV100,
-		Version:       &Version{Current: cvV100},
-		GoVersion:     &Version{Current: cvGoOld, Latest: cvGoCur},
-	}
-	got := staleGo.PinnedResultStr()
-	if !strings.Contains(got, cvGoOld) || !strings.Contains(got, cvGoCur) {
-		t.Errorf("stale-Go PinnedResultStr() = %q, want it to show the Go transition", got)
-	}
-
-	// Missing installed version falls back to "unknown".
-	noCurrent := Package{
-		UpdateChannel: UpdateChannelPinned,
-		PinnedVersion: cvV100,
-		Version:       &Version{Current: ""},
-		GoVersion:     &Version{Current: cvGoCur, Latest: cvGoCur},
-	}
-	if got := noCurrent.PinnedResultStr(); !strings.Contains(got, unknown) {
-		t.Errorf("no-current PinnedResultStr() = %q, want it to mention unknown", got)
 	}
 }

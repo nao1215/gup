@@ -41,6 +41,31 @@ func getFlagStringSlice(cmd *cobra.Command, name string) ([]string, error) {
 	return v, nil
 }
 
+// mustRegisterFlagCompletion attaches a shell-completion function to a flag.
+// RegisterFlagCompletionFunc only fails when the flag name is unknown or already
+// has a completion - a programmer mistake caught at build time, never a runtime
+// condition - so a failure panics instead of being threaded through every
+// command constructor.
+func mustRegisterFlagCompletion(cmd *cobra.Command, name string, fn func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective)) {
+	if err := cmd.RegisterFlagCompletionFunc(name, fn); err != nil {
+		panic(err)
+	}
+}
+
+// fileFlagName is the shared --file flag that update, check, list, import,
+// export and pin all use to point gup at a specific gup.json.
+const fileFlagName = "file"
+
+// mustMarkFileFlagAsJSON marks the shared --file flag as completing to .json
+// files. Like mustRegisterFlagCompletion it can only fail on an unknown flag, a
+// build-time programmer error, so it panics. Centralizing the call keeps the
+// "file"/"json" pair from being repeated in every command constructor.
+func mustMarkFileFlagAsJSON(cmd *cobra.Command) {
+	if err := cmd.MarkFlagFilename(fileFlagName, "json"); err != nil {
+		panic(err)
+	}
+}
+
 // timeoutFlagName is the name of the shared --timeout flag.
 const timeoutFlagName = "timeout"
 
