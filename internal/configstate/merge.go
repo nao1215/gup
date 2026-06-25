@@ -66,10 +66,18 @@ func MergePackages(confPkgs []goutil.Package, succeededPkgs []goutil.Package, ch
 		if channel == goutil.UpdateChannelPinned {
 			pinnedVersion = savedPinnedVersion(goutil.Package{UpdateChannel: channel, PinnedVersion: p.PinnedVersion, Version: p.Version})
 		}
+		// Persist the version for the *effective* channel, not the package's own
+		// (possibly stale) UpdateChannel: a package moved off pinned by an explicit
+		// flag must not keep persisting its old pin target as the version, which
+		// would leave a non-pinned entry frozen at the pin (a channel/pin
+		// disagreement).
+		persistSource := p
+		persistSource.UpdateChannel = channel
+		persistSource.PinnedVersion = pinnedVersion
 		upsert(goutil.Package{
 			Name:          p.Name,
 			ImportPath:    p.ImportPath,
-			Version:       &goutil.Version{Current: PersistedVersion(p)},
+			Version:       &goutil.Version{Current: PersistedVersion(persistSource)},
 			UpdateChannel: channel,
 			PinnedVersion: pinnedVersion,
 		})
