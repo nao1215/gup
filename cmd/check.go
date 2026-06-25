@@ -243,9 +243,9 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 // otherwise.
 func checkResultStr(p goutil.Package) string {
 	if p.IsPinned() {
-		return p.PinnedResultStr()
+		return pinnedResultStr(p)
 	}
-	return p.VersionCheckResultStr()
+	return versionCheckResultStr(p)
 }
 
 // checkPinned reports the state of a pinned package without consulting @latest:

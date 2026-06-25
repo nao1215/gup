@@ -460,9 +460,9 @@ func desktopNotifyIfNeeded(result int, enable bool) {
 // otherwise.
 func updateResultStr(p goutil.Package) string {
 	if p.IsPinned() {
-		return p.PinnedResultStr()
+		return pinnedResultStr(p)
 	}
-	return p.CurrentToLatestStr()
+	return currentToLatestStr(p)
 }
 
 // updatePinned installs (or keeps) a pinned package at its exact recorded
