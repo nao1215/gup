@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,52 +43,115 @@ func IsWindows() bool {
 	return runtime.GOOS == "windows"
 }
 
-func makeBashCompletionFileIfNeeded(cmd *cobra.Command) (err error) {
-	if existSameBashCompletionFile(cmd) {
+// completionFile describes a shell completion file gup manages: which shell it
+// is for (used in diagnostics), where it is installed (a func because the path
+// depends on environment variables), and how its current contents are generated
+// from cmd. The three shells differ only in these three values, so the
+// "generate, compare, write if changed" flow lives once on this type rather than
+// being copied per shell.
+type completionFile struct {
+	shell    string
+	path     func() string
+	generate func(cmd *cobra.Command, w io.Writer) error
+}
+
+// bashCompletionSpec, fishCompletionSpec and zshCompletionSpec describe each
+// shell's managed completion file. They are constructors rather than package
+// variables so the package keeps no mutable global state.
+func bashCompletionSpec() completionFile {
+	return completionFile{
+		shell: "bash",
+		path:  bashCompletionFilePath,
+		generate: func(cmd *cobra.Command, w io.Writer) error {
+			return cmd.GenBashCompletionV2(w, false)
+		},
+	}
+}
+
+func fishCompletionSpec() completionFile {
+	return completionFile{
+		shell: "fish",
+		path:  fishCompletionFilePath,
+		generate: func(cmd *cobra.Command, w io.Writer) error {
+			return cmd.GenFishCompletion(w, false)
+		},
+	}
+}
+
+func zshCompletionSpec() completionFile {
+	return completionFile{
+		shell: "zsh",
+		path:  zshCompletionFilePath,
+		generate: func(cmd *cobra.Command, w io.Writer) error {
+			return cmd.GenZshCompletion(w)
+		},
+	}
+}
+
+// content renders the completion file gup would install for this shell.
+func (c completionFile) content(cmd *cobra.Command) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := c.generate(cmd, buf); err != nil {
+		return nil, fmt.Errorf("can not generate %s completion content: %w", c.shell, err)
+	}
+	return buf.Bytes(), nil
+}
+
+// upToDate reports whether the installed file already holds exactly the contents
+// cmd would generate, so a re-install can skip rewriting it. A generation error
+// or a missing/unreadable file is treated as "not up to date" so the file is
+// regenerated.
+func (c completionFile) upToDate(cmd *cobra.Command) bool {
+	want, err := c.content(cmd)
+	if err != nil {
+		return false
+	}
+	got, err := os.ReadFile(filepath.Clean(c.path()))
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(got, want)
+}
+
+// sync writes the completion file when it is missing or stale and leaves an
+// already up-to-date file untouched, so repeated --install runs do not rewrite
+// it. The parent directory is created as needed.
+func (c completionFile) sync(cmd *cobra.Command) (err error) {
+	want, genErr := c.content(cmd)
+	if genErr != nil {
+		return genErr
+	}
+
+	path := c.path()
+	if got, readErr := os.ReadFile(filepath.Clean(path)); readErr == nil && bytes.Equal(got, want) {
 		return nil
 	}
 
-	path := bashCompletionFilePath()
-	bashCompletion := new(bytes.Buffer)
-	if genErr := cmd.GenBashCompletionV2(bashCompletion, false); genErr != nil {
-		return fmt.Errorf("can not generate bash completion content: %w", genErr)
-	}
-
-	if !fileutil.IsDir(filepath.Dir(path)) {
-		if mkErr := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); mkErr != nil {
-			return fmt.Errorf("can not create bash-completion file: %w", mkErr)
-		}
+	if mkErr := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); mkErr != nil {
+		return fmt.Errorf("can not create %s-completion file: %w", c.shell, mkErr)
 	}
 	fp, openErr := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileutil.FileModeCreatingFile)
 	if openErr != nil {
-		return fmt.Errorf("can not open .bash_completion: %w", openErr)
+		return fmt.Errorf("can not open %s-completion file: %w", c.shell, openErr)
 	}
 	defer func() {
 		if closeErr := fp.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("can not close .bash_completion: %w", closeErr))
+			err = errors.Join(err, fmt.Errorf("can not close %s-completion file: %w", c.shell, closeErr))
 		}
 	}()
 
-	if _, writeErr := fp.WriteString(bashCompletion.String()); writeErr != nil {
-		return fmt.Errorf("can not write .bash_completion: %w", writeErr)
+	if _, writeErr := fp.Write(want); writeErr != nil {
+		return fmt.Errorf("can not write %s-completion file: %w", c.shell, writeErr)
 	}
 	return err
 }
 
+func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {
+	return bashCompletionSpec().sync(cmd)
+}
+
 func makeFishCompletionFileIfNeeded(cmd *cobra.Command) error {
-	if isSameFishCompletionFile(cmd) {
-		return nil
-	}
-
-	path := fishCompletionFilePath()
-	if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-		return fmt.Errorf("can not create fish-completion file: %w", err)
-	}
-
-	if err := cmd.GenFishCompletionFile(path, false); err != nil {
-		return fmt.Errorf("can not create fish-completion file: %w", err)
-	}
-	return nil
+	return fishCompletionSpec().sync(cmd)
 }
 
 func makeZshCompletionFileIfNeeded(cmd *cobra.Command) error {
@@ -96,14 +160,8 @@ func makeZshCompletionFileIfNeeded(cmd *cobra.Command) error {
 	// _gup is already up to date would leave a deleted or broken block unrepaired,
 	// so a re-run of --install could exit successfully without actually fixing
 	// completion (self-healing install).
-	if !isSameZshCompletionFile(cmd) {
-		path := zshCompletionFilePath()
-		if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
-			return fmt.Errorf("can not create zsh-completion file: %w", err)
-		}
-		if err := cmd.GenZshCompletionFile(path); err != nil {
-			return fmt.Errorf("can not create zsh-completion file: %w", err)
-		}
+	if err := zshCompletionSpec().sync(cmd); err != nil {
+		return err
 	}
 	return appendFpathAtZshrcIfNeeded()
 }
@@ -195,73 +253,16 @@ func writeZshrcString(path, data string, flag int) (err error) {
 	return err
 }
 
-func existSameBashCompletionFile(cmd *cobra.Command) bool {
-	if !fileutil.IsFile(bashCompletionFilePath()) {
-		return false
-	}
-	return hasSameBashCompletionContent(cmd)
-}
-
-func hasSameBashCompletionContent(cmd *cobra.Command) bool {
-	bashCompletionFileInLocal, err := os.ReadFile(bashCompletionFilePath())
-	if err != nil {
-		// The caller only reaches here when the file exists; treat a read error
-		// as "not the same" so the completion file is regenerated.
-		return false
-	}
-
-	currentBashCompletion := new(bytes.Buffer)
-	if err := cmd.GenBashCompletionV2(currentBashCompletion, false); err != nil {
-		return false
-	}
-	if !bytes.Equal(currentBashCompletion.Bytes(), bashCompletionFileInLocal) {
-		return false
-	}
-	return true
+func isSameBashCompletionFile(cmd *cobra.Command) bool {
+	return bashCompletionSpec().upToDate(cmd)
 }
 
 func isSameFishCompletionFile(cmd *cobra.Command) bool {
-	path := fishCompletionFilePath()
-	if !fileutil.IsFile(path) {
-		return false
-	}
-
-	currentFishCompletion := new(bytes.Buffer)
-	if err := cmd.GenFishCompletion(currentFishCompletion, false); err != nil {
-		return false
-	}
-
-	fishCompletionInLocal, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return false
-	}
-
-	if !bytes.Equal(currentFishCompletion.Bytes(), fishCompletionInLocal) {
-		return false
-	}
-	return true
+	return fishCompletionSpec().upToDate(cmd)
 }
 
 func isSameZshCompletionFile(cmd *cobra.Command) bool {
-	path := zshCompletionFilePath()
-	if !fileutil.IsFile(path) {
-		return false
-	}
-
-	currentZshCompletion := new(bytes.Buffer)
-	if err := cmd.GenZshCompletion(currentZshCompletion); err != nil {
-		return false
-	}
-
-	zshCompletionInLocal, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return false
-	}
-
-	if !bytes.Equal(currentZshCompletion.Bytes(), zshCompletionInLocal) {
-		return false
-	}
-	return true
+	return zshCompletionSpec().upToDate(cmd)
 }
 
 // xdgDataHome returns the base directory for user data files, honoring
