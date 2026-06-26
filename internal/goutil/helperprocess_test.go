@@ -89,6 +89,20 @@ func withHelperProcessMainMasterFallback(t *testing.T, mainStderr string) {
 	}
 }
 
+// withGoExecutable swaps goCommandContext so every go invocation runs the given
+// executable (e.g. "echo" to succeed and echo the args back, or a nonexistent
+// path to force a failure) instead of the real go toolchain. It restores the
+// previous seam on cleanup. This replaces the former mutable goExe global swap.
+func withGoExecutable(t *testing.T, name string) {
+	t.Helper()
+	old := goCommandContext
+	t.Cleanup(func() { goCommandContext = old })
+
+	goCommandContext = func(ctx context.Context, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, name, args...) //#nosec G204 -- test seam, name is a test-controlled value
+	}
+}
+
 // TestHelperProcess is not a real test. It is re-executed as a subprocess by the
 // helpers above; when GO_WANT_HELPER_PROCESS is unset it returns immediately so
 // it is a no-op during a normal "go test" run.

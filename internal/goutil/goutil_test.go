@@ -88,15 +88,9 @@ func TestGetVerWithContext_unknown_module(t *testing.T) {
 }
 
 func TestGetVerWithContext_golden(t *testing.T) {
-	// Backup and defer restore
-	oldGoExe := goExe
-	defer func() {
-		goExe = oldGoExe
-	}()
-
 	// Mock the `go` to `echo` command so that the command succeeds and the
 	// requested ref is echoed back as the resolved version.
-	goExe = "echo"
+	withGoExecutable(t, "echo")
 
 	out, err := GetVerWithContext(context.Background(), "github.com/nao1215/gup", "master")
 	if err != nil {
@@ -197,15 +191,13 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 // version is unavailable (second return value false) and warns exactly once,
 // instead of silently stamping "unknown" and forcing every binary to reinstall.
 func TestGetPackageInformation_goVersionFailure(t *testing.T) {
-	oldGoExe := goExe
 	oldPrintStderr := print.Stderr
 	defer func() {
-		goExe = oldGoExe
 		print.Stderr = oldPrintStderr
 	}()
 	// Point the go command at a binary that does not exist so "go version"
 	// fails on every OS (unlike "false", which is absent on Windows).
-	goExe = "gup-nonexistent-go-command-for-test"
+	withGoExecutable(t, "gup-nonexistent-go-command-for-test")
 
 	var stderr bytes.Buffer
 	print.Stderr = &stderr
@@ -310,17 +302,11 @@ func TestGetPackageVersion_package_has_no_version_info(t *testing.T) {
 	t.Setenv(keyGoBin, filepath.Join(t.TempDir(), "bin"))
 	t.Setenv(keyGoPath, "")
 
-	// Backup and defer restore
-	OldGoExe := goExe
-	defer func() {
-		goExe = OldGoExe
-	}()
-
 	// Mock the `go` to `echo` command to print instead of executing.
 	// This will succeed executing via `exec.Command` but the output will not
 	// contain package version as expected. Thus, it will return "unknown" as
 	// a result.
-	goExe = "echo"
+	withGoExecutable(t, "echo")
 
 	want := "unknown"
 	got := GetPackageVersion("go")
@@ -397,17 +383,11 @@ func TestInstall_arg_is_command_line_arguments(t *testing.T) {
 }
 
 func TestInstallLatest_golden(t *testing.T) {
-	// Backup and defer restore
-	OldGoExe := goExe
-	defer func() {
-		goExe = OldGoExe
-	}()
-
 	// Mock the `go` to `echo` command to print instead of executing go.
 	//
 	// This will succeed executing via `exec.Command` and will not execute the
 	// actual `go install <package>` command but `echo install <package>`.
-	goExe = "echo"
+	withGoExecutable(t, "echo")
 
 	err := InstallLatest("github.com/nao1215/gup")
 
@@ -418,14 +398,8 @@ func TestInstallLatest_golden(t *testing.T) {
 }
 
 func TestInstall_specificVersion_golden(t *testing.T) {
-	// Backup and defer restore
-	oldGoExe := goExe
-	defer func() {
-		goExe = oldGoExe
-	}()
-
 	// Mock the `go` to `echo` command to print instead of executing go.
-	goExe = "echo"
+	withGoExecutable(t, "echo")
 
 	err := Install("github.com/nao1215/gup", "v1.0.0")
 	if err != nil {
@@ -434,17 +408,11 @@ func TestInstall_specificVersion_golden(t *testing.T) {
 }
 
 func TestInstallMaster_golden(t *testing.T) {
-	// Backup and defer restore
-	OldGoExe := goExe
-	defer func() {
-		goExe = OldGoExe
-	}()
-
 	// Mock the `go` to `echo` command to print instead of executing go.
 	//
 	// This will succeed executing via `exec.Command` and will not execute the
 	// actual `go install <package>` command but `echo install <package>`.
-	goExe = "echo"
+	withGoExecutable(t, "echo")
 
 	err := InstallMainOrMaster("github.com/nao1215/gup")
 
@@ -1069,14 +1037,11 @@ func TestPackage_IsGoUpToDate_customBuildTag(t *testing.T) {
 }
 
 func TestInstallMainOrMaster_mainFailsGenericError_noMasterFallback(t *testing.T) {
-	oldGoExe := goExe
-	defer func() { goExe = oldGoExe }()
-
-	// Point goExe at a path that does not exist so the @main install fails on
-	// every OS (no "unknown revision main" on stderr), i.e. a generic
+	// Point the go command at a path that does not exist so the @main install
+	// fails on every OS (no "unknown revision main" on stderr), i.e. a generic
 	// (non-branch-not-found) failure. Per #340 gup must surface the @main error
 	// and must NOT fall back to @master.
-	goExe = filepath.Join(t.TempDir(), "no-such-go-binary")
+	withGoExecutable(t, filepath.Join(t.TempDir(), "no-such-go-binary"))
 
 	err := InstallMainOrMaster("github.com/example/tool")
 	if err == nil {
@@ -1198,11 +1163,9 @@ func errorCauseAfterPrefix(t *testing.T, err error, prefix string) string {
 // subprocess fails without writing to stderr (as a killed process does), the
 // error must still name a cause (from err.Error()) instead of being empty.
 func TestInstallWithContext_EmptyStderrFallback(t *testing.T) {
-	oldGoExe := goExe
-	defer func() { goExe = oldGoExe }()
 	// A missing command fails on every OS while leaving stderr empty, and with
 	// context.Background() ctx.Err() is nil so the fallback branch is reached.
-	goExe = "gup-nonexistent-go-command-for-test"
+	withGoExecutable(t, "gup-nonexistent-go-command-for-test")
 
 	err := InstallWithContext(context.Background(), timeoutTestImportPath, "latest")
 	if err == nil {
@@ -1220,9 +1183,7 @@ func TestInstallWithContext_EmptyStderrFallback(t *testing.T) {
 // TestGetVerWithContext_EmptyStderrFallback is the GetVerWithContext counterpart
 // of TestInstallWithContext_EmptyStderrFallback (issue #298).
 func TestGetVerWithContext_EmptyStderrFallback(t *testing.T) {
-	oldGoExe := goExe
-	defer func() { goExe = oldGoExe }()
-	goExe = "gup-nonexistent-go-command-for-test"
+	withGoExecutable(t, "gup-nonexistent-go-command-for-test")
 
 	_, err := GetVerWithContext(context.Background(), timeoutTestImportPath, "latest")
 	if err == nil {
