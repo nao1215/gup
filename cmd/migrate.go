@@ -174,16 +174,58 @@ func validateMigratePaths(beforePath, afterPath string, dryRun bool) error {
 			return fmt.Errorf("AFTER_PATH is not a directory: %s", afterPath)
 		}
 	case errors.Is(err, os.ErrNotExist):
-		if !dryRun {
-			if mkErr := os.MkdirAll(afterPath, afterPathDirPerm); mkErr != nil {
-				return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
+		if dryRun {
+			// A real run creates AFTER_PATH with os.MkdirAll; dry-run must not
+			// mutate the filesystem, but it still has to report the same failure
+			// the real run would hit, instead of falsely promising a migration it
+			// can't perform. Verify the destination is creatable without creating
+			// it (see issue: dry-run overlooked this failure condition).
+			if cErr := ensureAfterPathCreatable(afterPath); cErr != nil {
+				return cErr
 			}
+		} else if mkErr := os.MkdirAll(afterPath, afterPathDirPerm); mkErr != nil {
+			return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
 		}
 	default:
 		return fmt.Errorf("can't access AFTER_PATH %s: %w", afterPath, err)
 	}
 
 	return nil
+}
+
+// ensureAfterPathCreatable verifies, without creating AFTER_PATH, that a real
+// run's os.MkdirAll(afterPath) could succeed. It walks up to the nearest
+// existing ancestor and confirms it is a writable directory by creating and
+// immediately removing a temporary probe file there. dry-run uses this so it
+// surfaces the same "can't create AFTER_PATH" failure a real run would, rather
+// than reporting success for a destination that can never be written.
+func ensureAfterPathCreatable(afterPath string) error {
+	ancestor := afterPath
+	for {
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			// Reached the filesystem root without finding a missing component.
+			return nil
+		}
+		info, err := os.Stat(parent)
+		if err == nil {
+			if !info.IsDir() {
+				return fmt.Errorf("can't create AFTER_PATH %s: %s is not a directory", afterPath, parent)
+			}
+			probe, perr := os.CreateTemp(parent, ".gup-migrate-probe-*")
+			if perr != nil {
+				return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, perr)
+			}
+			name := probe.Name()
+			_ = probe.Close()
+			_ = os.Remove(name)
+			return nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("can't access AFTER_PATH %s: %w", afterPath, err)
+		}
+		ancestor = parent
+	}
 }
 
 // sameDirPath reports whether a and b point to the same location.
