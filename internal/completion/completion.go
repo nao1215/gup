@@ -16,6 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// renameFunc is os.Rename, indirected so tests can simulate a rename failure at
+// the atomic-commit step and assert the original file is left intact.
+var renameFunc = os.Rename //nolint:gochecknoglobals // swapped in tests
+
 // DeployShellCompletionFileIfNeeded creates the shell completion files.
 // If a file with the same contents already exists, it is not recreated.
 //
@@ -127,8 +131,10 @@ func (c completionFile) upToDate(cmd *cobra.Command) bool {
 
 // sync writes the completion file when it is missing or stale and leaves an
 // already up-to-date file untouched, so repeated --install runs do not rewrite
-// it. The parent directory is created as needed.
-func (c completionFile) sync(cmd *cobra.Command) (err error) {
+// it. The write is atomic (see atomicWriteFile), so a failure mid-install never
+// truncates or corrupts an existing completion file. The parent directory is
+// created as needed.
+func (c completionFile) sync(cmd *cobra.Command) error {
 	want, genErr := c.content(cmd)
 	if genErr != nil {
 		return genErr
@@ -139,23 +145,80 @@ func (c completionFile) sync(cmd *cobra.Command) (err error) {
 		return nil
 	}
 
-	if mkErr := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); mkErr != nil {
-		return fmt.Errorf("can not create %s-completion file: %w", c.shell, mkErr)
+	return atomicWriteFile(path, want, c.shell+"-completion file")
+}
+
+// atomicWriteFile writes data to path atomically: it writes to a temp file in
+// the same directory, fsyncs and closes it, then renames it over path. A rename
+// on the same filesystem replaces the destination in one step, so a reader never
+// sees a half-written file and an interrupted install never truncates or
+// corrupts the existing one. On any failure before the rename the temp file is
+// removed and path keeps its previous contents. The parent directory is created
+// as needed. When path already exists its permissions are preserved; a new file
+// uses the restrictive 0600 mode os.CreateTemp applies. This mirrors the atomic
+// gup.json write in cmd/config_file.go. (Completion install is POSIX-only - the
+// caller returns early on Windows - so the plain os.Rename replace is atomic.)
+func atomicWriteFile(path string, data []byte, what string) (err error) {
+	path = filepath.Clean(path)
+	// Reject an existing directory before staging any temp file, so a mistaken
+	// path cannot turn into a confusing rename failure (mirrors the #367 guard in
+	// cmd/config_file.go).
+	if fileutil.IsDir(path) {
+		return fmt.Errorf("%s path %s is a directory, not a file", what, path)
 	}
-	fp, openErr := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, fileutil.FileModeCreatingFile)
-	if openErr != nil {
-		return fmt.Errorf("can not open %s-completion file: %w", c.shell, openErr)
+	// Resolve symlinks so the rename rewrites the link's target rather than
+	// replacing the link itself with a regular file. Dotfile managers (stow,
+	// chezmoi, yadm) commonly symlink .zshrc into the home directory; the previous
+	// in-place write followed the link, and this preserves that behavior. When the
+	// path does not exist yet (a new completion file or .zshrc) EvalSymlinks fails,
+	// so the original path is kept and a fresh file is created.
+	if resolved, lerr := filepath.EvalSymlinks(path); lerr == nil {
+		path = resolved
 	}
+	dir := filepath.Dir(path)
+	if mkErr := os.MkdirAll(dir, fileutil.FileModeCreatingDir); mkErr != nil {
+		return fmt.Errorf("can not create directory for %s: %w", what, mkErr)
+	}
+
+	file, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("can not create temp file for %s: %w", what, err)
+	}
+	tmpPath := file.Name()
 	defer func() {
-		if closeErr := fp.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("can not close %s-completion file: %w", c.shell, closeErr))
+		if file != nil {
+			if closeErr := file.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
+		}
+		if err != nil {
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
-	if _, writeErr := fp.Write(want); writeErr != nil {
-		return fmt.Errorf("can not write %s-completion file: %w", c.shell, writeErr)
+	if _, err = file.Write(data); err != nil {
+		return fmt.Errorf("can not write %s: %w", what, err)
 	}
-	return err
+	// Preserve the permissions of the file being replaced; a new file keeps the
+	// 0600 mode os.CreateTemp already applied.
+	if info, statErr := os.Stat(path); statErr == nil {
+		if chmodErr := os.Chmod(tmpPath, info.Mode().Perm()); chmodErr != nil {
+			return fmt.Errorf("can not set permissions for %s: %w", what, chmodErr)
+		}
+	}
+	if err = file.Sync(); err != nil {
+		return fmt.Errorf("can not sync %s: %w", what, err)
+	}
+	if err = file.Close(); err != nil {
+		file = nil
+		return fmt.Errorf("can not close %s: %w", what, err)
+	}
+	file = nil
+
+	if err = renameFunc(tmpPath, path); err != nil {
+		return fmt.Errorf("can not finalize %s: %w", what, err)
+	}
+	return nil
 }
 
 func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {
@@ -215,12 +278,18 @@ func zshFpathSnippet() string {
 	return "\n" + zshFpathBlockBody()
 }
 
-func appendFpathAtZshrcIfNeeded() (err error) {
+// appendFpathAtZshrcIfNeeded reconciles gup's fpath block in .zshrc. Every final
+// write goes through atomicWriteFile so the user's .zshrc is never truncated or
+// left half-written if the install fails: the full intended content is staged in
+// a temp file and renamed into place in one step. The append case is therefore a
+// read-modify-write (read current content, concatenate the snippet, atomic write)
+// rather than an in-place O_APPEND.
+func appendFpathAtZshrcIfNeeded() error {
 	zshrcPath := zshrcPath()
 
-	// New .zshrc: write the snippet into a freshly created file.
+	// New .zshrc: the whole file is just the snippet.
 	if !fileutil.IsFile(zshrcPath) {
-		return writeZshrcString(zshrcPath, zshFpathSnippet(), os.O_RDWR|os.O_CREATE)
+		return atomicWriteFile(zshrcPath, []byte(zshFpathSnippet()), ".zshrc")
 	}
 
 	raw, readErr := os.ReadFile(filepath.Clean(zshrcPath))
@@ -239,30 +308,11 @@ func appendFpathAtZshrcIfNeeded() (err error) {
 		if updated == content {
 			return nil
 		}
-		return writeZshrcString(zshrcPath, updated, os.O_RDWR|os.O_TRUNC)
+		return atomicWriteFile(zshrcPath, []byte(updated), ".zshrc")
 	}
 
 	// No gup block yet: append a fresh one without disturbing existing content.
-	return writeZshrcString(zshrcPath, zshFpathSnippet(), os.O_RDWR|os.O_APPEND)
-}
-
-// writeZshrcString writes data to .zshrc using the given open flags, joining any
-// close error so a failed flush is surfaced.
-func writeZshrcString(path, data string, flag int) (err error) {
-	fp, openErr := os.OpenFile(filepath.Clean(path), flag, fileutil.FileModeCreatingFile)
-	if openErr != nil {
-		return fmt.Errorf("can not open .zshrc: %w", openErr)
-	}
-	defer func() {
-		if closeErr := fp.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("can not close .zshrc: %w", closeErr))
-		}
-	}()
-
-	if _, writeErr := fp.WriteString(data); writeErr != nil {
-		return fmt.Errorf("can not write zsh $fpath in .zshrc: %w", writeErr)
-	}
-	return err
+	return atomicWriteFile(zshrcPath, []byte(content+zshFpathSnippet()), ".zshrc")
 }
 
 func isSameBashCompletionFile(cmd *cobra.Command) bool {

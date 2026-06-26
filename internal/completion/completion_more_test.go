@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +10,194 @@ import (
 
 	"github.com/nao1215/gup/internal/fileutil"
 )
+
+// failingRename swaps renameFunc so the atomic-commit step fails, and restores
+// it after the test. It lets a test assert that a write that fails at the final
+// rename leaves the original file intact and drops no temp files.
+func failingRename(t *testing.T) {
+	t.Helper()
+	orig := renameFunc
+	renameFunc = func(string, string) error { return errors.New("simulated rename failure") }
+	t.Cleanup(func() { renameFunc = orig })
+}
+
+// countTempFiles returns how many of dir's entries look like the temp files
+// atomicWriteFile creates (".tmp-*"), so a test can assert none were left behind.
+func countTempFiles(t *testing.T, dir string) int {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%s) error = %v", dir, err)
+	}
+	n := 0
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			n++
+		}
+	}
+	return n
+}
+
+// TestAppendFpathAtZshrc_preservesSymlink verifies that when .zshrc is a symlink
+// (as managed by dotfile tools like stow/chezmoi/yadm), the atomic write rewrites
+// the link's target rather than replacing the symlink with a regular file. The
+// previous in-place O_APPEND/O_TRUNC followed the link; a naive os.Rename onto the
+// link path would sever it, leaving a plain file in the user's home.
+func TestAppendFpathAtZshrc_preservesSymlink(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// The real .zshrc lives in a separate "dotfiles" directory; ~/.zshrc is a
+	// symlink pointing at it.
+	dotfiles := t.TempDir()
+	realRc := filepath.Join(dotfiles, "zshrc")
+	const original = "# managed by a dotfile tool\n"
+	if err := os.WriteFile(realRc, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := zshrcPath()
+	if err := os.Symlink(realRc, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	// The link must still be a symlink, not a regular file.
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf(".zshrc symlink was replaced by a regular file")
+	}
+
+	// The fpath block must have been written through the link to the real file,
+	// and the original content preserved.
+	got, err := os.ReadFile(filepath.Clean(realRc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(got), original) {
+		t.Fatalf("original content not preserved in the real file:\n%s", got)
+	}
+	if !strings.Contains(string(got), zshFpathMarker) {
+		t.Fatalf("fpath block was not written through the symlink:\n%s", got)
+	}
+}
+
+// TestMakeBashCompletion_atomicWriteFailureKeepsOriginal verifies that when the
+// final rename fails, an existing completion file keeps its original contents
+// (it is never truncated in place) and no temp file is left behind.
+func TestMakeBashCompletion_atomicWriteFailureKeepsOriginal(t *testing.T) {
+	if IsWindows() {
+		t.Skip("completion install is not supported on Windows")
+	}
+	t.Setenv("HOME", t.TempDir())
+	cmd := testCompletionCmd()
+
+	// Pre-create a completion file whose content differs from what gup generates,
+	// so sync attempts a (failing) rewrite rather than skipping.
+	path := bashCompletionFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	const original = "# original bash completion content\n"
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	failingRename(t)
+
+	if err := makeBashCompletionFileIfNeeded(cmd); err == nil {
+		t.Fatal("expected an error when rename fails, got nil")
+	}
+
+	got, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		t.Fatalf("original completion file is gone: %v", err)
+	}
+	if string(got) != original {
+		t.Fatalf("original completion file was modified on failure:\n%s", got)
+	}
+	if n := countTempFiles(t, filepath.Dir(path)); n != 0 {
+		t.Errorf("temp file(s) left behind on failure: %d", n)
+	}
+}
+
+// TestAppendFpathAtZshrc_atomicWriteFailureKeepsOriginal verifies that when the
+// final rename fails while rewriting a stale gup block, an existing .zshrc keeps
+// its original contents and no temp file is left behind.
+func TestAppendFpathAtZshrc_atomicWriteFailureKeepsOriginal(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// A .zshrc that already holds a (stale) gup block, so appendFpathAtZshrcIfNeeded
+	// takes the in-place rewrite path and attempts an atomic write.
+	rc := zshrcPath()
+	original := "# user content\n" + zshFpathMarker + "\nfpath=(/some/old/dir $fpath)\n"
+	if err := os.WriteFile(rc, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	failingRename(t)
+
+	if err := appendFpathAtZshrcIfNeeded(); err == nil {
+		t.Fatal("expected an error when rename fails, got nil")
+	}
+
+	got, err := os.ReadFile(filepath.Clean(rc))
+	if err != nil {
+		t.Fatalf("original .zshrc is gone: %v", err)
+	}
+	if string(got) != original {
+		t.Fatalf("original .zshrc was modified on failure:\n%s", got)
+	}
+	if n := countTempFiles(t, home); n != 0 {
+		t.Errorf("temp file(s) left behind on failure: %d", n)
+	}
+}
+
+// TestAppendFpathAtZshrc_atomicAppendFailureKeepsOriginal verifies the same
+// guarantee for the append path: a .zshrc with no gup block keeps its original
+// contents when the atomic write fails, rather than being partially appended.
+func TestAppendFpathAtZshrc_atomicAppendFailureKeepsOriginal(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	rc := zshrcPath()
+	const original = "# user content with no gup block\nexport FOO=bar\n"
+	if err := os.WriteFile(rc, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	failingRename(t)
+
+	if err := appendFpathAtZshrcIfNeeded(); err == nil {
+		t.Fatal("expected an error when rename fails, got nil")
+	}
+
+	got, err := os.ReadFile(filepath.Clean(rc))
+	if err != nil {
+		t.Fatalf("original .zshrc is gone: %v", err)
+	}
+	if string(got) != original {
+		t.Fatalf("original .zshrc was modified on failure:\n%s", got)
+	}
+	if n := countTempFiles(t, home); n != 0 {
+		t.Errorf("temp file(s) left behind on failure: %d", n)
+	}
+}
 
 // TestMain clears the XDG/ZDOTDIR variables for the whole package so the many
 // tests that assert HOME-rooted completion paths are deterministic regardless of
@@ -580,7 +769,7 @@ func TestMakeBashCompletionFileIfNeeded_MkdirError(t *testing.T) {
 	}
 
 	err := makeBashCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not create bash-completion file") {
+	if err == nil || !strings.Contains(err.Error(), "can not create directory for bash-completion file") {
 		t.Errorf("expected MkdirAll error, got: %v", err)
 	}
 }
@@ -593,14 +782,14 @@ func TestMakeBashCompletionFileIfNeeded_OpenError(t *testing.T) {
 	}
 	cmd := testCompletionCmd()
 
-	// Create the completion path itself as a directory so OpenFile fails.
+	// Create the completion path itself as a directory so the atomic write rejects it.
 	if err := os.MkdirAll(bashCompletionFilePath(), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	err := makeBashCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not open bash-completion file") {
-		t.Errorf("expected OpenFile error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("expected directory-path error, got: %v", err)
 	}
 }
 
@@ -612,14 +801,14 @@ func TestMakeFishCompletionFileIfNeeded_GenError(t *testing.T) {
 	}
 	cmd := testCompletionCmd()
 
-	// Create the completion path as a directory so the file cannot be written.
+	// Create the completion path as a directory so the atomic write rejects it.
 	if err := os.MkdirAll(fishCompletionFilePath(), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	err := makeFishCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not open fish-completion file") {
-		t.Errorf("expected fish generation error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("expected directory-path error, got: %v", err)
 	}
 }
 
@@ -631,14 +820,14 @@ func TestMakeZshCompletionFileIfNeeded_GenError(t *testing.T) {
 	}
 	cmd := testCompletionCmd()
 
-	// Create the completion path as a directory so the file cannot be written.
+	// Create the completion path as a directory so the atomic write rejects it.
 	if err := os.MkdirAll(zshCompletionFilePath(), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	err := makeZshCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not open zsh-completion file") {
-		t.Errorf("expected zsh generation error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("expected directory-path error, got: %v", err)
 	}
 }
 
@@ -646,14 +835,14 @@ func TestAppendFpathAtZshrcIfNeeded_OpenError(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	// Make .zshrc a directory so the create-branch OpenFile fails.
+	// Make .zshrc a directory so the atomic write rejects it.
 	if err := os.MkdirAll(zshrcPath(), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	err := appendFpathAtZshrcIfNeeded()
-	if err == nil || !strings.Contains(err.Error(), "can not open .zshrc") {
-		t.Errorf("expected .zshrc open error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("expected .zshrc directory-path error, got: %v", err)
 	}
 }
 
