@@ -226,6 +226,88 @@ func TestDeployShellCompletionFileIfNeeded_unsetHOMEWithXDG(t *testing.T) {
 	}
 }
 
+// TestDeployShellCompletionFileIfNeeded_relativeHOME verifies that a relative
+// HOME is rejected before any file is written, even when the XDG/ZDOTDIR
+// variables are unset. With XDG unset, xdgDataHome/xdgConfigHome/zshDotDir build
+// their fallback paths from HOME, so a relative HOME would otherwise write
+// completion files under the current working directory. This keeps the path
+// guard consistent with the relative XDG/ZDOTDIR rejection.
+func TestDeployShellCompletionFileIfNeeded_relativeHOME(t *testing.T) {
+	if IsWindows() {
+		t.Skip("completion install is not supported on Windows")
+	}
+	t.Setenv("HOME", filepath.Join("relative", "home"))
+	workDir := t.TempDir()
+	t.Chdir(workDir)
+
+	cmd := testCompletionCmd()
+	err := DeployShellCompletionFileIfNeeded(cmd)
+	if err == nil || !strings.Contains(err.Error(), "HOME") {
+		t.Fatalf("expected an error mentioning HOME for a relative HOME, got: %v", err)
+	}
+	entries, readErr := os.ReadDir(workDir)
+	if readErr != nil {
+		t.Fatalf("failed to read working directory: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("no files should be written on failure, but found %d entries", len(entries))
+	}
+}
+
+// TestDeployShellCompletionFileIfNeeded_relativePathEnv verifies that a relative
+// XDG_DATA_HOME, XDG_CONFIG_HOME or ZDOTDIR is rejected before any file is
+// written, even when HOME is a valid absolute path. Without this guard the
+// relative value would be used verbatim to build install paths, silently writing
+// completion files (and the .zshrc fpath block) under the current working
+// directory instead of the user's home.
+func TestDeployShellCompletionFileIfNeeded_relativePathEnv(t *testing.T) {
+	if IsWindows() {
+		t.Skip("completion install is not supported on Windows")
+	}
+
+	cases := []struct {
+		name   string
+		envVar string
+	}{
+		{name: "relative XDG_DATA_HOME", envVar: "XDG_DATA_HOME"},
+		{name: "relative XDG_CONFIG_HOME", envVar: "XDG_CONFIG_HOME"},
+		{name: "relative ZDOTDIR", envVar: "ZDOTDIR"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// HOME is a valid absolute path: the only problem is the relative env var.
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv(tc.envVar, filepath.Join("relative", "completion", "dir"))
+			// Run from a fresh empty directory so any stray write is detectable.
+			workDir := t.TempDir()
+			t.Chdir(workDir)
+
+			cmd := testCompletionCmd()
+			err := DeployShellCompletionFileIfNeeded(cmd)
+			if err == nil {
+				t.Fatalf("expected an error for relative %s, got nil", tc.envVar)
+			}
+			if !strings.Contains(err.Error(), tc.envVar) {
+				t.Fatalf("error should name the offending variable %s, got: %v", tc.envVar, err)
+			}
+
+			// Nothing must have been written under the working directory.
+			entries, readErr := os.ReadDir(workDir)
+			if readErr != nil {
+				t.Fatalf("failed to read working directory: %v", readErr)
+			}
+			if len(entries) != 0 {
+				names := make([]string, 0, len(entries))
+				for _, e := range entries {
+					names = append(names, e.Name())
+				}
+				t.Errorf("no files should be written on failure, but found: %v", names)
+			}
+		})
+	}
+}
+
 func TestExistSameBashCompletionFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cmd := testCompletionCmd()

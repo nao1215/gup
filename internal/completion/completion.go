@@ -19,16 +19,28 @@ import (
 // DeployShellCompletionFileIfNeeded creates the shell completion files.
 // If a file with the same contents already exists, it is not recreated.
 //
-// It returns a non-nil error when HOME is unset/empty (so completion files are
-// never written into relative paths under the current directory) or when any
-// required completion file cannot be written. Errors from individual shells are
+// It returns a non-nil error when HOME (or an XDG_DATA_HOME/XDG_CONFIG_HOME/
+// ZDOTDIR override) is unset or relative (so completion files are never written
+// into relative paths under the current directory) or when any required
+// completion file cannot be written. Errors from individual shells are
 // aggregated so a single run reports every failure (#343).
 func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if IsWindows() {
 		return nil
 	}
-	if strings.TrimSpace(os.Getenv("HOME")) == "" {
+	home := strings.TrimSpace(os.Getenv("HOME"))
+	if home == "" {
 		return errors.New("HOME environment variable is not set; cannot determine where to install shell completion files")
+	}
+	// A relative HOME is rejected for the same reason as a relative XDG/ZDOTDIR
+	// value: with the XDG variables unset, the install paths fall back to HOME, so
+	// a relative HOME would write completion files under the current working
+	// directory. gup never implicitly absolutizes it.
+	if !filepath.IsAbs(home) {
+		return fmt.Errorf("HOME must be an absolute path to install shell completion files, but is a relative path: %q", home)
+	}
+	if err := validateCompletionPathEnv(); err != nil {
+		return err
 	}
 
 	return errors.Join(
@@ -263,6 +275,27 @@ func isSameFishCompletionFile(cmd *cobra.Command) bool {
 
 func isSameZshCompletionFile(cmd *cobra.Command) bool {
 	return zshCompletionSpec().upToDate(cmd)
+}
+
+// validateCompletionPathEnv rejects a relative XDG_DATA_HOME, XDG_CONFIG_HOME or
+// ZDOTDIR before any completion file is written. These variables are otherwise
+// used verbatim by xdgDataHome/xdgConfigHome/zshDotDir to build the install
+// paths, so a relative value would silently write completion files and the
+// .zshrc fpath block under the current working directory instead of the user's
+// home. gup never implicitly absolutizes them: a relative value is a
+// misconfiguration, so fail fast naming the offending variable, consistent with
+// the fail-fast HOME check in DeployShellCompletionFileIfNeeded. An unset
+// variable is fine - it falls back to a HOME-based absolute path.
+func validateCompletionPathEnv() error {
+	for _, name := range []string{"XDG_DATA_HOME", "XDG_CONFIG_HOME", "ZDOTDIR"} {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value != "" && !filepath.IsAbs(value) {
+			return fmt.Errorf(
+				"%s must be an absolute path to install shell completion files, but is a relative path: %q",
+				name, value)
+		}
+	}
+	return nil
 }
 
 // xdgDataHome returns the base directory for user data files, honoring
