@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -164,6 +165,37 @@ func TestPrinter_Question(t *testing.T) {
 				t.Errorf("Question() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPrinter_ConcurrentWrites verifies a Printer shared across goroutines (as
+// happens when goutil reports unreadable binaries from parallel.Run workers)
+// serializes its writes: under -race this fails if the methods drop the lock,
+// and every emitted line stays whole.
+func TestPrinter_ConcurrentWrites(t *testing.T) {
+	t.Parallel()
+	buf := &bytes.Buffer{}
+	p := New(buf, buf)
+
+	const goroutines = 32
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			p.Warn(testMessage)
+		}()
+	}
+	wg.Wait()
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != goroutines {
+		t.Fatalf("got %d lines, want %d (writes interleaved?)", len(lines), goroutines)
+	}
+	for _, l := range lines {
+		if l != "gup:WARN : test message" {
+			t.Fatalf("interleaved/garbled warning line: %q", l)
+		}
 	}
 }
 
