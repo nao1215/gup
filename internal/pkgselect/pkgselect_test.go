@@ -262,6 +262,23 @@ func TestBinaryPaths(t *testing.T) {
 	}
 }
 
+// A first-run environment has no $GOBIN directory yet. Treating that as a
+// read-dir error would make list/check/update/export fail instead of behaving
+// like a normal empty installed-tool set, so BinaryPaths must return an empty
+// list and no error when the directory does not exist.
+func TestBinaryPaths_missingGOBINIsEmpty(t *testing.T) {
+	missingDir := filepath.Join(t.TempDir(), "does-not-exist")
+	t.Setenv("GOBIN", missingDir)
+
+	got, err := BinaryPaths()
+	if err != nil {
+		t.Fatalf("BinaryPaths() with missing $GOBIN should not error, got: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("BinaryPaths() with missing $GOBIN should be empty, got: %v", got)
+	}
+}
+
 func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_success"))
 

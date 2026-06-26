@@ -12,7 +12,9 @@
 package pkgselect
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -23,6 +25,11 @@ import (
 
 // BinaryPaths returns the absolute paths of the binaries installed under $GOBIN
 // (or $GOPATH/bin).
+//
+// A $GOBIN/$GOPATH/bin directory that does not exist yet is a normal first-run
+// condition, not an error: it is reported as an empty list so list/check/update/
+// export behave like any other empty installed-tool set instead of failing with
+// a read-dir error (#350).
 func BinaryPaths() ([]string, error) {
 	goBin, err := goutil.GoBin()
 	if err != nil {
@@ -31,6 +38,9 @@ func BinaryPaths() ([]string, error) {
 
 	binList, err := goutil.BinaryPathList(goBin)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []string{}, nil
+		}
 		return nil, fmt.Errorf("%s: %w", "can't get binary-paths installed by 'go install'", err)
 	}
 

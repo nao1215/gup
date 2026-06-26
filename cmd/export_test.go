@@ -94,41 +94,10 @@ func Test_export(t *testing.T) {
 		},
 	}
 
-	if runtime.GOOS == goosWindows {
-		tests = append(tests, struct {
-			name   string
-			args   []string
-			gobin  string
-			want   int
-			stderr []string
-		}{
-
-			name:  "not exist gobin directory",
-			gobin: filepath.Join("testdata", "dummy"),
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open " + filepath.Join("testdata", "dummy") + ": The system cannot find the file specified.",
-				"",
-			},
-		})
-	} else {
-		tests = append(tests, struct {
-			name   string
-			args   []string
-			gobin  string
-			want   int
-			stderr []string
-		}{
-
-			name:  "not exist gobin directory",
-			gobin: filepath.Join("testdata", "dummy"),
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open testdata/dummy: no such file or directory",
-				"",
-			},
-		})
-	}
+	// A missing $GOBIN directory is now treated as a normal empty environment
+	// (#350): export writes an empty config and exits 0. That behavior is covered
+	// with proper XDG isolation by Test_export_emptyEnv_missingGOBINWritesEmptyConfig,
+	// so it is intentionally not re-asserted in this permission-focused table.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -344,6 +313,34 @@ func Test_export_emptyEnv_writesEmptyConfig(t *testing.T) {
 	p, _ := newTestPrinter()
 	if got := export(p, newExportCmd(), []string{}); got != 0 {
 		t.Fatalf("export() on empty env = %d, want 0", got)
+	}
+
+	pkgs, err := config.ReadConfFile(config.FilePath())
+	if err != nil {
+		t.Fatalf("exported config should be readable: %v", err)
+	}
+	if len(pkgs) != 0 {
+		t.Fatalf("exported config should have no packages, got %d", len(pkgs))
+	}
+}
+
+// Test_export_emptyEnv_missingGOBINWritesEmptyConfig verifies the #350 contract
+// for a $GOBIN directory that does not exist yet: export succeeds (exit 0) and
+// writes an empty gup.json instead of failing with a read-dir error.
+func Test_export_emptyEnv_missingGOBINWritesEmptyConfig(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+
+	t.Setenv("GOBIN", filepath.Join(t.TempDir(), "does-not-exist")) // missing directory
+
+	p, _ := newTestPrinter()
+	if got := export(p, newExportCmd(), []string{}); got != 0 {
+		t.Fatalf("export() on missing $GOBIN = %d, want 0", got)
 	}
 
 	pkgs, err := config.ReadConfFile(config.FilePath())

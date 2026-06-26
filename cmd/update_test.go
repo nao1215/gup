@@ -243,6 +243,24 @@ func Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 	}
 }
 
+// Test_gup_emptyEnv_missingGOBINSucceeds verifies the #350 contract for a
+// $GOBIN directory that does not exist yet: update treats it like a normal empty
+// environment (exit 0) instead of failing with a read-dir error.
+func Test_gup_emptyEnv_missingGOBINSucceeds(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", filepath.Join(t.TempDir(), "does-not-exist")) // missing directory
+
+	got := 0
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0 when $GOBIN directory is missing", got)
+	}
+}
+
 // Test_gup_invalidConfigFile verifies the #369 contract: a malformed gup.json is
 // not silently treated as "no config" (which would downgrade saved channels to
 // @latest); update fails fast and names the failing path instead.
