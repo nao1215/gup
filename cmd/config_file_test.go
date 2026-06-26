@@ -362,6 +362,8 @@ func Test_writeConfigFile_preservesSymlink(t *testing.T) {
 		t.Fatalf("config was not written through the symlink to its target: %q", string(got))
 	}
 	assertNoTempFiles(t, dir, filepath.Base(link))
+	// Temps are staged next to the resolved target, so check that basename too.
+	assertNoTempFiles(t, dir, filepath.Base(realPath))
 }
 
 // Test_writeConfigFile_preservesDanglingSymlink verifies that when gup.json is a
@@ -401,6 +403,8 @@ func Test_writeConfigFile_preservesDanglingSymlink(t *testing.T) {
 		t.Fatalf("config was not written to the link target: %q", string(got))
 	}
 	assertNoTempFiles(t, dir, filepath.Base(link))
+	// Temps are staged next to the resolved target, so check that basename too.
+	assertNoTempFiles(t, dir, filepath.Base(target))
 }
 
 func fileExists(t *testing.T, path string) bool {
