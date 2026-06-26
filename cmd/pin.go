@@ -103,11 +103,9 @@ func parsePinArgs(args []string) (target, version string, err error) {
 }
 
 func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		p.Err(err)
-		return 1
-	}
-
+	// pin only reads local build info and edits gup.json (channel "pinned"); it
+	// never runs the Go toolchain, so it must not fail when 'go' is absent. This
+	// mirrors 'gup unpin', which already works without go.
 	target, version, err := parsePinArgs(args)
 	if err != nil {
 		p.Err(err)

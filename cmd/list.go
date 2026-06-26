@@ -32,11 +32,8 @@ func newListCmd() *cobra.Command {
 }
 
 func list(p *print.Printer, cmd *cobra.Command, _ []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		p.Err(err)
-		return 1
-	}
-
+	// list only reads local build info from $GOBIN and never invokes the Go
+	// toolchain, so it must not fail when 'go' is absent (mirrors 'gup unpin').
 	pkgs, err := pkgselect.PackageInfo(p)
 	if err != nil {
 		p.Err(err)

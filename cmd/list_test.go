@@ -8,32 +8,23 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/spf13/cobra"
 )
 
-func Test_list_not_found_go_command(t *testing.T) {
-	t.Run("Not found go command", func(t *testing.T) {
-		t.Setenv("PATH", "")
+// Test_list_succeeds_without_go_command reproduces the bug where 'gup list'
+// failed with "you didn't install golang" when the 'go' command was absent, even
+// though listing only reads local build info from $GOBIN and never invokes the Go
+// toolchain.
+func Test_list_succeeds_without_go_command(t *testing.T) {
+	t.Setenv("PATH", "")
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-		p, buf := newTestPrinter()
-
-		if got := list(p, &cobra.Command{}, []string{}); got != 1 {
-			t.Errorf("list() = %v, want %v", got, 1)
-		}
-		got := strings.Split(buf.String(), "\n")
-
-		want := []string{}
-		if runtime.GOOS == goosWindows {
-			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
-			want = append(want, "")
-		} else {
-			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`)
-			want = append(want, "")
-		}
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("value is mismatch (-want +got):\n%s", diff)
-		}
-	})
+	p, buf := newTestPrinter()
+	if got := list(p, newListCmd(), []string{}); got != 0 {
+		t.Fatalf("list() without go = %d, want 0; output:\n%s", got, buf.String())
+	}
+	if strings.Contains(buf.String(), "you didn't install golang") {
+		t.Errorf("list must not require the go command:\n%s", buf.String())
+	}
 }
 
 func Test_list_gobin_is_empty(t *testing.T) {
