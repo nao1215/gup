@@ -93,6 +93,19 @@ func ResolveImportFilePath(explicitPath string) (string, error) {
 
 	defaultPath := FilePath()
 	local := LocalFilePath()
+
+	// An auto-detected candidate that exists as a directory is a user mistake,
+	// not "no config". IsFile reports false for directories, so without this
+	// check the directory would be silently ignored and import would fall back
+	// to the other candidate or "not found". Reject it so the caller fails fast,
+	// matching configstate.ReadFileIfExists's directory handling (#367, #368).
+	if fileutil.IsDir(local) {
+		return "", fmt.Errorf("%s is a directory, not a gup.json file", local)
+	}
+	if fileutil.IsDir(defaultPath) {
+		return "", fmt.Errorf("%s is a directory, not a gup.json file", defaultPath)
+	}
+
 	defaultExists := fileutil.IsFile(defaultPath)
 	localExists := fileutil.IsFile(local)
 
