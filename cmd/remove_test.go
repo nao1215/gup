@@ -225,6 +225,49 @@ func Test_removeLoop_forceNonExist(t *testing.T) {
 	}
 }
 
+// Test_removeLoop_stdinReadFailureIsError reproduces the bug where a failed
+// confirmation read (e.g. EOF / a closed stdin pipe) was treated as a user
+// "cancel": gup printed "cancel removal" and returned a success exit code, so a
+// caller could not tell that the removal had silently not happened. A read
+// failure must instead be reported as an error (exit 1) and must not delete the
+// target.
+//
+//nolint:paralleltest // mutates package-level stdinIsTerminal and process os.Stdin
+func Test_removeLoop_stdinReadFailureIsError(t *testing.T) {
+	gobin := t.TempDir()
+	binaryName := testBinPosixer
+	if GOOS == goosWindows {
+		binaryName += normalizeExecSuffix(GOOS, os.Getenv("GOEXE"))
+	}
+	binaryPath := filepath.Join(gobin, binaryName)
+	if err := os.WriteFile(binaryPath, []byte("dummy"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pretend stdin is a TTY so the interactive confirmation path runs, then feed
+	// it an empty stream so the confirmation read returns EOF.
+	origStdinIsTerminal := stdinIsTerminal
+	stdinIsTerminal = func() bool { return true }
+	t.Cleanup(func() { stdinIsTerminal = origStdinIsTerminal })
+
+	funcDefer, err := mockStdin(t, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer funcDefer()
+
+	p, buf := newTestPrinter()
+	if got := removeLoop(p, gobin, false, []string{testBinPosixer}); got != 1 {
+		t.Fatalf("removeLoop() on stdin read failure = %d, want 1", got)
+	}
+	if !fileutil.IsFile(binaryPath) {
+		t.Fatal("target must not be deleted when the confirmation read fails")
+	}
+	if strings.Contains(buf.String(), "cancel removal") {
+		t.Errorf("must not report 'cancel removal' on a read failure:\n%s", buf.String())
+	}
+}
+
 func Test_removeLoop_windowsFallbackGoexe(t *testing.T) {
 	origGOOS := GOOS
 	GOOS = goosWindows

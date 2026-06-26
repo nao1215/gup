@@ -161,7 +161,11 @@ func TestPrinter_Question(t *testing.T) {
 			defer funcDefer()
 
 			buf := &bytes.Buffer{}
-			if got := New(buf, buf).Question(tt.ask); got != tt.want {
+			got, err := New(buf, buf).Question(tt.ask)
+			if err != nil {
+				t.Errorf("Question() unexpected error: %v", err)
+			}
+			if got != tt.want {
 				t.Errorf("Question() = %v, want %v", got, tt.want)
 			}
 		})
@@ -205,12 +209,19 @@ func TestPrinter_Question_ScanlnErr(t *testing.T) {
 		t.Parallel()
 		buf := &bytes.Buffer{}
 		p := New(buf, buf)
+		wantErr := errors.New("some error")
 		p.scanln = func(_ ...any) (n int, err error) {
-			return -1, errors.New("some error")
+			return -1, wantErr
 		}
 
-		if got := p.Question(testNoCheck); got != false {
+		got, err := p.Question(testNoCheck)
+		if got != false {
 			t.Errorf("Question() = %v, want %v", got, false)
+		}
+		// A scanln read failure must surface as an error so callers can tell it
+		// apart from a deliberate "no".
+		if !errors.Is(err, wantErr) {
+			t.Errorf("Question() error = %v, want %v", err, wantErr)
 		}
 	})
 }
