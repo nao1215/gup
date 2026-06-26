@@ -35,11 +35,9 @@ apply it with 'gup import'.`,
 }
 
 func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		p.Err(err)
-		return 1
-	}
-
+	// export only reads local build info from $GOBIN and writes gup.json; it never
+	// invokes the Go toolchain, so it must not fail when 'go' is absent (mirrors
+	// 'gup unpin').
 	output, err := getFlagBool(cmd, "output")
 	if err != nil {
 		p.Err(err)

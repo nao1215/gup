@@ -57,6 +57,26 @@ func TestRunPin_writesPinnedConfig(t *testing.T) {
 	}
 }
 
+// TestRunPin_succeedsWithoutGoCommand reproduces the bug where 'gup pin' failed
+// with "you didn't install golang" when 'go' was absent, even though pin only
+// reads local build info and edits gup.json (exactly like 'gup unpin', which
+// already works without go), never invoking the Go toolchain.
+func TestRunPin_succeedsWithoutGoCommand(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("PATH", "")
+	stubPinPackageInfo(t, []goutil.Package{
+		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: "v0.9.0"}},
+	})
+
+	p, buf := newTestPrinter()
+	if code := runPin(p, newPinCmd(), []string{testBinTool, testVersionOne}); code != 0 {
+		t.Fatalf("runPin() without go = %d, want 0; output:\n%s", code, buf.String())
+	}
+	if strings.Contains(buf.String(), "you didn't install golang") {
+		t.Errorf("pin must not require the go command:\n%s", buf.String())
+	}
+}
+
 //nolint:paralleltest // swaps package globals and XDG env; must not run in parallel
 func TestRunPin_unmanagedToolFails(t *testing.T) {
 	setupXDGBase(t)
