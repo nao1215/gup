@@ -440,6 +440,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 // environment, list/check/update --json emit a valid empty JSON array and exit 0
 // instead of printing an error.
 func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
 	emptyGobin := t.TempDir()
 
 	t.Run("list --json", func(t *testing.T) {
@@ -489,6 +491,35 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatalf("update --json on empty env should be [], got %d records", len(recs))
 		}
 	})
+}
+
+// Test_emptyEnv_listJSON_validatesAutoDetectedMalformedConfig verifies that
+// list --json on an empty environment fails fast on a malformed auto-detected
+// (user-level) config instead of emitting an empty array and exiting 0.
+func Test_emptyEnv_listJSON_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newListCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	p, buf := newTestPrinter()
+	if got := list(p, cmd, nil); got != 1 {
+		t.Fatalf("list --json with malformed auto-detected config = %d, want 1", got)
+	}
+	if !strings.Contains(buf.String(), config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), buf.String())
+	}
 }
 
 // Test_gup_jsonFlag exercises gup() with --json (and --dry-run) so the
