@@ -123,34 +123,6 @@ func Test_copyOneManpage_preservesSymlink(t *testing.T) {
 	}
 }
 
-// Test_copyOneManpage_worldReadable verifies the generated man page keeps a
-// world-readable mode (0644), matching the previous os.Create behavior, rather
-// than the 0600 that os.CreateTemp would otherwise leave behind.
-func Test_copyOneManpage_worldReadable(t *testing.T) {
-	if runtime.GOOS == goosWindows {
-		t.Skip("POSIX file mode semantics do not apply on Windows")
-	}
-	t.Parallel()
-
-	src := filepath.Join(t.TempDir(), "gup.1")
-	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	dst := t.TempDir()
-
-	if err := copyOneManpage(discardPrinter(), src, dst); err != nil {
-		t.Fatalf("copyOneManpage() error = %v", err)
-	}
-
-	info, err := os.Stat(filepath.Join(dst, "gup.1.gz"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o644 {
-		t.Fatalf("man page mode = %o, want 0644 (world-readable)", got)
-	}
-}
-
 // Test_copyOneManpage_rejectsDirectory verifies a destination that is a directory
 // is rejected before any temp file is staged, so the rename-replace flow cannot
 // clobber a directory tree.

@@ -16,9 +16,10 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
-// manpageFileMode is the default world-readable mode for generated man pages,
-// matching what os.Create (0666 & umask) produced before the atomic write.
-const manpageFileMode = 0o644
+// manpageCreateMode is the base mode requested for a newly created man page,
+// matching the 0666 os.Create opened with before the atomic write. The process
+// umask is applied to it (see applyUmask) so restrictive umasks are honored.
+const manpageCreateMode = 0o666
 
 func newManCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -163,10 +164,11 @@ func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (er
 	}
 	dir := filepath.Dir(outputPath)
 
-	// os.CreateTemp creates the temp file with mode 0600, but man pages must stay
-	// world-readable as os.Create (0666 & umask) previously produced. Preserve an
-	// existing file's mode when replacing it, otherwise default to 0644.
-	mode := os.FileMode(manpageFileMode)
+	// os.CreateTemp creates the temp file with mode 0600. Reproduce os.Create's
+	// previous behavior instead: for a new file use 0666 with the process umask
+	// applied (so a restrictive umask such as 077 still yields 0600, not a wider
+	// 0644), and when replacing an existing file preserve that file's own mode.
+	mode := applyUmask(manpageCreateMode)
 	if info, statErr := os.Stat(outputPath); statErr == nil {
 		mode = info.Mode().Perm()
 	} else if !os.IsNotExist(statErr) {
