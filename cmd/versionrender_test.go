@@ -305,3 +305,63 @@ func TestPinnedResultStr(t *testing.T) {
 		t.Errorf("no-current pinnedResultStr() = %q, want it to mention unknown", got)
 	}
 }
+
+// TestHideIgnoredGoDelta verifies the seam that suppresses an ignored Go
+// toolchain delta before rendering. When ignoreGoUpdate is set (and not in JSON
+// mode), a Go-only delta is collapsed so currentToLatestStr/versionCheckResultStr
+// render a clean "Already up-to-date" line. It must be a no-op when the delta is
+// not being ignored or when emitting JSON, and tolerate a nil GoVersion.
+func TestHideIgnoredGoDelta(t *testing.T) {
+	t.Parallel()
+
+	t.Run("suppresses Go-only delta when ignored", func(t *testing.T) {
+		t.Parallel()
+		p := goutil.Package{
+			Name:       rvName,
+			ImportPath: rvImport,
+			ModulePath: rvModule,
+			Version:    &goutil.Version{Current: rvV100, Latest: rvV100},
+			GoVersion:  &goutil.Version{Current: rvGoCurrent, Latest: rvGo1260ND},
+		}
+		hideIgnoredGoDelta(&p, true, false)
+		if p.GoVersion.Latest != p.GoVersion.Current {
+			t.Fatalf("GoVersion.Latest = %q, want collapsed to %q", p.GoVersion.Latest, p.GoVersion.Current)
+		}
+		if got := currentToLatestStr(p); !strings.Contains(got, "up-to-date") {
+			t.Fatalf("currentToLatestStr after suppression = %q, want it to read up-to-date", got)
+		}
+		if strings.Contains(versionCheckResultStr(p), rvGo1260ND) {
+			t.Fatalf("versionCheckResultStr still shows the ignored Go latest %q", rvGo1260ND)
+		}
+	})
+
+	t.Run("no-op when not ignoring", func(t *testing.T) {
+		t.Parallel()
+		p := goutil.Package{
+			Version:   &goutil.Version{Current: rvV100, Latest: rvV100},
+			GoVersion: &goutil.Version{Current: rvGoCurrent, Latest: rvGo1260ND},
+		}
+		hideIgnoredGoDelta(&p, false, false)
+		if p.GoVersion.Latest != rvGo1260ND {
+			t.Fatalf("GoVersion.Latest = %q, want unchanged %q when not ignoring", p.GoVersion.Latest, rvGo1260ND)
+		}
+	})
+
+	t.Run("no-op in JSON mode", func(t *testing.T) {
+		t.Parallel()
+		p := goutil.Package{
+			Version:   &goutil.Version{Current: rvV100, Latest: rvV100},
+			GoVersion: &goutil.Version{Current: rvGoCurrent, Latest: rvGo1260ND},
+		}
+		hideIgnoredGoDelta(&p, true, true)
+		if p.GoVersion.Latest != rvGo1260ND {
+			t.Fatalf("GoVersion.Latest = %q, want unchanged %q in JSON mode", p.GoVersion.Latest, rvGo1260ND)
+		}
+	})
+
+	t.Run("tolerates nil GoVersion", func(t *testing.T) {
+		t.Parallel()
+		p := goutil.Package{Version: &goutil.Version{Current: rvV100, Latest: rvV100}}
+		hideIgnoredGoDelta(&p, true, false) // must not panic
+	})
+}

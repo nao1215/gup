@@ -350,6 +350,45 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 	}
 }
 
+// Test_doCheck_ignoreGoUpdate_hidesGoOnlyDelta verifies that when only the Go
+// toolchain differs (the package version is up to date) and --ignore-go-update
+// is set, the human-readable line does not show a Go delta. Previously the check
+// decision correctly ignored the Go delta (no update reported) but the rendered
+// line still printed "current: goX, installed: goY", contradicting the decision.
+func Test_doCheck_ignoreGoUpdate_hidesGoOnlyDelta(t *testing.T) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+
+	p, buf := newTestPrinter()
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersionNoDwarf5},
+		},
+	}
+
+	// ignoreGoUpdate = true: a Go-only delta must not appear and must not look
+	// like an available update.
+	got := doCheck(deps, p, pkgs, 1, 0, true, false)
+	if got != 0 {
+		t.Fatalf("doCheck() = %v, want 0", got)
+	}
+	out := buf.String()
+	if strings.Contains(out, testGoVersionNoDwarf5) {
+		t.Fatalf("ignored Go delta leaked into output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Already up-to-date") {
+		t.Fatalf("expected 'Already up-to-date' output, got:\n%s", out)
+	}
+	if strings.Contains(out, "$ gup update tool ") {
+		t.Fatalf("unexpected update hint for ignored Go delta, got:\n%s", out)
+	}
+}
+
 func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 	deps := testDeps()
 	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
