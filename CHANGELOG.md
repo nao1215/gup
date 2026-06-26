@@ -1,3 +1,32 @@
+## [v1.7.1](https://github.com/nao1215/gup/compare/v1.7.0...v1.7.1) (2026-06-26)
+
+### Bug Fixes
+
+* `gup export` now preserves channels saved under an alternate config file (`--output`) instead of dropping them when exporting back to a non-default `gup.json`. (#411)
+* `gup` validates an auto-detected `gup.json` on otherwise empty environments so a malformed config fails fast rather than being silently ignored. (#410)
+* A missing `$GOBIN` directory is treated as an empty environment instead of an error. (#409)
+* Generated manpages now respect the process umask when their permissions are set, and are written atomically so a crash can never leave a truncated page behind. (#407, #408)
+* `gup import` rejects directory paths explicitly instead of failing later with an opaque error. (#406)
+* The `gup bug-report` browser launch no longer reports false success when the browser open times out. (#405)
+* Atomic config writes preserve a symlinked `gup.json` (writing through the link rather than replacing it), and completion-file writes preserve dangling symlinks; completion files and `.zshrc` are written atomically. (#402, #403, #404)
+* Completion install rejects relative `XDG_*` and `ZDOTDIR` paths rather than resolving them against the wrong base. (#401)
+* Human-readable output stays consistent with `--ignore-go-update`. (#400)
+* `gup` fails fast when an auto-detected `gup.json` is a directory. (#399)
+* `gup list`, `gup export`, and `gup pin` no longer require the `go` command for local-only work.
+* `gup migrate --dry-run` validates that `AFTER_PATH` is creatable so a dry run surfaces the same failure a real run would.
+* `gup remove` treats a failed confirmation read as an error instead of a silent cancel.
+* The shared `Printer` serializes writes across parallel workers so concurrent output is no longer interleaved. (#393)
+* `gup.json` persists the version for the effective channel when merging packages.
+
+### Code Refactoring
+
+* Thread a `Printer` through all commands and inject it via Cobra's `SetOut`/`SetErr` instead of redirecting `os.Stdout`, and inject `update`/`check` operations and other dependencies instead of mutating global seams. No user-visible behavior change. (#393)
+* Internal cleanups across `cmd`, `goutil`, `configstate`, and `completion` (shared empty-environment and progress-rendering helpers, centralized Cobra flag-registration panics, version-display separation, per-shell completion sync, and a split of the monolithic `configstate` file). No user-visible behavior change.
+
+### Chore
+
+* Bump `sigstore/cosign-installer` from 3.9.1 to 4.1.2.
+
 ## [v1.7.0](https://github.com/nao1215/gup/compare/v1.6.0...v1.7.0) (2026-06-25)
 
 ### Features
