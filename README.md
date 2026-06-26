@@ -300,7 +300,7 @@ If both the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `up
 
 A malformed or invalid `gup.json` (invalid JSON, an unknown channel, an unsupported `schema_version`, or an unsafe pin) is treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed. An unknown channel is never normalized to `latest`.
 
-`gup export` reads saved update channels from the same `gup.json` it writes to: a default export (no `--file`) reads from and writes to the canonical user-level `gup.json`, while `gup export --file <path>` reads from and writes to `<path>`. Exporting back to the same alternate config file therefore preserves its saved channels (round-trip safe) instead of resetting them to `latest` from another source. A first export to a brand-new file has no saved channels to read, so its packages are recorded as `latest`.
+When exporting to a file, `gup export` reads saved update channels from the same `gup.json` it writes to: a default export (no `--file`) reads from and writes to the canonical user-level `gup.json`, while `gup export --file <path>` reads from and writes to `<path>`. Exporting back to the same alternate config file therefore preserves its saved channels (round-trip safe) instead of resetting them to `latest` from another source. A first export to a brand-new file has no saved channels to read, so its packages are recorded as `latest`. With `--output`, `--file` still selects the channel source, but the exported config is printed to STDOUT instead of being written back to that path.
 
 ```shell
 ※ Environments A (e.g. ubuntu)
