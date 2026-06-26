@@ -60,15 +60,15 @@ func summarizeResults(results []updateResult, isCheck bool) string {
 // showInQuiet are printed, without the "[i/n]" counter (which would be sparse);
 // otherwise every line is printed with the counter. The returned callback is
 // passed to executePackages as onResult.
-func resultLineRenderer(quiet bool, showInQuiet func(updateResult) bool, resultStr func(goutil.Package) string) func(string, updateResult) {
+func resultLineRenderer(p *print.Printer, quiet bool, showInQuiet func(updateResult) bool, resultStr func(goutil.Package) string) func(string, updateResult) {
 	return func(prefix string, v updateResult) {
 		if quiet {
 			if showInQuiet(v) {
-				print.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, resultStr(v.pkg)))
+				p.Info(fmt.Sprintf("%s (%s)", v.pkg.ImportPath, resultStr(v.pkg)))
 			}
 			return
 		}
-		print.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, resultStr(v.pkg)))
+		p.Info(fmt.Sprintf("%s %s (%s)", prefix, v.pkg.ImportPath, resultStr(v.pkg)))
 	}
 }
 
@@ -84,7 +84,7 @@ func resultLineRenderer(quiet bool, showInQuiet func(updateResult) bool, resultS
 // slice is in input order, so machine-readable (--json) output is deterministic
 // across runs regardless of worker scheduling (#365). onResult may be nil
 // (used by --json callers that render from the returned results instead).
-func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
+func executePackages(p *print.Printer, pkgs []goutil.Package, cpus int, timeout time.Duration,
 	worker func(context.Context, goutil.Package) updateResult,
 	onResult func(prefix string, v updateResult)) (int, []updateResult) {
 	ctx, cancel, signals := newSignalCancelContext()
@@ -100,9 +100,9 @@ func executePackages(pkgs []goutil.Package, cpus int, timeout time.Duration,
 			prefix := fmt.Sprintf(countFmt, done, total)
 			if v.err != nil {
 				exitCode = 1
-				print.Err(fmt.Errorf("%s %s", prefix, v.err.Error()))
+				p.Err(fmt.Errorf("%s %s", prefix, v.err.Error()))
 				if hint := diagnose.Hint(v.err); hint != "" {
-					print.Hint(hint)
+					p.Hint(hint)
 				}
 			} else if onResult != nil {
 				onResult(prefix, v)

@@ -19,14 +19,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	getLatestVerCtx        = goutil.GetLatestVerWithContext        //nolint:gochecknoglobals // swapped in tests
-	getVerByRefCtx         = goutil.GetVerWithContext              //nolint:gochecknoglobals // swapped in tests
-	installLatestCtx       = goutil.InstallLatestWithContext       //nolint:gochecknoglobals // swapped in tests
-	installMainOrMasterCtx = goutil.InstallMainOrMasterWithContext //nolint:gochecknoglobals // swapped in tests
-	installByVersionUpdCtx = goutil.InstallWithContext             //nolint:gochecknoglobals // swapped in tests
-)
-
 const latestKeyword = "latest"
 
 func newUpdateCmd() *cobra.Command {
@@ -42,7 +34,7 @@ If you execute '$ gup update', gup gets the package path of all commands
 under $GOPATH/bin and automatically updates commands to the latest version,
 using the current installed Go toolchain.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(gup(cmd, args))
+			OsExit(gup(defaultDependencies(), printerFor(cmd), cmd, args))
 		},
 		ValidArgsFunction: completePathBinaries,
 	}
@@ -133,21 +125,25 @@ func parseUpdateFlags(cmd *cobra.Command) (updateOpts, error) {
 
 // gup is main sequence.
 // All errors are handled in this function.
-func gup(cmd *cobra.Command, args []string) int {
+//
+// deps carries the go-toolchain operations (version lookups and per-channel
+// installs) so the update flow takes its collaborators explicitly. Production
+// passes defaultDependencies(); tests inject fakes.
+func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	opts, err := parseUpdateFlags(cmd)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
+	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(p, args)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	// When the installed Go version can't be detected, behave as
@@ -155,13 +151,13 @@ func gup(cmd *cobra.Command, args []string) int {
 	// every binary to reinstall (see issue #296).
 	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
 
-	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
+	pkgselect.WarnMissing(missingTargets, func(msg string) { p.Warn(msg) })
 	// In JSON mode the human-readable "Exclude ..." notice is suppressed so
-	// STDOUT stays valid JSON (the notice goes to STDOUT via print.Info, which
+	// STDOUT stays valid JSON (the notice goes to STDOUT via p.Info, which
 	// would otherwise break machine-readable output; see issue #291).
 	excludeNotify := func(string) {}
 	if !opts.jsonOut {
-		excludeNotify = func(msg string) { print.Info(msg) }
+		excludeNotify = func(msg string) { p.Info(msg) }
 	}
 	pkgs = pkgselect.Exclude(pkgs, opts.excludePkgList, excludeNotify)
 
@@ -169,7 +165,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		// With explicit targets or --exclude, an empty result means the user
 		// narrowed everything out: that is a usage error. Otherwise it is a normal
 		// first-run condition handled the same way as check.
-		return handleEmptyEnvironment(opts.confFile, opts.jsonOut,
+		return handleEmptyEnvironment(p, opts.confFile, opts.jsonOut,
 			len(args) != 0 || len(opts.excludePkgList) != 0,
 			"unable to update package: no package information or no package under $GOBIN")
 	}
@@ -179,7 +175,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	// import and check.
 	confReadPath, err := config.ResolveImportFilePath(opts.confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	confWritePath := configstate.ResolveWritePath(opts.confFile, confReadPath)
@@ -189,7 +185,7 @@ func gup(cmd *cobra.Command, args []string) int {
 	// then persist that downgrade back to gup.json (#369).
 	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
@@ -197,18 +193,18 @@ func gup(cmd *cobra.Command, args []string) int {
 	// pass them so ResolveChannels does not emit a second, redundant notice for a
 	// name listed both as a positional target and in --main/--master/--latest.
 	channelMap, pinnedMap, err := configstate.ResolveChannels(pkgs, confPkgs, opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames,
-		missingTargets, func(msg string) { print.Warn(msg) })
+		missingTargets, func(msg string) { p.Warn(msg) })
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, pinnedMap, opts.timeout, opts.jsonOut, opts.quiet)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(deps, p, pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, pinnedMap, opts.timeout, opts.jsonOut, opts.quiet)
 
 	if !opts.dryRun && (configstate.ShouldPersistChannels(opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
 		if err := writeConfigFile(confWritePath, merged); err != nil {
-			print.Warn("failed to write " + confWritePath + ": " + err.Error())
+			p.Warn("failed to write " + confWritePath + ": " + err.Error())
 		}
 	}
 
@@ -225,26 +221,25 @@ type updateResult struct {
 	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
+func updateWithChannels(deps dependencies, pr *print.Printer, pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
-	deps := defaultDependencies()
 	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {
-		print.Info("update binary under $GOPATH/bin or $GOBIN")
+		pr.Info("update binary under $GOPATH/bin or $GOBIN")
 	}
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {
-			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
-			notify.Warn("gup", "Can not change to dry run mode")
+			pr.Err(fmt.Errorf("can not change to dry run mode: %w", err))
+			notify.Warn(pr, "gup", "Can not change to dry run mode")
 			return 1, nil, nil
 		}
 		// Restore the environment and remove the temp dir via defer so it runs
 		// even if a package update panics (see issue #297).
 		defer func() {
 			if err := dryRunManager.EndDryRunMode(); err != nil {
-				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+				pr.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
 				exitCode = 1
 			}
 		}()
@@ -363,24 +358,24 @@ func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus i
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
 		// In quiet mode show only binaries that were actually updated.
-		onResult = resultLineRenderer(quiet,
+		onResult = resultLineRenderer(pr, quiet,
 			func(v updateResult) bool { return v.updated },
 			updateResultStr)
 	}
 
 	// update all packages
-	result, results := executePackages(pkgs, cpus, timeout, updater, onResult)
+	result, results := executePackages(pr, pkgs, cpus, timeout, updater, onResult)
 
 	if jsonOut {
-		if err := encodeJSONPackages(resultsToJSONPackages(results)); err != nil {
-			print.Err(err)
+		if err := encodeJSONPackages(pr, resultsToJSONPackages(results)); err != nil {
+			pr.Err(err)
 			result = 1
 		}
 	} else if quiet {
-		print.Info(summarizeResults(results, false))
+		pr.Info(summarizeResults(results, false))
 	}
 
-	desktopNotifyIfNeeded(result, notification)
+	desktopNotifyIfNeeded(pr, result, notification)
 
 	succeededPkgs, renamedPkgs := succeededAndRenamed(results)
 	return result, succeededPkgs, renamedPkgs
@@ -404,12 +399,12 @@ func succeededAndRenamed(results []updateResult) ([]goutil.Package, map[string]s
 	return succeededPkgs, renamedPkgs
 }
 
-func desktopNotifyIfNeeded(result int, enable bool) {
+func desktopNotifyIfNeeded(p *print.Printer, result int, enable bool) {
 	if enable {
 		if result == 0 {
-			notify.Info("gup", "All update success")
+			notify.Info(p, "gup", "All update success")
 		} else {
-			notify.Warn("gup", "Some package can't update")
+			notify.Warn(p, "gup", "Some package can't update")
 		}
 	}
 }

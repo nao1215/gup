@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -18,32 +15,11 @@ func Test_list_not_found_go_command(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+		p, buf := newTestPrinter()
 
-		if got := list(&cobra.Command{}, []string{}); got != 1 {
+		if got := list(p, &cobra.Command{}, []string{}); got != 1 {
 			t.Errorf("list() = %v, want %v", got, 1)
 		}
-		if err := pw.Close(); err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer func() {
-			_ = pr.Close()
-		}()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
@@ -128,32 +104,11 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := list(newListCmd(), tt.args.args); got != tt.want {
+			if got := list(p, newListCmd(), tt.args.args); got != tt.want {
 				t.Errorf("list() = %v, want %v", got, tt.want)
 			}
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer func() {
-				_ = pr.Close()
-			}()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {

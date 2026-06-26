@@ -2,11 +2,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 const (
@@ -38,14 +40,9 @@ func quietMixedPkgs() []goutil.Package {
 }
 
 func Test_updateWithChannels_quiet(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error { return nil }
 
 	pkgs := quietMixedPkgs()
 	channelMap := map[string]goutil.UpdateChannel{
@@ -54,8 +51,8 @@ func Test_updateWithChannels_quiet(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got, _, _ = updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
 		return got
 	})
 	if got != 0 {
@@ -77,14 +74,9 @@ func Test_updateWithChannels_quiet(t *testing.T) {
 }
 
 func Test_updateWithChannels_quiet_failed(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return errors.New("install failed") }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error { return errors.New("install failed") }
 
 	pkgs := []goutil.Package{
 		{
@@ -98,8 +90,8 @@ func Test_updateWithChannels_quiet_failed(t *testing.T) {
 	channelMap := map[string]goutil.UpdateChannel{quietNameUpdated: goutil.UpdateChannelLatest}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got, _, _ = updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
 		return got
 	})
 	if got != 1 {
@@ -116,15 +108,14 @@ func Test_updateWithChannels_quiet_failed(t *testing.T) {
 }
 
 func Test_doCheck_quiet(t *testing.T) {
-	origGetLatest := getLatestVer
-	defer func() { getLatestVer = origGetLatest }()
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
 
 	pkgs := quietMixedPkgs()
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = doCheck(pkgs, 1, 0, true, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = doCheck(deps, p, pkgs, 1, 0, true, true)
 		return got
 	})
 	if got != 0 {
@@ -152,14 +143,9 @@ func Test_doCheck_quiet(t *testing.T) {
 // Test_updateWithChannels_jsonQuiet verifies that --json takes precedence over
 // --quiet: STDOUT stays a valid JSON array with no summary line mixed in.
 func Test_updateWithChannels_jsonQuiet(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error { return nil }
 
 	pkgs := quietMixedPkgs()
 	channelMap := map[string]goutil.UpdateChannel{
@@ -167,8 +153,8 @@ func Test_updateWithChannels_jsonQuiet(t *testing.T) {
 		quietNameUpToDate: goutil.UpdateChannelLatest,
 	}
 
-	recs := readJSON(t, func() int {
-		got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, true, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, true, true)
 		return got
 	})
 	if len(recs) != 2 {

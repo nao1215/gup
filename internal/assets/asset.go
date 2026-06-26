@@ -17,11 +17,12 @@ var inforIcon []byte
 //go:embed warning.png
 var warningIcon []byte
 
-// DeployIconIfNeeded make icon file for notification.
-func DeployIconIfNeeded() {
+// DeployIconIfNeeded make icon file for notification. Diagnostics are written
+// through the provided Printer.
+func DeployIconIfNeeded(p *print.Printer) {
 	if !fileutil.IsDir(assetsDirPath()) {
 		if err := os.MkdirAll(assetsDirPath(), fileutil.FileModeCreatingDir); err != nil {
-			print.Err(fmt.Errorf("%s: %w", "can not make assets directory", err))
+			p.Err(fmt.Errorf("%s: %w", "can not make assets directory", err))
 			return
 		}
 	}
@@ -29,13 +30,13 @@ func DeployIconIfNeeded() {
 	if !fileutil.IsFile(InfoIconPath()) {
 		err := os.WriteFile(InfoIconPath(), inforIcon, fileutil.FileModeCreatingFile)
 		if err != nil {
-			print.Warn(err)
+			p.Warn(err)
 		}
 	}
 	if !fileutil.IsFile(WarningIconPath()) {
 		err := os.WriteFile(WarningIconPath(), warningIcon, fileutil.FileModeCreatingFile)
 		if err != nil {
-			print.Warn(err)
+			p.Warn(err)
 		}
 	}
 }

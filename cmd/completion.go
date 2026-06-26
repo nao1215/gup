@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/nao1215/gup/internal/completion"
 	"github.com/spf13/cobra"
@@ -48,15 +47,19 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 					"gup completion bash",
 					"gup completion --install")
 			}
+			// Write to the command's configured output (cobra propagates the root's
+			// writer) so completion output flows through the same sink as the rest
+			// of gup and tests can capture it without redirecting os.Stdout.
+			out := cmd.OutOrStdout()
 			switch args[0] {
 			case shellBash:
-				return rootCmd.GenBashCompletionV2(os.Stdout, false)
+				return rootCmd.GenBashCompletionV2(out, false)
 			case "fish":
-				return rootCmd.GenFishCompletion(os.Stdout, false)
+				return rootCmd.GenFishCompletion(out, false)
 			case "zsh":
-				return rootCmd.GenZshCompletion(os.Stdout)
+				return rootCmd.GenZshCompletion(out)
 			case "powershell":
-				return rootCmd.GenPowerShellCompletionWithDesc(os.Stdout)
+				return rootCmd.GenPowerShellCompletionWithDesc(out)
 			default:
 				return fmt.Errorf("internal error, should not happen with arg %q", args[0])
 			}

@@ -104,11 +104,11 @@ func resultsToJSONPackages(results []updateResult) []jsonPackage {
 // encodeJSONPackages writes records to stdout as an indented JSON array. A nil
 // or empty slice is emitted as "[]" (never "null") so consumers always receive
 // a valid JSON array.
-func encodeJSONPackages(recs []jsonPackage) error {
+func encodeJSONPackages(p *print.Printer, recs []jsonPackage) error {
 	if recs == nil {
 		recs = []jsonPackage{}
 	}
-	enc := json.NewEncoder(print.Stdout)
+	enc := json.NewEncoder(p.Out())
 	enc.SetIndent("", "  ")
 	return enc.Encode(recs)
 }

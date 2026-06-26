@@ -16,22 +16,22 @@ import (
 // still validated so honoring explicit user input does not depend on unrelated
 // environment state (#368), and the command emits an empty JSON array (--json)
 // or an informational note before exiting 0.
-func handleEmptyEnvironment(confFile string, jsonOut, explicitSelection bool, usageErr string) int {
+func handleEmptyEnvironment(p *print.Printer, confFile string, jsonOut, explicitSelection bool, usageErr string) int {
 	if explicitSelection {
-		print.Err(usageErr)
+		p.Err(usageErr)
 		return 1
 	}
 	if err := configstate.ValidateExplicitFile(confFile); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	if jsonOut {
-		if err := encodeJSONPackages(nil); err != nil {
-			print.Err(err)
+		if err := encodeJSONPackages(p, nil); err != nil {
+			p.Err(err)
 			return 1
 		}
 		return 0
 	}
-	print.Info(emptyEnvMessage)
+	p.Info(emptyEnvMessage)
 	return 0
 }

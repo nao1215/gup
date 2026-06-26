@@ -95,21 +95,21 @@ func isModuleBinary(mainModulePath string) bool {
 // (behave as --ignore-go-update); otherwise a transient "go version" failure
 // stamps "unknown" on every package and forces a needless reinstall of all
 // binaries (see issue #296).
-func GetPackageInformation(binList []string) ([]Package, bool) {
+func GetPackageInformation(p *print.Printer, binList []string) ([]Package, bool) {
 	goVer, err := GetInstalledGoVersion()
 	if err != nil {
-		print.Warn(fmt.Sprintf("failed to detect installed Go version (%v); "+
+		p.Warn(fmt.Sprintf("failed to detect installed Go version (%v); "+
 			"skipping Go-version comparison this run. Module versions are still checked.", err))
-		return collectPackageInformation(binList, unknown), false
+		return collectPackageInformation(p, binList, unknown), false
 	}
-	return collectPackageInformation(binList, goVer), true
+	return collectPackageInformation(p, binList, goVer), true
 }
 
 // GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips
 // the "go version" subprocess. Use it for commands (list, export, migrate) that
 // never read Package.GoVersion, avoiding a needless subprocess per invocation.
-func GetPackageInformationWithoutGoVersion(binList []string) []Package {
-	return collectPackageInformation(binList, unknown)
+func GetPackageInformationWithoutGoVersion(p *print.Printer, binList []string) []Package {
+	return collectPackageInformation(p, binList, unknown)
 }
 
 // collectPackageInformation reads build info for each binary in parallel and
@@ -117,7 +117,7 @@ func GetPackageInformationWithoutGoVersion(binList []string) []Package {
 // the bounded worker pool to internal/parallel.Run so the concurrency logic is
 // not duplicated. No context or timeout is used because buildinfo.ReadFile is a
 // fast local read, so onCancel never fires.
-func collectPackageInformation(binList []string, goVer string) []Package {
+func collectPackageInformation(p *print.Printer, binList []string, goVer string) []Package {
 	if len(binList) == 0 {
 		return nil
 	}
@@ -135,7 +135,7 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 		func(_ context.Context, v string) indexedPkg {
 			info, err := buildinfo.ReadFile(v)
 			if err != nil {
-				print.Warn(err)
+				p.Warn(err)
 				return indexedPkg{}
 			}
 			if !isModuleBinary(info.Main.Path) {

@@ -23,7 +23,8 @@ func TestGenerateManpages(t *testing.T) {
 			}
 		}()
 
-		if err := generateManpages(dst); err != nil {
+		p, _ := newTestPrinter()
+		if err := generateManpages(p, dst); err != nil {
 			t.Fatalf("generateManpages() failed: %v", err)
 		}
 
@@ -91,7 +92,7 @@ func TestMan(t *testing.T) {
 		}
 		t.Setenv("MANPATH", dst)
 
-		if got := man(nil, nil); got != 0 {
+		if got := man(discardPrinter(), nil, nil); got != 0 {
 			t.Fatalf("man() = %d, want 0", got)
 		}
 
@@ -111,7 +112,7 @@ func TestMan(t *testing.T) {
 		manpath := filepath.Join(base, "shareman")
 		t.Setenv("MANPATH", manpath)
 
-		if got := man(nil, nil); got != 0 {
+		if got := man(discardPrinter(), nil, nil); got != 0 {
 			t.Fatalf("man() = %d, want 0", got)
 		}
 
@@ -136,7 +137,7 @@ func TestMan(t *testing.T) {
 		}
 		t.Setenv("MANPATH", filepath.Join(readonly, "shareman"))
 
-		if got := man(nil, nil); got != 1 {
+		if got := man(discardPrinter(), nil, nil); got != 1 {
 			t.Fatalf("man() = %d, want 1", got)
 		}
 	})

@@ -8,6 +8,7 @@ import (
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 // stubPinPackageInfo swaps the installed-package lister for the duration of a
@@ -15,7 +16,7 @@ import (
 func stubPinPackageInfo(t *testing.T, pkgs []goutil.Package) {
 	t.Helper()
 	orig := pinPackageInfo
-	pinPackageInfo = func() ([]goutil.Package, error) { return pkgs, nil }
+	pinPackageInfo = func(*print.Printer) ([]goutil.Package, error) { return pkgs, nil }
 	t.Cleanup(func() { pinPackageInfo = orig })
 }
 
@@ -39,7 +40,8 @@ func TestRunPin_writesPinnedConfig(t *testing.T) {
 		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: "v0.9.0"}},
 	})
 
-	if code := runPin(newPinCmd(), []string{testBinTool, testVersionOne}); code != 0 {
+	p, _ := newTestPrinter()
+	if code := runPin(p, newPinCmd(), []string{testBinTool, testVersionOne}); code != 0 {
 		t.Fatalf("runPin() = %d, want 0", code)
 	}
 
@@ -62,7 +64,8 @@ func TestRunPin_unmanagedToolFails(t *testing.T) {
 		{Name: "other", ImportPath: "example.com/other", Version: &goutil.Version{Current: testVersionOne}},
 	})
 
-	if code := runPin(newPinCmd(), []string{testBinTool, testVersionOne}); code != 1 {
+	p, _ := newTestPrinter()
+	if code := runPin(p, newPinCmd(), []string{testBinTool, testVersionOne}); code != 1 {
 		t.Fatalf("runPin() for an unmanaged tool = %d, want 1", code)
 	}
 	// Nothing must be written when the pin target can't be resolved.
@@ -79,7 +82,8 @@ func TestRunPin_invalidVersionFails(t *testing.T) {
 	})
 
 	// "latest" is a channel keyword, not a concrete version: pin must reject it.
-	if code := runPin(newPinCmd(), []string{testBinTool, string(goutil.UpdateChannelLatest)}); code != 1 {
+	p, _ := newTestPrinter()
+	if code := runPin(p, newPinCmd(), []string{testBinTool, string(goutil.UpdateChannelLatest)}); code != 1 {
 		t.Fatalf("runPin() with a channel keyword as version = %d, want 1", code)
 	}
 }
@@ -91,7 +95,8 @@ func TestRunUnpin_clearsPin(t *testing.T) {
 		{"name":"tool","import_path":"example.com/tool","version":"v1.0.0","channel":"pinned"}
 	]}`)
 
-	if code := runUnpin(newUnpinCmd(), []string{testBinTool}); code != 0 {
+	p, _ := newTestPrinter()
+	if code := runUnpin(p, newUnpinCmd(), []string{testBinTool}); code != 0 {
 		t.Fatalf("runUnpin() = %d, want 0", code)
 	}
 
@@ -119,7 +124,8 @@ func TestRunUnpin_notPinnedIsIdempotent(t *testing.T) {
 		{"name":"tool","import_path":"example.com/tool","version":"v1.0.0","channel":"latest"}
 	]}`)
 
-	if code := runUnpin(newUnpinCmd(), []string{testBinTool}); code != 0 {
+	p, _ := newTestPrinter()
+	if code := runUnpin(p, newUnpinCmd(), []string{testBinTool}); code != 0 {
 		t.Fatalf("runUnpin() on a non-pinned tool = %d, want 0 (idempotent)", code)
 	}
 }
@@ -128,7 +134,8 @@ func TestRunUnpin_notPinnedIsIdempotent(t *testing.T) {
 func TestRunUnpin_missingToolName(t *testing.T) {
 	setupXDGBase(t)
 	// "@" strips to an empty target, which must be rejected.
-	if code := runUnpin(newUnpinCmd(), []string{"@"}); code != 1 {
+	p, _ := newTestPrinter()
+	if code := runUnpin(p, newUnpinCmd(), []string{"@"}); code != 1 {
 		t.Fatalf("runUnpin() with an empty tool name = %d, want 1", code)
 	}
 }
@@ -138,7 +145,8 @@ func TestRunUnpin_malformedConfigFails(t *testing.T) {
 	setupXDGBase(t)
 	writeUserConfig(t, `{"schema_version":1,"packages":[`) // truncated JSON
 
-	if code := runUnpin(newUnpinCmd(), []string{testBinTool}); code != 1 {
+	p, _ := newTestPrinter()
+	if code := runUnpin(p, newUnpinCmd(), []string{testBinTool}); code != 1 {
 		t.Fatalf("runUnpin() with a malformed config = %d, want 1", code)
 	}
 }
@@ -151,7 +159,8 @@ func TestRunPin_malformedConfigFails(t *testing.T) {
 	})
 	writeUserConfig(t, `{"schema_version":1,"packages":[`) // truncated JSON
 
-	if code := runPin(newPinCmd(), []string{testBinTool, testVersionOne}); code != 1 {
+	p, _ := newTestPrinter()
+	if code := runPin(p, newPinCmd(), []string{testBinTool, testVersionOne}); code != 1 {
 		t.Fatalf("runPin() with a malformed config = %d, want 1", code)
 	}
 }

@@ -63,7 +63,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 			"gup migrate /old/gobin /new/gobin"),
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runMigrate(cmd, args))
+			OsExit(runMigrate(printerFor(cmd), cmd, args))
 		},
 	}
 
@@ -77,36 +77,36 @@ If BINARY arguments are given, only those binaries are migrated.`,
 	return cmd
 }
 
-func runMigrate(cmd *cobra.Command, args []string) int {
+func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	dryRun, err := getFlagBool(cmd, "dry-run")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	notify, err := getFlagBool(cmd, "notify")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	cpus, err := getFlagInt(cmd, "jobs")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	cpus = clampJobs(cpus)
 	force, err := getFlagBool(cmd, "force")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	timeout, err := getTimeoutFlag(cmd)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
@@ -115,27 +115,27 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 	binaries := args[2:]
 
 	if err := validateMigratePaths(beforePath, afterPath, dryRun); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	binList, err := goutil.BinaryPathList(beforePath)
 	if err != nil {
-		print.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
+		p.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
 		return 1
 	}
 	binList = pkgselect.FilterBinaryPaths(binList, binaries)
 	// migrate never reads GoVersion, so skip the "go version" subprocess.
-	pkgs := goutil.GetPackageInformationWithoutGoVersion(binList)
-	warnMissingMigrateTargets(binaries, pkgs, beforePath)
+	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, binList)
+	warnMissingMigrateTargets(p, binaries, pkgs, beforePath)
 
 	if len(pkgs) == 0 {
-		print.Err(fmt.Errorf("no go-install binary to migrate under %s", beforePath))
+		p.Err(fmt.Errorf("no go-install binary to migrate under %s", beforePath))
 		return 1
 	}
 
-	print.Info(fmt.Sprintf("start migration from %s to %s", beforePath, afterPath))
-	return migratePackages(pkgs, afterPath, dryRun, notify, cpus, force, timeout)
+	p.Info(fmt.Sprintf("start migration from %s to %s", beforePath, afterPath))
+	return migratePackages(p, pkgs, afterPath, dryRun, notify, cpus, force, timeout)
 }
 
 // validateMigratePaths validates BEFORE_PATH and AFTER_PATH.
@@ -206,14 +206,14 @@ func sameDirPath(a, b string) (bool, error) {
 	return false, nil
 }
 
-func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
+func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
 	// Point GOBIN at AFTER_PATH so the existing 'go install' path reinstalls
 	// into the target directory. Restore the environment afterward. Dry-run
 	// never installs, so the environment is left untouched.
 	if !dryRun {
 		restore, err := withGoBin(afterPath)
 		if err != nil {
-			print.Err(fmt.Errorf("can't set GOBIN to %s: %w", afterPath, err))
+			pr.Err(fmt.Errorf("can't set GOBIN to %s: %w", afterPath, err))
 			return 1
 		}
 		defer restore()
@@ -256,22 +256,22 @@ func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notificati
 		return updateResult{updated: true, pkg: p}
 	}
 
-	result, _ := executePackages(pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
+	result, _ := executePackages(pr, pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
 		if v.skipped {
-			print.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
+			pr.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
 			return
 		}
-		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
+		pr.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
 	})
 
-	desktopNotifyIfNeeded(result, notification)
+	desktopNotifyIfNeeded(pr, result, notification)
 	return result
 }
 
 // warnMissingMigrateTargets warns about each requested binary name that was not
 // found among the migration targets, mirroring the target-selection UX of
 // 'gup update'. It is a no-op when no binaries were explicitly requested.
-func warnMissingMigrateTargets(targets []string, pkgs []goutil.Package, beforePath string) {
+func warnMissingMigrateTargets(pr *print.Printer, targets []string, pkgs []goutil.Package, beforePath string) {
 	if len(targets) == 0 {
 		return
 	}
@@ -292,7 +292,7 @@ func warnMissingMigrateTargets(targets []string, pkgs []goutil.Package, beforePa
 		}
 		seen[normalized] = struct{}{}
 		if _, ok := present[normalized]; !ok {
-			print.Warn("not found '" + strings.TrimSpace(raw) + "' package in " + beforePath)
+			pr.Warn("not found '" + strings.TrimSpace(raw) + "' package in " + beforePath)
 		}
 	}
 }

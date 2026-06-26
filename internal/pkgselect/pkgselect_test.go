@@ -1,6 +1,7 @@
 package pkgselect
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 const (
@@ -263,7 +265,7 @@ func TestBinaryPaths(t *testing.T) {
 func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_success"))
 
-	pkgs, missing, _, err := PackageInfoByTargets([]string{"gal"})
+	pkgs, missing, _, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"gal"})
 	if err != nil {
 		t.Fatalf("PackageInfoByTargets() error = %v", err)
 	}
@@ -285,7 +287,7 @@ func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 func TestPackageInfoByTargets_presentButUnreadableIsNotMissing(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_fail"))
 
-	pkgs, missing, _, err := PackageInfoByTargets([]string{"dummy"})
+	pkgs, missing, _, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"dummy"})
 	if err != nil {
 		t.Fatalf("PackageInfoByTargets() error = %v", err)
 	}

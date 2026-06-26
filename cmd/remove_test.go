@@ -147,7 +147,8 @@ func Test_removeLoop(t *testing.T) {
 				t.Setenv("GOEXE", dotExe)
 			}
 
-			if got := removeLoop(tt.args.gobin, tt.args.force, tt.args.target); got != tt.want {
+			p, _ := newTestPrinter()
+			if got := removeLoop(p, tt.args.gobin, tt.args.force, tt.args.target); got != tt.want {
 				t.Errorf("removeLoop() = %v, want %v", got, tt.want)
 			}
 
@@ -171,7 +172,8 @@ func Test_removeLoop_rejectPathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := removeLoop(gobin, true, []string{"../victim"}); got != 1 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{"../victim"}); got != 1 {
 		t.Fatalf("removeLoop() = %v, want %v", got, 1)
 	}
 
@@ -184,7 +186,8 @@ func Test_remove_flagError(t *testing.T) {
 	t.Parallel()
 	cmd := &cobra.Command{}
 	// missing "force" flag
-	got := remove(cmd, []string{testBinTool})
+	p, _ := newTestPrinter()
+	got := remove(p, cmd, []string{testBinTool})
 	if got != 1 {
 		t.Errorf("remove() = %v, want 1", got)
 	}
@@ -215,7 +218,8 @@ func Test_remove_noArgs(t *testing.T) {
 func Test_removeLoop_forceNonExist(t *testing.T) {
 	t.Parallel()
 	gobin := t.TempDir()
-	got := removeLoop(gobin, true, []string{"nonexistent"})
+	p, _ := newTestPrinter()
+	got := removeLoop(p, gobin, true, []string{"nonexistent"})
 	if got != 1 {
 		t.Errorf("removeLoop() = %v, want 1 for non-existent binary", got)
 	}
@@ -233,7 +237,8 @@ func Test_removeLoop_windowsFallbackGoexe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := removeLoop(gobin, true, []string{testBinPosixer}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{testBinPosixer}); got != 0 {
 		t.Fatalf("removeLoop() = %v, want 0", got)
 	}
 	if fileutil.IsFile(binaryPath) {
@@ -253,7 +258,8 @@ func Test_removeLoop_windowsSuffixCaseInsensitive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := removeLoop(gobin, true, []string{"gopls.EXE"}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{"gopls.EXE"}); got != 0 {
 		t.Fatalf("removeLoop() = %v, want 0", got)
 	}
 	if fileutil.IsFile(binaryPath) {
@@ -274,7 +280,8 @@ func Test_removeLoop_forceTrimmedName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := removeLoop(gobin, true, []string{"  posixer  "}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{"  posixer  "}); got != 0 {
 		t.Fatalf("removeLoop() = %v, want 0", got)
 	}
 	if fileutil.IsFile(binaryPath) {
@@ -338,7 +345,8 @@ func Test_removeLoop_nonTTYWithoutForceFailsFast(t *testing.T) {
 
 	// Without --force and without a TTY, removeLoop must fail fast (exit 1)
 	// and must NOT attempt interactive confirmation nor remove the file.
-	if got := removeLoop(gobin, false, []string{target}); got != 1 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, false, []string{target}); got != 1 {
 		t.Fatalf("removeLoop() = %v, want 1 for non-TTY without --force", got)
 	}
 	if !fileutil.IsFile(binaryPath) {
@@ -365,7 +373,8 @@ func Test_removeLoop_nonTTYWithForceStillRemoves(t *testing.T) {
 	t.Cleanup(func() { stdinIsTerminal = origStdinIsTerminal })
 
 	// --force must skip confirmation regardless of TTY state.
-	if got := removeLoop(gobin, true, []string{target}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{target}); got != 0 {
 		t.Fatalf("removeLoop() = %v, want 0 for non-TTY with --force", got)
 	}
 	if fileutil.IsFile(binaryPath) {
