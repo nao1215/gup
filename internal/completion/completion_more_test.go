@@ -90,6 +90,90 @@ func TestAppendFpathAtZshrc_preservesSymlink(t *testing.T) {
 	}
 }
 
+// TestAppendFpathAtZshrc_preservesDanglingSymlink verifies that when .zshrc is a
+// symlink whose target does not exist yet (a dangling link, e.g. a dotfile tool
+// linked it before the target was created), the install writes through the link
+// to create its target rather than replacing the symlink with a regular file.
+// EvalSymlinks fails on a dangling link, so the naive resolve regressed here.
+func TestAppendFpathAtZshrc_preservesDanglingSymlink(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// ~/.zshrc points at a target that does not exist yet.
+	dotfiles := t.TempDir()
+	realRc := filepath.Join(dotfiles, "zshrc")
+	link := zshrcPath()
+	if err := os.Symlink(realRc, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	// The dangling link must still be a symlink, not a regular file.
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("dangling .zshrc symlink was replaced by a regular file")
+	}
+	// The link target must have been created with the fpath block.
+	got, err := os.ReadFile(filepath.Clean(realRc))
+	if err != nil {
+		t.Fatalf("link target was not created through the symlink: %v", err)
+	}
+	if !strings.Contains(string(got), zshFpathMarker) {
+		t.Fatalf("fpath block was not written to the link target:\n%s", got)
+	}
+}
+
+// TestMakeBashCompletion_preservesDanglingSymlink verifies the same dangling-link
+// guarantee for a completion file: a symlink whose target does not exist yet is
+// preserved and the install creates the link target rather than replacing the
+// link.
+func TestMakeBashCompletion_preservesDanglingSymlink(t *testing.T) {
+	if IsWindows() {
+		t.Skip("completion install is not supported on Windows")
+	}
+	t.Setenv("HOME", t.TempDir())
+	cmd := testCompletionCmd()
+
+	link := bashCompletionFilePath()
+	if err := os.MkdirAll(filepath.Dir(link), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// The completion path is a symlink to a target that does not exist yet.
+	dotfiles := t.TempDir()
+	realComp := filepath.Join(dotfiles, "gup")
+	if err := os.Symlink(realComp, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := makeBashCompletionFileIfNeeded(cmd); err != nil {
+		t.Fatalf("makeBashCompletionFileIfNeeded() error = %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("dangling completion symlink was replaced by a regular file")
+	}
+	got, err := os.ReadFile(filepath.Clean(realComp))
+	if err != nil {
+		t.Fatalf("link target was not created through the symlink: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatalf("link target was created empty, expected bash completion content")
+	}
+}
+
 // TestMakeBashCompletion_atomicWriteFailureKeepsOriginal verifies that when the
 // final rename fails, an existing completion file keeps its original contents
 // (it is never truncated in place) and no temp file is left behind.
