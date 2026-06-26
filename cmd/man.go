@@ -16,6 +16,10 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
+// manpageFileMode is the default world-readable mode for generated man pages,
+// matching what os.Create (0666 & umask) produced before the atomic write.
+const manpageFileMode = 0o644
+
 func newManCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "man",
@@ -151,7 +155,23 @@ func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (er
 		return fmt.Errorf("can not resolve man page path %s: %w", outputPath, err)
 	}
 	outputPath = resolvedPath
+	// Reject a directory destination before staging any temp file, so a mistaken
+	// path cannot replace a directory tree via the rename-replace flow (mirrors the
+	// guard in cmd/config_file.go).
+	if fileutil.IsDir(outputPath) {
+		return fmt.Errorf("%s is a directory, not a file", outputPath)
+	}
 	dir := filepath.Dir(outputPath)
+
+	// os.CreateTemp creates the temp file with mode 0600, but man pages must stay
+	// world-readable as os.Create (0666 & umask) previously produced. Preserve an
+	// existing file's mode when replacing it, otherwise default to 0644.
+	mode := os.FileMode(manpageFileMode)
+	if info, statErr := os.Stat(outputPath); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("can not stat man page %s: %w", outputPath, statErr)
+	}
 
 	out, err := os.CreateTemp(dir, filepath.Base(outputPath)+".tmp-*")
 	if err != nil {
@@ -176,6 +196,9 @@ func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (er
 	}
 	if err = gz.Close(); err != nil {
 		return err
+	}
+	if err = out.Chmod(mode); err != nil {
+		return fmt.Errorf("can not set permissions on man page %s: %w", outputPath, err)
 	}
 	if err = out.Sync(); err != nil {
 		return fmt.Errorf("can not sync man page %s: %w", outputPath, err)
