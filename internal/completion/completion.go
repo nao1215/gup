@@ -172,7 +172,7 @@ func atomicWriteFile(path string, data []byte, what string) (err error) {
 	// the previous in-place write followed the link, and this preserves that
 	// behavior - including for a dangling link whose target does not exist yet, the
 	// state right after a dotfile manager links a file before its first write.
-	resolvedPath, resolveErr := resolveSymlinkTarget(path)
+	resolvedPath, resolveErr := fileutil.ResolveSymlinkTarget(path)
 	if resolveErr != nil {
 		return fmt.Errorf("can not resolve %s path %s: %w", what, path, resolveErr)
 	}
@@ -221,43 +221,6 @@ func atomicWriteFile(path string, data []byte, what string) (err error) {
 		return fmt.Errorf("can not finalize %s: %w", what, err)
 	}
 	return nil
-}
-
-// resolveSymlinkTarget follows the chain of symlinks at path and returns the
-// final target, even when that target does not exist yet (a dangling symlink -
-// e.g. a dotfile manager that linked ~/.zshrc before its target file was ever
-// written). This lets atomicWriteFile create or replace the link's target rather
-// than the link itself, preserving the symlink. filepath.EvalSymlinks cannot be
-// used because it requires the whole path to exist and so fails on a dangling
-// link. A non-symlink path (including a missing plain file) is returned
-// unchanged; intermediate directory symlinks need no handling because the OS
-// resolves them transparently during create/rename. Exhausting the hop limit
-// means a symlink cycle: that is reported as an error so the caller aborts,
-// rather than returning a still-symlink path that the atomic rename would then
-// clobber into a regular file.
-func resolveSymlinkTarget(path string) (string, error) {
-	for range 255 {
-		info, err := os.Lstat(path)
-		if err != nil {
-			// path does not exist yet (e.g. a dangling link's final target): it is
-			// the destination to create, so stop here with no error.
-			return path, nil //nolint:nilerr // a missing target is the intended write path
-		}
-		if info.Mode()&os.ModeSymlink == 0 {
-			return path, nil
-		}
-		dest, err := os.Readlink(path)
-		if err != nil {
-			// The link is unreadable; fall back to treating path as the destination
-			// so the caller surfaces a concrete write error rather than this one.
-			return path, nil //nolint:nilerr // fall back to writing at path
-		}
-		if !filepath.IsAbs(dest) {
-			dest = filepath.Join(filepath.Dir(path), dest)
-		}
-		path = filepath.Clean(dest)
-	}
-	return "", fmt.Errorf("symlink chain too deep (possible cycle) at %s", path)
 }
 
 func makeBashCompletionFileIfNeeded(cmd *cobra.Command) error {

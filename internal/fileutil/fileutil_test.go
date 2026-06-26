@@ -114,3 +114,95 @@ func TestIsHiddenFile(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveSymlinkTarget(t *testing.T) {
+	if isWindows() {
+		t.Skip("symlink behavior is POSIX-specific")
+	}
+	t.Parallel()
+
+	t.Run("regular file returned unchanged", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "file")
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResolveSymlinkTarget(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != path {
+			t.Fatalf("ResolveSymlinkTarget(%q) = %q, want unchanged", path, got)
+		}
+	})
+
+	t.Run("missing path returned unchanged", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "missing")
+		got, err := ResolveSymlinkTarget(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != path {
+			t.Fatalf("ResolveSymlinkTarget(%q) = %q, want unchanged", path, got)
+		}
+	})
+
+	t.Run("symlink resolves to target", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		target := filepath.Join(dir, "target")
+		if err := os.WriteFile(target, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(dir, "link")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResolveSymlinkTarget(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != target {
+			t.Fatalf("ResolveSymlinkTarget(%q) = %q, want %q", link, got, target)
+		}
+	})
+
+	t.Run("dangling symlink resolves to missing target", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		target := filepath.Join(dir, "target")
+		link := filepath.Join(dir, "link")
+		if err := os.Symlink(target, link); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ResolveSymlinkTarget(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != target {
+			t.Fatalf("ResolveSymlinkTarget(%q) = %q, want %q", link, got, target)
+		}
+	})
+
+	t.Run("symlink cycle reports an error", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		a := filepath.Join(dir, "a")
+		b := filepath.Join(dir, "b")
+		if err := os.Symlink(a, b); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(b, a); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ResolveSymlinkTarget(a); err == nil {
+			t.Fatal("ResolveSymlinkTarget() should error on a symlink cycle")
+		}
+	})
+}
+
+func isWindows() bool {
+	return os.PathSeparator == '\\'
+}
