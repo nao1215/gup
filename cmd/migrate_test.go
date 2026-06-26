@@ -577,11 +577,21 @@ func Test_runMigrate_presentButUnreadableNotWarned(t *testing.T) {
 		// read, so it never becomes a managed package. The missing check must
 		// key off binary paths, not resolved packages, so naming it yields no
 		// "not found" warning. This mirrors pkgselect.MissingTargets.
-		runMigrate(p, cmd, []string{before, after, "dummy"})
+		//
+		// Pin the exit code and reason too: the run must fail because there is
+		// nothing migratable (the binary is present but unmanageable), NOT
+		// because the target was mislabeled as missing. Asserting only the
+		// absence of a warning would let a different failure mode slip in here.
+		if got := runMigrate(p, cmd, []string{before, after, "dummy"}); got != 1 {
+			t.Fatalf("runMigrate() = %d, want 1 (nothing migratable)", got)
+		}
 	})
 
 	if strings.Contains(out, "not found") {
 		t.Fatalf("present-but-unreadable binary must not be warned as not found, got: %s", out)
+	}
+	if !strings.Contains(out, "no go-install binary to migrate") {
+		t.Fatalf("expected the 'nothing migratable' error, got: %s", out)
 	}
 }
 
