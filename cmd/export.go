@@ -56,10 +56,13 @@ func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
 		return 1
 	}
 	pkgs = validPkgInfo(p, pkgs)
-	// The source of truth for saved channels is always the canonical user-level
-	// config; --file/--output only change the export destination, not where
-	// channels are read from (#341).
-	channelSource := config.FilePath()
+	// Saved channels are read from the same file export writes to, so exporting
+	// back to an alternate config passed with --file round-trips safely instead
+	// of resetting that file's channels to @latest from the canonical config
+	// (#341). configPath is the resolved destination: the explicit --file when
+	// given, otherwise the canonical user-level config, so the default (no --file)
+	// behavior of reading channels from the canonical config is unchanged.
+	channelSource := configPath
 	// A malformed channel-source config must fail fast instead of silently
 	// exporting every package as @latest, which would drop intentionally pinned
 	// channels such as @main from the written gup.json (#369).

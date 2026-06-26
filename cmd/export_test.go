@@ -142,12 +142,11 @@ func Test_export(t *testing.T) {
 // Test_applySavedChannels_prefersImportPath verifies that the saved channel is
 // matched by import_path first (#341), so a binary keeps its channel even when
 // its name differs from the saved entry.
-// Test_export_preservesChannelsFromCanonicalConfig verifies the #341 contract:
-// --file changes only the export destination, while saved channels are always
-// resolved from the canonical user-level config. The destination here is a fresh
-// file that has no channel data, so a wrong implementation would reset the
-// channel to "latest".
-func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
+// Test_export_defaultUsesCanonicalConfig verifies that a default export (no
+// --file) reads saved channels from the canonical user-level config and writes
+// them back, so the canonical channel data round-trips. A wrong implementation
+// would reset the channel to "latest".
+func Test_export_defaultUsesCanonicalConfig(t *testing.T) {
 	if err := goutil.CanUseGoCmd(); err != nil {
 		t.Skip("go command is not available")
 	}
@@ -167,18 +166,12 @@ func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
 
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	dest := filepath.Join(t.TempDir(), "exported.json")
-	cmd := newExportCmd()
-	if err := cmd.Flags().Set("file", dest); err != nil {
-		t.Fatalf("failed to set --file: %v", err)
-	}
-
 	p, _ := newTestPrinter()
-	if got := export(p, cmd, []string{}); got != 0 {
+	if got := export(p, newExportCmd(), []string{}); got != 0 {
 		t.Fatalf("export() = %d, want 0", got)
 	}
 
-	exported, err := config.ReadConfFile(dest)
+	exported, err := config.ReadConfFile(config.FilePath())
 	if err != nil {
 		t.Fatalf("failed to read exported config: %v", err)
 	}
@@ -188,6 +181,65 @@ func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
 			found = true
 			if p.UpdateChannel != goutil.UpdateChannelMain {
 				t.Fatalf("posixer channel = %q, want %q (preserved from canonical config)", p.UpdateChannel, goutil.UpdateChannelMain)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("posixer not found in exported config: %+v", exported)
+	}
+}
+
+// Test_export_fileRoundTripPreservesChannels verifies that exporting back to an
+// alternate config file passed with --file preserves the saved channels from
+// that same file, so round-tripping it is safe: the file passed with --file is
+// both the channel source and the destination. The canonical config records a
+// different channel for the same package, so a wrong implementation that reads
+// channels from the canonical config would overwrite the alternate file's @main
+// with @latest.
+func Test_export_fileRoundTripPreservesChannels(t *testing.T) {
+	if err := goutil.CanUseGoCmd(); err != nil {
+		t.Skip("go command is not available")
+	}
+
+	origConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
+	xdg.ConfigHome = t.TempDir()
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	canonical := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"latest"}]}` + "\n"
+	if err := os.WriteFile(config.FilePath(), []byte(canonical), 0o600); err != nil {
+		t.Fatalf("failed to seed canonical config: %v", err)
+	}
+
+	alt := filepath.Join(t.TempDir(), "alt.json")
+	altConf := `{"schema_version":1,"packages":[{"name":"posixer","import_path":"` + testImportPathPosixer + `","version":"v0.1.0","channel":"main"}]}` + "\n"
+	if err := os.WriteFile(alt, []byte(altConf), 0o600); err != nil {
+		t.Fatalf("failed to seed alternate config: %v", err)
+	}
+
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+
+	cmd := newExportCmd()
+	if err := cmd.Flags().Set("file", alt); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	p, _ := newTestPrinter()
+	if got := export(p, cmd, []string{}); got != 0 {
+		t.Fatalf("export() = %d, want 0", got)
+	}
+
+	exported, err := config.ReadConfFile(alt)
+	if err != nil {
+		t.Fatalf("failed to read exported config: %v", err)
+	}
+	var found bool
+	for _, pkg := range exported {
+		if pkg.ImportPath == testImportPathPosixer {
+			found = true
+			if pkg.UpdateChannel != goutil.UpdateChannelMain {
+				t.Fatalf("posixer channel = %q, want %q (preserved from the alternate file)", pkg.UpdateChannel, goutil.UpdateChannelMain)
 			}
 		}
 	}
@@ -237,9 +289,11 @@ func Test_export_rejectsDirectoryDestination(t *testing.T) {
 	assertNoTempFiles(t, parent, filepath.Base(dest))
 }
 
-// Test_export_failsFastOnMalformedChannelSource verifies the #369 contract: a
-// malformed channel-source config makes export fail fast instead of silently
-// exporting every package as @latest.
+// Test_export_failsFastOnMalformedChannelSource verifies the #369 contract for
+// the --file source: when the alternate config (now both channel source and
+// destination) is malformed, export fails fast instead of silently overwriting
+// it with every package exported as @latest, so the malformed file is left
+// untouched for the user to inspect.
 func Test_export_failsFastOnMalformedChannelSource(t *testing.T) {
 	if err := goutil.CanUseGoCmd(); err != nil {
 		t.Skip("go command is not available")
@@ -248,25 +302,27 @@ func Test_export_failsFastOnMalformedChannelSource(t *testing.T) {
 	origConfigHome := xdg.ConfigHome
 	t.Cleanup(func() { xdg.ConfigHome = origConfigHome })
 	xdg.ConfigHome = t.TempDir()
-	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
-		t.Fatalf("failed to create config dir: %v", err)
-	}
-	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
-		t.Fatalf("failed to seed malformed config: %v", err)
-	}
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	dest := filepath.Join(t.TempDir(), "exported.json")
+	alt := filepath.Join(t.TempDir(), "exported.json")
+	if err := os.WriteFile(alt, []byte("{invalid"), 0o600); err != nil {
+		t.Fatalf("failed to seed malformed config: %v", err)
+	}
+
 	cmd := newExportCmd()
-	if err := cmd.Flags().Set("file", dest); err != nil {
+	if err := cmd.Flags().Set("file", alt); err != nil {
 		t.Fatalf("failed to set --file: %v", err)
 	}
 	p, _ := newTestPrinter()
 	if got := export(p, cmd, []string{}); got != 1 {
 		t.Fatalf("export() = %d, want 1 on malformed channel source", got)
 	}
-	if fileutil.IsFile(dest) {
-		t.Fatal("export must not write a destination file when the channel source is malformed")
+	data, err := os.ReadFile(filepath.Clean(alt))
+	if err != nil {
+		t.Fatalf("malformed channel source should survive, read err = %v", err)
+	}
+	if string(data) != "{invalid" {
+		t.Fatalf("export must not overwrite a malformed channel source, got: %q", string(data))
 	}
 }
 
