@@ -1,4 +1,4 @@
-//nolint:paralleltest // tests mutate global function variables for stubbing
+//nolint:paralleltest // tests capture the package-level print.Stdout/Stderr writers
 package cmd
 
 import (
@@ -68,19 +68,13 @@ func captureCheckOutput(t *testing.T, fn func() int) string {
 }
 
 func Test_doCheck_respectsSavedChannels(t *testing.T) {
-	origLatest := getLatestVerCtx
-	origRef := getVerByRefCtx
-	t.Cleanup(func() {
-		getLatestVerCtx = origLatest
-		getVerByRefCtx = origRef
-	})
-
+	deps := testDeps()
 	// @latest always reports v1.0.0 so a main/master binary would look
 	// up-to-date if check wrongly ignored the saved channel.
-	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
+	deps.getLatestVer = func(_ context.Context, _ string) (string, error) {
 		return testVersionOne, nil
 	}
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+	deps.getVerByRef = func(_ context.Context, _ string, ref string) (string, error) {
 		switch ref {
 		case refMain:
 			return "v1.5.0", nil
@@ -101,7 +95,7 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 	}
 
 	out := captureCheckOutput(t, func() int {
-		return doCheck(pkgs, 1, 0, true, false)
+		return doCheck(deps, pkgs, 1, 0, true, false)
 	})
 
 	idx := strings.Index(out, "$ gup update ")
@@ -143,7 +137,7 @@ func Test_check_ambiguousConfigFailsFast(t *testing.T) {
 
 	var got int
 	out := captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+		got = check(defaultDependencies(), newCheckCmd(), []string{})
 		return got
 	})
 
@@ -174,7 +168,7 @@ func Test_check_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 
 	var got int
 	out := captureCheckOutput(t, func() int {
-		got = check(cmd, []string{})
+		got = check(defaultDependencies(), cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -203,7 +197,7 @@ func Test_check_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 
 	got := 0
 	_ = captureCheckOutput(t, func() int {
-		got = check(cmd, []string{})
+		got = check(defaultDependencies(), cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -220,7 +214,7 @@ func Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 
 	got := 0
 	_ = captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+		got = check(defaultDependencies(), newCheckCmd(), []string{})
 		return got
 	})
 	if got != 0 {
@@ -250,7 +244,7 @@ func Test_check_failsFastOnMalformedConfig(t *testing.T) {
 
 	var got int
 	out := captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+		got = check(defaultDependencies(), newCheckCmd(), []string{})
 		return got
 	})
 	if got != 1 {

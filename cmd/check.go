@@ -28,7 +28,7 @@ and displays the name of the binary that needs to be updated.
 It does not update them.`,
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(check(cmd, args))
+			OsExit(check(defaultDependencies(), cmd, args))
 		},
 	}
 
@@ -82,7 +82,10 @@ func parseCheckFlags(cmd *cobra.Command) (checkOpts, error) {
 	return opts, nil
 }
 
-func check(cmd *cobra.Command, args []string) int {
+// check runs the check command. deps carries the go-toolchain version lookups so
+// the flow takes its collaborators explicitly: production passes
+// defaultDependencies(); tests inject fakes.
+func check(deps dependencies, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
 		print.Err(err)
 		return 1
@@ -116,23 +119,23 @@ func check(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 	if opts.jsonOut {
-		return doCheckJSON(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate)
+		return doCheckJSON(deps, pkgs, opts.cpus, opts.timeout, ignoreGoUpdate)
 	}
-	return doCheck(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate, opts.quiet)
+	return doCheck(deps, pkgs, opts.cpus, opts.timeout, ignoreGoUpdate, opts.quiet)
 }
 
-func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, quiet, false)
+func doCheck(deps dependencies, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
+	return doCheckWith(deps, pkgs, cpus, timeout, ignoreGoUpdate, quiet, false)
 }
 
 // doCheckJSON runs the same check as doCheck but emits a JSON array of package
 // records to STDOUT instead of human-readable progress lines.
-func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, false, true)
+func doCheckJSON(deps dependencies, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
+	return doCheckWith(deps, pkgs, cpus, timeout, ignoreGoUpdate, false, true)
 }
 
-func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
-	verCache := defaultDependencies().newVerCache()
+func doCheckWith(deps dependencies, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
+	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {
 		print.Info("check binary under $GOPATH/bin or $GOBIN")

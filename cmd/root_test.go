@@ -65,40 +65,21 @@ func helper_setupFakeGoBin(t *testing.T) {
 	}
 }
 
-func helper_stubUpdateOps(t *testing.T) {
+// helper_runUpdateWithDeps builds the update command, applies the given flag
+// args (e.g. "--dry-run", "--notify"), runs gup() with injected dependencies
+// while capturing print output, and returns the output split by newline. It
+// replaces dispatching update through Execute() with globally-stubbed operations
+// so integration-style update tests inject their fakes explicitly.
+func helper_runUpdateWithDeps(t *testing.T, deps dependencies, flagArgs ...string) []string {
 	t.Helper()
-
-	orgGetLatestVer := getLatestVer
-	orgGetVerByRef := getVerByRefCtx
-	orgInstallLatest := installLatest
-	orgInstallMainOrMaster := installMainOrMaster
-	orgInstallByVersionUpd := installByVersionUpd
-
-	getLatestVer = func(string) (string, error) {
-		return testVersionNine, nil
+	cmd := newUpdateCmd()
+	if err := cmd.ParseFlags(flagArgs); err != nil {
+		t.Fatalf("failed to parse update flags %v: %v", flagArgs, err)
 	}
-	// The channel-aware skip/update decision resolves @main/@master versions
-	// through this ref lookup, so stub it alongside the @latest lookup.
-	getVerByRefCtx = func(context.Context, string, string) (string, error) {
-		return testVersionNine, nil
-	}
-	installLatest = func(string) error {
-		return nil
-	}
-	installMainOrMaster = func(string) error {
-		return nil
-	}
-	installByVersionUpd = func(string, string) error {
-		return nil
-	}
-
-	t.Cleanup(func() {
-		getLatestVer = orgGetLatestVer
-		getVerByRefCtx = orgGetVerByRef
-		installLatest = orgInstallLatest
-		installMainOrMaster = orgInstallMainOrMaster
-		installByVersionUpd = orgInstallByVersionUpd
+	out := captureCheckOutput(t, func() int {
+		return gup(deps, cmd, cmd.Flags().Args())
 	})
+	return strings.Split(out, "\n")
 }
 
 func helper_stubImportInstaller(t *testing.T) {
@@ -788,7 +769,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 
 func TestExecute_Update(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -823,10 +804,7 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := helper_runUpdateWithDeps(t, deps)
 
 	contain := false
 	for _, v := range got {
@@ -841,7 +819,7 @@ func TestExecute_Update(t *testing.T) {
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -876,10 +854,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := helper_runUpdateWithDeps(t, deps, testFlagDryRun, testFlagNotify)
 
 	contain := false
 	for _, v := range got {
@@ -923,7 +898,7 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 
 func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -956,9 +931,7 @@ func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 		t.Fatalf("assets directory %s should not exist before notify command runs", assetsDirForTest())
 	}
 
-	if _, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify}); err != nil {
-		t.Fatal(err)
-	}
+	_ = helper_runUpdateWithDeps(t, deps, testFlagDryRun, testFlagNotify)
 
 	if !fileutil.IsDir(assetsDirForTest()) {
 		t.Errorf("notify command did not deploy assets directory %s", assetsDirForTest())

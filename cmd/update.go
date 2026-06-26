@@ -19,14 +19,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	getLatestVerCtx        = goutil.GetLatestVerWithContext        //nolint:gochecknoglobals // swapped in tests
-	getVerByRefCtx         = goutil.GetVerWithContext              //nolint:gochecknoglobals // swapped in tests
-	installLatestCtx       = goutil.InstallLatestWithContext       //nolint:gochecknoglobals // swapped in tests
-	installMainOrMasterCtx = goutil.InstallMainOrMasterWithContext //nolint:gochecknoglobals // swapped in tests
-	installByVersionUpdCtx = goutil.InstallWithContext             //nolint:gochecknoglobals // swapped in tests
-)
-
 const latestKeyword = "latest"
 
 func newUpdateCmd() *cobra.Command {
@@ -42,7 +34,7 @@ If you execute '$ gup update', gup gets the package path of all commands
 under $GOPATH/bin and automatically updates commands to the latest version,
 using the current installed Go toolchain.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(gup(cmd, args))
+			OsExit(gup(defaultDependencies(), cmd, args))
 		},
 		ValidArgsFunction: completePathBinaries,
 	}
@@ -133,7 +125,11 @@ func parseUpdateFlags(cmd *cobra.Command) (updateOpts, error) {
 
 // gup is main sequence.
 // All errors are handled in this function.
-func gup(cmd *cobra.Command, args []string) int {
+//
+// deps carries the go-toolchain operations (version lookups and per-channel
+// installs) so the update flow takes its collaborators explicitly. Production
+// passes defaultDependencies(); tests inject fakes.
+func gup(deps dependencies, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
 		print.Err(err)
 		return 1
@@ -203,7 +199,7 @@ func gup(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	result, succeededPkgs, renamedPkgs := updateWithChannels(pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, pinnedMap, opts.timeout, opts.jsonOut, opts.quiet)
+	result, succeededPkgs, renamedPkgs := updateWithChannels(deps, pkgs, opts.dryRun, opts.notify, opts.cpus, ignoreGoUpdate, channelMap, pinnedMap, opts.timeout, opts.jsonOut, opts.quiet)
 
 	if !opts.dryRun && (configstate.ShouldPersistChannels(opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
@@ -225,10 +221,9 @@ type updateResult struct {
 	status      string // machine-readable status for --json output (see jsonout.go)
 }
 
-func updateWithChannels(pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
+func updateWithChannels(deps dependencies, pkgs []goutil.Package, dryRun, notification bool, cpus int, ignoreGoUpdate bool, channelMap map[string]goutil.UpdateChannel, pinnedMap map[string]string, timeout time.Duration, jsonOut, quiet bool) (exitCode int, succeeded []goutil.Package, renamed map[string]string) {
 	dryRunManager := goutil.NewGoPaths()
 
-	deps := defaultDependencies()
 	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -28,28 +29,27 @@ func pinnedTestPkg(installed, pinned string) goutil.Package {
 	}
 }
 
-//nolint:paralleltest // swaps package-level install stubs; must not run in parallel
 func TestUpdatePinned_reinstallsAtPinWhenDifferent(t *testing.T) {
+	t.Parallel()
 	var gotImport, gotVersion string
 	called := false
-	installByVersionUpd = func(importPath, version string) error {
+	deps := testDeps()
+	deps.installByVersion = func(_ context.Context, importPath, version string) error {
 		called = true
 		gotImport, gotVersion = importPath, version
 		return nil
 	}
-	getLatestVer = func(string) (string, error) {
+	deps.getLatestVer = func(context.Context, string) (string, error) {
 		t.Fatal("pinned update must not resolve @latest")
 		return "", nil
 	}
-	installLatest = func(string) error { t.Fatal("pinned update must not install @latest"); return nil }
-	defer func() {
-		installByVersionUpd = goutil.Install
-		getLatestVer = goutil.GetLatestVer
-		installLatest = goutil.InstallLatest
-	}()
+	deps.installLatest = func(context.Context, string) error {
+		t.Fatal("pinned update must not install @latest")
+		return nil
+	}
 
 	p := pinnedTestPkg("v1.1.0", testVersionOne)
-	res := updatePinned(defaultDependencies(), t.Context(), p, false)
+	res := updatePinned(deps, t.Context(), p, false)
 	if !called {
 		t.Fatal("expected go install <path>@<pinned> to be called")
 	}
@@ -61,16 +61,16 @@ func TestUpdatePinned_reinstallsAtPinWhenDifferent(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // swaps package-level install stubs; must not run in parallel
 func TestUpdatePinned_skipsWhenAlreadyAtPin(t *testing.T) {
-	installByVersionUpd = func(string, string) error {
+	t.Parallel()
+	deps := testDeps()
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("must not reinstall when already at the pinned version")
 		return nil
 	}
-	defer func() { installByVersionUpd = goutil.Install }()
 
 	p := pinnedTestPkg(testVersionOne, testVersionOne)
-	res := updatePinned(defaultDependencies(), t.Context(), p, false)
+	res := updatePinned(deps, t.Context(), p, false)
 	if res.updated {
 		t.Error("updated = true, want false when already at the pin")
 	}
@@ -82,16 +82,16 @@ func TestUpdatePinned_skipsWhenAlreadyAtPin(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // swaps package-level install stubs; must not run in parallel
 func TestUpdatePinned_emptyPinIsError(t *testing.T) {
-	installByVersionUpd = func(string, string) error {
+	t.Parallel()
+	deps := testDeps()
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("must not install when the pin target is missing")
 		return nil
 	}
-	defer func() { installByVersionUpd = goutil.Install }()
 
 	p := pinnedTestPkg("v1.0.0", "")
-	res := updatePinned(defaultDependencies(), t.Context(), p, false)
+	res := updatePinned(deps, t.Context(), p, false)
 	if res.err == nil {
 		t.Fatal("expected an error for a pin with no recorded version, never a silent @latest")
 	}
@@ -133,19 +133,19 @@ func TestCheckPinned_goToolchainOutdated(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // swaps package-level install stubs; must not run in parallel
 func TestUpdatePinned_reinstallsWhenGoOutdated(t *testing.T) {
+	t.Parallel()
 	var gotVersion string
 	called := false
-	installByVersionUpd = func(_ string, version string) error {
+	deps := testDeps()
+	deps.installByVersion = func(_ context.Context, _ string, version string) error {
 		called = true
 		gotVersion = version
 		return nil
 	}
-	defer func() { installByVersionUpd = goutil.Install }()
 
 	// Version already matches the pin, only the Go toolchain is newer.
-	res := updatePinned(defaultDependencies(), t.Context(), pinnedStaleGo(), false)
+	res := updatePinned(deps, t.Context(), pinnedStaleGo(), false)
 	if !called {
 		t.Fatal("expected a reinstall at the pinned version when the Go toolchain is newer")
 	}
@@ -157,15 +157,15 @@ func TestUpdatePinned_reinstallsWhenGoOutdated(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // swaps package-level install stubs; must not run in parallel
 func TestUpdatePinned_ignoreGoUpdateKeepsPin(t *testing.T) {
-	installByVersionUpd = func(string, string) error {
+	t.Parallel()
+	deps := testDeps()
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("must not reinstall a satisfied pin when Go updates are ignored")
 		return nil
 	}
-	defer func() { installByVersionUpd = goutil.Install }()
 
-	res := updatePinned(defaultDependencies(), t.Context(), pinnedStaleGo(), true)
+	res := updatePinned(deps, t.Context(), pinnedStaleGo(), true)
 	if res.updated || res.status != statusPinned {
 		t.Errorf("result updated=%v status=%q, want kept/pinned", res.updated, res.status)
 	}

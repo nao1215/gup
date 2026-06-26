@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -48,7 +49,7 @@ func Test_check(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(newCheckCmd(), tt.args); got != tt.want {
+			if got := check(defaultDependencies(), newCheckCmd(), tt.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -79,7 +80,7 @@ func Test_check_namedTargetNotInstalled(t *testing.T) {
 
 	var got int
 	out := captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{"doesnotexist"})
+		got = check(defaultDependencies(), newCheckCmd(), []string{"doesnotexist"})
 		return got
 	})
 	if got != 1 {
@@ -130,7 +131,7 @@ func Test_CheckOption(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(tt.args.cmd, tt.args.args); got != tt.want {
+			if got := check(defaultDependencies(), tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -165,7 +166,7 @@ func Test_check_not_use_go_cmd(t *testing.T) {
 		print.Stdout = pw
 		print.Stderr = pw
 
-		if got := check(&cobra.Command{}, []string{}); got != 1 {
+		if got := check(defaultDependencies(), &cobra.Command{}, []string{}); got != 1 {
 			t.Errorf("check() = %v, want %v", got, 1)
 		}
 		pw.Close()
@@ -272,7 +273,7 @@ func Test_check_gobin_is_empty(t *testing.T) {
 			print.Stdout = pw
 			print.Stderr = pw
 
-			if got := check(newCheckCmd(), tt.args.args); got != tt.want {
+			if got := check(defaultDependencies(), newCheckCmd(), tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
 			pw.Close()
@@ -333,7 +334,7 @@ func Test_check_success(t *testing.T) {
 	print.Stdout = pw
 	print.Stderr = pw
 
-	got := check(newCheckCmd(), []string{})
+	got := check(defaultDependencies(), newCheckCmd(), []string{})
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
@@ -369,7 +370,7 @@ func Test_check_ignoreGoUpdateFlag(t *testing.T) {
 	print.Stdout = pw
 	print.Stderr = pw
 
-	got := check(cmd, []string{})
+	got := check(defaultDependencies(), cmd, []string{})
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
@@ -404,7 +405,7 @@ func Test_check_jobsClamp(t *testing.T) {
 	print.Stderr = pw
 
 	// Should not hang with jobs=0 (clamped to 1)
-	got := check(cmd, []string{})
+	got := check(defaultDependencies(), cmd, []string{})
 	pw.Close()
 	print.Stdout = orgStdout
 	print.Stderr = orgStderr
@@ -421,12 +422,8 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 		newModule = testNewModule
 	)
 
-	origGetLatest := getLatestVer
-	defer func() {
-		getLatestVer = origGetLatest
-	}()
-
-	getLatestVer = func(modulePath string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(_ context.Context, modulePath string) (string, error) {
 		if modulePath == oldModule {
 			return "", errors.New("version constraints conflict:\n" +
 				"module declares its path as: " + newModule + "\n" +
@@ -461,7 +458,7 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(pkgs, 1, 0, true, false)
+	got := doCheck(deps, pkgs, 1, 0, true, false)
 
 	pw.Close()
 	print.Stdout = orgStdout
@@ -482,11 +479,8 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 }
 
 func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
-	origGetLatest := getLatestVer
-	defer func() {
-		getLatestVer = origGetLatest
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
@@ -511,7 +505,7 @@ func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(pkgs, 1, 0, false, false)
+	got := doCheck(deps, pkgs, 1, 0, false, false)
 
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
@@ -541,11 +535,8 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	color.NoColor = false
 	t.Cleanup(func() { color.NoColor = oldNoColor })
 
-	origGetLatest := getLatestVer
-	defer func() {
-		getLatestVer = origGetLatest
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
 	orgStdout := print.Stdout
 	orgStderr := print.Stderr
@@ -571,7 +562,7 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 		},
 	}
 
-	got := doCheck(pkgs, 1, 0, false, false)
+	got := doCheck(deps, pkgs, 1, 0, false, false)
 	if err := pw.Close(); err != nil {
 		t.Fatal(err)
 	}
