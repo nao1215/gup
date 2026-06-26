@@ -38,6 +38,58 @@ func countTempFiles(t *testing.T, dir string) int {
 	return n
 }
 
+// TestAppendFpathAtZshrc_preservesSymlink verifies that when .zshrc is a symlink
+// (as managed by dotfile tools like stow/chezmoi/yadm), the atomic write rewrites
+// the link's target rather than replacing the symlink with a regular file. The
+// previous in-place O_APPEND/O_TRUNC followed the link; a naive os.Rename onto the
+// link path would sever it, leaving a plain file in the user's home.
+func TestAppendFpathAtZshrc_preservesSymlink(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// The real .zshrc lives in a separate "dotfiles" directory; ~/.zshrc is a
+	// symlink pointing at it.
+	dotfiles := t.TempDir()
+	realRc := filepath.Join(dotfiles, "zshrc")
+	const original = "# managed by a dotfile tool\n"
+	if err := os.WriteFile(realRc, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := zshrcPath()
+	if err := os.Symlink(realRc, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err != nil {
+		t.Fatalf("appendFpathAtZshrcIfNeeded() error = %v", err)
+	}
+
+	// The link must still be a symlink, not a regular file.
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf(".zshrc symlink was replaced by a regular file")
+	}
+
+	// The fpath block must have been written through the link to the real file,
+	// and the original content preserved.
+	got, err := os.ReadFile(filepath.Clean(realRc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(got), original) {
+		t.Fatalf("original content not preserved in the real file:\n%s", got)
+	}
+	if !strings.Contains(string(got), zshFpathMarker) {
+		t.Fatalf("fpath block was not written through the symlink:\n%s", got)
+	}
+}
+
 // TestMakeBashCompletion_atomicWriteFailureKeepsOriginal verifies that when the
 // final rename fails, an existing completion file keeps its original contents
 // (it is never truncated in place) and no temp file is left behind.

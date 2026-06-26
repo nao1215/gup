@@ -166,6 +166,15 @@ func atomicWriteFile(path string, data []byte, what string) (err error) {
 	if fileutil.IsDir(path) {
 		return fmt.Errorf("%s path %s is a directory, not a file", what, path)
 	}
+	// Resolve symlinks so the rename rewrites the link's target rather than
+	// replacing the link itself with a regular file. Dotfile managers (stow,
+	// chezmoi, yadm) commonly symlink .zshrc into the home directory; the previous
+	// in-place write followed the link, and this preserves that behavior. When the
+	// path does not exist yet (a new completion file or .zshrc) EvalSymlinks fails,
+	// so the original path is kept and a fresh file is created.
+	if resolved, lerr := filepath.EvalSymlinks(path); lerr == nil {
+		path = resolved
+	}
 	dir := filepath.Dir(path)
 	if mkErr := os.MkdirAll(dir, fileutil.FileModeCreatingDir); mkErr != nil {
 		return fmt.Errorf("can not create directory for %s: %w", what, mkErr)
