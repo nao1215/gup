@@ -82,6 +82,22 @@ func helper_runUpdateWithDeps(t *testing.T, deps dependencies, flagArgs ...strin
 	return strings.Split(out, "\n")
 }
 
+// helper_runCheckWithDeps is the check counterpart of helper_runUpdateWithDeps:
+// it runs check() with injected dependencies (so version lookups never hit the
+// network) while capturing output, instead of dispatching through Execute() and
+// depending on live module resolution.
+func helper_runCheckWithDeps(t *testing.T, deps dependencies, flagArgs ...string) []string {
+	t.Helper()
+	cmd := newCheckCmd()
+	if err := cmd.ParseFlags(flagArgs); err != nil {
+		t.Fatalf("failed to parse check flags %v: %v", flagArgs, err)
+	}
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return check(deps, p, cmd, cmd.Flags().Args())
+	})
+	return strings.Split(out, "\n")
+}
+
 func helper_stubImportInstaller(t *testing.T) {
 	t.Helper()
 
@@ -242,10 +258,10 @@ func TestExecute_Check(t *testing.T) {
 		t.Setenv("GOBIN", gobinDir)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, "check"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Inject stubbed version lookups (latest == v9.9.9) so every installed binary
+	// is reported as needing an update, deterministically and without resolving
+	// modules over the network.
+	got := helper_runCheckWithDeps(t, stubUpdateDeps())
 
 	if !strings.Contains(got[len(got)-2], "posixer") {
 		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
