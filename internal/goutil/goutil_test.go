@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -160,18 +161,11 @@ but was required as: github.com/example/tool`),
 }
 
 func TestGetPackageInformation_unknown_module(t *testing.T) {
-	// Backup and defer restore STDERR via print package
-	oldPrintStderr := print.Stderr
-	defer func() {
-		print.Stderr = oldPrintStderr
-	}()
-
-	// Capture stderr
+	// Capture output via a buffer-backed Printer.
 	var tmpBuff bytes.Buffer
+	p := print.New(&tmpBuff, &tmpBuff)
 
-	print.Stderr = &tmpBuff
-
-	result, _ := GetPackageInformation([]string{"unknown-module"})
+	result, _ := GetPackageInformation(p, []string{"unknown-module"})
 
 	// Require to be empty
 	if len(result) != 0 {
@@ -191,16 +185,12 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 // version is unavailable (second return value false) and warns exactly once,
 // instead of silently stamping "unknown" and forcing every binary to reinstall.
 func TestGetPackageInformation_goVersionFailure(t *testing.T) {
-	oldPrintStderr := print.Stderr
-	defer func() {
-		print.Stderr = oldPrintStderr
-	}()
 	// Point the go command at a binary that does not exist so "go version"
 	// fails on every OS (unlike "false", which is absent on Windows).
 	withGoExecutable(t, "gup-nonexistent-go-command-for-test")
 
-	var stderr bytes.Buffer
-	print.Stderr = &stderr
+	buf := &bytes.Buffer{}
+	printer := print.New(buf, buf)
 
 	nameDir := "check_success"
 	nameBin := "gal"
@@ -210,7 +200,7 @@ func TestGetPackageInformation_goVersionFailure(t *testing.T) {
 	}
 	pathBin := filepath.Join("..", "..", "cmd", "testdata", nameDir, nameBin)
 
-	pkgs, goVersionAvailable := GetPackageInformation([]string{pathBin})
+	pkgs, goVersionAvailable := GetPackageInformation(printer, []string{pathBin})
 
 	// The Go-version detection failure is reported, not swallowed.
 	if goVersionAvailable {
@@ -221,8 +211,8 @@ func TestGetPackageInformation_goVersionFailure(t *testing.T) {
 		t.Fatalf("GetPackageInformation() returned %d packages, want 1", len(pkgs))
 	}
 	// Exactly one warning explains why the Go-version comparison was skipped.
-	if c := strings.Count(stderr.String(), "skipping Go-version comparison"); c != 1 {
-		t.Errorf("want exactly one Go-version warning, got %d: %q", c, stderr.String())
+	if c := strings.Count(buf.String(), "skipping Go-version comparison"); c != 1 {
+		t.Errorf("want exactly one Go-version warning, got %d: %q", c, buf.String())
 	}
 
 	// Acceptance criterion (1): an otherwise up-to-date binary must not be
@@ -648,7 +638,7 @@ func TestGetPackageInformation_std_cmd_filtered(t *testing.T) {
 		t.Skipf("gofmt not found at %s: %v", gofmt, err)
 	}
 
-	result, _ := GetPackageInformation([]string{gofmt})
+	result, _ := GetPackageInformation(print.New(io.Discard, io.Discard), []string{gofmt})
 	if len(result) != 0 {
 		t.Errorf("GetPackageInformation() should filter standard library commands, got: %v", result)
 	}
@@ -1066,7 +1056,7 @@ func TestVersionUpToDate_invalidVersion(t *testing.T) {
 }
 
 func TestGetPackageInformation_emptyList(t *testing.T) {
-	result, _ := GetPackageInformation([]string{})
+	result, _ := GetPackageInformation(print.New(io.Discard, io.Discard), []string{})
 	if result != nil {
 		t.Errorf("expected nil for empty list, got %v", result)
 	}
@@ -1244,9 +1234,10 @@ func BenchmarkGetPackageInformation(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
+			p := print.New(io.Discard, io.Discard)
 			b.ResetTimer()
 			for range b.N {
-				_, _ = GetPackageInformation(list)
+				_, _ = GetPackageInformation(p, list)
 			}
 		})
 	}
@@ -1292,9 +1283,10 @@ func BenchmarkGetPackageInformationWithoutGoVersion(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
+			p := print.New(io.Discard, io.Discard)
 			b.ResetTimer()
 			for range b.N {
-				_ = GetPackageInformationWithoutGoVersion(list)
+				_ = GetPackageInformationWithoutGoVersion(p, list)
 			}
 		})
 	}

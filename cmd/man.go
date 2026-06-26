@@ -25,16 +25,16 @@ func newManCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(man(cmd, args))
+			OsExit(man(print.NewColorable(), cmd, args))
 		},
 	}
 	return cmd
 }
 
-func man(_ *cobra.Command, _ []string) int {
+func man(p *print.Printer, _ *cobra.Command, _ []string) int {
 	for _, dst := range manPaths(os.Getenv("MANPATH")) {
-		if err := generateManpages(dst); err != nil {
-			print.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
+		if err := generateManpages(p, dst); err != nil {
+			p.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
 			return 1
 		}
 	}
@@ -69,7 +69,7 @@ func manPaths(manpathEnv string) []string {
 	return paths
 }
 
-func generateManpages(dst string) error {
+func generateManpages(p *print.Printer, dst string) error {
 	now := time.Now()
 	header := &doc.GenManHeader{
 		Title:   `gup - Update binaries installed by 'go install'`,
@@ -97,10 +97,10 @@ func generateManpages(dst string) error {
 		return err
 	}
 
-	return copyManpages(manFiles, dst)
+	return copyManpages(p, manFiles, dst)
 }
 
-func copyManpages(manFiles []string, dst string) error {
+func copyManpages(p *print.Printer, manFiles []string, dst string) error {
 	dst = filepath.Clean(dst)
 
 	// Ensure the target man1 directory exists before writing. A valid custom
@@ -111,18 +111,18 @@ func copyManpages(manFiles []string, dst string) error {
 	}
 
 	for _, file := range manFiles {
-		if err := copyOneManpage(filepath.Clean(file), dst); err != nil {
+		if err := copyOneManpage(p, filepath.Clean(file), dst); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func copyOneManpage(file, dst string) (err error) {
+func copyOneManpage(p *print.Printer, file, dst string) (err error) {
 	outputPath := filepath.Clean(filepath.Join(dst, filepath.Base(file)+".gz"))
 	defer func() {
 		if err == nil {
-			print.Info("Generate " + outputPath)
+			p.Info("Generate " + outputPath)
 		}
 	}()
 

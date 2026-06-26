@@ -1,6 +1,6 @@
 //go:build !dragonfly
 
-//nolint:paralleltest // tests mutate the global xdg.ConfigHome and print.Stderr
+//nolint:paralleltest // tests mutate the global xdg.ConfigHome
 package notify
 
 import (
@@ -13,29 +13,24 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
-// useTempConfigHome points the asset directory at a fresh temp directory and
-// silences print output (beeep may warn when no desktop session is available).
+// useTempConfigHome points the asset directory at a fresh temp directory.
 func useTempConfigHome(t *testing.T) {
 	t.Helper()
 	orgConfig := xdg.ConfigHome
-	orgStderr := print.Stderr
-	orgStdout := print.Stdout
 	t.Cleanup(func() {
 		xdg.ConfigHome = orgConfig
-		print.Stderr = orgStderr
-		print.Stdout = orgStdout
 	})
 	xdg.ConfigHome = t.TempDir()
-	buf := &bytes.Buffer{}
-	print.Stderr = buf
-	print.Stdout = buf
 }
 
 func TestInfo(t *testing.T) {
 	useTempConfigHome(t)
 
+	buf := &bytes.Buffer{}
+	p := print.New(buf, buf)
+
 	// Should not panic even when no desktop notification backend is available.
-	Info("gup", "info message")
+	Info(p, "gup", "info message")
 
 	if !fileutil.IsFile(assets.InfoIconPath()) {
 		t.Errorf("Info should deploy the info icon at %s", assets.InfoIconPath())
@@ -45,7 +40,10 @@ func TestInfo(t *testing.T) {
 func TestWarn(t *testing.T) {
 	useTempConfigHome(t)
 
-	Warn("gup", "warning message")
+	buf := &bytes.Buffer{}
+	p := print.New(buf, buf)
+
+	Warn(p, "gup", "warning message")
 
 	if !fileutil.IsFile(assets.WarningIconPath()) {
 		t.Errorf("Warn should deploy the warning icon at %s", assets.WarningIconPath())

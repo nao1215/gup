@@ -30,7 +30,7 @@ If you want to specify multiple binaries at once, separate them with space.
 			"gup remove --force air"),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(remove(cmd, args))
+			OsExit(remove(print.NewColorable(), cmd, args))
 		},
 	}
 	cmd.Flags().BoolP("force", "f", false, "forcibly remove the file")
@@ -38,20 +38,20 @@ If you want to specify multiple binaries at once, separate them with space.
 	return cmd
 }
 
-func remove(cmd *cobra.Command, args []string) int {
+func remove(p *print.Printer, cmd *cobra.Command, args []string) int {
 	force, err := getFlagBool(cmd, "force")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	gobin, err := goutil.GoBin()
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	return removeLoop(gobin, force, args)
+	return removeLoop(p, gobin, force, args)
 }
 
 const goosWindows = "windows"
@@ -72,7 +72,7 @@ var stdinIsTerminal = func() bool { //nolint:gochecknoglobals
 	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
-func removeLoop(gobin string, force bool, target []string) int {
+func removeLoop(p *print.Printer, gobin string, force bool, target []string) int {
 	result := 0
 	for _, v := range target {
 		orig := v
@@ -84,36 +84,36 @@ func removeLoop(gobin string, force bool, target []string) int {
 			v += execSuffix
 		}
 		if !isSafeBinaryName(v) {
-			print.Err(fmt.Errorf("invalid command name: %s", orig))
+			p.Err(fmt.Errorf("invalid command name: %s", orig))
 			result = 1
 			continue
 		}
 
 		target := filepath.Join(gobin, v)
 		if !fileutil.IsFile(target) {
-			print.Err(fmt.Errorf("no such file or directory: %s", target))
+			p.Err(fmt.Errorf("no such file or directory: %s", target))
 			result = 1
 			continue
 		}
 		if !force {
 			if !stdinIsTerminal() {
-				print.Err(errors.New("gup remove requires confirmation, but stdin is not a TTY.\nUse --force to skip confirmation"))
+				p.Err(errors.New("gup remove requires confirmation, but stdin is not a TTY.\nUse --force to skip confirmation"))
 				result = 1
 				continue
 			}
-			if !print.Question(fmt.Sprintf("remove %s?", target)) {
-				print.Info("cancel removal " + target)
+			if !p.Question(fmt.Sprintf("remove %s?", target)) {
+				p.Info("cancel removal " + target)
 				continue
 			}
 		}
 
 		//nolint:gosec // target is constrained to a file name under gobin by isSafeBinaryName.
 		if err := os.Remove(target); err != nil {
-			print.Err(err)
+			p.Err(err)
 			result = 1
 			continue
 		}
-		print.Info("removed " + target)
+		p.Info("removed " + target)
 	}
 	return result
 }

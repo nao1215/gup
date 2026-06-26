@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"io"
 	"testing"
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -52,13 +50,9 @@ func Test_rootCmd_noColorFlag_disablesColorViaExecute(t *testing.T) {
 	t.Setenv("NO_COLOR", "") // ensure the env var does not interfere
 	t.Cleanup(func() { color.NoColor = oldNoColor })
 
-	orgStdout := print.Stdout
-	print.Stdout = io.Discard // `gup version` prints via print.Info
-	t.Cleanup(func() { print.Stdout = orgStdout })
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"version", "--no-color"})
-	if err := cmd.Execute(); err != nil {
+	// `gup version` prints via the production Printer (os.Stdout); helper_runGup
+	// redirects and drains the real OS streams so the output is suppressed.
+	if _, err := helper_runGup(t, []string{testCmdGup, "version", "--no-color"}); err != nil {
 		t.Fatalf("Execute() error: %v", err)
 	}
 	if !color.NoColor {

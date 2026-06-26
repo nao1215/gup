@@ -1,6 +1,29 @@
 package cmd
 
-import "context"
+import (
+	"bytes"
+	"context"
+	"io"
+
+	"github.com/nao1215/gup/internal/print"
+)
+
+// discardPrinter returns a Printer that throws away all output, for tests that
+// exercise a function's behavior or exit code but do not assert on its output.
+func discardPrinter() *print.Printer {
+	return print.New(io.Discard, io.Discard)
+}
+
+// newTestPrinter returns a Printer whose normal and error output both go to a
+// single buffer, plus the buffer for assertions. It replaces the old pattern of
+// pointing the package-level print.Stdout/Stderr writers at one pipe: a test
+// constructs the Printer, passes it to the function under test, and reads the
+// buffer. The progress callbacks that drive parallel output are invoked from a
+// single consumer goroutine, so the shared buffer is never written concurrently.
+func newTestPrinter() (*print.Printer, *bytes.Buffer) {
+	buf := &bytes.Buffer{}
+	return print.New(buf, buf), buf
+}
 
 // testDeps returns a dependencies value whose operations are harmless stubs: the
 // version lookups return an empty version and the installs are no-ops. A test

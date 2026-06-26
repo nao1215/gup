@@ -76,8 +76,8 @@ func helper_runUpdateWithDeps(t *testing.T, deps dependencies, flagArgs ...strin
 	if err := cmd.ParseFlags(flagArgs); err != nil {
 		t.Fatalf("failed to parse update flags %v: %v", flagArgs, err)
 	}
-	out := captureCheckOutput(t, func() int {
-		return gup(deps, cmd, cmd.Flags().Args())
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return gup(deps, p, cmd, cmd.Flags().Args())
 	})
 	return strings.Split(out, "\n")
 }
@@ -94,60 +94,65 @@ func helper_stubImportInstaller(t *testing.T) {
 	})
 }
 
-// Runs a gup command, and return its output split by \n.
+// Runs a gup command, and return its output split by \n. The command's cobra
+// Run closures build their own colorable Printer over the process os.Stdout/
+// os.Stderr, so this captures by redirecting those real streams (not the print
+// package, which no longer has mutable globals).
 func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	t.Helper()
 
-	// Redirect output
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
+	orgOSStdout := os.Stdout
+	orgOSStderr := os.Stderr
 	defer func() {
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
+		os.Stdout = orgOSStdout
+		os.Stderr = orgOSStderr
 	}()
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer pr.Close() //nolint:errcheck // ignore close error in test
-	print.Stdout = pw
-	print.Stderr = pw
+	os.Stdout = pw
+	os.Stderr = pw
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	// Run command
+	// Drain the pipe concurrently so a command that writes more than the pipe
+	// buffer does not deadlock.
+	buf := bytes.Buffer{}
+	copyDone := make(chan error, 1)
+	go func() {
+		_, copyErr := io.Copy(&buf, pr)
+		copyDone <- copyErr
+	}()
+
 	os.Args = args
 	err = Execute()
 	pw.Close() //nolint:errcheck,gosec // ignore close error in test
+	if copyErr := <-copyDone; copyErr != nil {
+		t.Fatal(copyErr)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// Get output
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Fatal(err)
-	}
 	got := strings.Split(buf.String(), "\n")
-
 	return got, nil
 }
 
-// Runs a gup command and captures both print package output and os.Stdout.
+// Runs a gup command and captures os.Stdout/os.Stderr (which the per-command
+// Printer wraps).
 func helper_runGupCaptureAllOutput(t *testing.T, args []string) (string, error) {
 	t.Helper()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
 	orgOSStdout := os.Stdout
+	orgOSStderr := os.Stderr
 	defer func() {
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
 		os.Stdout = orgOSStdout
+		os.Stderr = orgOSStderr
 	}()
 
 	pr, pw, err := os.Pipe()
@@ -156,9 +161,8 @@ func helper_runGupCaptureAllOutput(t *testing.T, args []string) (string, error) 
 	}
 	defer pr.Close() //nolint:errcheck // ignore close error in test
 
-	print.Stdout = pw
-	print.Stderr = pw
 	os.Stdout = pw
+	os.Stderr = pw
 
 	OsExit = func(code int) {}
 	defer func() {

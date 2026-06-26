@@ -1,11 +1,9 @@
-//nolint:paralleltest,errcheck,gosec
+//nolint:paralleltest,gosec
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -40,28 +38,11 @@ func Test_check(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := check(defaultDependencies(), newCheckCmd(), tt.args); got != tt.want {
+			if got := check(defaultDependencies(), p, newCheckCmd(), tt.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
 
 			// An environment with no manageable binaries reports the friendly
 			// first-run note and exits 0 (#350).
@@ -79,8 +60,8 @@ func Test_check_namedTargetNotInstalled(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), newCheckCmd(), []string{"doesnotexist"})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{"doesnotexist"})
 		return got
 	})
 	if got != 1 {
@@ -122,28 +103,12 @@ func Test_CheckOption(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := check(defaultDependencies(), tt.args.cmd, tt.args.args); got != tt.want {
+			if got := check(defaultDependencies(), p, tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
 
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {
@@ -157,28 +122,12 @@ func Test_check_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+		p, buf := newTestPrinter()
 
-		if got := check(defaultDependencies(), &cobra.Command{}, []string{}); got != 1 {
+		if got := check(defaultDependencies(), p, &cobra.Command{}, []string{}); got != 1 {
 			t.Errorf("check() = %v, want %v", got, 1)
 		}
-		pw.Close()
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
 
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
@@ -264,28 +213,12 @@ func Test_check_gobin_is_empty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := check(defaultDependencies(), newCheckCmd(), tt.args.args); got != tt.want {
+			if got := check(defaultDependencies(), p, newCheckCmd(), tt.args.args); got != tt.want {
 				t.Errorf("check() = %v, want %v", got, tt.want)
 			}
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
 
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {
@@ -317,7 +250,8 @@ func Test_printUpdatablePkgInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			printUpdatablePkgInfo(tt.args.pkgs)
+			p, _ := newTestPrinter()
+			printUpdatablePkgInfo(p, tt.args.pkgs)
 		})
 	}
 }
@@ -325,26 +259,9 @@ func Test_printUpdatablePkgInfo(t *testing.T) {
 func Test_check_success(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
-	got := check(defaultDependencies(), newCheckCmd(), []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	pr.Close()
+	got := check(defaultDependencies(), p, newCheckCmd(), []string{})
 
 	// Should succeed (exit 0) or fail (exit 1) but not crash.
 	// The check command runs network calls so we accept either result.
@@ -361,26 +278,9 @@ func Test_check_ignoreGoUpdateFlag(t *testing.T) {
 		t.Fatalf("failed to set ignore-go-update flag: %v", err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
-	got := check(defaultDependencies(), cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Error(err)
-	}
-	pr.Close()
+	got := check(defaultDependencies(), p, cmd, []string{})
 
 	if got != 0 && got != 1 {
 		t.Errorf("check() = %v, want 0 or 1", got)
@@ -395,21 +295,10 @@ func Test_check_jobsClamp(t *testing.T) {
 		t.Fatalf("failed to set jobs flag: %v", err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
 	// Should not hang with jobs=0 (clamped to 1)
-	got := check(defaultDependencies(), cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-	pr.Close()
+	got := check(defaultDependencies(), p, cmd, []string{})
 
 	if got != 0 && got != 1 {
 		t.Errorf("check() = %v, want 0 or 1", got)
@@ -435,14 +324,7 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 		return "", errors.New("unexpected module path")
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -458,17 +340,7 @@ func Test_doCheck_modulePathChanged(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(deps, pkgs, 1, 0, true, false)
-
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	got := doCheck(deps, p, pkgs, 1, 0, true, false)
 
 	if got != 0 {
 		t.Fatalf("doCheck() = %v, want 0", got)
@@ -482,14 +354,7 @@ func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 	deps := testDeps()
 	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -505,19 +370,7 @@ func Test_doCheck_customGoBuildTag_noFalsePositiveUpdate(t *testing.T) {
 			},
 		},
 	}
-	got := doCheck(deps, pkgs, 1, 0, false, false)
-
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	got := doCheck(deps, p, pkgs, 1, 0, false, false)
 
 	if got != 0 {
 		t.Fatalf("doCheck() = %v, want 0", got)
@@ -538,14 +391,7 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	deps := testDeps()
 	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -562,18 +408,7 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 		},
 	}
 
-	got := doCheck(deps, pkgs, 1, 0, false, false)
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	got := doCheck(deps, p, pkgs, 1, 0, false, false)
 
 	if got != 0 {
 		t.Fatalf("doCheck() = %v, want 0", got)

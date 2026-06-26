@@ -1,12 +1,10 @@
-//nolint:paralleltest,errcheck,gosec
+//nolint:paralleltest
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -95,30 +93,11 @@ func Test_gup(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := gup(defaultDependencies(), tt.args.cmd, tt.args.args); got != tt.want {
+			if got := gup(defaultDependencies(), p, tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("gup() = %v, want %v", got, tt.want)
 			}
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {
@@ -179,31 +158,11 @@ func Test_gup_ignoreGoUpdateFlag(t *testing.T) {
 		OsExit = os.Exit
 	}()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	if got := gup(deps, cmd, []string{}); got != 0 {
+	if got := gup(deps, p, cmd, []string{}); got != 0 {
 		t.Fatalf("gup() = %v, want %v", got, 0)
 	}
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err = io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = pr.Close()
-	}()
 
 	output := strings.Split(buf.String(), "\n")
 	if len(output) == 0 || !strings.Contains(output[0], "update binary under") {
@@ -229,8 +188,8 @@ func Test_gup_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = gup(defaultDependencies(), cmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -258,8 +217,8 @@ func Test_gup_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 	}
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = gup(defaultDependencies(), cmd, []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -275,8 +234,8 @@ func Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 	t.Setenv("GOBIN", t.TempDir()) // empty environment
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = gup(defaultDependencies(), newUpdateCmd(), []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
 		return got
 	})
 	if got != 0 {
@@ -301,8 +260,8 @@ func Test_gup_invalidConfigFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = gup(deps, newUpdateCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(deps, p, newUpdateCmd(), []string{})
 		return got
 	})
 	if got != 1 {
@@ -342,7 +301,8 @@ func Test_gup_dryRun(t *testing.T) {
 		OsExit = os.Exit
 	}()
 
-	if got := gup(deps, cmd, []string{}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := gup(deps, p, cmd, []string{}); got != 0 {
 		t.Fatalf("gup() = %v, want %v", got, 0)
 	}
 	if !installCalled.Load() {
@@ -357,30 +317,11 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+		p, buf := newTestPrinter()
 
-		if got := gup(defaultDependencies(), newUpdateCmd(), []string{}); got != 1 {
+		if got := gup(defaultDependencies(), p, newUpdateCmd(), []string{}); got != 1 {
 			t.Errorf("gup() = %v, want %v", got, 1)
 		}
-		if err := pw.Close(); err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
@@ -425,7 +366,8 @@ func Test_desktopNotifyIfNeeded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			desktopNotifyIfNeeded(tt.args.result, tt.args.enable)
+			p, _ := newTestPrinter()
+			desktopNotifyIfNeeded(p, tt.args.result, tt.args.enable)
 		})
 	}
 }
@@ -446,20 +388,10 @@ func Test_gup_jobsClamp(t *testing.T) {
 		OsExit = os.Exit
 	}()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	_, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
 	// Should not hang with jobs=-1 (clamped to 1)
-	got := gup(deps, cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := gup(deps, p, cmd, []string{})
 
 	if got != 0 {
 		t.Errorf("gup() = %v, want 0", got)
@@ -593,7 +525,8 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
+	p, _ := newTestPrinter()
+	if got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldModule, newModule}, latestCalls); diff != "" {
@@ -652,7 +585,8 @@ func Test_update_modulePathChangedOnInstall(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
+	p, _ := newTestPrinter()
+	if got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldImport, newImport}, installCalls); diff != "" {
@@ -810,7 +744,8 @@ func Test_updateWithChannels_emptyImportPath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1 (empty import path)", result)
 	}
@@ -831,7 +766,8 @@ func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -859,14 +795,7 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 		return nil
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -879,19 +808,7 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(deps, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
-
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
 
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -927,14 +844,7 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 		return nil
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -947,18 +857,7 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
 
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -986,7 +885,8 @@ func Test_updateWithChannels_emptyModulePath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1009,7 +909,8 @@ func Test_updateWithChannels_getLatestVerError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
@@ -1034,7 +935,8 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1077,7 +979,8 @@ func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T)
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1119,7 +1022,8 @@ func Test_updateWithChannels_masterChannel_latestMovedButMasterSame(t *testing.T
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, succeeded, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1158,7 +1062,8 @@ func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1180,19 +1085,9 @@ func Test_gup_excludeFlag(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() { OsExit = os.Exit }()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	_, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
-	got := gup(deps, cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := gup(deps, p, cmd, []string{})
 
 	if got != 1 {
 		t.Errorf("gup() with all excluded = %v, want 1", got)
@@ -1225,7 +1120,8 @@ func Test_updateWithChannels_notify(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, true, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, true, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() with notify = %d, want 0", result)
 	}
@@ -1247,7 +1143,8 @@ func Test_updateWithChannels_installError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
@@ -1276,7 +1173,8 @@ func Test_updateWithChannels_mainChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
-	result, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1305,24 +1203,9 @@ func Test_update_ambiguousConfigFailsFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := gup(defaultDependencies(), newUpdateCmd(), []string{})
-
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	io.Copy(&buf, pr)
-	pr.Close()
+	got := gup(defaultDependencies(), p, newUpdateCmd(), []string{})
 
 	if got != 1 {
 		t.Errorf("update() = %d, want 1", got)

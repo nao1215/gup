@@ -24,7 +24,7 @@ apply it with 'gup import'.`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(export(cmd, args))
+			OsExit(export(print.NewColorable(), cmd, args))
 		},
 	}
 	cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")
@@ -34,30 +34,30 @@ apply it with 'gup import'.`,
 	return cmd
 }
 
-func export(cmd *cobra.Command, _ []string) int {
+func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	output, err := getFlagBool(cmd, "output")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	configPath, err := getFlagString(cmd, "file")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	configPath = config.ResolveExportFilePath(configPath)
 
-	pkgs, err := pkgselect.PackageInfo()
+	pkgs, err := pkgselect.PackageInfo(p)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
-	pkgs = validPkgInfo(pkgs)
+	pkgs = validPkgInfo(p, pkgs)
 	// The source of truth for saved channels is always the canonical user-level
 	// config; --file/--output only change the export destination, not where
 	// channels are read from (#341).
@@ -67,7 +67,7 @@ func export(cmd *cobra.Command, _ []string) int {
 	// channels such as @main from the written gup.json (#369).
 	confPkgs, err := configstate.ReadFileIfExists(channelSource)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	pkgs = configstate.ApplySavedChannels(pkgs, confPkgs)
@@ -75,33 +75,33 @@ func export(cmd *cobra.Command, _ []string) int {
 	// An empty-but-valid environment is a normal first-run condition, not an
 	// error (#350): export still succeeds and writes an empty configuration.
 	if len(pkgs) == 0 {
-		print.Warn(emptyEnvMessage + "; exporting an empty configuration")
+		p.Warn(emptyEnvMessage + "; exporting an empty configuration")
 	}
 
 	if output {
-		err = outputConfig(pkgs)
+		err = outputConfig(p, pkgs)
 	} else {
 		err = writeConfigFile(configPath, pkgs)
 	}
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	if !output {
-		print.Info("Export " + configPath)
+		p.Info("Export " + configPath)
 	}
 	return 0
 }
 
-func outputConfig(pkgs []goutil.Package) error {
-	return config.WriteConfFile(print.Stdout, pkgs)
+func outputConfig(p *print.Printer, pkgs []goutil.Package) error {
+	return config.WriteConfFile(p.Out(), pkgs)
 }
 
-func validPkgInfo(pkgs []goutil.Package) []goutil.Package {
+func validPkgInfo(p *print.Printer, pkgs []goutil.Package) []goutil.Package {
 	result := []goutil.Package{}
 	for _, v := range pkgs {
 		if v.ImportPath == "" {
-			print.Warn("can't get '" + v.Name + "' package path information. old go version binary")
+			p.Warn("can't get '" + v.Name + "' package path information. old go version binary")
 			continue
 		}
 		result = append(result, goutil.Package{Name: v.Name, ImportPath: v.ImportPath, Version: v.Version})

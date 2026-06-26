@@ -14,7 +14,7 @@ func newVersionCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			print.Info(cmdinfo.GetVersion())
+			print.NewColorable().Info(cmdinfo.GetVersion())
 		},
 	}
 }

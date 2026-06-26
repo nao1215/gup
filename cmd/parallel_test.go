@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/nao1215/gup/internal/goutil"
-	"github.com/nao1215/gup/internal/print"
 )
 
 // Package names reused across the parallel tests, extracted to constants to
@@ -65,8 +63,9 @@ func TestExecutePackages_TimeoutIsolation(t *testing.T) {
 		{Name: pkgSlow},
 	}
 
+	p, _ := newTestPrinter()
 	var succeeded int64
-	code, results := executePackages(pkgs, 2, 20*time.Millisecond,
+	code, results := executePackages(p, pkgs, 2, 20*time.Millisecond,
 		func(ctx context.Context, p goutil.Package) updateResult {
 			if p.Name == pkgSlow {
 				<-ctx.Done()
@@ -116,7 +115,8 @@ func TestExecutePackages_StableInputOrder(t *testing.T) {
 		sleepByName[p.Name] = time.Duration(total-i) * 3 * time.Millisecond
 	}
 
-	code, results := executePackages(pkgs, total, 0,
+	p, _ := newTestPrinter()
+	code, results := executePackages(p, pkgs, total, 0,
 		func(_ context.Context, p goutil.Package) updateResult {
 			time.Sleep(sleepByName[p.Name])
 			return updateResult{pkg: p, status: statusUpdated}
@@ -165,7 +165,8 @@ func TestExecutePackages_StableInputOrderWithFailures(t *testing.T) {
 		failByName[p.Name] = i%2 == 0
 	}
 
-	code, results := executePackages(pkgs, total, 0,
+	p, _ := newTestPrinter()
+	code, results := executePackages(p, pkgs, total, 0,
 		func(_ context.Context, p goutil.Package) updateResult {
 			time.Sleep(sleepByName[p.Name])
 			if failByName[p.Name] {
@@ -197,18 +198,15 @@ func TestExecutePackages_StableInputOrderWithFailures(t *testing.T) {
 // deterministic), a failed package prints the shared "[i/n] <error>" line to
 // STDERR and is NOT passed to onResult, while successful packages reach onResult
 // with their "[i/n]" prefix and the exit code becomes 1.
-//
-//nolint:paralleltest // captures the global print.Stderr
 func TestExecutePackages_streamsPrefixesAndReportsErrors(t *testing.T) {
-	orgStderr := print.Stderr
-	var buf bytes.Buffer
-	print.Stderr = &buf
-	t.Cleanup(func() { print.Stderr = orgStderr })
+	t.Parallel()
+
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{{Name: "a"}, {Name: pkgFail}, {Name: "c"}}
 
 	var prefixes []string
-	code, results := executePackages(pkgs, 1, 0,
+	code, results := executePackages(p, pkgs, 1, 0,
 		func(_ context.Context, p goutil.Package) updateResult {
 			if p.Name == pkgFail {
 				return updateResult{pkg: p, err: errors.New("boom")}

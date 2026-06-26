@@ -1,4 +1,4 @@
-//nolint:paralleltest // tests mutate global state (print.Stdout)
+//nolint:paralleltest // tests mutate process-global state (GOBIN/XDG env, cwd)
 package cmd
 
 import (
@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,8 +76,8 @@ func Test_newJSONPackage_nilVersionsAndError(t *testing.T) {
 }
 
 func Test_encodeJSONPackages_empty(t *testing.T) {
-	out := captureCheckOutput(t, func() int {
-		if err := encodeJSONPackages(nil); err != nil {
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		if err := encodeJSONPackages(p, nil); err != nil {
 			t.Fatalf("encodeJSONPackages() error = %v", err)
 		}
 		return 0
@@ -104,8 +103,8 @@ func Test_encodeJSONPackages_validJSON(t *testing.T) {
 		}, statusError, errors.New("network down")),
 	}
 
-	out := captureCheckOutput(t, func() int {
-		if err := encodeJSONPackages(recs); err != nil {
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		if err := encodeJSONPackages(p, recs); err != nil {
 			t.Fatalf("encodeJSONPackages() error = %v", err)
 		}
 		return 0
@@ -126,31 +125,19 @@ func Test_encodeJSONPackages_validJSON(t *testing.T) {
 	}
 }
 
-// readJSON runs fn (capturing stdout) and decodes the captured output as a
-// slice of jsonPackage records, failing the test if it is not valid JSON.
-func readJSON(t *testing.T, fn func() int) []jsonPackage {
+// readJSON runs fn with a Printer whose stdout and stderr are SEPARATE buffers,
+// then decodes only the stdout buffer as a slice of jsonPackage records. Keeping
+// the streams separate is the point: it verifies the #291 contract that warnings
+// and errors (written to stderr) never contaminate the machine-readable JSON on
+// stdout.
+func readJSON(t *testing.T, fn func(p *print.Printer) int) []jsonPackage {
 	t.Helper()
-	orgStdout := print.Stdout
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-
-	fn()
-
-	_ = pw.Close()
-	print.Stdout = orgStdout
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	var out, errBuf bytes.Buffer
+	fn(print.New(&out, &errBuf))
 
 	var recs []jsonPackage
-	if err := json.Unmarshal(buf.Bytes(), &recs); err != nil {
-		t.Fatalf("stdout is not valid JSON: %v\n%s", err, buf.String())
+	if err := json.Unmarshal(out.Bytes(), &recs); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nSTDOUT:\n%s\nSTDERR:\n%s", err, out.String(), errBuf.String())
 	}
 	return recs
 }
@@ -169,8 +156,8 @@ func Test_doCheck_jsonOutput(t *testing.T) {
 		newCheckPkg("outdated", testVersionOne, goutil.UpdateChannelLatest), // < latest -> update-available
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(deps, pkgs, 1, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, 1, 0, true)
 	})
 
 	got := map[string]string{}
@@ -206,8 +193,8 @@ func Test_doCheckJSON_stableInputOrder(t *testing.T) {
 		return testVersionTwo, nil
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(deps, pkgs, total, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, total, 0, true)
 	})
 
 	if len(recs) != total {
@@ -280,8 +267,8 @@ func Test_updateWithChannels_jsonOutput(t *testing.T) {
 
 	var recs []jsonPackage
 	var result int
-	out := captureCheckOutput(t, func() int {
-		result, _, _ = updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, true, false)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		result, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, true, false)
 		return result
 	})
 
@@ -313,8 +300,8 @@ func Test_doCheck_jsonOutput_errorRecord(t *testing.T) {
 		newCheckPkg("brokentool", testVersionOne, goutil.UpdateChannelLatest),
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(deps, pkgs, 1, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, 1, 0, true)
 	})
 	if len(recs) != 1 {
 		t.Fatalf("got %d records, want 1", len(recs))
@@ -340,8 +327,8 @@ func Test_check_jsonFlag(t *testing.T) {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 
-	recs := readJSON(t, func() int {
-		return check(deps, cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		return check(deps, p, cmd, []string{})
 	})
 	if len(recs) == 0 {
 		t.Fatal("expected at least one JSON record from check --json")
@@ -362,8 +349,8 @@ func Test_list_jsonFlag(t *testing.T) {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 
-	recs := readJSON(t, func() int {
-		return list(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		return list(p, cmd, []string{})
 	})
 	if len(recs) == 0 {
 		t.Fatal("expected at least one JSON record from list --json")
@@ -407,8 +394,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 	var ambiguousGot int
-	out := captureCheckOutput(t, func() int {
-		ambiguousGot = list(ambiguousCmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		ambiguousGot = list(p, ambiguousCmd, []string{})
 		return ambiguousGot
 	})
 	if ambiguousGot != 1 {
@@ -428,8 +415,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = list(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = list(p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -462,7 +449,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = list(cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = list(p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("list --json on empty env = %d, want 0", got)
 		}
@@ -478,7 +465,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = check(defaultDependencies(), cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = check(defaultDependencies(), p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("check --json on empty env = %d, want 0", got)
 		}
@@ -494,7 +481,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = gup(defaultDependencies(), cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = gup(defaultDependencies(), p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("update --json on empty env = %d, want 0", got)
 		}
@@ -513,8 +500,8 @@ func Test_gup_jsonFlag(t *testing.T) {
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(deps, cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -569,8 +556,8 @@ func Test_gup_jsonFlag_excludeKeepsStdoutPure(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(deps, cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -599,8 +586,8 @@ func Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(deps, cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -625,8 +612,8 @@ func Test_gup_jsonFlag_partialFailureKeepsStdoutPure(t *testing.T) {
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(deps, cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 1 {

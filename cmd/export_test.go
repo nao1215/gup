@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -16,7 +15,6 @@ import (
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/fileutil"
 	"github.com/nao1215/gup/internal/goutil"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +46,8 @@ func Test_validPkgInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validPkgInfo(tt.args.pkgs)
+			p, _ := newTestPrinter()
+			got := validPkgInfo(p, tt.args.pkgs)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
@@ -60,32 +59,11 @@ func Test_export_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+		p, buf := newTestPrinter()
 
-		if got := export(&cobra.Command{}, []string{}); got != 1 {
+		if got := export(p, &cobra.Command{}, []string{}); got != 1 {
 			t.Errorf("export() = %v, want %v", got, 1)
 		}
-		if err := pw.Close(); err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer func() {
-			_ = pr.Close()
-		}()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
@@ -175,32 +153,11 @@ func Test_export(t *testing.T) {
 				}()
 			}
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := export(newExportCmd(), tt.args); got != tt.want {
+			if got := export(p, newExportCmd(), tt.args); got != tt.want {
 				t.Errorf("export() = %v, want %v", got, tt.want)
 			}
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer func() {
-				_ = pr.Close()
-			}()
 			got := strings.Split(buf.String(), "\n")
 
 			if tt.name != testNoConfigDir {
@@ -250,7 +207,8 @@ func Test_export_preservesChannelsFromCanonicalConfig(t *testing.T) {
 		t.Fatalf("failed to set --file: %v", err)
 	}
 
-	if got := export(cmd, []string{}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := export(p, cmd, []string{}); got != 0 {
 		t.Fatalf("export() = %d, want 0", got)
 	}
 
@@ -299,7 +257,8 @@ func Test_export_rejectsDirectoryDestination(t *testing.T) {
 	if err := cmd.Flags().Set("file", dest); err != nil {
 		t.Fatalf("failed to set --file: %v", err)
 	}
-	if got := export(cmd, []string{}); got != 1 {
+	p, _ := newTestPrinter()
+	if got := export(p, cmd, []string{}); got != 1 {
 		t.Fatalf("export() = %d, want 1 when --file points to a directory", got)
 	}
 
@@ -336,7 +295,8 @@ func Test_export_failsFastOnMalformedChannelSource(t *testing.T) {
 	if err := cmd.Flags().Set("file", dest); err != nil {
 		t.Fatalf("failed to set --file: %v", err)
 	}
-	if got := export(cmd, []string{}); got != 1 {
+	p, _ := newTestPrinter()
+	if got := export(p, cmd, []string{}); got != 1 {
 		t.Fatalf("export() = %d, want 1 on malformed channel source", got)
 	}
 	if fileutil.IsFile(dest) {
@@ -364,7 +324,8 @@ func Test_export_failsFastOnUnsupportedSchema(t *testing.T) {
 	}
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	if got := export(newExportCmd(), []string{}); got != 1 {
+	p, _ := newTestPrinter()
+	if got := export(p, newExportCmd(), []string{}); got != 1 {
 		t.Fatalf("export() = %d, want 1 on unsupported schema_version", got)
 	}
 }
@@ -383,7 +344,8 @@ func Test_export_emptyEnv_writesEmptyConfig(t *testing.T) {
 
 	t.Setenv("GOBIN", t.TempDir()) // existing but empty directory
 
-	if got := export(newExportCmd(), []string{}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := export(p, newExportCmd(), []string{}); got != 0 {
 		t.Fatalf("export() on empty env = %d, want 0", got)
 	}
 

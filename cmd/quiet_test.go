@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 const (
@@ -50,8 +51,8 @@ func Test_updateWithChannels_quiet(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got, _, _ = updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
 		return got
 	})
 	if got != 0 {
@@ -89,8 +90,8 @@ func Test_updateWithChannels_quiet_failed(t *testing.T) {
 	channelMap := map[string]goutil.UpdateChannel{quietNameUpdated: goutil.UpdateChannelLatest}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got, _, _ = updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, true)
 		return got
 	})
 	if got != 1 {
@@ -113,8 +114,8 @@ func Test_doCheck_quiet(t *testing.T) {
 	pkgs := quietMixedPkgs()
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = doCheck(deps, pkgs, 1, 0, true, true)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = doCheck(deps, p, pkgs, 1, 0, true, true)
 		return got
 	})
 	if got != 0 {
@@ -152,8 +153,8 @@ func Test_updateWithChannels_jsonQuiet(t *testing.T) {
 		quietNameUpToDate: goutil.UpdateChannelLatest,
 	}
 
-	recs := readJSON(t, func() int {
-		got, _, _ := updateWithChannels(deps, pkgs, false, false, 1, true, channelMap, nil, 0, true, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, true, true)
 		return got
 	})
 	if len(recs) != 2 {

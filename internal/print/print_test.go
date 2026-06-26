@@ -1,12 +1,9 @@
 // Package print defines functions to accept colored standard output and user input
-//
-//nolint:paralleltest
 package print
 
 import (
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -21,48 +18,21 @@ const (
 	testNoCheck      = "no check"
 )
 
-func TestInfo(t *testing.T) {
-	type args struct {
-		msg string
-	}
+func TestPrinter_Info(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
-		args args
+		msg  string
 		want []string
 	}{
-		{
-			name: testPrintMessage,
-			args: args{
-				msg: testMessage,
-			},
-			want: []string{testMessage, ""},
-		},
+		{name: testPrintMessage, msg: testMessage, want: []string{testMessage, ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := Stdout
-			orgStderr := Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			Stdout = pw
-			Stderr = pw
-
-			Info(tt.args.msg)
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			Stdout = orgStdout
-			Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			New(buf, buf).Info(tt.msg)
 			got := strings.Split(buf.String(), "\n")
-
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
@@ -70,48 +40,21 @@ func TestInfo(t *testing.T) {
 	}
 }
 
-func TestWarn(t *testing.T) {
-	type args struct {
-		msg string
-	}
+func TestPrinter_Warn(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
-		args args
+		msg  string
 		want []string
 	}{
-		{
-			name: testPrintMessage,
-			args: args{
-				msg: testMessage,
-			},
-			want: []string{"gup:WARN : test message", ""},
-		},
+		{name: testPrintMessage, msg: testMessage, want: []string{"gup:WARN : test message", ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := Stdout
-			orgStderr := Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			Stdout = pw
-			Stderr = pw
-
-			Warn(tt.args.msg)
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			Stdout = orgStdout
-			Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			New(buf, buf).Warn(tt.msg)
 			got := strings.Split(buf.String(), "\n")
-
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
@@ -119,96 +62,21 @@ func TestWarn(t *testing.T) {
 	}
 }
 
-func TestErr(t *testing.T) {
-	type args struct {
-		msg string
-	}
+func TestPrinter_Err(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
-		args args
+		msg  string
 		want []string
 	}{
-		{
-			name: testPrintMessage,
-			args: args{
-				msg: testMessage,
-			},
-			want: []string{"gup:ERROR: test message", ""},
-		},
+		{name: testPrintMessage, msg: testMessage, want: []string{"gup:ERROR: test message", ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := Stdout
-			orgStderr := Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			Stdout = pw
-			Stderr = pw
-
-			Err(tt.args.msg)
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			Stdout = orgStdout
-			Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			New(buf, buf).Err(tt.msg)
 			got := strings.Split(buf.String(), "\n")
-
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("value is mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-func TestHint(t *testing.T) {
-	type args struct {
-		msg string
-	}
-	tests := []struct {
-		name string
-		args args
-		want []string
-	}{
-		{
-			name: testPrintMessage,
-			args: args{
-				msg: testMessage,
-			},
-			want: []string{"gup:HINT : test message", ""},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := Stdout
-			orgStderr := Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			Stdout = pw
-			Stderr = pw
-
-			Hint(tt.args.msg)
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			Stdout = orgStdout
-			Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			got := strings.Split(buf.String(), "\n")
-
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
@@ -216,113 +84,72 @@ func TestHint(t *testing.T) {
 	}
 }
 
-func TestFatal(t *testing.T) {
-	type args struct {
-		msg string
+func TestPrinter_Hint(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		msg  string
+		want []string
+	}{
+		{name: testPrintMessage, msg: testMessage, want: []string{"gup:HINT : test message", ""}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			New(buf, buf).Hint(tt.msg)
+			got := strings.Split(buf.String(), "\n")
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("value is mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestPrinter_Fatal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
-		args     args
+		msg      string
 		want     []string
 		exitcode int
 	}{
-		{
-			name: testPrintMessage,
-			args: args{
-				msg: testMessage,
-			},
-			want:     []string{"gup:FATAL: test message", ""},
-			exitcode: 1,
-		},
+		{name: testPrintMessage, msg: testMessage, want: []string{"gup:FATAL: test message", ""}, exitcode: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := Stdout
-			orgStderr := Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			Stdout = pw
-			Stderr = pw
-
-			orgOsExit := OsExit
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			p := New(buf, buf)
 			exitCode := 0
-			OsExit = func(code int) {
-				exitCode = code
-			}
-			defer func() { OsExit = orgOsExit }()
+			p.exit = func(code int) { exitCode = code }
 
-			Fatal(tt.args.msg)
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			Stdout = orgStdout
-			Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
+			p.Fatal(tt.msg)
 			got := strings.Split(buf.String(), "\n")
-
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("value is mismatch (-want +got):\n%s", diff)
 			}
-
 			if exitCode != tt.exitcode {
 				t.Errorf("value is mismatch. want=%d got=%d", exitCode, tt.exitcode)
 			}
 		})
 	}
 }
-func TestQuestion(t *testing.T) {
-	type args struct {
-		ask string
-	}
+
+//nolint:paralleltest // mutates the process-global os.Stdin via mockStdin
+func TestPrinter_Question(t *testing.T) {
 	tests := []struct {
 		name  string
-		args  args
+		ask   string
 		input string
 		want  bool
 	}{
-		{
-			name:  "user input 'y'",
-			args:  args{testNoCheck},
-			input: "y",
-			want:  true,
-		},
-		{
-			name:  "user input 'yes'",
-			args:  args{testNoCheck},
-			input: "yes",
-			want:  true,
-		},
-		{
-			name:  "user input 'n'",
-			args:  args{testNoCheck},
-			input: "n",
-			want:  false,
-		},
-		{
-			name:  "user input 'no'",
-			args:  args{testNoCheck},
-			input: "no",
-			want:  false,
-		},
-		{
-			name:  "user input 'yes' after 'a'",
-			args:  args{testNoCheck},
-			input: "a\nyes",
-			want:  true,
-		},
-		{
-			name:  "user only input enter",
-			args:  args{testNoCheck},
-			input: "\nyes",
-			want:  true,
-		},
+		{name: "user input 'y'", ask: testNoCheck, input: "y", want: true},
+		{name: "user input 'yes'", ask: testNoCheck, input: "yes", want: true},
+		{name: "user input 'n'", ask: testNoCheck, input: "n", want: false},
+		{name: "user input 'no'", ask: testNoCheck, input: "no", want: false},
+		{name: "user input 'yes' after 'a'", ask: testNoCheck, input: "a\nyes", want: true},
+		{name: "user only input enter", ask: testNoCheck, input: "\nyes", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -332,22 +159,25 @@ func TestQuestion(t *testing.T) {
 			}
 			defer funcDefer()
 
-			if got := Question(tt.args.ask); got != tt.want {
+			buf := &bytes.Buffer{}
+			if got := New(buf, buf).Question(tt.ask); got != tt.want {
 				t.Errorf("Question() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestQuestion_FmtScanlnErr(t *testing.T) {
-	t.Run("fmt.Scanln() return error", func(t *testing.T) {
-		orgFmtScanln := FmtScanln
-		FmtScanln = func(a ...any) (n int, err error) {
+func TestPrinter_Question_ScanlnErr(t *testing.T) {
+	t.Parallel()
+	t.Run("scanln returns error", func(t *testing.T) {
+		t.Parallel()
+		buf := &bytes.Buffer{}
+		p := New(buf, buf)
+		p.scanln = func(_ ...any) (n int, err error) {
 			return -1, errors.New("some error")
 		}
-		defer func() { FmtScanln = orgFmtScanln }()
 
-		if got := Question(testNoCheck); got != false {
+		if got := p.Question(testNoCheck); got != false {
 			t.Errorf("Question() = %v, want %v", got, false)
 		}
 	})

@@ -1,11 +1,9 @@
-//nolint:paralleltest // tests capture the package-level print.Stdout/Stderr writers
+//nolint:paralleltest // tests mutate process-global state (GOBIN/XDG env, cwd)
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,29 +39,13 @@ func newCheckPkg(name, current string, channel goutil.UpdateChannel) goutil.Pack
 	}
 }
 
-// captureCheckOutput runs fn while capturing everything printed to stdout/stderr.
-func captureCheckOutput(t *testing.T, fn func() int) string {
+// captureCheckOutput runs fn with a buffer-backed Printer and returns everything
+// it wrote to stdout/stderr (both go to the same buffer, mirroring the previous
+// single-pipe capture).
+func captureCheckOutput(t *testing.T, fn func(p *print.Printer) int) string {
 	t.Helper()
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
-
-	fn()
-
-	_ = pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	p, buf := newTestPrinter()
+	fn(p)
 	return buf.String()
 }
 
@@ -94,8 +76,8 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 		newCheckPkg(testBinMasterTool, testVersionTwo, goutil.UpdateChannelMaster),
 	}
 
-	out := captureCheckOutput(t, func() int {
-		return doCheck(deps, pkgs, 1, 0, true, false)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return doCheck(deps, p, pkgs, 1, 0, true, false)
 	})
 
 	idx := strings.Index(out, "$ gup update ")
@@ -136,8 +118,8 @@ func Test_check_ambiguousConfigFailsFast(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), newCheckCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 
@@ -167,8 +149,8 @@ func Test_check_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), cmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -196,8 +178,8 @@ func Test_check_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 	}
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), cmd, []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -213,8 +195,8 @@ func Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 	t.Setenv("GOBIN", t.TempDir()) // empty environment
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), newCheckCmd(), []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 	if got != 0 {
@@ -243,8 +225,8 @@ func Test_check_failsFastOnMalformedConfig(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(defaultDependencies(), newCheckCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 	if got != 1 {
