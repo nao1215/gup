@@ -414,6 +414,23 @@ func TestResolveImportFilePathDirectoryCandidate(t *testing.T) { //nolint:parall
 			t.Fatalf("ResolveImportFilePath(xdg dir) error = %q, want it to mention it is a directory", err.Error())
 		}
 	})
+
+	// An explicit --file path that points at a directory must be rejected with the
+	// same precise "directory, not a gup.json file" error, rather than falling
+	// through to a misleading "not found" failure in import.
+	t.Run("explicit --file is a directory", func(t *testing.T) { //nolint:paralleltest // sibling subtests change working dir
+		dir := t.TempDir()
+		got, err := ResolveImportFilePath(dir)
+		if err == nil {
+			t.Fatalf("ResolveImportFilePath(explicit dir) = (%s, nil), want error", got)
+		}
+		if got != "" {
+			t.Fatalf("ResolveImportFilePath(explicit dir) path = %s, want empty", got)
+		}
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("ResolveImportFilePath(explicit dir) error = %q, want it to mention it is a directory", err.Error())
+		}
+	})
 }
 
 func TestResolveExportFilePath(t *testing.T) {

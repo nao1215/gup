@@ -122,6 +122,33 @@ func Test_runImport_fileNotFound(t *testing.T) {
 	}
 }
 
+// Test_runImport_fileIsDirectory verifies that `gup import --file <dir>` fails
+// fast with a precise "directory, not a gup.json file" error instead of the
+// misleading "is not found" message it would otherwise produce (IsFile reports
+// false for a directory).
+func Test_runImport_fileIsDirectory(t *testing.T) {
+	cmd := newImportCmd()
+	dir := t.TempDir()
+	if err := cmd.Flags().Set("file", dir); err != nil {
+		t.Fatal(err)
+	}
+
+	p, buf := newTestPrinter()
+
+	got := runImport(p, cmd, nil)
+
+	if got != 1 {
+		t.Errorf("runImport() = %v, want 1", got)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "is a directory, not a gup.json file") {
+		t.Errorf("expected directory error, got: %s", out)
+	}
+	if strings.Contains(out, "is not found") {
+		t.Errorf("directory path should not report 'is not found', got: %s", out)
+	}
+}
+
 func Test_runImport_emptyConf(t *testing.T) {
 	// Create a temporary conf file with no packages
 	tmpDir := t.TempDir()
