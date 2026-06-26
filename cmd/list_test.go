@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -46,45 +45,23 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			args:  args{},
 			want:  0,
 			stderr: []string{
-				"no binaries are installed under $GOPATH/bin or $GOBIN",
+				emptyEnvMessage,
 				"",
 			},
 		},
-	}
-	if runtime.GOOS == goosWindows {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stderr []string
-		}{
+		{
+			// A $GOBIN directory that does not exist yet is a normal first-run
+			// condition (#350): list treats it like an empty environment (exit 0
+			// + note) instead of failing with a read-dir error.
 			name:  testGobinEmpty,
 			gobin: testNoExistDir,
 			args:  args{},
-			want:  1,
+			want:  0,
 			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: The system cannot find the file specified.",
+				emptyEnvMessage,
 				"",
 			},
-		})
-	} else {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stderr []string
-		}{
-			name:  testGobinEmpty,
-			gobin: testNoExistDir,
-			args:  args{},
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
-				"",
-			},
-		})
+		},
 	}
 
 	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0o755); err != nil { //nolint:gosec
