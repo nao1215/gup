@@ -30,6 +30,9 @@ func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if strings.TrimSpace(os.Getenv("HOME")) == "" {
 		return errors.New("HOME environment variable is not set; cannot determine where to install shell completion files")
 	}
+	if err := validateCompletionPathEnv(); err != nil {
+		return err
+	}
 
 	return errors.Join(
 		makeBashCompletionFileIfNeeded(cmd),
@@ -263,6 +266,27 @@ func isSameFishCompletionFile(cmd *cobra.Command) bool {
 
 func isSameZshCompletionFile(cmd *cobra.Command) bool {
 	return zshCompletionSpec().upToDate(cmd)
+}
+
+// validateCompletionPathEnv rejects a relative XDG_DATA_HOME, XDG_CONFIG_HOME or
+// ZDOTDIR before any completion file is written. These variables are otherwise
+// used verbatim by xdgDataHome/xdgConfigHome/zshDotDir to build the install
+// paths, so a relative value would silently write completion files and the
+// .zshrc fpath block under the current working directory instead of the user's
+// home. gup never implicitly absolutizes them: a relative value is a
+// misconfiguration, so fail fast naming the offending variable, consistent with
+// the fail-fast HOME check in DeployShellCompletionFileIfNeeded. An unset
+// variable is fine - it falls back to a HOME-based absolute path.
+func validateCompletionPathEnv() error {
+	for _, name := range []string{"XDG_DATA_HOME", "XDG_CONFIG_HOME", "ZDOTDIR"} {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value != "" && !filepath.IsAbs(value) {
+			return fmt.Errorf(
+				"%s must be an absolute path to install shell completion files, but is a relative path: %q",
+				name, value)
+		}
+	}
+	return nil
 }
 
 // xdgDataHome returns the base directory for user data files, honoring
