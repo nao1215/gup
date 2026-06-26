@@ -174,6 +174,43 @@ func TestMakeBashCompletion_preservesDanglingSymlink(t *testing.T) {
 	}
 }
 
+// TestAppendFpathAtZshrc_symlinkCycleFailsCleanly verifies that a symlink cycle
+// at .zshrc is reported as an error rather than silently replacing one of the
+// links with a regular file. Without surfacing hop-limit exhaustion, the resolver
+// would return a still-symlink path and the atomic rename would clobber the link.
+func TestAppendFpathAtZshrc_symlinkCycleFailsCleanly(t *testing.T) {
+	if IsWindows() {
+		t.Skip("zsh completion is not deployed on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Build a cycle: ~/.zshrc -> ~/.zshrc.cycle -> ~/.zshrc.
+	link := zshrcPath()
+	other := filepath.Join(home, ".zshrc.cycle")
+	if err := os.Symlink(other, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(link, other); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendFpathAtZshrcIfNeeded(); err == nil {
+		t.Fatal("expected an error for a symlink cycle, got nil")
+	}
+
+	// Neither link may be replaced by a regular file.
+	for _, p := range []string{link, other} {
+		info, err := os.Lstat(p)
+		if err != nil {
+			t.Fatalf("Lstat(%s) error = %v", p, err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("symlink %s in a cycle was replaced by a regular file", p)
+		}
+	}
+}
+
 // TestMakeBashCompletion_atomicWriteFailureKeepsOriginal verifies that when the
 // final rename fails, an existing completion file keeps its original contents
 // (it is never truncated in place) and no temp file is left behind.
