@@ -296,6 +296,10 @@ func updateWithChannels(deps dependencies, pr *print.Printer, pkgs []goutil.Pack
 		}
 
 		if !shouldUpdate {
+			// Up to date once the ignored Go delta is set aside: hide that delta so
+			// the rendered line reads "Already up-to-date" instead of a phantom
+			// "goX to goY" for a package that is not being reinstalled.
+			hideIgnoredGoDelta(&p, ignoreGoUpdate, jsonOut)
 			return updateResult{
 				updated: false,
 				pkg:     p,

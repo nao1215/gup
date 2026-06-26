@@ -175,6 +175,11 @@ func doCheckWith(deps dependencies, p *print.Printer, pkgs []goutil.Package, cpu
 				shouldUpdate := modulePathChanged || !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 				if shouldUpdate {
 					status = statusUpdateAvailable
+				} else {
+					// Up to date once the ignored Go delta is set aside: hide that
+					// delta so the rendered line matches the decision instead of
+					// showing a Go diff the command will not act on.
+					hideIgnoredGoDelta(&p, ignoreGoUpdate, jsonOut)
 				}
 			}
 		}

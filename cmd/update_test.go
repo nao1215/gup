@@ -827,6 +827,59 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 	}
 }
 
+// Test_updateWithChannels_ignoreGoUpdate_hidesGoOnlyDelta verifies that when
+// only the Go toolchain differs (the package version is up to date) and
+// --ignore-go-update is set, the package is not updated AND the human-readable
+// line does not show a Go delta. The displayed text must agree with the internal
+// decision: nothing was updated, so the line reads "Already up-to-date" instead
+// of a phantom "goX to goY".
+func Test_updateWithChannels_ignoreGoUpdate_hidesGoOnlyDelta(t *testing.T) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+	deps.installLatest = func(context.Context, string) error {
+		t.Fatal("installLatest should not be called when only an ignored Go delta exists")
+		return nil
+	}
+	deps.installMainOrMaster = func(context.Context, string) error {
+		t.Fatal("installMainOrMaster should not be called")
+		return nil
+	}
+	deps.installByVersion = func(context.Context, string, string) error {
+		t.Fatal("installByVersion should not be called")
+		return nil
+	}
+
+	p, buf := newTestPrinter()
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersionNoDwarf5},
+		},
+	}
+
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
+	// 7th positional arg = ignoreGoUpdate = true.
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+
+	if result != 0 {
+		t.Fatalf("updateWithChannels() = %d, want 0", result)
+	}
+	if len(succeeded) != 1 {
+		t.Fatalf("succeeded = %d, want 1", len(succeeded))
+	}
+	out := buf.String()
+	if strings.Contains(out, testGoVersionNoDwarf5) {
+		t.Fatalf("ignored Go delta leaked into output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Already up-to-date") {
+		t.Fatalf("expected 'Already up-to-date' output consistent with no update, got:\n%s", out)
+	}
+}
+
 func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	oldNoColor := color.NoColor
 	color.NoColor = false

@@ -12,6 +12,21 @@ import (
 // recorded installed version).
 const unknownVersion = "unknown"
 
+// hideIgnoredGoDelta normalizes away a Go-toolchain delta that is being ignored
+// (--ignore-go-update, or an undetectable installed Go version) on a package that
+// is otherwise up to date, so the human-readable line reads consistently with the
+// "no update" decision instead of printing a phantom "goX to goY" the command
+// will not act on. It mirrors what checkPinned and updatePinned already do for
+// pinned packages. It is a no-op in --json mode so the machine-readable
+// installed_go_version stays the real installed toolchain (a documented,
+// factual field), keeping that contract unchanged.
+func hideIgnoredGoDelta(p *goutil.Package, ignoreGoUpdate, jsonOut bool) {
+	if jsonOut || !ignoreGoUpdate || p.GoVersion == nil {
+		return
+	}
+	p.GoVersion.Latest = p.GoVersion.Current
+}
+
 // currentToLatestStr renders the current->latest transition for an update,
 // coloring each version by whether it is the up-to-date side. The version
 // comparison rule itself is owned by goutil; this layer only decides how to
