@@ -83,6 +83,7 @@ const (
 	testNameSuccess       = "success"
 	testNameTest2         = "test2"
 	testUnknown           = "unknown"
+	testBinDummy          = "dummy"
 )
 
 // captureMigrateOutput runs fn with a buffer-backed printer and returns the
@@ -582,7 +583,7 @@ func Test_runMigrate_presentButUnreadableNotWarned(t *testing.T) {
 		// nothing migratable (the binary is present but unmanageable), NOT
 		// because the target was mislabeled as missing. Asserting only the
 		// absence of a warning would let a different failure mode slip in here.
-		if got := runMigrate(p, cmd, []string{before, after, "dummy"}); got != 1 {
+		if got := runMigrate(p, cmd, []string{before, after, testBinDummy}); got != 1 {
 			t.Fatalf("runMigrate() = %d, want 1 (nothing migratable)", got)
 		}
 	})
