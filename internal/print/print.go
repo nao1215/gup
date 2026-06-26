@@ -112,7 +112,7 @@ func (p *Printer) Fatal(err interface{}) {
 // returned error is non-nil only when reading the answer fails (e.g. EOF or a
 // closed stdin); callers must distinguish that read failure from a deliberate
 // "no", which returns (false, nil). Otherwise a failed read looks identical to a
-// cancellation, and a caller would treat a never-confirmed action as cancelled
+// cancellation, and a caller would treat a never-confirmed action as canceled
 // with a success exit code.
 func (p *Printer) Question(ask string) (bool, error) {
 	for {
