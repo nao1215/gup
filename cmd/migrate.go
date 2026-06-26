@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
@@ -124,10 +123,14 @@ func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
 		p.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
 		return 1
 	}
-	binList = pkgselect.FilterBinaryPaths(binList, binaries)
+	// Derive "missing" from the binary paths before filtering, so a requested
+	// name that exists on disk but can't be read (no build info) is not
+	// mislabeled as "not found". This matches update/check via MissingTargets.
+	missing := pkgselect.MissingTargets(binList, binaries)
+	filtered := pkgselect.FilterBinaryPaths(binList, binaries)
 	// migrate never reads GoVersion, so skip the "go version" subprocess.
-	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, binList)
-	warnMissingMigrateTargets(p, binaries, pkgs, beforePath)
+	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, filtered)
+	warnMissingMigrateTargets(p, missing, beforePath)
 
 	if len(pkgs) == 0 {
 		p.Err(fmt.Errorf("no go-install binary to migrate under %s", beforePath))
@@ -268,32 +271,13 @@ func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string,
 	return result
 }
 
-// warnMissingMigrateTargets warns about each requested binary name that was not
-// found among the migration targets, mirroring the target-selection UX of
-// 'gup update'. It is a no-op when no binaries were explicitly requested.
-func warnMissingMigrateTargets(pr *print.Printer, targets []string, pkgs []goutil.Package, beforePath string) {
-	if len(targets) == 0 {
-		return
-	}
-
-	present := make(map[string]struct{}, len(pkgs))
-	for _, p := range pkgs {
-		present[binname.NormalizeForMatch(p.Name)] = struct{}{}
-	}
-
-	seen := make(map[string]struct{}, len(targets))
-	for _, raw := range targets {
-		normalized := binname.NormalizeForMatch(raw)
-		if normalized == "" {
-			continue
-		}
-		if _, dup := seen[normalized]; dup {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		if _, ok := present[normalized]; !ok {
-			pr.Warn("not found '" + strings.TrimSpace(raw) + "' package in " + beforePath)
-		}
+// warnMissingMigrateTargets warns about each requested binary name that has no
+// binary under BEFORE_PATH, mirroring the target-selection UX of 'gup update'.
+// missing comes from pkgselect.MissingTargets (already trimmed and deduped, and
+// keyed off binary paths), so the migrate context only owns the wording.
+func warnMissingMigrateTargets(pr *print.Printer, missing []string, beforePath string) {
+	for _, name := range missing {
+		pr.Warn("not found '" + name + "' package in " + beforePath)
 	}
 }
 

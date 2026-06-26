@@ -566,6 +566,48 @@ func Test_runMigrate_allTargetsMissingWarns(t *testing.T) {
 	}
 }
 
+func Test_runMigrate_presentButUnreadableNotWarned(t *testing.T) {
+	before := filepath.Join("testdata", "check_fail")
+	after := t.TempDir()
+	t.Setenv("GOBIN", t.TempDir())
+
+	cmd := newMigrateCmd()
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		// "dummy" exists on disk under check_fail but its build info can't be
+		// read, so it never becomes a managed package. The missing check must
+		// key off binary paths, not resolved packages, so naming it yields no
+		// "not found" warning. This mirrors pkgselect.MissingTargets.
+		runMigrate(p, cmd, []string{before, after, "dummy"})
+	})
+
+	if strings.Contains(out, "not found") {
+		t.Fatalf("present-but-unreadable binary must not be warned as not found, got: %s", out)
+	}
+}
+
+func Test_runMigrate_missingTargetTrimAndDedup(t *testing.T) {
+	before := filepath.Join("testdata", "check_success")
+	after := t.TempDir()
+	t.Setenv("GOBIN", t.TempDir())
+
+	original := installByVersionMigrateCtx
+	t.Cleanup(func() { installByVersionMigrateCtx = original })
+	installByVersionMigrateCtx = func(context.Context, string, string) error { return nil }
+
+	cmd := newMigrateCmd()
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		// A padded target and its duplicate must collapse to a single warning
+		// showing the trimmed name.
+		if got := runMigrate(p, cmd, []string{before, after, testBinPosixer, "  ghost  ", "ghost"}); got != 0 {
+			t.Fatalf("runMigrate() = %d, want 0", got)
+		}
+	})
+
+	if c := strings.Count(out, "not found 'ghost'"); c != 1 {
+		t.Fatalf("expected exactly one trimmed 'ghost' warning, got %d: %s", c, out)
+	}
+}
+
 func Test_runMigrate_sameDirError(t *testing.T) {
 	dir := t.TempDir()
 	cmd := newMigrateCmd()
