@@ -94,97 +94,50 @@ func helper_stubImportInstaller(t *testing.T) {
 	})
 }
 
-// Runs a gup command, and return its output split by \n. The command's cobra
-// Run closures build their own colorable Printer over the process os.Stdout/
-// os.Stderr, so this captures by redirecting those real streams (not the print
-// package, which no longer has mutable globals).
+// helper_runGup runs a gup command and returns its output split by \n. It builds
+// the root command and wires a buffer onto it via cobra's SetOut/SetErr (which
+// the per-command Printer reads through cmd.OutOrStdout/ErrOrStderr), so output
+// is captured without redirecting the process-wide os.Stdout/os.Stderr.
 func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	t.Helper()
 
-	orgOSStdout := os.Stdout
-	orgOSStderr := os.Stderr
-	defer func() {
-		os.Stdout = orgOSStdout
-		os.Stderr = orgOSStderr
-	}()
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pr.Close() //nolint:errcheck // ignore close error in test
-	os.Stdout = pw
-	os.Stderr = pw
-
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	// Drain the pipe concurrently so a command that writes more than the pipe
-	// buffer does not deadlock.
-	buf := bytes.Buffer{}
-	copyDone := make(chan error, 1)
-	go func() {
-		_, copyErr := io.Copy(&buf, pr)
-		copyDone <- copyErr
-	}()
-
-	os.Args = args
-	err = Execute()
-	pw.Close() //nolint:errcheck,gosec // ignore close error in test
-	if copyErr := <-copyDone; copyErr != nil {
-		t.Fatal(copyErr)
-	}
+	buf, err := runRootWithBuffer(args)
 	if err != nil {
 		return nil, err
 	}
-
-	got := strings.Split(buf.String(), "\n")
-	return got, nil
+	return strings.Split(buf, "\n"), nil
 }
 
-// Runs a gup command and captures os.Stdout/os.Stderr (which the per-command
-// Printer wraps).
+// helper_runGupCaptureAllOutput runs a gup command and returns all of its output
+// (stdout and stderr merged), captured via the root command's SetOut/SetErr.
 func helper_runGupCaptureAllOutput(t *testing.T, args []string) (string, error) {
 	t.Helper()
-
-	orgOSStdout := os.Stdout
-	orgOSStderr := os.Stderr
-	defer func() {
-		os.Stdout = orgOSStdout
-		os.Stderr = orgOSStderr
-	}()
-
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pr.Close() //nolint:errcheck // ignore close error in test
-
-	os.Stdout = pw
-	os.Stderr = pw
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	buf := bytes.Buffer{}
-	copyDone := make(chan error, 1)
-	go func() {
-		_, copyErr := io.Copy(&buf, pr)
-		copyDone <- copyErr
-	}()
+	return runRootWithBuffer(args)
+}
 
-	os.Args = args
-	runErr := Execute()
-	pw.Close() //nolint:errcheck,gosec // ignore close error in test
-
-	if err := <-copyDone; err != nil {
-		t.Fatal(err)
-	}
-
-	return buf.String(), runErr
+// runRootWithBuffer executes the root command with args (the first element is the
+// "gup" program name, like os.Args), capturing stdout and stderr into one buffer
+// via cobra's configurable writers. Returning the buffer and the Execute error
+// keeps the helpers free of any process-global stream redirection.
+func runRootWithBuffer(args []string) (string, error) {
+	buf := &bytes.Buffer{}
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs(args[1:])
+	err := rootCmd.Execute()
+	return buf.String(), err
 }
 
 func setupXDGBase(t *testing.T) {

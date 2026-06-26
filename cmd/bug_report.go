@@ -71,8 +71,9 @@ Any other useful data to share.
 	url := "https://github.com/nao1215/gup/issues/new?" + q.Encode()
 
 	if !openBrowser(url) {
-		fmt.Print("Please file a new issue at https://github.com/nao1215/gup/issues/new using this template:\n\n")
-		fmt.Print(body)
+		out := cmd.OutOrStdout()
+		_, _ = fmt.Fprint(out, "Please file a new issue at https://github.com/nao1215/gup/issues/new using this template:\n\n")
+		_, _ = fmt.Fprint(out, body)
 	}
 
 	return 0

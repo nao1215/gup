@@ -41,7 +41,7 @@ development environment). Run 'gup unpin' to allow the tool to update again.`,
 		Args:              cobra.RangeArgs(pinMinArgs, pinMaxArgs),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runPin(print.NewColorable(), cmd, args))
+			OsExit(runPin(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
@@ -62,7 +62,7 @@ nothing and succeeds.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runUnpin(print.NewColorable(), cmd, args))
+			OsExit(runUnpin(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")

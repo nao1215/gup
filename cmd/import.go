@@ -33,7 +33,7 @@ versions recorded in that gup.json.`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runImport(print.NewColorable(), cmd, args))
+			OsExit(runImport(printerFor(cmd), cmd, args))
 		},
 	}
 

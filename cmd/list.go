@@ -22,7 +22,7 @@ func newListCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(list(print.NewColorable(), cmd, args))
+			OsExit(list(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")

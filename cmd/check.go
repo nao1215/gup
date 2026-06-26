@@ -28,7 +28,7 @@ and displays the name of the binary that needs to be updated.
 It does not update them.`,
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(check(defaultDependencies(), print.NewColorable(), cmd, args))
+			OsExit(check(defaultDependencies(), printerFor(cmd), cmd, args))
 		},
 	}
 
@@ -271,7 +271,10 @@ func printUpdatablePkgInfo(p *print.Printer, pkgs []goutil.Package) {
 	}
 
 	const indentSpaces = 11
-	fmt.Println("")
+	// Emit the blank separator line through the Printer (not fmt.Println, which
+	// writes to the real stdout) so all of this command's output flows through
+	// one sink and is captured together in tests.
+	p.Info("")
 	p.Info("If you want to update binaries, run the following command.\n" +
 		strings.Repeat(" ", indentSpaces) +
 		"$ gup update " + b.String())

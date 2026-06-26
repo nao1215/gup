@@ -25,7 +25,7 @@ func newManCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(man(print.NewColorable(), cmd, args))
+			OsExit(man(printerFor(cmd), cmd, args))
 		},
 	}
 	return cmd

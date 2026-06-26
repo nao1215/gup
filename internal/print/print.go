@@ -34,8 +34,17 @@ func New(out, err io.Writer) *Printer {
 // NewColorable returns the production Printer, writing to the colorable wrappers
 // of the process stdout/stderr so escape sequences render on every platform.
 func NewColorable() *Printer {
-	return New(colorable.NewColorableStdout(), colorable.NewColorableStderr())
+	return New(ColorableStdout(), ColorableStderr())
 }
+
+// ColorableStdout returns the process stdout wrapped so escape sequences render
+// on every platform. It lets the command layer wire the production output sink
+// onto the root command (via cobra SetOut) without importing go-colorable.
+func ColorableStdout() io.Writer { return colorable.NewColorableStdout() }
+
+// ColorableStderr returns the process stderr wrapped so escape sequences render
+// on every platform.
+func ColorableStderr() io.Writer { return colorable.NewColorableStderr() }
 
 // Out returns the writer used for normal output, for callers that must write
 // structured output (JSON, config files, formatted tables) directly.
