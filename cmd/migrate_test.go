@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -181,6 +182,35 @@ func Test_validateMigratePaths(t *testing.T) {
 		}
 		if _, err := os.Stat(after); !errors.Is(err, os.ErrNotExist) {
 			t.Fatal("AFTER_PATH should not be created during dry-run")
+		}
+	})
+
+	// Reproduces the dry-run validation gap: a real migrate creates AFTER_PATH
+	// with os.MkdirAll and fails when it can't (e.g. the parent directory is not
+	// writable). dry-run skipped that step entirely and reported success, so the
+	// dry-run promised a migration that the real run could never perform.
+	t.Run("dry-run fails when AFTER_PATH cannot be created", func(t *testing.T) {
+		if runtime.GOOS == goosWindows {
+			t.Skip("POSIX directory permission semantics are required")
+		}
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory write permissions")
+		}
+		before := t.TempDir()
+		parent := t.TempDir()
+		if err := os.Chmod(parent, 0o555); err != nil { //nolint:gosec // a read-only (but traversable) directory is the condition under test
+			t.Fatal(err)
+		}
+		// Restore write permission so t.TempDir cleanup can remove it.
+		t.Cleanup(func() { _ = os.Chmod(parent, 0o755) }) //nolint:gosec // restore standard dir perms for cleanup
+
+		after := filepath.Join(parent, "gobin")
+		if err := validateMigratePaths(before, after, true); err == nil {
+			t.Fatal("dry-run should fail when AFTER_PATH cannot be created")
+		}
+		// The probe must not leave the destination behind.
+		if _, err := os.Stat(after); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("AFTER_PATH must not be created during dry-run validation")
 		}
 	})
 }
