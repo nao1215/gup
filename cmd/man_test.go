@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -36,6 +37,144 @@ func TestGenerateManpages(t *testing.T) {
 			t.Error("No man files found")
 		}
 	})
+}
+
+// Test_copyOneManpage_failedWriteDoesNotCorruptExisting verifies that when the
+// final rename fails, an existing destination man page is left untouched (not
+// truncated or partially overwritten) and no temp artifact is left behind.
+//
+//nolint:paralleltest // mutates the package-level renameFunc
+func Test_copyOneManpage_failedWriteDoesNotCorruptExisting(t *testing.T) {
+	origRename := renameFunc
+	t.Cleanup(func() { renameFunc = origRename })
+
+	src := filepath.Join(t.TempDir(), "gup.1")
+	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := t.TempDir()
+	existing := filepath.Join(dst, "gup.1.gz")
+	if err := os.WriteFile(existing, []byte("PREVIOUS"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	renameFunc = func(_, _ string) error {
+		return errors.New("forced rename failure")
+	}
+
+	if err := copyOneManpage(discardPrinter(), src, dst); err == nil {
+		t.Fatal("copyOneManpage() should return an error when the rename fails")
+	}
+
+	got, err := os.ReadFile(filepath.Clean(existing))
+	if err != nil {
+		t.Fatalf("existing man page should survive a failed write: %v", err)
+	}
+	if string(got) != "PREVIOUS" {
+		t.Fatalf("existing man page was corrupted: got %q, want %q", string(got), "PREVIOUS")
+	}
+
+	assertNoTempFiles(t, dst, "gup.1.gz")
+}
+
+// Test_copyOneManpage_preservesSymlink verifies that when the destination man
+// page is a symlink, the atomic write rewrites the link target and keeps the
+// symlink intact rather than replacing it with a regular file.
+func Test_copyOneManpage_preservesSymlink(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink behavior is POSIX-specific")
+	}
+	t.Parallel()
+
+	src := filepath.Join(t.TempDir(), "gup.1")
+	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := t.TempDir()
+	realTarget := filepath.Join(t.TempDir(), "real-gup.1.gz")
+	if err := os.WriteFile(realTarget, []byte("OLD"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dst, "gup.1.gz")
+	if err := os.Symlink(realTarget, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := copyOneManpage(discardPrinter(), src, dst); err != nil {
+		t.Fatalf("copyOneManpage() error = %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("man page symlink was replaced by a regular file")
+	}
+	// The link target must now hold the freshly generated gzip content, not "OLD".
+	got, err := os.ReadFile(filepath.Clean(realTarget))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) == "OLD" || len(got) == 0 {
+		t.Fatalf("man page was not written through the symlink to its target: %q", string(got))
+	}
+}
+
+// Test_copyOneManpage_worldReadable verifies the generated man page keeps a
+// world-readable mode (0644), matching the previous os.Create behavior, rather
+// than the 0600 that os.CreateTemp would otherwise leave behind.
+func Test_copyOneManpage_worldReadable(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("POSIX file mode semantics do not apply on Windows")
+	}
+	t.Parallel()
+
+	src := filepath.Join(t.TempDir(), "gup.1")
+	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dst := t.TempDir()
+
+	if err := copyOneManpage(discardPrinter(), src, dst); err != nil {
+		t.Fatalf("copyOneManpage() error = %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(dst, "gup.1.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Fatalf("man page mode = %o, want 0644 (world-readable)", got)
+	}
+}
+
+// Test_copyOneManpage_rejectsDirectory verifies a destination that is a directory
+// is rejected before any temp file is staged, so the rename-replace flow cannot
+// clobber a directory tree.
+func Test_copyOneManpage_rejectsDirectory(t *testing.T) {
+	t.Parallel()
+
+	src := filepath.Join(t.TempDir(), "gup.1")
+	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dst := t.TempDir()
+	// Pre-create a directory exactly where the .gz output would be written.
+	if err := os.Mkdir(filepath.Join(dst, "gup.1.gz"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	err := copyOneManpage(discardPrinter(), src, dst)
+	if err == nil {
+		t.Fatal("copyOneManpage() should reject a directory destination")
+	}
+	if info, statErr := os.Stat(filepath.Join(dst, "gup.1.gz")); statErr != nil || !info.IsDir() {
+		t.Fatalf("directory destination should be untouched, stat err = %v", statErr)
+	}
+	assertNoTempFiles(t, dst, "gup.1.gz")
 }
 
 func TestManPaths(t *testing.T) {
