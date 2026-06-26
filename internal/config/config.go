@@ -88,6 +88,13 @@ func DirPath() string {
 func ResolveImportFilePath(explicitPath string) (string, error) {
 	explicitPath = strings.TrimSpace(explicitPath)
 	if explicitPath != "" {
+		// An explicit --file path that points at a directory is a user mistake.
+		// Reject it here with a precise error instead of letting import fall
+		// through to a misleading "not found" (IsFile reports false for a
+		// directory), matching the auto-detected-candidate handling below.
+		if fileutil.IsDir(explicitPath) {
+			return "", fmt.Errorf("%s is a directory, not a gup.json file", explicitPath)
+		}
 		return explicitPath, nil
 	}
 
