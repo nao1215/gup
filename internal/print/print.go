@@ -107,7 +107,14 @@ func (p *Printer) Fatal(err interface{}) {
 // Question displays the question on the normal output and receives an answer
 // from the user. It is interactive and single-threaded (never shared with
 // parallel workers), so the blocking scanln runs outside the write lock.
-func (p *Printer) Question(ask string) bool {
+//
+// The returned bool reports the user's answer (true for yes, false for no). The
+// returned error is non-nil only when reading the answer fails (e.g. EOF or a
+// closed stdin); callers must distinguish that read failure from a deliberate
+// "no", which returns (false, nil). Otherwise a failed read looks identical to a
+// cancellation, and a caller would treat a never-confirmed action as cancelled
+// with a success exit code.
+func (p *Printer) Question(ask string) (bool, error) {
 	for {
 		var response string
 
@@ -119,17 +126,16 @@ func (p *Printer) Question(ask string) bool {
 			// "yes" is the default.
 			// https://github.com/nao1215/gup/issues/146
 			if strings.Contains(err.Error(), "expected newline") {
-				return true
+				return true, nil
 			}
-			p.Err(err)
-			return false
+			return false, err
 		}
 
 		switch strings.ToLower(response) {
 		case "y", "yes":
-			return true
+			return true, nil
 		case "n", "no":
-			return false
+			return false, nil
 		default:
 		}
 	}
