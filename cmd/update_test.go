@@ -200,6 +200,34 @@ func Test_gup_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 }
 
+// Test_gup_emptyEnv_validatesAutoDetectedMalformedConfig verifies that update
+// fails fast on a malformed auto-detected (user-level) config even on an empty
+// environment with no --file, instead of silently succeeding.
+func Test_gup_emptyEnv_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %d, want 1 for a malformed auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), out)
+	}
+}
+
 // Test_gup_emptyEnv_validatesExplicitDirectoryFile verifies #368 for update when
 // --file points to a directory.
 func Test_gup_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {

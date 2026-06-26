@@ -54,11 +54,12 @@ func list(p *print.Printer, cmd *cobra.Command, _ []string) int {
 
 	if jsonOut {
 		// An empty environment has no packages to annotate, so emit a valid
-		// empty JSON array and exit 0 without resolving config (#350). An
-		// explicitly named --file is still validated for consistency with
-		// check/update (#368).
+		// empty JSON array and exit 0. The config that would be read (explicit
+		// --file or auto-detected) is still validated for consistency with
+		// check/update, so an ambiguous or malformed config fails fast instead of
+		// being silently ignored just because no binaries are installed (#368).
 		if len(pkgs) == 0 {
-			if err := configstate.ValidateExplicitFile(confFile); err != nil {
+			if err := configstate.ValidateResolvedConfig(confFile); err != nil {
 				p.Err(err)
 				return 1
 			}

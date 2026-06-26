@@ -187,6 +187,67 @@ func Test_check_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 	}
 }
 
+// Test_check_emptyEnv_validatesAutoDetectedMalformedConfig verifies that an
+// empty environment fails fast on a malformed auto-detected (user-level) config
+// even when no --file is given. Without validation, a broken gup.json would be
+// silently ignored just because zero binaries are installed.
+func Test_check_emptyEnv_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for a malformed auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), out)
+	}
+}
+
+// Test_check_emptyEnv_validatesAutoDetectedAmbiguousConfig verifies that an
+// empty environment still fails fast when both the user-level config and
+// ./gup.json exist and no --file is given (the same ambiguity a non-empty
+// environment rejects).
+func Test_check_emptyEnv_validatesAutoDetectedAmbiguousConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for an ambiguous auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, "--file") {
+		t.Errorf("expected ambiguity error mentioning --file, got: %s", out)
+	}
+}
+
 // Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem is the #368 regression
 // guard: an empty environment with no explicit config problem still exits 0.
 func Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {

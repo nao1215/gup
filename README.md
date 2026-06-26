@@ -262,6 +262,8 @@ An empty global environment (no binaries installed by `go install` yet) is treat
 
 Naming a binary that is not installed, or excluding every binary, is still a usage error and exits `1`.
 
+A config problem is also still reported even on an empty environment: if the `gup.json` that would be read (an explicit `--file`, or an auto-detected one) is malformed, has an unsupported schema/channel/pin, or is ambiguous (both the user-level config and `./gup.json` exist with no `--file`), `check`, `update`, and `list --json` fail fast and exit `1` instead of silently ignoring it.
+
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
 `gup.json` stores each tool's import path, the recorded binary `version`, and its update `channel` (`latest` / `main` / `master` / `pinned`). For `channel: "pinned"`, `version` is the exact target version the tool is held at; for the other channels it is the version that was recorded at export time. `import` installs the exact version written in the file, and a pinned package stays pinned after import.

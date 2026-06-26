@@ -54,22 +54,25 @@ func ReadFileIfExists(path string) ([]goutil.Package, error) {
 	return pkgs, nil
 }
 
-// ValidateExplicitFile validates an explicitly provided --file path so that
-// 'check', 'update' and 'list' honor it even on an empty environment, where the
-// normal config read is otherwise skipped (#368). An empty confFile means no
-// --file was given, so there is nothing to validate. A malformed file, an
-// unsupported schema version, or a directory path is reported as an error; a
-// non-existent path is left as "no config", matching the non-empty-environment
-// behavior.
-func ValidateExplicitFile(confFile string) error {
-	if strings.TrimSpace(confFile) == "" {
-		return nil
-	}
-	path, err := config.ResolveImportFilePath(confFile)
+// ValidateResolvedConfig validates the gup.json that this run would read,
+// whether it is named explicitly with --file or auto-detected, so that an empty
+// environment fails fast on the same config problems a non-empty environment
+// would, instead of silently succeeding just because zero binaries are installed
+// (#368). An empty confFile means auto-detection: when both the user-level
+// config and ./gup.json exist the choice is ambiguous and an error is returned,
+// matching the non-empty path. A directory where a file is expected, a malformed
+// file, an unsupported schema version, or invalid channel/pin data are all
+// reported as errors; a non-existent resolved path is left as "no config".
+//
+// This mirrors the resolution ResolveAndApplyChannels performs (minus the
+// channel application, which is a no-op on an empty package list), so empty and
+// non-empty environments validate identically.
+func ValidateResolvedConfig(confFile string) error {
+	confReadPath, err := config.ResolveImportFilePath(confFile)
 	if err != nil {
 		return err
 	}
-	_, err = ReadFileIfExists(path)
+	_, err = ReadFileIfExists(confReadPath)
 	return err
 }
 
