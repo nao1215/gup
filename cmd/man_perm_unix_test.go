@@ -5,7 +5,6 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 )
 
@@ -13,8 +12,10 @@ import (
 // gets the same permissions os.Create produced (0666 & ^umask), rather than a
 // hardcoded 0644. Under a restrictive umask (e.g. 077) the file must NOT be
 // world-readable, so a fixed 0644 would be an unintended permission widening.
+// The cached processUmask is injected so the assertion is deterministic and does
+// not mutate the real process umask.
 //
-//nolint:paralleltest // mutates the process-global umask
+//nolint:paralleltest // mutates the package-level processUmask
 func Test_copyOneManpage_respectsUmask(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -28,8 +29,9 @@ func Test_copyOneManpage_respectsUmask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			old := syscall.Umask(tt.umask)
-			defer syscall.Umask(old)
+			old := processUmask
+			processUmask = tt.umask
+			defer func() { processUmask = old }()
 
 			src := filepath.Join(t.TempDir(), "gup.1")
 			if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
@@ -54,14 +56,15 @@ func Test_copyOneManpage_respectsUmask(t *testing.T) {
 
 // Test_copyOneManpage_preservesExistingMode verifies that replacing an existing
 // man page keeps that file's own permissions instead of resetting them to the
-// new-file default.
+// new-file default, regardless of the umask.
 //
-//nolint:paralleltest // mutates the process-global umask
+//nolint:paralleltest // mutates the package-level processUmask
 func Test_copyOneManpage_preservesExistingMode(t *testing.T) {
 	// A permissive umask must not influence the result: the existing file's mode
 	// wins when the destination already exists.
-	old := syscall.Umask(0o000)
-	defer syscall.Umask(old)
+	old := processUmask
+	processUmask = 0o000
+	defer func() { processUmask = old }()
 
 	src := filepath.Join(t.TempDir(), "gup.1")
 	if err := os.WriteFile(src, []byte("manpage source"), 0o600); err != nil {
@@ -69,9 +72,12 @@ func Test_copyOneManpage_preservesExistingMode(t *testing.T) {
 	}
 	dst := t.TempDir()
 	existing := filepath.Join(dst, "gup.1.gz")
-	// Group-readable but not world-readable; with umask 000 above, WriteFile keeps
-	// these exact bits, the non-default mode we expect copyOneManpage to preserve.
-	if err := os.WriteFile(existing, []byte("OLD"), 0o640); err != nil { //nolint:gosec // intentional non-default mode to assert preservation
+	if err := os.WriteFile(existing, []byte("OLD"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Group-readable but not world-readable: a non-default mode that the real
+	// ambient umask cannot influence, so the assertion stays deterministic.
+	if err := os.Chmod(existing, 0o640); err != nil { //nolint:gosec // intentional non-default mode to assert preservation
 		t.Fatal(err)
 	}
 
