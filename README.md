@@ -22,7 +22,7 @@ gup updates and manages the global Go command-line tools in your `$GOBIN`. `go i
 - Windows
 
 ## How to install
-gup is already available via `winget`, `mise`, and `nix` in addition to `go install` and Homebrew.
+gup is already available via `winget`, `mise`, `nix`, and `aqua` in addition to `go install` and Homebrew.
 
 ### Use "go install"
 If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
@@ -49,6 +49,12 @@ mise use -g gup@latest
 ### Use nix (Nix profile)
 ```shell
 nix profile install nixpkgs#gogup
+```
+
+### Use aqua
+gup is registered in the [aqua](https://aquaproj.github.io/) standard registry. Add it to your `aqua.yaml`:
+```shell
+aqua g -i nao1215/gup
 ```
 
 ### Install from Package or Binary
