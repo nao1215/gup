@@ -621,6 +621,55 @@ func Test_isModuleBinary(t *testing.T) {
 	}
 }
 
+func Test_isStandardLibraryCommand(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		importPath string
+		want       bool
+	}{
+		{name: "cmd/go", importPath: "cmd/go", want: true},
+		{name: "cmd/gofmt", importPath: "cmd/gofmt", want: true},
+		{name: "bare cmd", importPath: "cmd", want: true},
+		{name: "third-party github", importPath: "github.com/nao1215/gup", want: false},
+		{name: "third-party with cmd subdir", importPath: "github.com/Songmu/ghch/cmd/ghch", want: false},
+		{name: "dotless host with cmd subdir", importPath: "localhost/cmd/tool", want: false},
+		{name: "empty", importPath: "", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isStandardLibraryCommand(tt.importPath); got != tt.want {
+				t.Errorf("isStandardLibraryCommand(%q) = %v, want %v", tt.importPath, got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_shouldManageBinary(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		importPath     string
+		mainModulePath string
+		want           bool
+	}{
+		{name: "third-party module", importPath: "github.com/nao1215/gup", mainModulePath: "github.com/nao1215/gup", want: true},
+		{name: "stdlib command without main module", importPath: "cmd/gofmt", mainModulePath: "", want: false},
+		// Even if a standard library command ever records a main module, it must
+		// still be skipped: "go install cmd/gofmt@latest" is always rejected
+		// (issue #206).
+		{name: "stdlib command with main module", importPath: "cmd/gofmt", mainModulePath: "cmd/gofmt", want: false},
+		// GOPATH-mode/local build: no main module, so it cannot be managed
+		// (issue #299).
+		{name: "no main module", importPath: "github.com/x/y", mainModulePath: "", want: false},
+		// Dotless third-party hosts are still managed when a main module exists.
+		{name: "dotless host module", importPath: "localhost/tool", mainModulePath: "localhost/tool", want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldManageBinary(tt.importPath, tt.mainModulePath); got != tt.want {
+				t.Errorf("shouldManageBinary(%q, %q) = %v, want %v", tt.importPath, tt.mainModulePath, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetPackageInformation_std_cmd_filtered(t *testing.T) {
 	// Find gofmt binary, which is a standard library command (Path: "cmd/gofmt",
 	// no main module). GetPackageInformation should filter it out because it
