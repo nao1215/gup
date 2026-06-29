@@ -86,6 +86,37 @@ func isModuleBinary(mainModulePath string) bool {
 	return mainModulePath != ""
 }
 
+// isStandardLibraryCommand reports whether an import path is a Go standard
+// library command such as "cmd/go" or "cmd/gofmt". These ship with the Go
+// toolchain and "go install <path>@latest" rejects them with "argument must not
+// be a package in the standard library", so gup must skip them.
+//
+// This matters when Go is installed via mise (and similar tools), which places
+// the toolchain commands in $GOBIN alongside user-installed binaries, so gup
+// finds them and would otherwise try to reinstall them (issue #206). All Go
+// commands live under the "cmd/" import-path prefix, and no third-party module
+// can claim that prefix (its import path always starts with a host element),
+// making this check unambiguous.
+func isStandardLibraryCommand(importPath string) bool {
+	return importPath == "cmd" || strings.HasPrefix(importPath, "cmd/")
+}
+
+// shouldManageBinary reports whether gup can manage a binary, given its import
+// path and main module path from build info. It skips Go standard library
+// commands (which cannot be reinstalled with "go install <path>@latest"; issue
+// #206) and binaries with no recorded main module, such as GOPATH-mode or local
+// "go build" binaries (issue #299).
+//
+// The standard library check is independent of the main module path so a
+// toolchain command is skipped even if its build info ever records a main module,
+// rather than relying solely on the empty-main-module heuristic.
+func shouldManageBinary(importPath, mainModulePath string) bool {
+	if isStandardLibraryCommand(importPath) {
+		return false
+	}
+	return isModuleBinary(mainModulePath)
+}
+
 // GetPackageInformation return golang package information including the latest
 // installed Go toolchain version. Use it for commands that compare Go versions
 // (check, update). Binary info is read in parallel using a worker pool.
@@ -138,7 +169,7 @@ func collectPackageInformation(p *print.Printer, binList []string, goVer string)
 				p.Warn(err)
 				return indexedPkg{}
 			}
-			if !isModuleBinary(info.Main.Path) {
+			if !shouldManageBinary(info.Path, info.Main.Path) {
 				return indexedPkg{}
 			}
 			pkg := Package{
