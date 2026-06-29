@@ -25,7 +25,7 @@ gup met à jour et gère les outils Go en ligne de commande installés globaleme
 - Windows
 
 ## Comment installer
-gup est aussi disponible via `winget`, `mise` et `nix`, en plus de `go install` et Homebrew.
+gup est aussi disponible via `winget`, `mise`, `nix` et `aqua`, en plus de `go install` et Homebrew.
 
 ### Utiliser "go install"
 Si vous n'avez pas l'environnement de développement golang installé sur votre système, veuillez installer golang depuis le [site officiel golang](https://go.dev/doc/install).
@@ -52,6 +52,12 @@ mise use -g gup@latest
 ### Utiliser nix (profil Nix)
 ```shell
 nix profile install nixpkgs#gogup
+```
+
+### Utiliser aqua
+gup est enregistré dans le registre standard d'[aqua](https://aquaproj.github.io/). Ajoutez-le à votre `aqua.yaml` :
+```shell
+aqua g -i nao1215/gup
 ```
 
 ### Installer depuis un package ou un binaire

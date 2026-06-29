@@ -25,7 +25,7 @@ gup обновляет и управляет глобальными инстру
 - Windows
 
 ## Как установить
-gup уже доступен через `winget`, `mise` и `nix` помимо `go install` и Homebrew.
+gup уже доступен через `winget`, `mise`, `nix` и `aqua` помимо `go install` и Homebrew.
 
 ### Использовать "go install"
 Если на вашей системе не установлена среда разработки golang, пожалуйста, установите golang с [официального сайта golang](https://go.dev/doc/install).
@@ -52,6 +52,12 @@ mise use -g gup@latest
 ### Использовать nix (профиль Nix)
 ```shell
 nix profile install nixpkgs#gogup
+```
+
+### Использовать aqua
+gup зарегистрирован в стандартном реестре [aqua](https://aquaproj.github.io/). Добавьте его в ваш `aqua.yaml`:
+```shell
+aqua g -i nao1215/gup
 ```
 
 ### Установка из пакета или бинарного файла

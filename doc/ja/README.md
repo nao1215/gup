@@ -47,7 +47,7 @@ Go 1.24 に組み込まれた [`go tool`](https://go.dev/doc/modules/managing-de
 - Windows
 
 ## インストール方法
-gup は `go install` と Homebrew に加えて、`winget`、`mise`、`nix` からもインストールできます。
+gup は `go install` と Homebrew に加えて、`winget`、`mise`、`nix`、`aqua` からもインストールできます。
 
 ### "go install"を使用
 システムにGolang開発環境がインストールされていない場合は、[Golang公式サイト](https://go.dev/doc/install)からGolangをインストールしてください。
@@ -74,6 +74,12 @@ mise use -g gup@latest
 ### nixを使用（Nix profile）
 ```shell
 nix profile install nixpkgs#gogup
+```
+
+### aquaを使用
+gup は [aqua](https://aquaproj.github.io/) の標準レジストリに登録されています。`aqua.yaml` に追加してください:
+```shell
+aqua g -i nao1215/gup
 ```
 
 ### パッケージまたはバイナリからインストール
