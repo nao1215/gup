@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/vercache"
 )
 
@@ -12,10 +13,10 @@ import (
 // Threading these through the operation flow as a value (rather than reading
 // package-level globals deep inside the business logic) lets the runner take its
 // I/O-bound collaborators explicitly, and lets a test inject fakes by building a
-// dependencies value instead of mutating shared globals. The package-level seam
-// variables remain as the single default wiring (defaultDependencies) so the
-// existing suite keeps working; new tests can inject directly and run in
-// parallel.
+// dependencies value instead of mutating shared globals. defaultDependencies is
+// the single place that names the real goutil operations, so the rest of the
+// package depends only on the injected value and tests inject directly and run
+// in parallel.
 type dependencies struct {
 	getLatestVer        func(ctx context.Context, modulePath string) (string, error)
 	getVerByRef         func(ctx context.Context, modulePath, ref string) (string, error)
@@ -24,17 +25,17 @@ type dependencies struct {
 	installByVersion    func(ctx context.Context, importPath, version string) error
 }
 
-// defaultDependencies wires the operation seams used in production. It is the one
-// place that reads the package-level lookup/install variables, so the business
-// logic (newVerCache, updatePinned, installWithSelectedVersion) depends only on
-// the injected value.
+// defaultDependencies wires the real goutil operations used in production. It is
+// the one place that names them, so the business logic (newVerCache,
+// updatePinned, installWithSelectedVersion) and the command entry points depend
+// only on the injected value.
 func defaultDependencies() dependencies {
 	return dependencies{
-		getLatestVer:        getLatestVerCtx,
-		getVerByRef:         getVerByRefCtx,
-		installLatest:       installLatestCtx,
-		installMainOrMaster: installMainOrMasterCtx,
-		installByVersion:    installByVersionUpdCtx,
+		getLatestVer:        goutil.GetLatestVerWithContext,
+		getVerByRef:         goutil.GetVerWithContext,
+		installLatest:       goutil.InstallLatestWithContext,
+		installMainOrMaster: goutil.InstallMainOrMasterWithContext,
+		installByVersion:    goutil.InstallWithContext,
 	}
 }
 

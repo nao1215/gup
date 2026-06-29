@@ -1,4 +1,4 @@
-//nolint:paralleltest // tests mutate global state (print.Stdout)
+//nolint:paralleltest // tests mutate process-global state (GOBIN/XDG env, cwd)
 package cmd
 
 import (
@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,8 +76,8 @@ func Test_newJSONPackage_nilVersionsAndError(t *testing.T) {
 }
 
 func Test_encodeJSONPackages_empty(t *testing.T) {
-	out := captureCheckOutput(t, func() int {
-		if err := encodeJSONPackages(nil); err != nil {
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		if err := encodeJSONPackages(p, nil); err != nil {
 			t.Fatalf("encodeJSONPackages() error = %v", err)
 		}
 		return 0
@@ -104,8 +103,8 @@ func Test_encodeJSONPackages_validJSON(t *testing.T) {
 		}, statusError, errors.New("network down")),
 	}
 
-	out := captureCheckOutput(t, func() int {
-		if err := encodeJSONPackages(recs); err != nil {
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		if err := encodeJSONPackages(p, recs); err != nil {
 			t.Fatalf("encodeJSONPackages() error = %v", err)
 		}
 		return 0
@@ -126,46 +125,29 @@ func Test_encodeJSONPackages_validJSON(t *testing.T) {
 	}
 }
 
-// readJSON runs fn (capturing stdout) and decodes the captured output as a
-// slice of jsonPackage records, failing the test if it is not valid JSON.
-func readJSON(t *testing.T, fn func() int) []jsonPackage {
+// readJSON runs fn with a Printer whose stdout and stderr are SEPARATE buffers,
+// then decodes only the stdout buffer as a slice of jsonPackage records. Keeping
+// the streams separate is the point: it verifies the #291 contract that warnings
+// and errors (written to stderr) never contaminate the machine-readable JSON on
+// stdout.
+func readJSON(t *testing.T, fn func(p *print.Printer) int) []jsonPackage {
 	t.Helper()
-	orgStdout := print.Stdout
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-
-	fn()
-
-	_ = pw.Close()
-	print.Stdout = orgStdout
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	var out, errBuf bytes.Buffer
+	fn(print.New(&out, &errBuf))
 
 	var recs []jsonPackage
-	if err := json.Unmarshal(buf.Bytes(), &recs); err != nil {
-		t.Fatalf("stdout is not valid JSON: %v\n%s", err, buf.String())
+	if err := json.Unmarshal(out.Bytes(), &recs); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\nSTDOUT:\n%s\nSTDERR:\n%s", err, out.String(), errBuf.String())
 	}
 	return recs
 }
 
 func Test_doCheck_jsonOutput(t *testing.T) {
-	origLatest := getLatestVerCtx
-	origRef := getVerByRefCtx
-	t.Cleanup(func() {
-		getLatestVerCtx = origLatest
-		getVerByRefCtx = origRef
-	})
-	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(_ context.Context, _ string) (string, error) {
 		return testVersionTwo, nil
 	}
-	getVerByRefCtx = func(_ context.Context, _ string, _ string) (string, error) {
+	deps.getVerByRef = func(_ context.Context, _ string, _ string) (string, error) {
 		return testVersionNine, nil
 	}
 
@@ -174,8 +156,8 @@ func Test_doCheck_jsonOutput(t *testing.T) {
 		newCheckPkg("outdated", testVersionOne, goutil.UpdateChannelLatest), // < latest -> update-available
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(pkgs, 1, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, 1, 0, true)
 	})
 
 	got := map[string]string{}
@@ -195,9 +177,6 @@ func Test_doCheck_jsonOutput(t *testing.T) {
 // last (inverting completion order), the emitted JSON array stays in input
 // order.
 func Test_doCheckJSON_stableInputOrder(t *testing.T) {
-	origLatest := getLatestVerCtx
-	t.Cleanup(func() { getLatestVerCtx = origLatest })
-
 	const total = 6
 	pkgs := make([]goutil.Package, total)
 	sleepByModule := make(map[string]time.Duration, total)
@@ -208,13 +187,14 @@ func Test_doCheckJSON_stableInputOrder(t *testing.T) {
 		sleepByModule[p.ModulePath] = time.Duration(total-i) * 3 * time.Millisecond
 	}
 
-	getLatestVerCtx = func(_ context.Context, modulePath string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(_ context.Context, modulePath string) (string, error) {
 		time.Sleep(sleepByModule[modulePath])
 		return testVersionTwo, nil
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(pkgs, total, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, total, 0, true)
 	})
 
 	if len(recs) != total {
@@ -259,15 +239,10 @@ func Test_listJSONRecords(t *testing.T) {
 }
 
 func Test_updateWithChannels_jsonOutput(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	t.Cleanup(func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	})
+	deps := testDeps()
 	// tool: outdated -> will be updated; uptodate: already current -> up-to-date
-	getLatestVer = func(string) (string, error) { return testVersionTwo, nil }
-	installLatest = func(string) error { return nil }
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionTwo, nil }
+	deps.installLatest = func(context.Context, string) error { return nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -292,8 +267,8 @@ func Test_updateWithChannels_jsonOutput(t *testing.T) {
 
 	var recs []jsonPackage
 	var result int
-	out := captureCheckOutput(t, func() int {
-		result, _, _ = updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, true, false)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		result, _, _ = updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, true, false)
 		return result
 	})
 
@@ -316,9 +291,8 @@ func Test_updateWithChannels_jsonOutput(t *testing.T) {
 }
 
 func Test_doCheck_jsonOutput_errorRecord(t *testing.T) {
-	origLatest := getLatestVerCtx
-	t.Cleanup(func() { getLatestVerCtx = origLatest })
-	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(_ context.Context, _ string) (string, error) {
 		return "", errors.New("module not found")
 	}
 
@@ -326,8 +300,8 @@ func Test_doCheck_jsonOutput_errorRecord(t *testing.T) {
 		newCheckPkg("brokentool", testVersionOne, goutil.UpdateChannelLatest),
 	}
 
-	recs := readJSON(t, func() int {
-		return doCheckJSON(pkgs, 1, 0, true)
+	recs := readJSON(t, func(p *print.Printer) int {
+		return doCheckJSON(deps, p, pkgs, 1, 0, true)
 	})
 	if len(recs) != 1 {
 		t.Fatalf("got %d records, want 1", len(recs))
@@ -345,17 +319,16 @@ func Test_doCheck_jsonOutput_errorRecord(t *testing.T) {
 func Test_check_jsonFlag(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	origGetLatest := getLatestVer
-	t.Cleanup(func() { getLatestVer = origGetLatest })
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
 
 	cmd := newCheckCmd()
 	if err := cmd.Flags().Set("json", "true"); err != nil {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 
-	recs := readJSON(t, func() int {
-		return check(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		return check(deps, p, cmd, []string{})
 	})
 	if len(recs) == 0 {
 		t.Fatal("expected at least one JSON record from check --json")
@@ -376,8 +349,8 @@ func Test_list_jsonFlag(t *testing.T) {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 
-	recs := readJSON(t, func() int {
-		return list(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		return list(p, cmd, []string{})
 	})
 	if len(recs) == 0 {
 		t.Fatal("expected at least one JSON record from list --json")
@@ -421,8 +394,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 		t.Fatalf("failed to set json flag: %v", err)
 	}
 	var ambiguousGot int
-	out := captureCheckOutput(t, func() int {
-		ambiguousGot = list(ambiguousCmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		ambiguousGot = list(p, ambiguousCmd, []string{})
 		return ambiguousGot
 	})
 	if ambiguousGot != 1 {
@@ -442,8 +415,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = list(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = list(p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -467,6 +440,8 @@ func Test_list_jsonFlag_ambiguousConfigFailsFast(t *testing.T) {
 // environment, list/check/update --json emit a valid empty JSON array and exit 0
 // instead of printing an error.
 func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
 	emptyGobin := t.TempDir()
 
 	t.Run("list --json", func(t *testing.T) {
@@ -476,7 +451,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = list(cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = list(p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("list --json on empty env = %d, want 0", got)
 		}
@@ -492,7 +467,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = check(cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = check(defaultDependencies(), p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("check --json on empty env = %d, want 0", got)
 		}
@@ -508,7 +483,7 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got int
-		recs := readJSON(t, func() int { got = gup(cmd, nil); return got })
+		recs := readJSON(t, func(p *print.Printer) int { got = gup(defaultDependencies(), p, cmd, nil); return got })
 		if got != 0 {
 			t.Fatalf("update --json on empty env = %d, want 0", got)
 		}
@@ -518,17 +493,46 @@ func Test_emptyEnv_jsonEmitsEmptyArray(t *testing.T) {
 	})
 }
 
+// Test_emptyEnv_listJSON_validatesAutoDetectedMalformedConfig verifies that
+// list --json on an empty environment fails fast on a malformed auto-detected
+// (user-level) config instead of emitting an empty array and exiting 0.
+func Test_emptyEnv_listJSON_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newListCmd()
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatal(err)
+	}
+
+	p, buf := newTestPrinter()
+	if got := list(p, cmd, nil); got != 1 {
+		t.Fatalf("list --json with malformed auto-detected config = %d, want 1", got)
+	}
+	if !strings.Contains(buf.String(), config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), buf.String())
+	}
+}
+
 // Test_gup_jsonFlag exercises gup() with --json (and --dry-run) so the
 // flag-parsing and JSON-dispatch branches in gup()/updateWithChannels are
 // covered without performing real installs.
 func Test_gup_jsonFlag(t *testing.T) {
-	helper_stubUpdateForJSON(t, func(string) error { return nil })
+	deps := helper_stubUpdateForJSON(t, func(context.Context, string) error { return nil })
 
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -539,22 +543,20 @@ func Test_gup_jsonFlag(t *testing.T) {
 	}
 }
 
-// helper_stubUpdateForJSON stubs the update operations and points $GOBIN at the
+// helper_stubUpdateForJSON returns dependencies whose update operations are
+// stubbed (latest == v9.9.9, the given install func) and points $GOBIN at the
 // check_success fixtures so gup() can run --json end-to-end without real
-// installs. The returned readJSON helper fails the test if STDOUT is not valid
-// JSON, which is exactly the contamination this issue (#291) guards against.
-func helper_stubUpdateForJSON(t *testing.T, install func(string) error) {
+// installs. The caller passes the returned deps to gup(), and readJSON fails the
+// test if STDOUT is not valid JSON, which is exactly the contamination this
+// issue (#291) guards against.
+func helper_stubUpdateForJSON(t *testing.T, install func(context.Context, string) error) dependencies {
 	t.Helper()
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	t.Cleanup(func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	})
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = install
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = install
+	return deps
 }
 
 // helper_newJSONDryRunUpdateCmd returns an update command with --json and
@@ -577,7 +579,7 @@ func helper_newJSONDryRunUpdateCmd(t *testing.T) *cobra.Command {
 // in normal mode. This is the core regression for issue #291: before the fix,
 // excludePkgs wrote that line to STDOUT (print.Info) and broke JSON parsing.
 func Test_gup_jsonFlag_excludeKeepsStdoutPure(t *testing.T) {
-	helper_stubUpdateForJSON(t, func(string) error { return nil })
+	deps := helper_stubUpdateForJSON(t, func(context.Context, string) error { return nil })
 
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 	if err := cmd.Flags().Set("exclude", testBinPosixer); err != nil {
@@ -585,8 +587,8 @@ func Test_gup_jsonFlag_excludeKeepsStdoutPure(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -607,7 +609,7 @@ func Test_gup_jsonFlag_excludeKeepsStdoutPure(t *testing.T) {
 // not contaminate the JSON written to STDOUT, while the valid packages are still
 // reported. This pins STDOUT purity for the missing-targets edge case.
 func Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure(t *testing.T) {
-	helper_stubUpdateForJSON(t, func(string) error { return nil })
+	deps := helper_stubUpdateForJSON(t, func(context.Context, string) error { return nil })
 
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 	if err := cmd.Flags().Set("main", "doesnotexist"); err != nil {
@@ -615,8 +617,8 @@ func Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure(t *testing.T) {
 	}
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 0 {
@@ -631,7 +633,7 @@ func Test_gup_jsonFlag_missingFlagTargetKeepsStdoutPure(t *testing.T) {
 // fails to install, its error (emitted via print.Err to STDERR) does not
 // contaminate STDOUT and the JSON still reports a per-package error status.
 func Test_gup_jsonFlag_partialFailureKeepsStdoutPure(t *testing.T) {
-	helper_stubUpdateForJSON(t, func(importPath string) error {
+	deps := helper_stubUpdateForJSON(t, func(_ context.Context, importPath string) error {
 		if strings.Contains(importPath, testBinPosixer) {
 			return errors.New("install failed")
 		}
@@ -641,8 +643,8 @@ func Test_gup_jsonFlag_partialFailureKeepsStdoutPure(t *testing.T) {
 	cmd := helper_newJSONDryRunUpdateCmd(t)
 
 	var got int
-	recs := readJSON(t, func() int {
-		got = gup(cmd, []string{})
+	recs := readJSON(t, func(p *print.Printer) int {
+		got = gup(deps, p, cmd, []string{})
 		return got
 	})
 	if got != 1 {

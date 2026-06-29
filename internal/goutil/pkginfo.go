@@ -86,6 +86,37 @@ func isModuleBinary(mainModulePath string) bool {
 	return mainModulePath != ""
 }
 
+// isStandardLibraryCommand reports whether an import path is a Go standard
+// library command such as "cmd/go" or "cmd/gofmt". These ship with the Go
+// toolchain and "go install <path>@latest" rejects them with "argument must not
+// be a package in the standard library", so gup must skip them.
+//
+// This matters when Go is installed via mise (and similar tools), which places
+// the toolchain commands in $GOBIN alongside user-installed binaries, so gup
+// finds them and would otherwise try to reinstall them (issue #206). All Go
+// commands live under the "cmd/" import-path prefix, and no third-party module
+// can claim that prefix (its import path always starts with a host element),
+// making this check unambiguous.
+func isStandardLibraryCommand(importPath string) bool {
+	return importPath == "cmd" || strings.HasPrefix(importPath, "cmd/")
+}
+
+// shouldManageBinary reports whether gup can manage a binary, given its import
+// path and main module path from build info. It skips Go standard library
+// commands (which cannot be reinstalled with "go install <path>@latest"; issue
+// #206) and binaries with no recorded main module, such as GOPATH-mode or local
+// "go build" binaries (issue #299).
+//
+// The standard library check is independent of the main module path so a
+// toolchain command is skipped even if its build info ever records a main module,
+// rather than relying solely on the empty-main-module heuristic.
+func shouldManageBinary(importPath, mainModulePath string) bool {
+	if isStandardLibraryCommand(importPath) {
+		return false
+	}
+	return isModuleBinary(mainModulePath)
+}
+
 // GetPackageInformation return golang package information including the latest
 // installed Go toolchain version. Use it for commands that compare Go versions
 // (check, update). Binary info is read in parallel using a worker pool.
@@ -95,21 +126,21 @@ func isModuleBinary(mainModulePath string) bool {
 // (behave as --ignore-go-update); otherwise a transient "go version" failure
 // stamps "unknown" on every package and forces a needless reinstall of all
 // binaries (see issue #296).
-func GetPackageInformation(binList []string) ([]Package, bool) {
+func GetPackageInformation(p *print.Printer, binList []string) ([]Package, bool) {
 	goVer, err := GetInstalledGoVersion()
 	if err != nil {
-		print.Warn(fmt.Sprintf("failed to detect installed Go version (%v); "+
+		p.Warn(fmt.Sprintf("failed to detect installed Go version (%v); "+
 			"skipping Go-version comparison this run. Module versions are still checked.", err))
-		return collectPackageInformation(binList, unknown), false
+		return collectPackageInformation(p, binList, unknown), false
 	}
-	return collectPackageInformation(binList, goVer), true
+	return collectPackageInformation(p, binList, goVer), true
 }
 
 // GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips
 // the "go version" subprocess. Use it for commands (list, export, migrate) that
 // never read Package.GoVersion, avoiding a needless subprocess per invocation.
-func GetPackageInformationWithoutGoVersion(binList []string) []Package {
-	return collectPackageInformation(binList, unknown)
+func GetPackageInformationWithoutGoVersion(p *print.Printer, binList []string) []Package {
+	return collectPackageInformation(p, binList, unknown)
 }
 
 // collectPackageInformation reads build info for each binary in parallel and
@@ -117,7 +148,7 @@ func GetPackageInformationWithoutGoVersion(binList []string) []Package {
 // the bounded worker pool to internal/parallel.Run so the concurrency logic is
 // not duplicated. No context or timeout is used because buildinfo.ReadFile is a
 // fast local read, so onCancel never fires.
-func collectPackageInformation(binList []string, goVer string) []Package {
+func collectPackageInformation(p *print.Printer, binList []string, goVer string) []Package {
 	if len(binList) == 0 {
 		return nil
 	}
@@ -135,10 +166,10 @@ func collectPackageInformation(binList []string, goVer string) []Package {
 		func(_ context.Context, v string) indexedPkg {
 			info, err := buildinfo.ReadFile(v)
 			if err != nil {
-				print.Warn(err)
+				p.Warn(err)
 				return indexedPkg{}
 			}
-			if !isModuleBinary(info.Main.Path) {
+			if !shouldManageBinary(info.Path, info.Main.Path) {
 				return indexedPkg{}
 			}
 			pkg := Package{

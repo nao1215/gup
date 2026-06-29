@@ -1,12 +1,10 @@
-//nolint:paralleltest,errcheck,gosec
+//nolint:paralleltest
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,32 +25,6 @@ import (
 const testVersionZero = "v0.0.0"
 const testVersionOne = "v1.0.0"
 const testVersionNine = "v9.9.9"
-
-//nolint:gochecknoglobals // legacy stubs used by tests via init bridge.
-var (
-	getLatestVer        = goutil.GetLatestVer
-	installLatest       = goutil.InstallLatest
-	installMainOrMaster = goutil.InstallMainOrMaster
-	installByVersionUpd = goutil.Install
-)
-
-//nolint:gochecknoinits
-func init() {
-	// Keep existing tests that stub legacy function variables working
-	// after adding context-aware update/lookup paths.
-	getLatestVerCtx = func(_ context.Context, modulePath string) (string, error) {
-		return getLatestVer(modulePath)
-	}
-	installLatestCtx = func(_ context.Context, importPath string) error {
-		return installLatest(importPath)
-	}
-	installMainOrMasterCtx = func(_ context.Context, importPath string) error {
-		return installMainOrMaster(importPath)
-	}
-	installByVersionUpdCtx = func(_ context.Context, importPath, version string) error {
-		return installByVersionUpd(importPath, version)
-	}
-}
 
 func Test_gup(t *testing.T) {
 	type args struct {
@@ -121,30 +93,11 @@ func Test_gup(t *testing.T) {
 				OsExit = os.Exit
 			}()
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := gup(tt.args.cmd, tt.args.args); got != tt.want {
+			if got := gup(defaultDependencies(), p, tt.args.cmd, tt.args.args); got != tt.want {
 				t.Errorf("gup() = %v, want %v", got, tt.want)
 			}
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer pr.Close()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {
@@ -197,51 +150,19 @@ func Test_gup_ignoreGoUpdateFlag(t *testing.T) {
 		t.Fatalf("failed to set ignore-go-update flag: %v", err)
 	}
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	getLatestVer = func(string) (string, error) { return testVersionZero, nil }
-	installLatest = func(string) error { return nil }
-	installMainOrMaster = func(string) error { return nil }
-	installByVersionUpd = func(string, string) error { return nil }
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionZero, nil }
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	if got := gup(cmd, []string{}); got != 0 {
+	if got := gup(deps, p, cmd, []string{}); got != 0 {
 		t.Fatalf("gup() = %v, want %v", got, 0)
 	}
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err = io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = pr.Close()
-	}()
 
 	output := strings.Split(buf.String(), "\n")
 	if len(output) == 0 || !strings.Contains(output[0], "update binary under") {
@@ -267,8 +188,8 @@ func Test_gup_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = gup(cmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -276,6 +197,34 @@ func Test_gup_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 	if !strings.Contains(out, badJSON) {
 		t.Errorf("error should name the failing --file %q, got: %s", badJSON, out)
+	}
+}
+
+// Test_gup_emptyEnv_validatesAutoDetectedMalformedConfig verifies that update
+// fails fast on a malformed auto-detected (user-level) config even on an empty
+// environment with no --file, instead of silently succeeding.
+func Test_gup_emptyEnv_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("gup() = %d, want 1 for a malformed auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), out)
 	}
 }
 
@@ -296,8 +245,8 @@ func Test_gup_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 	}
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = gup(cmd, []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -313,12 +262,30 @@ func Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 	t.Setenv("GOBIN", t.TempDir()) // empty environment
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = gup(newUpdateCmd(), []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
 		return got
 	})
 	if got != 0 {
 		t.Fatalf("gup() = %d, want 0 on an empty environment with no config problem", got)
+	}
+}
+
+// Test_gup_emptyEnv_missingGOBINSucceeds verifies the #350 contract for a
+// $GOBIN directory that does not exist yet: update treats it like a normal empty
+// environment (exit 0) instead of failing with a read-dir error.
+func Test_gup_emptyEnv_missingGOBINSucceeds(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", filepath.Join(t.TempDir(), "does-not-exist")) // missing directory
+
+	got := 0
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(defaultDependencies(), p, newUpdateCmd(), []string{})
+		return got
+	})
+	if got != 0 {
+		t.Fatalf("gup() = %d, want 0 when $GOBIN directory is missing", got)
 	}
 }
 
@@ -328,7 +295,7 @@ func Test_gup_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 func Test_gup_invalidConfigFile(t *testing.T) {
 	setupXDGBase(t)
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 
 	confPath := config.FilePath()
 	if err := os.MkdirAll(filepath.Dir(confPath), 0o750); err != nil {
@@ -339,8 +306,8 @@ func Test_gup_invalidConfigFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = gup(newUpdateCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = gup(deps, p, newUpdateCmd(), []string{})
 		return got
 	})
 	if got != 1 {
@@ -360,36 +327,28 @@ func Test_gup_dryRun(t *testing.T) {
 	}
 
 	var installCalled atomic.Bool
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error {
 		installCalled.Store(true)
 		return nil
 	}
-	installMainOrMaster = func(string) error {
+	deps.installMainOrMaster = func(context.Context, string) error {
 		installCalled.Store(true)
 		return nil
 	}
-	installByVersionUpd = func(string, string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		installCalled.Store(true)
 		return nil
 	}
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	if got := gup(cmd, []string{}); got != 0 {
+	p, _ := newTestPrinter()
+	if got := gup(deps, p, cmd, []string{}); got != 0 {
 		t.Fatalf("gup() = %v, want %v", got, 0)
 	}
 	if !installCalled.Load() {
@@ -404,30 +363,11 @@ func Test_update_not_use_go_cmd(t *testing.T) {
 	t.Run("Not found go command", func(t *testing.T) {
 		t.Setenv("PATH", "")
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
+		p, buf := newTestPrinter()
 
-		if got := gup(newUpdateCmd(), []string{}); got != 1 {
+		if got := gup(defaultDependencies(), p, newUpdateCmd(), []string{}); got != 1 {
 			t.Errorf("gup() = %v, want %v", got, 1)
 		}
-		if err := pw.Close(); err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer pr.Close()
 		got := strings.Split(buf.String(), "\n")
 
 		want := []string{}
@@ -472,7 +412,8 @@ func Test_desktopNotifyIfNeeded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			desktopNotifyIfNeeded(tt.args.result, tt.args.enable)
+			p, _ := newTestPrinter()
+			desktopNotifyIfNeeded(p, tt.args.result, tt.args.enable)
 		})
 	}
 }
@@ -485,40 +426,18 @@ func Test_gup_jobsClamp(t *testing.T) {
 		t.Fatalf("failed to set jobs flag: %v", err)
 	}
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	getLatestVer = func(string) (string, error) { return testVersionZero, nil }
-	installLatest = func(string) error { return nil }
-	installMainOrMaster = func(string) error { return nil }
-	installByVersionUpd = func(string, string) error { return nil }
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionZero, nil }
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	_, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
 	// Should not hang with jobs=-1 (clamped to 1)
-	got := gup(cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := gup(deps, p, cmd, []string{})
 
 	if got != 0 {
 		t.Errorf("gup() = %v, want 0", got)
@@ -609,19 +528,9 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 		newImport = "github.com/air-verse/air/cmd/air"
 	)
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
+	deps := testDeps()
 	var latestCalls []string
-	getLatestVer = func(modulePath string) (string, error) {
+	deps.getLatestVer = func(_ context.Context, modulePath string) (string, error) {
 		latestCalls = append(latestCalls, modulePath)
 		if modulePath == oldModule {
 			return "", modulePathMismatchErr(oldModule, newModule)
@@ -633,15 +542,15 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 	}
 
 	var installCalls []string
-	installLatest = func(importPath string) error {
+	deps.installLatest = func(_ context.Context, importPath string) error {
 		installCalls = append(installCalls, importPath)
 		return nil
 	}
-	installMainOrMaster = func(string) error {
+	deps.installMainOrMaster = func(context.Context, string) error {
 		t.Fatal("installMainOrMaster should not be called")
 		return nil
 	}
-	installByVersionUpd = func(string, string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("installByVersionUpd should not be called")
 		return nil
 	}
@@ -662,7 +571,8 @@ func Test_update_modulePathChangedOnGetLatest(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
+	p, _ := newTestPrinter()
+	if got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldModule, newModule}, latestCalls); diff != "" {
@@ -681,29 +591,19 @@ func Test_update_modulePathChangedOnInstall(t *testing.T) {
 		newImport = testNewModule
 	)
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installMainOrMaster = func(string) error {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installMainOrMaster = func(context.Context, string) error {
 		t.Fatal("installMainOrMaster should not be called")
 		return nil
 	}
-	installByVersionUpd = func(string, string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("installByVersionUpd should not be called")
 		return nil
 	}
 
 	var installCalls []string
-	installLatest = func(importPath string) error {
+	deps.installLatest = func(_ context.Context, importPath string) error {
 		installCalls = append(installCalls, importPath)
 		switch len(installCalls) {
 		case 1:
@@ -731,7 +631,8 @@ func Test_update_modulePathChangedOnInstall(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinAir: goutil.UpdateChannelLatest}
-	if got, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
+	p, _ := newTestPrinter()
+	if got, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false); got != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", got)
 	}
 	if diff := cmp.Diff([]string{oldImport, newImport}, installCalls); diff != "" {
@@ -778,12 +679,9 @@ func Test_installWithSelectedVersion(t *testing.T) {
 }
 
 func Test_installWithSelectedVersion_contextCanceled(t *testing.T) {
-	origInstallLatestCtx := installLatestCtx
-	defer func() {
-		installLatestCtx = origInstallLatestCtx
-	}()
-
-	installLatestCtx = func(ctx context.Context, _ string) error {
+	t.Parallel()
+	deps := testDeps()
+	deps.installLatest = func(ctx context.Context, _ string) error {
 		<-ctx.Done()
 		return fmt.Errorf("can't install %s:\n%w", "example.com/tool", ctx.Err())
 	}
@@ -791,7 +689,7 @@ func Test_installWithSelectedVersion_contextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := installWithSelectedVersion(defaultDependencies(), ctx, "example.com/tool", goutil.UpdateChannelLatest)
+	err := installWithSelectedVersion(deps, ctx, "example.com/tool", goutil.UpdateChannelLatest)
 	if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), context.Canceled.Error()) {
 		t.Fatalf("installWithSelectedVersion() error = %v, want cancellation to be surfaced", err)
 	}
@@ -878,9 +776,8 @@ func Test_removeOldBinaryIfRenamed_emptyNames(t *testing.T) {
 }
 
 func Test_updateWithChannels_emptyImportPath(t *testing.T) {
-	origGetLatest := getLatestVer
-	defer func() { getLatestVer = origGetLatest }()
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -893,16 +790,16 @@ func Test_updateWithChannels_emptyImportPath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1 (empty import path)", result)
 	}
 }
 
 func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
-	origGetLatest := getLatestVer
-	defer func() { getLatestVer = origGetLatest }()
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -915,7 +812,8 @@ func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -926,40 +824,24 @@ func Test_updateWithChannels_alreadyUpToDate(t *testing.T) {
 }
 
 func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
 
 	var installCalled atomic.Bool
-	installLatest = func(string) error {
+	deps.installLatest = func(context.Context, string) error {
 		installCalled.Store(true)
 		return nil
 	}
-	installMainOrMaster = func(string) error {
+	deps.installMainOrMaster = func(context.Context, string) error {
 		t.Fatal("installMainOrMaster should not be called")
 		return nil
 	}
-	installByVersionUpd = func(string, string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("installByVersionUpd should not be called")
 		return nil
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -972,19 +854,7 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
-
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
 
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -1003,40 +873,77 @@ func Test_updateWithChannels_alreadyUpToDate_customGoBuildTag(t *testing.T) {
 	}
 }
 
+// Test_updateWithChannels_ignoreGoUpdate_hidesGoOnlyDelta verifies that when
+// only the Go toolchain differs (the package version is up to date) and
+// --ignore-go-update is set, the package is not updated AND the human-readable
+// line does not show a Go delta. The displayed text must agree with the internal
+// decision: nothing was updated, so the line reads "Already up-to-date" instead
+// of a phantom "goX to goY".
+func Test_updateWithChannels_ignoreGoUpdate_hidesGoOnlyDelta(t *testing.T) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+	deps.installLatest = func(context.Context, string) error {
+		t.Fatal("installLatest should not be called when only an ignored Go delta exists")
+		return nil
+	}
+	deps.installMainOrMaster = func(context.Context, string) error {
+		t.Fatal("installMainOrMaster should not be called")
+		return nil
+	}
+	deps.installByVersion = func(context.Context, string, string) error {
+		t.Fatal("installByVersion should not be called")
+		return nil
+	}
+
+	p, buf := newTestPrinter()
+
+	pkgs := []goutil.Package{
+		{
+			Name:       testBinTool,
+			ImportPath: testImportPathTool,
+			ModulePath: testImportPathTool,
+			Version:    &goutil.Version{Current: testVersionOne},
+			GoVersion:  &goutil.Version{Current: testGoVersion1224, Latest: testGoVersionNoDwarf5},
+		},
+	}
+
+	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
+	// 7th positional arg = ignoreGoUpdate = true.
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+
+	if result != 0 {
+		t.Fatalf("updateWithChannels() = %d, want 0", result)
+	}
+	if len(succeeded) != 1 {
+		t.Fatalf("succeeded = %d, want 1", len(succeeded))
+	}
+	out := buf.String()
+	if strings.Contains(out, testGoVersionNoDwarf5) {
+		t.Fatalf("ignored Go delta leaked into output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Already up-to-date") {
+		t.Fatalf("expected 'Already up-to-date' output consistent with no update, got:\n%s", out)
+	}
+}
+
 func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	oldNoColor := color.NoColor
 	color.NoColor = false
 	t.Cleanup(func() { color.NoColor = oldNoColor })
 
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
-	installLatest = func(string) error { return nil }
-	installMainOrMaster = func(string) error {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+	deps.installLatest = func(context.Context, string) error { return nil }
+	deps.installMainOrMaster = func(context.Context, string) error {
 		t.Fatal("installMainOrMaster should not be called")
 		return nil
 	}
-	installByVersionUpd = func(string, string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("installByVersionUpd should not be called")
 		return nil
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
 	pkgs := []goutil.Package{
 		{
@@ -1049,18 +956,7 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
-	if err := pw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, false, channelMap, nil, 0, false, false)
 
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
@@ -1074,9 +970,8 @@ func Test_updateWithChannels_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 }
 
 func Test_updateWithChannels_emptyModulePath(t *testing.T) {
-	origInstallLatest := installLatest
-	defer func() { installLatest = origInstallLatest }()
-	installLatest = func(string) error { return nil }
+	deps := testDeps()
+	deps.installLatest = func(context.Context, string) error { return nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -1089,16 +984,16 @@ func Test_updateWithChannels_emptyModulePath(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
 }
 
 func Test_updateWithChannels_getLatestVerError(t *testing.T) {
-	origGetLatest := getLatestVer
-	defer func() { getLatestVer = origGetLatest }()
-	getLatestVer = func(string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) {
 		return "", errors.New("network error")
 	}
 
@@ -1113,27 +1008,20 @@ func Test_updateWithChannels_getLatestVerError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
 }
 
 func Test_updateWithChannels_masterChannel(t *testing.T) {
-	origGetLatest := getLatestVer
-	origRef := getVerByRefCtx
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		getVerByRefCtx = origRef
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
 	// The skip/update decision resolves the version via the @master ref.
-	getVerByRefCtx = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
+	deps.getVerByRef = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
 	var calledVersion string
-	installByVersionUpd = func(_, ver string) error { calledVersion = ver; return nil }
+	deps.installByVersion = func(_ context.Context, _, ver string) error { calledVersion = ver; return nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -1146,7 +1034,8 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1161,17 +1050,9 @@ func Test_updateWithChannels_masterChannel(t *testing.T) {
 // version (so an @latest-based decision would wrongly skip the package), while
 // @master has moved forward and must trigger an update.
 func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T) {
-	origGetLatest := getLatestVer
-	origRef := getVerByRefCtx
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		getVerByRefCtx = origRef
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+	deps.getVerByRef = func(_ context.Context, _ string, ref string) (string, error) {
 		if ref == string(goutil.UpdateChannelMaster) {
 			return testVersionNine, nil
 		}
@@ -1180,7 +1061,7 @@ func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T)
 
 	var installCalled atomic.Bool
 	var calledVersion string
-	installByVersionUpd = func(_, ver string) error {
+	deps.installByVersion = func(_ context.Context, _, ver string) error {
 		installCalled.Store(true)
 		calledVersion = ver
 		return nil
@@ -1197,7 +1078,8 @@ func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T)
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1214,24 +1096,16 @@ func Test_updateWithChannels_masterChannel_skipDecisionUsesChannel(t *testing.T)
 // an update) but the @master ref still matches the installed version, so the
 // package must be skipped.
 func Test_updateWithChannels_masterChannel_latestMovedButMasterSame(t *testing.T) {
-	origGetLatest := getLatestVer
-	origRef := getVerByRefCtx
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		getVerByRefCtx = origRef
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.getVerByRef = func(_ context.Context, _ string, ref string) (string, error) {
 		if ref == string(goutil.UpdateChannelMaster) {
 			return testVersionOne, nil
 		}
 		return "", fmt.Errorf("unexpected ref %q", ref)
 	}
 
-	installByVersionUpd = func(_, _ string) error {
+	deps.installByVersion = func(context.Context, string, string) error {
 		t.Fatal("install must not run: @master is unchanged")
 		return nil
 	}
@@ -1247,7 +1121,8 @@ func Test_updateWithChannels_masterChannel_latestMovedButMasterSame(t *testing.T
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMaster}
-	result, succeeded, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, succeeded, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1260,17 +1135,9 @@ func Test_updateWithChannels_masterChannel_latestMovedButMasterSame(t *testing.T
 // channel-aware skip decision for the @main channel: @latest equals the
 // installed version, but @main has moved and must trigger an update.
 func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
-	origGetLatest := getLatestVer
-	origRef := getVerByRefCtx
-	origInstallMain := installMainOrMaster
-	defer func() {
-		getLatestVer = origGetLatest
-		getVerByRefCtx = origRef
-		installMainOrMaster = origInstallMain
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionOne, nil }
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionOne, nil }
+	deps.getVerByRef = func(_ context.Context, _ string, ref string) (string, error) {
 		if ref == string(goutil.UpdateChannelMain) {
 			return testVersionNine, nil
 		}
@@ -1278,7 +1145,7 @@ func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
 	}
 
 	var installCalled atomic.Bool
-	installMainOrMaster = func(string) error {
+	deps.installMainOrMaster = func(context.Context, string) error {
 		installCalled.Store(true)
 		return nil
 	}
@@ -1294,7 +1161,8 @@ func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1311,24 +1179,14 @@ func Test_gup_excludeFlag(t *testing.T) {
 		t.Fatalf("failed to set exclude flag: %v", err)
 	}
 
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 
 	OsExit = func(code int) {}
 	defer func() { OsExit = os.Exit }()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	_, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
-	got := gup(cmd, []string{})
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := gup(deps, p, cmd, []string{})
 
 	if got != 1 {
 		t.Errorf("gup() with all excluded = %v, want 1", got)
@@ -1346,15 +1204,9 @@ func Test_removeOldBinaryIfRenamed_notExist(t *testing.T) {
 }
 
 func Test_updateWithChannels_notify(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error { return nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -1367,22 +1219,17 @@ func Test_updateWithChannels_notify(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, true, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, true, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() with notify = %d, want 0", result)
 	}
 }
 
 func Test_updateWithChannels_installError(t *testing.T) {
-	origGetLatest := getLatestVer
-	origInstallLatest := installLatest
-	defer func() {
-		getLatestVer = origGetLatest
-		installLatest = origInstallLatest
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error { return errors.New("install failed") }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error { return errors.New("install failed") }
 
 	pkgs := []goutil.Package{
 		{
@@ -1395,35 +1242,24 @@ func Test_updateWithChannels_installError(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelLatest}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 1 {
 		t.Fatalf("updateWithChannels() = %d, want 1", result)
 	}
 }
 
 func Test_updateWithChannels_mainChannel(t *testing.T) {
-	origGetLatest := getLatestVer
-	origRef := getVerByRefCtx
-	origInstallLatest := installLatest
-	origInstallMain := installMainOrMaster
-	origInstallByVersionUpd := installByVersionUpd
-	defer func() {
-		getLatestVer = origGetLatest
-		getVerByRefCtx = origRef
-		installLatest = origInstallLatest
-		installMainOrMaster = origInstallMain
-		installByVersionUpd = origInstallByVersionUpd
-	}()
-
-	getLatestVer = func(string) (string, error) { return testVersionNine, nil }
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return testVersionNine, nil }
 	// The skip/update decision resolves the version via the @main ref.
-	getVerByRefCtx = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
-	installLatest = func(string) error {
+	deps.getVerByRef = func(_ context.Context, _ string, _ string) (string, error) { return testVersionNine, nil }
+	deps.installLatest = func(context.Context, string) error {
 		t.Fatal("installLatest should not be called for main channel")
 		return nil
 	}
-	installMainOrMaster = func(string) error { return nil }
-	installByVersionUpd = func(string, string) error { return nil }
+	deps.installMainOrMaster = func(context.Context, string) error { return nil }
+	deps.installByVersion = func(context.Context, string, string) error { return nil }
 
 	pkgs := []goutil.Package{
 		{
@@ -1436,7 +1272,8 @@ func Test_updateWithChannels_mainChannel(t *testing.T) {
 	}
 
 	channelMap := map[string]goutil.UpdateChannel{testBinTool: goutil.UpdateChannelMain}
-	result, _, _ := updateWithChannels(pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
+	p, _ := newTestPrinter()
+	result, _, _ := updateWithChannels(deps, p, pkgs, false, false, 1, true, channelMap, nil, 0, false, false)
 	if result != 0 {
 		t.Fatalf("updateWithChannels() = %d, want 0", result)
 	}
@@ -1465,24 +1302,9 @@ func Test_update_ambiguousConfigFailsFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := gup(newUpdateCmd(), []string{})
-
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	io.Copy(&buf, pr)
-	pr.Close()
+	got := gup(defaultDependencies(), p, newUpdateCmd(), []string{})
 
 	if got != 1 {
 		t.Errorf("update() = %d, want 1", got)

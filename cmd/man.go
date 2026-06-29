@@ -16,6 +16,11 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
+// manpageCreateMode is the base mode requested for a newly created man page,
+// matching the 0666 os.Create opened with before the atomic write. The process
+// umask is applied to it (see applyUmask) so restrictive umasks are honored.
+const manpageCreateMode = 0o666
+
 func newManCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "man",
@@ -25,16 +30,16 @@ func newManCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(man(cmd, args))
+			OsExit(man(printerFor(cmd), cmd, args))
 		},
 	}
 	return cmd
 }
 
-func man(_ *cobra.Command, _ []string) int {
+func man(p *print.Printer, _ *cobra.Command, _ []string) int {
 	for _, dst := range manPaths(os.Getenv("MANPATH")) {
-		if err := generateManpages(dst); err != nil {
-			print.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
+		if err := generateManpages(p, dst); err != nil {
+			p.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
 			return 1
 		}
 	}
@@ -69,7 +74,7 @@ func manPaths(manpathEnv string) []string {
 	return paths
 }
 
-func generateManpages(dst string) error {
+func generateManpages(p *print.Printer, dst string) error {
 	now := time.Now()
 	header := &doc.GenManHeader{
 		Title:   `gup - Update binaries installed by 'go install'`,
@@ -97,10 +102,10 @@ func generateManpages(dst string) error {
 		return err
 	}
 
-	return copyManpages(manFiles, dst)
+	return copyManpages(p, manFiles, dst)
 }
 
-func copyManpages(manFiles []string, dst string) error {
+func copyManpages(p *print.Printer, manFiles []string, dst string) error {
 	dst = filepath.Clean(dst)
 
 	// Ensure the target man1 directory exists before writing. A valid custom
@@ -111,18 +116,18 @@ func copyManpages(manFiles []string, dst string) error {
 	}
 
 	for _, file := range manFiles {
-		if err := copyOneManpage(filepath.Clean(file), dst); err != nil {
+		if err := copyOneManpage(p, filepath.Clean(file), dst); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func copyOneManpage(file, dst string) (err error) {
+func copyOneManpage(p *print.Printer, file, dst string) (err error) {
 	outputPath := filepath.Clean(filepath.Join(dst, filepath.Base(file)+".gz"))
 	defer func() {
 		if err == nil {
-			print.Info("Generate " + outputPath)
+			p.Info("Generate " + outputPath)
 		}
 	}()
 
@@ -136,24 +141,78 @@ func copyOneManpage(file, dst string) (err error) {
 		}
 	}()
 
-	out, err := os.Create(outputPath)
+	return writeManpageAtomically(outputPath, in, strings.TrimSuffix(filepath.Base(file), ".1"))
+}
+
+// writeManpageAtomically gzips src into outputPath via a temp file in the same
+// directory followed by an atomic rename, so a failed or interrupted write can
+// never truncate or corrupt an existing man page; the destination is only
+// replaced once the new content is fully written. A symlinked destination is
+// preserved by resolving the link to its target first (matching how the previous
+// os.Create followed the link, and consistent with config_file.go).
+func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (err error) {
+	resolvedPath, err := fileutil.ResolveSymlinkTarget(outputPath)
+	if err != nil {
+		return fmt.Errorf("can not resolve man page path %s: %w", outputPath, err)
+	}
+	outputPath = resolvedPath
+	// Reject a directory destination before staging any temp file, so a mistaken
+	// path cannot replace a directory tree via the rename-replace flow (mirrors the
+	// guard in cmd/config_file.go).
+	if fileutil.IsDir(outputPath) {
+		return fmt.Errorf("%s is a directory, not a file", outputPath)
+	}
+	dir := filepath.Dir(outputPath)
+
+	// os.CreateTemp creates the temp file with mode 0600. Reproduce os.Create's
+	// previous behavior instead: for a new file use 0666 with the process umask
+	// applied (so a restrictive umask such as 077 still yields 0600, not a wider
+	// 0644), and when replacing an existing file preserve that file's own mode.
+	mode := applyUmask(manpageCreateMode)
+	if info, statErr := os.Stat(outputPath); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("can not stat man page %s: %w", outputPath, statErr)
+	}
+
+	out, err := os.CreateTemp(dir, filepath.Base(outputPath)+".tmp-*")
 	if err != nil {
 		return err
 	}
+	tmpPath := out.Name()
 	defer func() {
-		if closeErr := out.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
+		if out != nil {
+			if closeErr := out.Close(); closeErr != nil && err == nil {
+				err = closeErr
+			}
+		}
+		if err != nil {
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
 	gz := gzip.NewWriter(out)
-	gz.Name = strings.TrimSuffix(filepath.Base(file), ".1")
-	defer func() {
-		if closeErr := gz.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-	}()
+	gz.Name = gzName
+	if _, err = io.Copy(gz, src); err != nil {
+		return err
+	}
+	if err = gz.Close(); err != nil {
+		return err
+	}
+	if err = out.Chmod(mode); err != nil {
+		return fmt.Errorf("can not set permissions on man page %s: %w", outputPath, err)
+	}
+	if err = out.Sync(); err != nil {
+		return fmt.Errorf("can not sync man page %s: %w", outputPath, err)
+	}
+	if err = out.Close(); err != nil {
+		out = nil
+		return fmt.Errorf("can not close man page %s: %w", outputPath, err)
+	}
+	out = nil
 
-	_, err = io.Copy(gz, in)
-	return err
+	if err = renameWithReplace(tmpPath, outputPath); err != nil {
+		return fmt.Errorf("can not finalize man page %s: %w", outputPath, err)
+	}
+	return nil
 }

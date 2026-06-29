@@ -8,20 +8,22 @@ import (
 	"github.com/nao1215/gup/internal/print"
 )
 
-// Info notify information message at desktop.
-func Info(title, message string) {
-	assets.DeployIconIfNeeded()
+// Info notify information message at desktop. Diagnostics are written through
+// the provided Printer.
+func Info(p *print.Printer, title, message string) {
+	assets.DeployIconIfNeeded(p)
 	err := beeep.Notify(title, message, assets.InfoIconPath())
 	if err != nil {
-		print.Warn(err)
+		p.Warn(err)
 	}
 }
 
-// Warn notify warning message at desktop.
-func Warn(title, message string) {
-	assets.DeployIconIfNeeded()
+// Warn notify warning message at desktop. Diagnostics are written through the
+// provided Printer.
+func Warn(p *print.Printer, title, message string) {
+	assets.DeployIconIfNeeded(p)
 	err := beeep.Notify(title, message, assets.WarningIconPath())
 	if err != nil {
-		print.Warn(err)
+		p.Warn(err)
 	}
 }

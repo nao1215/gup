@@ -33,7 +33,7 @@ versions recorded in that gup.json.`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runImport(cmd, args))
+			OsExit(runImport(printerFor(cmd), cmd, args))
 		},
 	}
 
@@ -48,81 +48,81 @@ versions recorded in that gup.json.`,
 	return cmd
 }
 
-func runImport(cmd *cobra.Command, _ []string) int {
+func runImport(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	dryRun, err := getFlagBool(cmd, "dry-run")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	confFile, err = config.ResolveImportFilePath(confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	notify, err := getFlagBool(cmd, "notify")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	cpus, err := getFlagInt(cmd, "jobs")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	cpus = clampJobs(cpus)
 
 	timeout, err := getTimeoutFlag(cmd)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	if !fileutil.IsFile(confFile) {
-		print.Err(fmt.Errorf("%s is not found", confFile))
+		p.Err(fmt.Errorf("%s is not found", confFile))
 		return 1
 	}
 
 	pkgs, err := config.ReadConfFile(confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	if len(pkgs) == 0 {
-		print.Err("unable to import package: no package information")
+		p.Err("unable to import package: no package information")
 		return 1
 	}
 
-	print.Info("start import based on " + confFile)
-	return installFromConfig(pkgs, dryRun, notify, cpus, timeout)
+	p.Info("start import based on " + confFile)
+	return installFromConfig(p, pkgs, dryRun, notify, cpus, timeout)
 }
 
-func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) (exitCode int) {
+func installFromConfig(pr *print.Printer, pkgs []goutil.Package, dryRun, notification bool, cpus int, timeout time.Duration) (exitCode int) {
 	dryRunManager := goutil.NewGoPaths()
 
 	if dryRun {
 		if err := dryRunManager.StartDryRunMode(); err != nil {
-			print.Err(fmt.Errorf("can not change to dry run mode: %w", err))
+			pr.Err(fmt.Errorf("can not change to dry run mode: %w", err))
 			return 1
 		}
 		// Restore the environment and remove the temp dir via defer so it runs
 		// even if a package install panics (see issue #297).
 		defer func() {
 			if err := dryRunManager.EndDryRunMode(); err != nil {
-				print.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
+				pr.Err(fmt.Errorf("can not change dry run mode to normal mode: %w", err))
 				exitCode = 1
 			}
 		}()
@@ -166,11 +166,11 @@ func installFromConfig(pkgs []goutil.Package, dryRun, notification bool, cpus in
 		}
 	}
 
-	result, _ := executePackages(pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
-		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
+	result, _ := executePackages(pr, pkgs, cpus, timeout, installer, func(prefix string, v updateResult) {
+		pr.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
 	})
 
-	desktopNotifyIfNeeded(result, notification)
+	desktopNotifyIfNeeded(pr, result, notification)
 	return result
 }
 

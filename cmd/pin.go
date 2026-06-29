@@ -41,7 +41,7 @@ development environment). Run 'gup unpin' to allow the tool to update again.`,
 		Args:              cobra.RangeArgs(pinMinArgs, pinMaxArgs),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runPin(cmd, args))
+			OsExit(runPin(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
@@ -62,7 +62,7 @@ nothing and succeeds.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runUnpin(cmd, args))
+			OsExit(runUnpin(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
@@ -102,63 +102,61 @@ func parsePinArgs(args []string) (target, version string, err error) {
 	return target, version, nil
 }
 
-func runPin(cmd *cobra.Command, args []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
-		return 1
-	}
-
+func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
+	// pin only reads local build info and edits gup.json (channel "pinned"); it
+	// never runs the Go toolchain, so it must not fail when 'go' is absent. This
+	// mirrors 'gup unpin', which already works without go.
 	target, version, err := parsePinArgs(args)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	installed, err := pinPackageInfo()
+	installed, err := pinPackageInfo(p)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	pkg, err := resolvePinTarget(installed, target)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	confReadPath, err := config.ResolveImportFilePath(confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	merged, err := configstate.SetPin(confPkgs, pkg, version)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	writePath := configstate.ResolveWritePath(confFile, confReadPath)
 	if err := writeConfigFile(writePath, merged); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	print.Info(fmt.Sprintf("Pinned %s to %s (run 'gup update' to apply)", pkg.Name, version))
+	p.Info(fmt.Sprintf("Pinned %s to %s (run 'gup update' to apply)", pkg.Name, version))
 	return 0
 }
 
-func runUnpin(cmd *cobra.Command, args []string) int {
+func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 	// unpin only edits gup.json (channel back to @latest); it never runs the Go
 	// toolchain, so it must not fail when 'go' is absent.
 	target := strings.TrimSpace(args[0])
@@ -166,40 +164,40 @@ func runUnpin(cmd *cobra.Command, args []string) int {
 		target = strings.TrimSpace(target[:i])
 	}
 	if target == "" {
-		print.Err(errors.New("missing tool name"))
+		p.Err(errors.New("missing tool name"))
 		return 1
 	}
 
 	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	confReadPath, err := config.ResolveImportFilePath(confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	merged, changed := configstate.RemovePin(confPkgs, targetPackage(target))
 	if !changed {
-		print.Info(target + " is not pinned; nothing to do")
+		p.Info(target + " is not pinned; nothing to do")
 		return 0
 	}
 
 	writePath := configstate.ResolveWritePath(confFile, confReadPath)
 	if err := writeConfigFile(writePath, merged); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	print.Info("Unpinned " + target)
+	p.Info("Unpinned " + target)
 	return 0
 }
 

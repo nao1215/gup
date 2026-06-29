@@ -28,7 +28,7 @@ and displays the name of the binary that needs to be updated.
 It does not update them.`,
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(check(cmd, args))
+			OsExit(check(defaultDependencies(), printerFor(cmd), cmd, args))
 		},
 	}
 
@@ -82,60 +82,63 @@ func parseCheckFlags(cmd *cobra.Command) (checkOpts, error) {
 	return opts, nil
 }
 
-func check(cmd *cobra.Command, args []string) int {
+// check runs the check command. deps carries the go-toolchain version lookups so
+// the flow takes its collaborators explicitly: production passes
+// defaultDependencies(); tests inject fakes.
+func check(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	opts, err := parseCheckFlags(cmd)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
-	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(args)
+	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(p, args)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	// When the installed Go version can't be detected, behave as
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
 	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
-	pkgselect.WarnMissing(missingTargets, func(msg string) { print.Warn(msg) })
+	pkgselect.WarnMissing(missingTargets, func(msg string) { p.Warn(msg) })
 
 	if len(pkgs) == 0 {
-		return handleEmptyEnvironment(opts.confFile, opts.jsonOut, len(args) != 0,
+		return handleEmptyEnvironment(p, opts.confFile, opts.jsonOut, len(args) != 0,
 			"unable to check package: no package information")
 	}
 
 	pkgs, err = configstate.ResolveAndApplyChannels(pkgs, opts.confFile)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	if opts.jsonOut {
-		return doCheckJSON(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate)
+		return doCheckJSON(deps, p, pkgs, opts.cpus, opts.timeout, ignoreGoUpdate)
 	}
-	return doCheck(pkgs, opts.cpus, opts.timeout, ignoreGoUpdate, opts.quiet)
+	return doCheck(deps, p, pkgs, opts.cpus, opts.timeout, ignoreGoUpdate, opts.quiet)
 }
 
-func doCheck(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, quiet, false)
+func doCheck(deps dependencies, p *print.Printer, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet bool) int {
+	return doCheckWith(deps, p, pkgs, cpus, timeout, ignoreGoUpdate, quiet, false)
 }
 
 // doCheckJSON runs the same check as doCheck but emits a JSON array of package
 // records to STDOUT instead of human-readable progress lines.
-func doCheckJSON(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
-	return doCheckWith(pkgs, cpus, timeout, ignoreGoUpdate, false, true)
+func doCheckJSON(deps dependencies, p *print.Printer, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate bool) int {
+	return doCheckWith(deps, p, pkgs, cpus, timeout, ignoreGoUpdate, false, true)
 }
 
-func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
-	verCache := defaultDependencies().newVerCache()
+func doCheckWith(deps dependencies, p *print.Printer, pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreGoUpdate, quiet, jsonOut bool) int {
+	verCache := deps.newVerCache()
 
 	if !jsonOut && !quiet {
-		print.Info("check binary under $GOPATH/bin or $GOBIN")
+		p.Info("check binary under $GOPATH/bin or $GOBIN")
 	}
 
 	checker := func(ctx context.Context, p goutil.Package) updateResult {
@@ -172,6 +175,11 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 				shouldUpdate := modulePathChanged || !p.IsPackageUpToDate() || (!ignoreGoUpdate && !p.IsGoUpToDate())
 				if shouldUpdate {
 					status = statusUpdateAvailable
+				} else {
+					// Up to date once the ignored Go delta is set aside: hide that
+					// delta so the rendered line matches the decision instead of
+					// showing a Go diff the command will not act on.
+					hideIgnoredGoDelta(&p, ignoreGoUpdate, jsonOut)
 				}
 			}
 		}
@@ -186,26 +194,26 @@ func doCheckWith(pkgs []goutil.Package, cpus int, timeout time.Duration, ignoreG
 	var onResult func(prefix string, v updateResult)
 	if !jsonOut {
 		// In quiet mode show only binaries with an available update.
-		onResult = resultLineRenderer(quiet,
+		onResult = resultLineRenderer(p, quiet,
 			func(v updateResult) bool {
 				return v.status == statusUpdateAvailable || v.status == statusPinMismatch
 			},
 			checkResultStr)
 	}
 
-	result, results := executePackages(pkgs, cpus, timeout, checker, onResult)
+	result, results := executePackages(p, pkgs, cpus, timeout, checker, onResult)
 
 	if jsonOut {
-		if err := encodeJSONPackages(resultsToJSONPackages(results)); err != nil {
-			print.Err(err)
+		if err := encodeJSONPackages(p, resultsToJSONPackages(results)); err != nil {
+			p.Err(err)
 			return 1
 		}
 		return result
 	}
 
-	printUpdatablePkgInfo(collectNeedUpdatePkgs(results))
+	printUpdatablePkgInfo(p, collectNeedUpdatePkgs(results))
 	if quiet {
-		print.Info(summarizeResults(results, true))
+		p.Info(summarizeResults(results, true))
 	}
 	return result
 }
@@ -256,7 +264,7 @@ func collectNeedUpdatePkgs(results []updateResult) []goutil.Package {
 	return needUpdate
 }
 
-func printUpdatablePkgInfo(pkgs []goutil.Package) {
+func printUpdatablePkgInfo(p *print.Printer, pkgs []goutil.Package) {
 	if len(pkgs) == 0 {
 		return
 	}
@@ -268,8 +276,11 @@ func printUpdatablePkgInfo(pkgs []goutil.Package) {
 	}
 
 	const indentSpaces = 11
-	fmt.Println("")
-	print.Info("If you want to update binaries, run the following command.\n" +
+	// Emit the blank separator line through the Printer (not fmt.Println, which
+	// writes to the real stdout) so all of this command's output flows through
+	// one sink and is captured together in tests.
+	p.Info("")
+	p.Info("If you want to update binaries, run the following command.\n" +
 		strings.Repeat(" ", indentSpaces) +
 		"$ gup update " + b.String())
 }

@@ -9,7 +9,7 @@ import (
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		print.Err(err)
+		print.NewColorable().Err(err)
 		os.Exit(1)
 	}
 }

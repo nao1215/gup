@@ -65,40 +65,37 @@ func helper_setupFakeGoBin(t *testing.T) {
 	}
 }
 
-func helper_stubUpdateOps(t *testing.T) {
+// helper_runUpdateWithDeps builds the update command, applies the given flag
+// args (e.g. "--dry-run", "--notify"), runs gup() with injected dependencies
+// while capturing print output, and returns the output split by newline. It
+// replaces dispatching update through Execute() with globally-stubbed operations
+// so integration-style update tests inject their fakes explicitly.
+func helper_runUpdateWithDeps(t *testing.T, deps dependencies, flagArgs ...string) []string {
 	t.Helper()
-
-	orgGetLatestVer := getLatestVer
-	orgGetVerByRef := getVerByRefCtx
-	orgInstallLatest := installLatest
-	orgInstallMainOrMaster := installMainOrMaster
-	orgInstallByVersionUpd := installByVersionUpd
-
-	getLatestVer = func(string) (string, error) {
-		return testVersionNine, nil
+	cmd := newUpdateCmd()
+	if err := cmd.ParseFlags(flagArgs); err != nil {
+		t.Fatalf("failed to parse update flags %v: %v", flagArgs, err)
 	}
-	// The channel-aware skip/update decision resolves @main/@master versions
-	// through this ref lookup, so stub it alongside the @latest lookup.
-	getVerByRefCtx = func(context.Context, string, string) (string, error) {
-		return testVersionNine, nil
-	}
-	installLatest = func(string) error {
-		return nil
-	}
-	installMainOrMaster = func(string) error {
-		return nil
-	}
-	installByVersionUpd = func(string, string) error {
-		return nil
-	}
-
-	t.Cleanup(func() {
-		getLatestVer = orgGetLatestVer
-		getVerByRefCtx = orgGetVerByRef
-		installLatest = orgInstallLatest
-		installMainOrMaster = orgInstallMainOrMaster
-		installByVersionUpd = orgInstallByVersionUpd
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return gup(deps, p, cmd, cmd.Flags().Args())
 	})
+	return strings.Split(out, "\n")
+}
+
+// helper_runCheckWithDeps is the check counterpart of helper_runUpdateWithDeps:
+// it runs check() with injected dependencies (so version lookups never hit the
+// network) while capturing output, instead of dispatching through Execute() and
+// depending on live module resolution.
+func helper_runCheckWithDeps(t *testing.T, deps dependencies, flagArgs ...string) []string {
+	t.Helper()
+	cmd := newCheckCmd()
+	if err := cmd.ParseFlags(flagArgs); err != nil {
+		t.Fatalf("failed to parse check flags %v: %v", flagArgs, err)
+	}
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return check(deps, p, cmd, cmd.Flags().Args())
+	})
+	return strings.Split(out, "\n")
 }
 
 func helper_stubImportInstaller(t *testing.T) {
@@ -113,93 +110,50 @@ func helper_stubImportInstaller(t *testing.T) {
 	})
 }
 
-// Runs a gup command, and return its output split by \n.
+// helper_runGup runs a gup command and returns its output split by \n. It builds
+// the root command and wires a buffer onto it via cobra's SetOut/SetErr (which
+// the per-command Printer reads through cmd.OutOrStdout/ErrOrStderr), so output
+// is captured without redirecting the process-wide os.Stdout/os.Stderr.
 func helper_runGup(t *testing.T, args []string) ([]string, error) {
 	t.Helper()
 
-	// Redirect output
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	defer func() {
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-	}()
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pr.Close() //nolint:errcheck // ignore close error in test
-	print.Stdout = pw
-	print.Stderr = pw
-
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	// Run command
-	os.Args = args
-	err = Execute()
-	pw.Close() //nolint:errcheck,gosec // ignore close error in test
+	buf, err := runRootWithBuffer(args)
 	if err != nil {
 		return nil, err
 	}
-
-	// Get output
-	buf := bytes.Buffer{}
-	_, err = io.Copy(&buf, pr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Split(buf.String(), "\n")
-
-	return got, nil
+	return strings.Split(buf, "\n"), nil
 }
 
-// Runs a gup command and captures both print package output and os.Stdout.
+// helper_runGupCaptureAllOutput runs a gup command and returns all of its output
+// (stdout and stderr merged), captured via the root command's SetOut/SetErr.
 func helper_runGupCaptureAllOutput(t *testing.T, args []string) (string, error) {
 	t.Helper()
-
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	orgOSStdout := os.Stdout
-	defer func() {
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-		os.Stdout = orgOSStdout
-	}()
-
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pr.Close() //nolint:errcheck // ignore close error in test
-
-	print.Stdout = pw
-	print.Stderr = pw
-	os.Stdout = pw
 
 	OsExit = func(code int) {}
 	defer func() {
 		OsExit = os.Exit
 	}()
 
-	buf := bytes.Buffer{}
-	copyDone := make(chan error, 1)
-	go func() {
-		_, copyErr := io.Copy(&buf, pr)
-		copyDone <- copyErr
-	}()
+	return runRootWithBuffer(args)
+}
 
-	os.Args = args
-	runErr := Execute()
-	pw.Close() //nolint:errcheck,gosec // ignore close error in test
-
-	if err := <-copyDone; err != nil {
-		t.Fatal(err)
-	}
-
-	return buf.String(), runErr
+// runRootWithBuffer executes the root command with args (the first element is the
+// "gup" program name, like os.Args), capturing stdout and stderr into one buffer
+// via cobra's configurable writers. Returning the buffer and the Execute error
+// keeps the helpers free of any process-global stream redirection.
+func runRootWithBuffer(args []string) (string, error) {
+	buf := &bytes.Buffer{}
+	rootCmd := newRootCmd()
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs(args[1:])
+	err := rootCmd.Execute()
+	return buf.String(), err
 }
 
 func setupXDGBase(t *testing.T) {
@@ -304,10 +258,10 @@ func TestExecute_Check(t *testing.T) {
 		t.Setenv("GOBIN", gobinDir)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, "check"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Inject stubbed version lookups (latest == v9.9.9) so every installed binary
+	// is reported as needing an update, deterministically and without resolving
+	// modules over the network.
+	got := helper_runCheckWithDeps(t, stubUpdateDeps())
 
 	if !strings.Contains(got[len(got)-2], "posixer") {
 		t.Errorf("posixer package is not included in the update target: %s", got[len(got)-2])
@@ -788,7 +742,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 
 func TestExecute_Update(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -823,10 +777,7 @@ func TestExecute_Update(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := helper_runUpdateWithDeps(t, deps)
 
 	contain := false
 	for _, v := range got {
@@ -841,7 +792,7 @@ func TestExecute_Update(t *testing.T) {
 
 func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -876,10 +827,7 @@ func TestExecute_Update_DryRunAndNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := helper_runUpdateWithDeps(t, deps, testFlagDryRun, testFlagNotify)
 
 	contain := false
 	for _, v := range got {
@@ -923,7 +871,7 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 
 func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 	setupXDGBase(t)
-	helper_stubUpdateOps(t)
+	deps := stubUpdateDeps()
 	helper_setupFakeGoBin(t)
 	OsExit = func(code int) {}
 	defer func() {
@@ -956,9 +904,7 @@ func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 		t.Fatalf("assets directory %s should not exist before notify command runs", assetsDirForTest())
 	}
 
-	if _, err := helper_runGup(t, []string{testCmdGup, testCmdUpdate, testFlagDryRun, testFlagNotify}); err != nil {
-		t.Fatal(err)
-	}
+	_ = helper_runUpdateWithDeps(t, deps, testFlagDryRun, testFlagNotify)
 
 	if !fileutil.IsDir(assetsDirForTest()) {
 		t.Errorf("notify command did not deploy assets directory %s", assetsDirForTest())

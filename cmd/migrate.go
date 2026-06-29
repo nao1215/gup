@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/pkgselect"
 	"github.com/nao1215/gup/internal/print"
@@ -63,7 +62,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 			"gup migrate /old/gobin /new/gobin"),
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runMigrate(cmd, args))
+			OsExit(runMigrate(printerFor(cmd), cmd, args))
 		},
 	}
 
@@ -77,36 +76,36 @@ If BINARY arguments are given, only those binaries are migrated.`,
 	return cmd
 }
 
-func runMigrate(cmd *cobra.Command, args []string) int {
+func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
 	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	dryRun, err := getFlagBool(cmd, "dry-run")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	notify, err := getFlagBool(cmd, "notify")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	cpus, err := getFlagInt(cmd, "jobs")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	cpus = clampJobs(cpus)
 	force, err := getFlagBool(cmd, "force")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 	timeout, err := getTimeoutFlag(cmd)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
@@ -115,27 +114,31 @@ func runMigrate(cmd *cobra.Command, args []string) int {
 	binaries := args[2:]
 
 	if err := validateMigratePaths(beforePath, afterPath, dryRun); err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	binList, err := goutil.BinaryPathList(beforePath)
 	if err != nil {
-		print.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
+		p.Err(fmt.Errorf("can't read binaries under %s: %w", beforePath, err))
 		return 1
 	}
-	binList = pkgselect.FilterBinaryPaths(binList, binaries)
+	// Derive "missing" from the binary paths before filtering, so a requested
+	// name that exists on disk but can't be read (no build info) is not
+	// mislabeled as "not found". This matches update/check via MissingTargets.
+	missing := pkgselect.MissingTargets(binList, binaries)
+	filtered := pkgselect.FilterBinaryPaths(binList, binaries)
 	// migrate never reads GoVersion, so skip the "go version" subprocess.
-	pkgs := goutil.GetPackageInformationWithoutGoVersion(binList)
-	warnMissingMigrateTargets(binaries, pkgs, beforePath)
+	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, filtered)
+	warnMissingMigrateTargets(p, missing, beforePath)
 
 	if len(pkgs) == 0 {
-		print.Err(fmt.Errorf("no go-install binary to migrate under %s", beforePath))
+		p.Err(fmt.Errorf("no go-install binary to migrate under %s", beforePath))
 		return 1
 	}
 
-	print.Info(fmt.Sprintf("start migration from %s to %s", beforePath, afterPath))
-	return migratePackages(pkgs, afterPath, dryRun, notify, cpus, force, timeout)
+	p.Info(fmt.Sprintf("start migration from %s to %s", beforePath, afterPath))
+	return migratePackages(p, pkgs, afterPath, dryRun, notify, cpus, force, timeout)
 }
 
 // validateMigratePaths validates BEFORE_PATH and AFTER_PATH.
@@ -171,16 +174,58 @@ func validateMigratePaths(beforePath, afterPath string, dryRun bool) error {
 			return fmt.Errorf("AFTER_PATH is not a directory: %s", afterPath)
 		}
 	case errors.Is(err, os.ErrNotExist):
-		if !dryRun {
-			if mkErr := os.MkdirAll(afterPath, afterPathDirPerm); mkErr != nil {
-				return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
+		if dryRun {
+			// A real run creates AFTER_PATH with os.MkdirAll; dry-run must not
+			// mutate the filesystem, but it still has to report the same failure
+			// the real run would hit, instead of falsely promising a migration it
+			// can't perform. Verify the destination is creatable without creating
+			// it (see issue: dry-run overlooked this failure condition).
+			if cErr := ensureAfterPathCreatable(afterPath); cErr != nil {
+				return cErr
 			}
+		} else if mkErr := os.MkdirAll(afterPath, afterPathDirPerm); mkErr != nil {
+			return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
 		}
 	default:
 		return fmt.Errorf("can't access AFTER_PATH %s: %w", afterPath, err)
 	}
 
 	return nil
+}
+
+// ensureAfterPathCreatable verifies, without creating AFTER_PATH, that a real
+// run's os.MkdirAll(afterPath) could succeed. It walks up to the nearest
+// existing ancestor and confirms it is a writable directory by creating and
+// immediately removing a temporary probe file there. dry-run uses this so it
+// surfaces the same "can't create AFTER_PATH" failure a real run would, rather
+// than reporting success for a destination that can never be written.
+func ensureAfterPathCreatable(afterPath string) error {
+	ancestor := afterPath
+	for {
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			// Reached the filesystem root without finding a missing component.
+			return nil
+		}
+		info, err := os.Stat(parent)
+		if err == nil {
+			if !info.IsDir() {
+				return fmt.Errorf("can't create AFTER_PATH %s: %s is not a directory", afterPath, parent)
+			}
+			probe, perr := os.CreateTemp(parent, ".gup-migrate-probe-*")
+			if perr != nil {
+				return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, perr)
+			}
+			name := probe.Name()
+			_ = probe.Close()
+			_ = os.Remove(name)
+			return nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("can't access AFTER_PATH %s: %w", afterPath, err)
+		}
+		ancestor = parent
+	}
 }
 
 // sameDirPath reports whether a and b point to the same location.
@@ -206,14 +251,14 @@ func sameDirPath(a, b string) (bool, error) {
 	return false, nil
 }
 
-func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
+func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
 	// Point GOBIN at AFTER_PATH so the existing 'go install' path reinstalls
 	// into the target directory. Restore the environment afterward. Dry-run
 	// never installs, so the environment is left untouched.
 	if !dryRun {
 		restore, err := withGoBin(afterPath)
 		if err != nil {
-			print.Err(fmt.Errorf("can't set GOBIN to %s: %w", afterPath, err))
+			pr.Err(fmt.Errorf("can't set GOBIN to %s: %w", afterPath, err))
 			return 1
 		}
 		defer restore()
@@ -256,44 +301,25 @@ func migratePackages(pkgs []goutil.Package, afterPath string, dryRun, notificati
 		return updateResult{updated: true, pkg: p}
 	}
 
-	result, _ := executePackages(pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
+	result, _ := executePackages(pr, pkgs, cpus, timeout, migrator, func(prefix string, v updateResult) {
 		if v.skipped {
-			print.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
+			pr.Info(fmt.Sprintf("%s skip %s: %s", prefix, v.pkg.Name, v.skipReason))
 			return
 		}
-		print.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
+		pr.Info(fmt.Sprintf("%s %s@%s", prefix, v.pkg.ImportPath, v.pkg.Version.Current))
 	})
 
-	desktopNotifyIfNeeded(result, notification)
+	desktopNotifyIfNeeded(pr, result, notification)
 	return result
 }
 
-// warnMissingMigrateTargets warns about each requested binary name that was not
-// found among the migration targets, mirroring the target-selection UX of
-// 'gup update'. It is a no-op when no binaries were explicitly requested.
-func warnMissingMigrateTargets(targets []string, pkgs []goutil.Package, beforePath string) {
-	if len(targets) == 0 {
-		return
-	}
-
-	present := make(map[string]struct{}, len(pkgs))
-	for _, p := range pkgs {
-		present[binname.NormalizeForMatch(p.Name)] = struct{}{}
-	}
-
-	seen := make(map[string]struct{}, len(targets))
-	for _, raw := range targets {
-		normalized := binname.NormalizeForMatch(raw)
-		if normalized == "" {
-			continue
-		}
-		if _, dup := seen[normalized]; dup {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		if _, ok := present[normalized]; !ok {
-			print.Warn("not found '" + strings.TrimSpace(raw) + "' package in " + beforePath)
-		}
+// warnMissingMigrateTargets warns about each requested binary name that has no
+// binary under BEFORE_PATH, mirroring the target-selection UX of 'gup update'.
+// missing comes from pkgselect.MissingTargets (already trimmed and deduped, and
+// keyed off binary paths), so the migrate context only owns the wording.
+func warnMissingMigrateTargets(pr *print.Printer, missing []string, beforePath string) {
+	for _, name := range missing {
+		pr.Warn("not found '" + name + "' package in " + beforePath)
 	}
 }
 

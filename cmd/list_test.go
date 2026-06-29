@@ -1,63 +1,29 @@
 package cmd
 
 import (
-	"bytes"
-	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nao1215/gup/internal/print"
-	"github.com/spf13/cobra"
 )
 
-func Test_list_not_found_go_command(t *testing.T) {
-	t.Run("Not found go command", func(t *testing.T) {
-		t.Setenv("PATH", "")
+// Test_list_succeeds_without_go_command reproduces the bug where 'gup list'
+// failed with "you didn't install golang" when the 'go' command was absent, even
+// though listing only reads local build info from $GOBIN and never invokes the Go
+// toolchain.
+func Test_list_succeeds_without_go_command(t *testing.T) {
+	t.Setenv("PATH", "")
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
 
-		orgStdout := print.Stdout
-		orgStderr := print.Stderr
-		pr, pw, err := os.Pipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = pw
-		print.Stderr = pw
-
-		if got := list(&cobra.Command{}, []string{}); got != 1 {
-			t.Errorf("list() = %v, want %v", got, 1)
-		}
-		if err := pw.Close(); err != nil {
-			t.Fatal(err)
-		}
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-
-		buf := bytes.Buffer{}
-		_, err = io.Copy(&buf, pr)
-		if err != nil {
-			t.Error(err)
-		}
-		defer func() {
-			_ = pr.Close()
-		}()
-		got := strings.Split(buf.String(), "\n")
-
-		want := []string{}
-		if runtime.GOOS == goosWindows {
-			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in %PATH%`)
-			want = append(want, "")
-		} else {
-			want = append(want, `gup:ERROR: you didn't install golang: exec: "go": executable file not found in $PATH`)
-			want = append(want, "")
-		}
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("value is mismatch (-want +got):\n%s", diff)
-		}
-	})
+	p, buf := newTestPrinter()
+	if got := list(p, newListCmd(), []string{}); got != 0 {
+		t.Fatalf("list() without go = %d, want 0; output:\n%s", got, buf.String())
+	}
+	if strings.Contains(buf.String(), "you didn't install golang") {
+		t.Errorf("list must not require the go command:\n%s", buf.String())
+	}
 }
 
 func Test_list_gobin_is_empty(t *testing.T) {
@@ -79,45 +45,23 @@ func Test_list_gobin_is_empty(t *testing.T) {
 			args:  args{},
 			want:  0,
 			stderr: []string{
-				"no binaries are installed under $GOPATH/bin or $GOBIN",
+				emptyEnvMessage,
 				"",
 			},
 		},
-	}
-	if runtime.GOOS == goosWindows {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stderr []string
-		}{
+		{
+			// A $GOBIN directory that does not exist yet is a normal first-run
+			// condition (#350): list treats it like an empty environment (exit 0
+			// + note) instead of failing with a read-dir error.
 			name:  testGobinEmpty,
 			gobin: testNoExistDir,
 			args:  args{},
-			want:  1,
+			want:  0,
 			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: The system cannot find the file specified.",
+				emptyEnvMessage,
 				"",
 			},
-		})
-	} else {
-		tests = append(tests, struct {
-			name   string
-			gobin  string
-			args   args
-			want   int
-			stderr []string
-		}{
-			name:  testGobinEmpty,
-			gobin: testNoExistDir,
-			args:  args{},
-			want:  1,
-			stderr: []string{
-				"gup:ERROR: can't get package info: can't get binary-paths installed by 'go install': open no_exist_dir: no such file or directory",
-				"",
-			},
-		})
+		},
 	}
 
 	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0o755); err != nil { //nolint:gosec
@@ -128,32 +72,11 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOBIN", tt.gobin)
 
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, buf := newTestPrinter()
 
-			if got := list(newListCmd(), tt.args.args); got != tt.want {
+			if got := list(p, newListCmd(), tt.args.args); got != tt.want {
 				t.Errorf("list() = %v, want %v", got, tt.want)
 			}
-			if err := pw.Close(); err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-
-			buf := bytes.Buffer{}
-			_, err = io.Copy(&buf, pr)
-			if err != nil {
-				t.Error(err)
-			}
-			defer func() {
-				_ = pr.Close()
-			}()
 			got := strings.Split(buf.String(), "\n")
 
 			if diff := cmp.Diff(tt.stderr, got); diff != "" {

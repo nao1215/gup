@@ -12,16 +12,24 @@
 package pkgselect
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/print"
 )
 
 // BinaryPaths returns the absolute paths of the binaries installed under $GOBIN
 // (or $GOPATH/bin).
+//
+// A $GOBIN/$GOPATH/bin directory that does not exist yet is a normal first-run
+// condition, not an error: it is reported as an empty list so list/check/update/
+// export behave like any other empty installed-tool set instead of failing with
+// a read-dir error (#350).
 func BinaryPaths() ([]string, error) {
 	goBin, err := goutil.GoBin()
 	if err != nil {
@@ -30,6 +38,9 @@ func BinaryPaths() ([]string, error) {
 
 	binList, err := goutil.BinaryPathList(goBin)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []string{}, nil
+		}
 		return nil, fmt.Errorf("%s: %w", "can't get binary-paths installed by 'go install'", err)
 	}
 
@@ -39,13 +50,13 @@ func BinaryPaths() ([]string, error) {
 // PackageInfo returns package information for every installed binary without
 // reading the Go toolchain version. Use it for commands (list, export) that
 // never compare Package.GoVersion, avoiding a needless "go version" subprocess.
-func PackageInfo() ([]goutil.Package, error) {
+func PackageInfo(p *print.Printer) ([]goutil.Package, error) {
 	binList, err := BinaryPaths()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
-	return goutil.GetPackageInformationWithoutGoVersion(binList), nil
+	return goutil.GetPackageInformationWithoutGoVersion(p, binList), nil
 }
 
 // PackageInfoByTargets returns package information for the installed binaries
@@ -58,14 +69,14 @@ func PackageInfo() ([]goutil.Package, error) {
 // a binary that exists in $GOBIN but whose build info can't be read (or that was
 // not installed by 'go install') is never mislabeled as "not found"; it is
 // present but unmanageable, and GetPackageInformation already warns about it.
-func PackageInfoByTargets(targets []string) (pkgs []goutil.Package, missing []string, goVersionAvailable bool, err error) {
+func PackageInfoByTargets(p *print.Printer, targets []string) (pkgs []goutil.Package, missing []string, goVersionAvailable bool, err error) {
 	binList, err := BinaryPaths()
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
 	filtered := FilterBinaryPaths(binList, targets)
-	pkgs, goVersionAvailable = goutil.GetPackageInformation(filtered)
+	pkgs, goVersionAvailable = goutil.GetPackageInformation(p, filtered)
 	missing = MissingTargets(binList, targets)
 	return pkgs, missing, goVersionAvailable, nil
 }

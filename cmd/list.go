@@ -22,7 +22,7 @@ func newListCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(list(cmd, args))
+			OsExit(list(printerFor(cmd), cmd, args))
 		},
 	}
 	cmd.Flags().Bool("json", false, "output result as machine-readable JSON")
@@ -31,42 +31,40 @@ func newListCmd() *cobra.Command {
 	return cmd
 }
 
-func list(cmd *cobra.Command, _ []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		print.Err(err)
-		return 1
-	}
-
-	pkgs, err := pkgselect.PackageInfo()
+func list(p *print.Printer, cmd *cobra.Command, _ []string) int {
+	// list only reads local build info from $GOBIN and never invokes the Go
+	// toolchain, so it must not fail when 'go' is absent (mirrors 'gup unpin').
+	pkgs, err := pkgselect.PackageInfo(p)
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	jsonOut, err := getFlagBool(cmd, "json")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
-		print.Err(err)
+		p.Err(err)
 		return 1
 	}
 
 	if jsonOut {
 		// An empty environment has no packages to annotate, so emit a valid
-		// empty JSON array and exit 0 without resolving config (#350). An
-		// explicitly named --file is still validated for consistency with
-		// check/update (#368).
+		// empty JSON array and exit 0. The config that would be read (explicit
+		// --file or auto-detected) is still validated for consistency with
+		// check/update, so an ambiguous or malformed config fails fast instead of
+		// being silently ignored just because no binaries are installed (#368).
 		if len(pkgs) == 0 {
-			if err := configstate.ValidateExplicitFile(confFile); err != nil {
-				print.Err(err)
+			if err := configstate.ValidateResolvedConfig(confFile); err != nil {
+				p.Err(err)
 				return 1
 			}
-			if err := encodeJSONPackages(listJSONRecords(nil)); err != nil {
-				print.Err(err)
+			if err := encodeJSONPackages(p, listJSONRecords(nil)); err != nil {
+				p.Err(err)
 				return 1
 			}
 			return 0
@@ -77,11 +75,11 @@ func list(cmd *cobra.Command, _ []string) int {
 		// picking the user-level one (#364).
 		annotated, cerr := configstate.ResolveAndApplyChannels(pkgs, confFile)
 		if cerr != nil {
-			print.Err(cerr)
+			p.Err(cerr)
 			return 1
 		}
-		if err := encodeJSONPackages(listJSONRecords(annotated)); err != nil {
-			print.Err(err)
+		if err := encodeJSONPackages(p, listJSONRecords(annotated)); err != nil {
+			p.Err(err)
 			return 1
 		}
 		return 0
@@ -90,11 +88,11 @@ func list(cmd *cobra.Command, _ []string) int {
 	// An empty-but-valid environment is a normal first-run condition, not an
 	// error (#350).
 	if len(pkgs) == 0 {
-		print.Info(emptyEnvMessage)
+		p.Info(emptyEnvMessage)
 		return 0
 	}
 
-	printPackageList(pkgs)
+	printPackageList(p, pkgs)
 	return 0
 }
 
@@ -110,7 +108,7 @@ func listJSONRecords(pkgs []goutil.Package) []jsonPackage {
 }
 
 // PackageList list up command package in $GOPATH/bin or $GOBIN.
-func printPackageList(pkgs []goutil.Package) {
+func printPackageList(p *print.Printer, pkgs []goutil.Package) {
 	max := 0
 	for _, v := range pkgs {
 		if len(v.Name) > max {
@@ -119,7 +117,7 @@ func printPackageList(pkgs []goutil.Package) {
 	}
 
 	for _, v := range pkgs {
-		_, _ = fmt.Fprintf(print.Stdout, "%"+strconv.Itoa(max)+"s: %s%s\n",
+		_, _ = fmt.Fprintf(p.Out(), "%"+strconv.Itoa(max)+"s: %s%s\n",
 			v.Name,
 			v.ImportPath,
 			color.GreenString("@"+v.Version.Current))

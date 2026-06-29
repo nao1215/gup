@@ -104,7 +104,8 @@ func TestReadFileIfExists(t *testing.T) {
 	})
 }
 
-func TestValidateExplicitFile(t *testing.T) {
+// TestValidateResolvedConfig_explicitFile covers the explicit --file paths.
+func TestValidateResolvedConfig_explicitFile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -122,7 +123,6 @@ func TestValidateExplicitFile(t *testing.T) {
 		confFile string
 		wantErr  bool
 	}{
-		{name: "empty is no-op", confFile: "", wantErr: false},
 		{name: "missing path is no config", confFile: filepath.Join(dir, "missing.json"), wantErr: false},
 		{name: "valid passes", confFile: valid, wantErr: false},
 		{name: "malformed fails", confFile: malformed, wantErr: true},
@@ -130,11 +130,62 @@ func TestValidateExplicitFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if err := ValidateExplicitFile(tt.confFile); (err != nil) != tt.wantErr {
-				t.Fatalf("ValidateExplicitFile(%q) err = %v, wantErr %v", tt.confFile, err, tt.wantErr)
+			if err := ValidateResolvedConfig(tt.confFile); (err != nil) != tt.wantErr {
+				t.Fatalf("ValidateResolvedConfig(%q) err = %v, wantErr %v", tt.confFile, err, tt.wantErr)
 			}
 		})
 	}
+}
+
+// TestValidateResolvedConfig_autoDetected verifies that an empty confFile (no
+// --file) still validates the auto-detected config: a malformed user-level
+// config and an ambiguous user-level + ./gup.json pair both fail, while a clean
+// environment with no config succeeds.
+//
+//nolint:paralleltest // mutates xdg.ConfigHome and the working directory
+func TestValidateResolvedConfig_autoDetected(t *testing.T) {
+	t.Run("no config succeeds", func(t *testing.T) {
+		setupConfigHome(t)
+		t.Chdir(t.TempDir())
+		if err := ValidateResolvedConfig(""); err != nil {
+			t.Fatalf("ValidateResolvedConfig(\"\") with no config err = %v, want nil", err)
+		}
+	})
+
+	t.Run("malformed user-level config fails", func(t *testing.T) {
+		setupConfigHome(t)
+		t.Chdir(t.TempDir())
+		if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidateResolvedConfig(""); err == nil {
+			t.Fatal("ValidateResolvedConfig(\"\") with malformed auto-detected config = nil, want error")
+		}
+	})
+
+	t.Run("ambiguous config fails", func(t *testing.T) {
+		setupConfigHome(t)
+		t.Chdir(t.TempDir())
+		if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(config.FilePath(), []byte(validConf), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(config.LocalFilePath(), []byte(validConf), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err := ValidateResolvedConfig("")
+		if err == nil {
+			t.Fatal("ValidateResolvedConfig(\"\") with ambiguous config = nil, want error")
+		}
+		if !strings.Contains(err.Error(), "--file") {
+			t.Errorf("ambiguity error should mention --file, got: %v", err)
+		}
+	})
 }
 
 //nolint:paralleltest // mutates xdg.ConfigHome via setupConfigHome

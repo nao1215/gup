@@ -1,11 +1,9 @@
-//nolint:paralleltest,errcheck,gosec
+//nolint:paralleltest
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +12,6 @@ import (
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/goutil"
-	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
@@ -77,20 +74,9 @@ func Test_runImport_flagErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			orgStdout := print.Stdout
-			orgStderr := print.Stderr
-			pr, pw, err := os.Pipe()
-			if err != nil {
-				t.Fatal(err)
-			}
-			print.Stdout = pw
-			print.Stderr = pw
+			p, _ := newTestPrinter()
 
-			got := runImport(tt.cmd, nil)
-			pw.Close()
-			print.Stdout = orgStdout
-			print.Stderr = orgStderr
-			pr.Close()
+			got := runImport(p, tt.cmd, nil)
 
 			if got != tt.want {
 				t.Errorf("runImport() = %v, want %v", got, tt.want)
@@ -104,27 +90,14 @@ func Test_runImport_notUseGoCmd(t *testing.T) {
 
 	cmd := newImportCmd()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := runImport(p, cmd, nil)
 
 	if got != 1 {
 		t.Errorf("runImport() = %v, want 1", got)
 	}
 
-	buf := bytes.Buffer{}
-	_, _ = io.Copy(&buf, pr)
-	pr.Close()
 	if !strings.Contains(buf.String(), "you didn't install golang") {
 		t.Errorf("expected go command error, got: %s", buf.String())
 	}
@@ -136,30 +109,43 @@ func Test_runImport_fileNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := runImport(p, cmd, nil)
 
 	if got != 1 {
 		t.Errorf("runImport() = %v, want 1", got)
 	}
 
-	buf := bytes.Buffer{}
-	_, _ = io.Copy(&buf, pr)
-	pr.Close()
-
 	if !strings.Contains(buf.String(), "is not found") {
 		t.Errorf("expected 'is not found' error, got: %s", buf.String())
+	}
+}
+
+// Test_runImport_fileIsDirectory verifies that `gup import --file <dir>` fails
+// fast with a precise "directory, not a gup.json file" error instead of the
+// misleading "is not found" message it would otherwise produce (IsFile reports
+// false for a directory).
+func Test_runImport_fileIsDirectory(t *testing.T) {
+	cmd := newImportCmd()
+	dir := t.TempDir()
+	if err := cmd.Flags().Set("file", dir); err != nil {
+		t.Fatal(err)
+	}
+
+	p, buf := newTestPrinter()
+
+	got := runImport(p, cmd, nil)
+
+	if got != 1 {
+		t.Errorf("runImport() = %v, want 1", got)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "is a directory, not a gup.json file") {
+		t.Errorf("expected directory error, got: %s", out)
+	}
+	if strings.Contains(out, "is not found") {
+		t.Errorf("directory path should not report 'is not found', got: %s", out)
 	}
 }
 
@@ -176,27 +162,13 @@ func Test_runImport_emptyConf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := runImport(p, cmd, nil)
 
 	if got != 1 {
 		t.Errorf("runImport() = %v, want 1", got)
 	}
-
-	buf := bytes.Buffer{}
-	_, _ = io.Copy(&buf, pr)
-	pr.Close()
 
 	if !strings.Contains(buf.String(), "unable to import package") {
 		t.Errorf("expected 'unable to import package' error, got: %s", buf.String())
@@ -219,21 +191,10 @@ func Test_runImport_jobsClamp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, _ := newTestPrinter()
 
 	// Should not panic with jobs=0 (clamped to 1)
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-	pr.Close()
+	got := runImport(p, cmd, nil)
 
 	// Expect exit code 1 because the conf file has no packages
 	if got != 1 {
@@ -263,7 +224,8 @@ func Test_installFromConfig_UseVersion(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1, 0); got != 0 {
+	p, _ := newTestPrinter()
+	if got := installFromConfig(p, pkgs, false, false, 1, 0); got != 0 {
 		t.Fatalf("installFromConfig() = %d, want 0", got)
 	}
 
@@ -376,7 +338,8 @@ func Test_installFromConfig_installError(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1, 0); got != 1 {
+	p, _ := newTestPrinter()
+	if got := installFromConfig(p, pkgs, false, false, 1, 0); got != 1 {
 		t.Fatalf("installFromConfig() = %d, want 1", got)
 	}
 }
@@ -390,7 +353,8 @@ func Test_installFromConfig_emptyImportPath(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, false, false, 1, 0); got != 1 {
+	p, _ := newTestPrinter()
+	if got := installFromConfig(p, pkgs, false, false, 1, 0); got != 1 {
 		t.Fatalf("installFromConfig() = %d, want 1", got)
 	}
 }
@@ -413,7 +377,8 @@ func Test_installFromConfig_dryRun(t *testing.T) {
 		},
 	}
 
-	if got := installFromConfig(pkgs, true, false, 1, 0); got != 0 {
+	p, _ := newTestPrinter()
+	if got := installFromConfig(p, pkgs, true, false, 1, 0); got != 0 {
 		t.Fatalf("installFromConfig() dry-run = %d, want 0", got)
 	}
 }
@@ -436,27 +401,13 @@ func Test_runImport_ambiguousConfig(t *testing.T) {
 
 	cmd := newImportCmd()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
+	got := runImport(p, cmd, nil)
 
 	if got != 1 {
 		t.Errorf("runImport() = %v, want 1", got)
 	}
-
-	buf := bytes.Buffer{}
-	_, _ = io.Copy(&buf, pr)
-	pr.Close()
 
 	out := buf.String()
 	if !strings.Contains(out, "multiple gup.json") {
@@ -485,23 +436,9 @@ func Test_runImport_autoDetectSingleCandidate(t *testing.T) {
 
 	cmd := newImportCmd()
 
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
+	p, buf := newTestPrinter()
 
-	got := runImport(cmd, nil)
-	pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	_, _ = io.Copy(&buf, pr)
-	pr.Close()
+	got := runImport(p, cmd, nil)
 
 	out := buf.String()
 	if got != 0 {
@@ -542,7 +479,8 @@ func Test_runImport_timeoutPropagation(t *testing.T) {
 	if err := cmd.Flags().Set("timeout", "30s"); err != nil {
 		t.Fatal(err)
 	}
-	if got := runImport(cmd, nil); got != 0 {
+	p, _ := newTestPrinter()
+	if got := runImport(p, cmd, nil); got != 0 {
 		t.Fatalf("runImport() = %d, want 0", got)
 	}
 
@@ -581,7 +519,8 @@ func Test_runImport_timeoutZeroDisablesDeadline(t *testing.T) {
 	if err := cmd.Flags().Set("timeout", "0"); err != nil {
 		t.Fatal(err)
 	}
-	if got := runImport(cmd, nil); got != 0 {
+	p, _ := newTestPrinter()
+	if got := runImport(p, cmd, nil); got != 0 {
 		t.Fatalf("runImport() = %d, want 0", got)
 	}
 

@@ -24,6 +24,17 @@ func writeConfigFile(path string, pkgs []goutil.Package) (err error) {
 	if fileutil.IsDir(path) {
 		return fmt.Errorf("%s is a directory, not a file", path)
 	}
+	// Resolve symlinks at the destination so the atomic rename rewrites the link's
+	// target rather than replacing the link itself with a regular file. Dotfile
+	// managers (stow, chezmoi, yadm) commonly symlink gup.json into place; this
+	// preserves the link - including a dangling link whose target does not exist
+	// yet, the state right after a dotfile manager links a file before its first
+	// write.
+	resolvedPath, err := fileutil.ResolveSymlinkTarget(path)
+	if err != nil {
+		return fmt.Errorf("can not resolve config path %s: %w", path, err)
+	}
+	path = resolvedPath
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, fileutil.FileModeCreatingDir); err != nil {
 		return fmt.Errorf("%s: %w", "can not make config directory", err)

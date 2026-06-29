@@ -319,6 +319,94 @@ func Test_writeConfigFile_regularFileStillWorks(t *testing.T) {
 	assertNoTempFiles(t, dir, filepath.Base(path))
 }
 
+// Test_writeConfigFile_preservesSymlink verifies that when gup.json is a symlink
+// (e.g. a dotfile manager links it into place), writing the config rewrites the
+// link's target file and keeps the symlink intact rather than replacing it with a
+// regular file.
+func Test_writeConfigFile_preservesSymlink(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink behavior is POSIX-specific")
+	}
+	t.Parallel()
+
+	dir := t.TempDir()
+	realPath := filepath.Join(dir, "real-gup.json")
+	if err := os.WriteFile(realPath, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "gup.json")
+	if err := os.Symlink(realPath, link); err != nil {
+		t.Fatal(err)
+	}
+
+	pkg := goutil.Package{Name: testBinAir, ImportPath: oldImport, Version: &goutil.Version{Current: testVersion123}}
+	if err := writeConfigFile(link, []goutil.Package{pkg}); err != nil {
+		t.Fatalf("writeConfigFile() error = %v", err)
+	}
+
+	// The link must remain a symlink, not be replaced by a regular file.
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("gup.json symlink was replaced by a regular file")
+	}
+
+	// The config must have been written through the link to the real target.
+	got, err := os.ReadFile(filepath.Clean(realPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), oldImport) {
+		t.Fatalf("config was not written through the symlink to its target: %q", string(got))
+	}
+	assertNoTempFiles(t, dir, filepath.Base(link))
+	// Temps are staged next to the resolved target, so check that basename too.
+	assertNoTempFiles(t, dir, filepath.Base(realPath))
+}
+
+// Test_writeConfigFile_preservesDanglingSymlink verifies that when gup.json is a
+// symlink whose target does not exist yet (a dotfile tool linked it before the
+// target was written), the config write creates the link target instead of
+// replacing the symlink with a regular file.
+func Test_writeConfigFile_preservesDanglingSymlink(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink behavior is POSIX-specific")
+	}
+	t.Parallel()
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real-gup.json")
+	link := filepath.Join(dir, "gup.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	pkg := goutil.Package{Name: testBinAir, ImportPath: oldImport, Version: &goutil.Version{Current: testVersion123}}
+	if err := writeConfigFile(link, []goutil.Package{pkg}); err != nil {
+		t.Fatalf("writeConfigFile() error = %v", err)
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("dangling gup.json symlink was replaced by a regular file")
+	}
+	got, err := os.ReadFile(filepath.Clean(target))
+	if err != nil {
+		t.Fatalf("link target was not created through the symlink: %v", err)
+	}
+	if !strings.Contains(string(got), oldImport) {
+		t.Fatalf("config was not written to the link target: %q", string(got))
+	}
+	assertNoTempFiles(t, dir, filepath.Base(link))
+	// Temps are staged next to the resolved target, so check that basename too.
+	assertNoTempFiles(t, dir, filepath.Base(target))
+}
+
 func fileExists(t *testing.T, path string) bool {
 	t.Helper()
 	info, err := os.Stat(path)

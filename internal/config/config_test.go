@@ -340,6 +340,99 @@ func TestResolveImportFilePath(t *testing.T) { //nolint:paralleltest // changes 
 	}
 }
 
+// TestResolveImportFilePathDirectoryCandidate verifies that an auto-detected
+// gup.json candidate (./gup.json or the XDG user-level config) is rejected with
+// an error when it is a directory instead of a file. Previously such a directory
+// was silently ignored because IsFile returns false for directories, so import
+// fell back to "not found" or the other candidate without telling the user.
+func TestResolveImportFilePathDirectoryCandidate(t *testing.T) { //nolint:paralleltest // changes working dir
+	t.Run("local ./gup.json is a directory", func(t *testing.T) { //nolint:paralleltest // changes working dir
+		cleanup := withTempXDG(t)
+		defer cleanup()
+
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = os.Chdir(wd)
+		})
+
+		tmpDir := t.TempDir()
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Mkdir(filepath.Join(tmpDir, ConfigFileName), 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := ResolveImportFilePath("")
+		if err == nil {
+			t.Fatalf("ResolveImportFilePath(local dir) = (%s, nil), want error", got)
+		}
+		if got != "" {
+			t.Fatalf("ResolveImportFilePath(local dir) path = %s, want empty", got)
+		}
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("ResolveImportFilePath(local dir) error = %q, want it to mention it is a directory", err.Error())
+		}
+	})
+
+	t.Run("XDG gup.json is a directory", func(t *testing.T) { //nolint:paralleltest // changes working dir
+		cleanup := withTempXDG(t)
+		defer cleanup()
+
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = os.Chdir(wd)
+		})
+
+		// Run from a directory with no local ./gup.json so only the XDG
+		// candidate is in play.
+		tmpDir := t.TempDir()
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+
+		xdgFile := FilePath()
+		if err := os.MkdirAll(xdgFile, 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := ResolveImportFilePath("")
+		if err == nil {
+			t.Fatalf("ResolveImportFilePath(xdg dir) = (%s, nil), want error", got)
+		}
+		if got != "" {
+			t.Fatalf("ResolveImportFilePath(xdg dir) path = %s, want empty", got)
+		}
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("ResolveImportFilePath(xdg dir) error = %q, want it to mention it is a directory", err.Error())
+		}
+	})
+
+	// An explicit --file path that points at a directory must be rejected with the
+	// same precise "directory, not a gup.json file" error, rather than falling
+	// through to a misleading "not found" failure in import.
+	t.Run("explicit --file is a directory", func(t *testing.T) { //nolint:paralleltest // sibling subtests change working dir
+		dir := t.TempDir()
+		got, err := ResolveImportFilePath(dir)
+		if err == nil {
+			t.Fatalf("ResolveImportFilePath(explicit dir) = (%s, nil), want error", got)
+		}
+		if got != "" {
+			t.Fatalf("ResolveImportFilePath(explicit dir) path = %s, want empty", got)
+		}
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("ResolveImportFilePath(explicit dir) error = %q, want it to mention it is a directory", err.Error())
+		}
+	})
+}
+
 func TestResolveExportFilePath(t *testing.T) {
 	t.Parallel()
 

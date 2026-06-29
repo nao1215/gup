@@ -8,11 +8,21 @@ import (
 
 	"github.com/nao1215/gup/internal/cmdinfo"
 	"github.com/nao1215/gup/internal/completion"
+	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
 
 // OsExit is wrapper for  os.Exit(). It's for unit test.
 var OsExit = os.Exit //nolint:gochecknoglobals
+
+// printerFor builds a Printer from a command's output streams. It uses
+// cmd.OutOrStdout()/ErrOrStderr() so output flows through cobra's configurable
+// writers: production wires the colorable process streams onto the root command
+// in Execute, while a test can capture output by calling SetOut/SetErr with a
+// buffer instead of redirecting the process-wide os.Stdout/os.Stderr.
+func printerFor(cmd *cobra.Command) *print.Printer {
+	return print.New(cmd.OutOrStdout(), cmd.ErrOrStderr())
+}
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -79,6 +89,12 @@ If you find gup useful, please consider sponsoring the project:
 // Execute run gup process.
 func Execute() error {
 	rootCmd := newRootCmd()
+	// Wire the colorable process streams onto the root command. cobra propagates
+	// these to every subcommand (OutOrStdout/ErrOrStderr walk up to the parent),
+	// so printerFor builds production Printers over them while tests can override
+	// with SetOut/SetErr.
+	rootCmd.SetOut(print.ColorableStdout())
+	rootCmd.SetErr(print.ColorableStderr())
 	return rootCmd.Execute()
 }
 

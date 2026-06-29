@@ -1,11 +1,9 @@
-//nolint:paralleltest // tests mutate global function variables for stubbing
+//nolint:paralleltest // tests mutate process-global state (GOBIN/XDG env, cwd)
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,46 +39,24 @@ func newCheckPkg(name, current string, channel goutil.UpdateChannel) goutil.Pack
 	}
 }
 
-// captureCheckOutput runs fn while capturing everything printed to stdout/stderr.
-func captureCheckOutput(t *testing.T, fn func() int) string {
+// captureCheckOutput runs fn with a buffer-backed Printer and returns everything
+// it wrote to stdout/stderr (both go to the same buffer, mirroring the previous
+// single-pipe capture).
+func captureCheckOutput(t *testing.T, fn func(p *print.Printer) int) string {
 	t.Helper()
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	print.Stdout = pw
-	print.Stderr = pw
-
-	fn()
-
-	_ = pw.Close()
-	print.Stdout = orgStdout
-	print.Stderr = orgStderr
-
-	buf := bytes.Buffer{}
-	if _, err := io.Copy(&buf, pr); err != nil {
-		t.Fatal(err)
-	}
-	_ = pr.Close()
+	p, buf := newTestPrinter()
+	fn(p)
 	return buf.String()
 }
 
 func Test_doCheck_respectsSavedChannels(t *testing.T) {
-	origLatest := getLatestVerCtx
-	origRef := getVerByRefCtx
-	t.Cleanup(func() {
-		getLatestVerCtx = origLatest
-		getVerByRefCtx = origRef
-	})
-
+	deps := testDeps()
 	// @latest always reports v1.0.0 so a main/master binary would look
 	// up-to-date if check wrongly ignored the saved channel.
-	getLatestVerCtx = func(_ context.Context, _ string) (string, error) {
+	deps.getLatestVer = func(_ context.Context, _ string) (string, error) {
 		return testVersionOne, nil
 	}
-	getVerByRefCtx = func(_ context.Context, _ string, ref string) (string, error) {
+	deps.getVerByRef = func(_ context.Context, _ string, ref string) (string, error) {
 		switch ref {
 		case refMain:
 			return "v1.5.0", nil
@@ -100,8 +76,8 @@ func Test_doCheck_respectsSavedChannels(t *testing.T) {
 		newCheckPkg(testBinMasterTool, testVersionTwo, goutil.UpdateChannelMaster),
 	}
 
-	out := captureCheckOutput(t, func() int {
-		return doCheck(pkgs, 1, 0, true, false)
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		return doCheck(deps, p, pkgs, 1, 0, true, false)
 	})
 
 	idx := strings.Index(out, "$ gup update ")
@@ -142,8 +118,8 @@ func Test_check_ambiguousConfigFailsFast(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 
@@ -173,8 +149,8 @@ func Test_check_emptyEnv_validatesExplicitMalformedFile(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(cmd, []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
@@ -202,12 +178,73 @@ func Test_check_emptyEnv_validatesExplicitDirectoryFile(t *testing.T) {
 	}
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = check(cmd, []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, cmd, []string{})
 		return got
 	})
 	if got != 1 {
 		t.Fatalf("check() = %d, want 1 for a directory --file on an empty environment", got)
+	}
+}
+
+// Test_check_emptyEnv_validatesAutoDetectedMalformedConfig verifies that an
+// empty environment fails fast on a malformed auto-detected (user-level) config
+// even when no --file is given. Without validation, a broken gup.json would be
+// silently ignored just because zero binaries are installed.
+func Test_check_emptyEnv_validatesAutoDetectedMalformedConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte("{invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for a malformed auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, config.FilePath()) {
+		t.Errorf("error should name the failing config %q, got: %s", config.FilePath(), out)
+	}
+}
+
+// Test_check_emptyEnv_validatesAutoDetectedAmbiguousConfig verifies that an
+// empty environment still fails fast when both the user-level config and
+// ./gup.json exist and no --file is given (the same ambiguity a non-empty
+// environment rejects).
+func Test_check_emptyEnv_validatesAutoDetectedAmbiguousConfig(t *testing.T) {
+	setupXDGBase(t)
+	chdirToTemp(t)
+	t.Setenv("GOBIN", t.TempDir()) // empty environment
+
+	if err := os.MkdirAll(config.DirPath(), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.FilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.LocalFilePath(), []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got int
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
+		return got
+	})
+	if got != 1 {
+		t.Fatalf("check() = %d, want 1 for an ambiguous auto-detected config on an empty environment", got)
+	}
+	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, "--file") {
+		t.Errorf("expected ambiguity error mentioning --file, got: %s", out)
 	}
 }
 
@@ -219,8 +256,8 @@ func Test_check_emptyEnv_succeedsWithoutExplicitConfigProblem(t *testing.T) {
 	t.Setenv("GOBIN", t.TempDir()) // empty environment
 
 	got := 0
-	_ = captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+	_ = captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 	if got != 0 {
@@ -249,8 +286,8 @@ func Test_check_failsFastOnMalformedConfig(t *testing.T) {
 	}
 
 	var got int
-	out := captureCheckOutput(t, func() int {
-		got = check(newCheckCmd(), []string{})
+	out := captureCheckOutput(t, func(p *print.Printer) int {
+		got = check(defaultDependencies(), p, newCheckCmd(), []string{})
 		return got
 	})
 	if got != 1 {

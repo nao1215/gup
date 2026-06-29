@@ -1,8 +1,9 @@
-//nolint:paralleltest // tests mutate the global xdg.ConfigHome and print.Stderr
+//nolint:paralleltest // tests mutate the global xdg.ConfigHome
 package assets
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +38,9 @@ func TestIconPaths(t *testing.T) {
 func TestDeployIconIfNeeded(t *testing.T) {
 	useTempConfigHome(t)
 
-	DeployIconIfNeeded()
+	p := print.New(io.Discard, io.Discard)
+
+	DeployIconIfNeeded(p)
 
 	if !fileutil.IsFile(InfoIconPath()) {
 		t.Fatalf("info icon was not deployed at %s", InfoIconPath())
@@ -55,7 +58,7 @@ func TestDeployIconIfNeeded(t *testing.T) {
 	}
 
 	// Calling again must be a no-op and must not error or change the files.
-	DeployIconIfNeeded()
+	DeployIconIfNeeded(p)
 	if !fileutil.IsFile(InfoIconPath()) || !fileutil.IsFile(WarningIconPath()) {
 		t.Error("icons should still exist after a second DeployIconIfNeeded call")
 	}
@@ -70,12 +73,10 @@ func TestDeployIconIfNeeded_MkdirError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orig := print.Stderr
-	var buf bytes.Buffer
-	print.Stderr = &buf
-	t.Cleanup(func() { print.Stderr = orig })
+	buf := &bytes.Buffer{}
+	p := print.New(buf, buf)
 
-	DeployIconIfNeeded()
+	DeployIconIfNeeded(p)
 
 	if !strings.Contains(buf.String(), "can not make assets directory") {
 		t.Errorf("expected assets directory error, got: %s", buf.String())

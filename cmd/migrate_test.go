@@ -2,12 +2,12 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -84,21 +84,15 @@ const (
 	testNameSuccess       = "success"
 	testNameTest2         = "test2"
 	testUnknown           = "unknown"
+	testBinDummy          = "dummy"
 )
 
-// captureMigrateOutput redirects print output into a buffer for the duration of fn.
-func captureMigrateOutput(t *testing.T, fn func()) string {
+// captureMigrateOutput runs fn with a buffer-backed printer and returns the
+// captured output.
+func captureMigrateOutput(t *testing.T, fn func(p *print.Printer)) string {
 	t.Helper()
-	orgStdout := print.Stdout
-	orgStderr := print.Stderr
-	buf := &bytes.Buffer{}
-	print.Stdout = buf
-	print.Stderr = buf
-	defer func() {
-		print.Stdout = orgStdout
-		print.Stderr = orgStderr
-	}()
-	fn()
+	p, buf := newTestPrinter()
+	fn(p)
 	return buf.String()
 }
 
@@ -190,6 +184,35 @@ func Test_validateMigratePaths(t *testing.T) {
 			t.Fatal("AFTER_PATH should not be created during dry-run")
 		}
 	})
+
+	// Reproduces the dry-run validation gap: a real migrate creates AFTER_PATH
+	// with os.MkdirAll and fails when it can't (e.g. the parent directory is not
+	// writable). dry-run skipped that step entirely and reported success, so the
+	// dry-run promised a migration that the real run could never perform.
+	t.Run("dry-run fails when AFTER_PATH cannot be created", func(t *testing.T) {
+		if runtime.GOOS == goosWindows {
+			t.Skip("POSIX directory permission semantics are required")
+		}
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory write permissions")
+		}
+		before := t.TempDir()
+		parent := t.TempDir()
+		if err := os.Chmod(parent, 0o555); err != nil { //nolint:gosec // a read-only (but traversable) directory is the condition under test
+			t.Fatal(err)
+		}
+		// Restore write permission so t.TempDir cleanup can remove it.
+		t.Cleanup(func() { _ = os.Chmod(parent, 0o755) }) //nolint:gosec // restore standard dir perms for cleanup
+
+		after := filepath.Join(parent, "gobin")
+		if err := validateMigratePaths(before, after, true); err == nil {
+			t.Fatal("dry-run should fail when AFTER_PATH cannot be created")
+		}
+		// The probe must not leave the destination behind.
+		if _, err := os.Stat(after); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("AFTER_PATH must not be created during dry-run validation")
+		}
+	})
 }
 
 func Test_resolveMigrateVersion(t *testing.T) {
@@ -274,8 +297,8 @@ func Test_migratePackages_install(t *testing.T) {
 		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
-	out := captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -311,8 +334,8 @@ func Test_migratePackages_addOnlySkip(t *testing.T) {
 		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
-	out := captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -346,8 +369,8 @@ func Test_migratePackages_force(t *testing.T) {
 		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
-	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, true, 0); got != 0 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, true, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -373,8 +396,8 @@ func Test_migratePackages_dryRun(t *testing.T) {
 		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersion123}},
 	}
 
-	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, true, false, 1, false, 0); got != 0 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, true, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() dry-run = %d, want 0", got)
 		}
 	})
@@ -403,8 +426,8 @@ func Test_migratePackages_skipDevelAndUnknown(t *testing.T) {
 		{Name: "good", ImportPath: "github.com/example/good", Version: &goutil.Version{Current: testVersionOne}},
 	}
 
-	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 2, false, 0); got != 0 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 2, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -439,8 +462,8 @@ func Test_migratePackages_modulePathMismatchRetry(t *testing.T) {
 		},
 	}
 
-	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 0 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, false, 0); got != 0 {
 			t.Fatalf("migratePackages() = %d, want 0", got)
 		}
 	})
@@ -468,8 +491,8 @@ func Test_migratePackages_installError(t *testing.T) {
 		{Name: testBinTool, ImportPath: testImportPathTool, Version: &goutil.Version{Current: testVersionOne}},
 	}
 
-	captureMigrateOutput(t, func() {
-		if got := migratePackages(pkgs, after, false, false, 1, false, 0); got != 1 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, false, 0); got != 1 {
 			t.Fatalf("migratePackages() = %d, want 1 on install error", got)
 		}
 	})
@@ -490,8 +513,8 @@ func Test_migratePackages_jobsBoundary(t *testing.T) {
 	}
 
 	for _, jobs := range []int{-1, 0, 1, 100} {
-		captureMigrateOutput(t, func() {
-			if got := migratePackages(pkgs, after, false, false, jobs, false, 0); got != 0 {
+		captureMigrateOutput(t, func(p *print.Printer) {
+			if got := migratePackages(p, pkgs, after, false, false, jobs, false, 0); got != 0 {
 				t.Fatalf("migratePackages(jobs=%d) = %d, want 0", jobs, got)
 			}
 		})
@@ -513,8 +536,8 @@ func Test_runMigrate_filterByBinary(t *testing.T) {
 	}
 
 	cmd := newMigrateCmd()
-	captureMigrateOutput(t, func() {
-		if got := runMigrate(cmd, []string{before, after, testBinPosixer}); got != 0 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := runMigrate(p, cmd, []string{before, after, testBinPosixer}); got != 0 {
 			t.Fatalf("runMigrate() = %d, want 0", got)
 		}
 	})
@@ -542,9 +565,9 @@ func Test_runMigrate_missingTargetWarning(t *testing.T) {
 	}
 
 	cmd := newMigrateCmd()
-	out := captureMigrateOutput(t, func() {
+	out := captureMigrateOutput(t, func(p *print.Printer) {
 		// "posixer" exists in testdata; "doesnotexist" does not.
-		if got := runMigrate(cmd, []string{before, after, testBinPosixer, "doesnotexist"}); got != 0 {
+		if got := runMigrate(p, cmd, []string{before, after, testBinPosixer, "doesnotexist"}); got != 0 {
 			t.Fatalf("runMigrate() = %d, want 0", got)
 		}
 	})
@@ -563,8 +586,8 @@ func Test_runMigrate_allTargetsMissingWarns(t *testing.T) {
 	t.Setenv("GOBIN", t.TempDir())
 
 	cmd := newMigrateCmd()
-	out := captureMigrateOutput(t, func() {
-		if got := runMigrate(cmd, []string{before, after, "nope1", "nope2"}); got != 1 {
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		if got := runMigrate(p, cmd, []string{before, after, "nope1", "nope2"}); got != 1 {
 			t.Fatalf("runMigrate() = %d, want 1 when no requested binary exists", got)
 		}
 	})
@@ -574,11 +597,63 @@ func Test_runMigrate_allTargetsMissingWarns(t *testing.T) {
 	}
 }
 
+func Test_runMigrate_presentButUnreadableNotWarned(t *testing.T) {
+	before := filepath.Join("testdata", "check_fail")
+	after := t.TempDir()
+	t.Setenv("GOBIN", t.TempDir())
+
+	cmd := newMigrateCmd()
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		// "dummy" exists on disk under check_fail but its build info can't be
+		// read, so it never becomes a managed package. The missing check must
+		// key off binary paths, not resolved packages, so naming it yields no
+		// "not found" warning. This mirrors pkgselect.MissingTargets.
+		//
+		// Pin the exit code and reason too: the run must fail because there is
+		// nothing migratable (the binary is present but unmanageable), NOT
+		// because the target was mislabeled as missing. Asserting only the
+		// absence of a warning would let a different failure mode slip in here.
+		if got := runMigrate(p, cmd, []string{before, after, testBinDummy}); got != 1 {
+			t.Fatalf("runMigrate() = %d, want 1 (nothing migratable)", got)
+		}
+	})
+
+	if strings.Contains(out, "not found") {
+		t.Fatalf("present-but-unreadable binary must not be warned as not found, got: %s", out)
+	}
+	if !strings.Contains(out, "no go-install binary to migrate") {
+		t.Fatalf("expected the 'nothing migratable' error, got: %s", out)
+	}
+}
+
+func Test_runMigrate_missingTargetTrimAndDedup(t *testing.T) {
+	before := filepath.Join("testdata", "check_success")
+	after := t.TempDir()
+	t.Setenv("GOBIN", t.TempDir())
+
+	original := installByVersionMigrateCtx
+	t.Cleanup(func() { installByVersionMigrateCtx = original })
+	installByVersionMigrateCtx = func(context.Context, string, string) error { return nil }
+
+	cmd := newMigrateCmd()
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		// A padded target and its duplicate must collapse to a single warning
+		// showing the trimmed name.
+		if got := runMigrate(p, cmd, []string{before, after, testBinPosixer, "  ghost  ", "ghost"}); got != 0 {
+			t.Fatalf("runMigrate() = %d, want 0", got)
+		}
+	})
+
+	if c := strings.Count(out, "not found 'ghost'"); c != 1 {
+		t.Fatalf("expected exactly one trimmed 'ghost' warning, got %d: %s", c, out)
+	}
+}
+
 func Test_runMigrate_sameDirError(t *testing.T) {
 	dir := t.TempDir()
 	cmd := newMigrateCmd()
-	out := captureMigrateOutput(t, func() {
-		if got := runMigrate(cmd, []string{dir, dir}); got != 1 {
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		if got := runMigrate(p, cmd, []string{dir, dir}); got != 1 {
 			t.Fatalf("runMigrate() = %d, want 1 for same directory", got)
 		}
 	})
@@ -589,8 +664,8 @@ func Test_runMigrate_sameDirError(t *testing.T) {
 
 func Test_runMigrate_beforeNotFound(t *testing.T) {
 	cmd := newMigrateCmd()
-	captureMigrateOutput(t, func() {
-		if got := runMigrate(cmd, []string{filepath.Join(t.TempDir(), "missing"), t.TempDir()}); got != 1 {
+	captureMigrateOutput(t, func(p *print.Printer) {
+		if got := runMigrate(p, cmd, []string{filepath.Join(t.TempDir(), "missing"), t.TempDir()}); got != 1 {
 			t.Fatalf("runMigrate() = %d, want 1 for missing BEFORE_PATH", got)
 		}
 	})
