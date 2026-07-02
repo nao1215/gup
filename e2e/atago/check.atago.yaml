@@ -1,0 +1,65 @@
+# Migrated from gup's ShellSpec e2e/spec/check_spec.sh. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup check (offline)
+
+scenarios:
+  - name: reports up-to-date for a binary already at the latest version
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].name"
+              equals: uptodate
+      - assert:
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: up-to-date
+
+  - name: reports update-available for an outdated binary
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: update-available
+      - assert:
+          stdout:
+            json:
+              path: "$[0].latest_version"
+              equals: v1.1.0
+
+  - name: does not mislabel a present-but-unreadable binary as not found
+    env: *iso
+    steps:
+      # A junk file in $GOBIN exists but has no readable Go build info.
+      - fixture:
+          file: gobin/junk
+          content: "not a go binary"
+      - run:
+          command: gup check junk
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "could not read Go build info"
+      - assert:
+          stderr:
+            not_contains: "not found 'junk'"

@@ -29,7 +29,7 @@ test: ## Start test
 	env GOOS=$(GOOS) $(GO_TEST) -cover $(GO_PKGROOT) -coverprofile=cover.out
 	$(GO_TOOL) cover -html=cover.out -o cover.html
 
-e2e: ## Run offline end-to-end tests against the real CLI (requires shellspec)
+e2e: ## Run offline end-to-end tests against the real CLI (requires atago)
 	./e2e/run.sh
 
 vet: ## Start go vet

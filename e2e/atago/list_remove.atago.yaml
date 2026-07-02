@@ -1,0 +1,61 @@
+# Migrated from gup's ShellSpec e2e/spec/list_spec.sh (installed-binary case) and
+# e2e/spec/remove_spec.sh. Run with: make e2e
+#
+# gup_no_tty (printf '' | gup) is reproduced by giving the run a stdin pipe: any
+# declared stdin makes the child's stdin a pipe rather than a TTY, so gup's
+# "stdin is not a TTY" detection (#323) fires deterministically.
+version: "1"
+
+suite:
+  name: gup list/remove (offline)
+
+scenarios:
+  - name: lists an installed binary with its import path
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup list
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - outdated
+              - gup.test/outdated
+
+  - name: removes an installed binary with --force
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup remove --force outdated
+          stdin: "\n"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: removed
+          file:
+            path: gobin/outdated
+            exists: false
+
+  - name: refuses to remove without --force when stdin is not a TTY (#323)
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup remove outdated
+          stdin: "\n"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "not a TTY"
+          file:
+            path: gobin/outdated
+            exists: true

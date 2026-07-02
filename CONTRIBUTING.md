@@ -30,19 +30,21 @@ make coverage-tree
 gup has an offline end-to-end suite that exercises the real `gup` binary and the
 real `go` toolchain against a self-contained module proxy, all inside a throwaway
 temp tree. It never touches your real `$HOME`, `~/.config/gup`, or `$GOBIN`, and
-needs no network access. The suite uses [ShellSpec](https://github.com/shellspec/shellspec).
+needs no network access. The tests are plain-YAML specs run by
+[atago](https://github.com/nao1215/atago).
 
 ```shell
-# Install ShellSpec once (see https://github.com/shellspec/shellspec#installation)
-curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/0.28.1/install.sh | sh -s 0.28.1 --yes
+# Install atago once
+go install github.com/nao1215/atago@latest
 
 # Run the whole offline suite
 make e2e
 ```
 
 The harness lives under `e2e/`: `e2e/run.sh` builds gup, starts the offline
-module proxy (`e2e/testproxy`), and runs the ShellSpec specs in `e2e/spec/`. The
-same `make e2e` command runs in CI (`.github/workflows/e2e.yml`).
+module proxy (`e2e/testproxy`), and runs the atago specs in `e2e/atago/`. The
+same `make e2e` command runs in CI (`.github/workflows/e2e.yml`), where atago
+is installed by [setup-atago](https://github.com/nao1215/setup-atago).
 
 ### 5. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.
