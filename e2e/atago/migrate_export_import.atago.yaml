@@ -1,0 +1,61 @@
+# Migrated from gup's ShellSpec e2e/spec/migrate_spec.sh and
+# e2e/spec/export_import_spec.sh. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup migrate/export/import (offline)
+
+scenarios:
+  - name: reinstalls binaries from BEFORE_PATH into AFTER_PATH
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      # install_fixture_into "$before": a go install with GOBIN pointed at the
+      # source directory (step env overrides the scenario's GOBIN).
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: gup migrate "${workdir}/before" "${workdir}/after"
+      - assert:
+          exit_code: 0
+          file:
+            path: after/outdated
+            exists: true
+          stdout:
+            contains: migration
+
+  - name: export --output prints the installed tool as JSON on STDOUT
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup export --output
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - gup.test/outdated
+              - '"schema_version"'
+
+  - name: import --file installs the tools listed in a gup.json
+    env: *iso
+    steps:
+      - fixture:
+          file: import.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup import --file "${workdir}/import.json"
+      - assert:
+          exit_code: 0
+          file:
+            path: gobin/uptodate
+            exists: true
+          stdout:
+            contains: gup.test/uptodate

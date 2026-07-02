@@ -1,0 +1,183 @@
+# Migrated from gup's ShellSpec e2e/spec/update_spec.sh.
+# Full offline migration: each scenario builds an isolated HOME/GOBIN/GOPATH in
+# its temp workdir (scenario env: + ${workdir}) and inherits GOPROXY/caches from
+# the bootstrap (e2e/run.sh, which serves the in-repo fixture modules).
+# Run with: make e2e
+#
+# ShellSpec mapping:
+#   install_fixture M@V          -> a `go install M@V` run step (output ignored)
+#   When call gup ...            -> the measured `run:` step
+#   The path "$GOBIN/x" should be exist -> file: { path: gobin/x, exists: true }
+#   The * should not include ... -> not_contains: (added for this migration)
+version: "1"
+
+suite:
+  name: gup update (offline)
+
+scenarios:
+  - name: updates an outdated binary
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update outdated
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+          file:
+            path: gobin/outdated
+            exists: true
+
+  - name: installs the newer version (build info reflects v1.1.0)
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update outdated
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains:
+              - gup.test/outdated
+              - v1.1.0
+
+  - name: installs from @main when the main branch exists
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/maintool@main
+      - run:
+          command: gup update --main maintool
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: maintool
+          file:
+            path: gobin/maintool
+            exists: true
+
+  - name: falls back to @master only when the repo has no main branch
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/mastertool@master
+      - run:
+          command: gup update --main mastertool
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: mastertool
+          file:
+            path: gobin/mastertool
+            exists: true
+
+  - name: does NOT fall back to @master when @main exists but fails to build
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/badmaintool@v1.0.0
+      - run:
+          command: gup update --main badmaintool
+      - assert:
+          exit_code: 1
+          stdout:
+            contains: "update binary under"
+      # @master is never tried as a fallback.
+      - assert:
+          stderr:
+            not_contains: "badmaintool master"
+
+  - name: leaves the binary unchanged when @main fails to build
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/badmaintool@v1.0.0
+      - run:
+          command: gup update --main badmaintool
+      - run:
+          command: go version -m gobin/badmaintool
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: saves the channel to an explicit --file even when it does not exist yet
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/maintool@main
+      - run:
+          command: gup update --main maintool --file "${workdir}/explicit.json"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: maintool
+          file:
+            path: explicit.json
+            contains: '"channel": "main"'
+      # The user-level config must NOT be created as a side effect.
+      - assert:
+          file:
+            path: home/.config/gup/gup.json
+            exists: false
+
+  - name: fails fast when both the user-level config and ./gup.json exist (#342)
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - fixture:
+          file: home/.config/gup/gup.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - fixture:
+          file: gup.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "multiple gup.json"
+              - "--file"
+
+  - name: prints a next-step hint when the command path moved away
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      - run:
+          command: gup update tool
+      - assert:
+          exit_code: 1
+          stdout:
+            contains: "update binary under"
+          stderr:
+            contains:
+              - "does not contain package"
+              - "major version"
+
+  - name: prints a next-step hint when the module uses replace directives
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/replaced@v1.0.0
+      - run:
+          command: gup update replaced
+      - assert:
+          exit_code: 1
+          stdout:
+            contains: "update binary under"
+          stderr:
+            contains:
+              - "replace directive"
+              - "go install"

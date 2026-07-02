@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   e2e:
-    name: Offline E2E (ShellSpec)
+    name: Offline E2E (atago)
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +24,10 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Install ShellSpec
-        # Pin to a released version so CI behavior does not drift with upstream master.
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/shellspec/shellspec/0.28.1/install.sh | sh -s 0.28.1 --yes
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install atago
+        uses: nao1215/setup-atago@e4b6719aea547a68e6c15252222babab7f492a88 # v0.1.1
+        with:
+          version: v0.1.0
 
       - name: Run offline end-to-end tests
         run: make e2e

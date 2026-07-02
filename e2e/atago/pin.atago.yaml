@@ -1,0 +1,327 @@
+# Migrated from gup's ShellSpec e2e/spec/pin_spec.sh. Run with: make e2e
+#
+# Multi-command ShellSpec setups (install_fixture; gup pin >/dev/null; gup update
+# >/dev/null) become sequential `run:` steps; only the final run's output is
+# asserted. The `verify_mixed` shell function maps to separate `go version -m`
+# runs with their own assertions (cleaner than the embedded grep helper).
+# config_path = $XDG_CONFIG_HOME/gup/gup.json = home/.config/gup/gup.json.
+version: "1"
+
+suite:
+  name: gup pin/unpin (offline)
+
+scenarios:
+  - name: records a pin in gup.json with schema_version 2
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Pinned outdated to v1.0.0"
+          file:
+            path: home/.config/gup/gup.json
+            exists: true
+      - assert:
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"schema_version": 2'
+      - assert:
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"channel": "pinned"'
+      - assert:
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"version": "v1.0.0"'
+
+  - name: accepts the tool@version form
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated@v1.0.0
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Pinned outdated to v1.0.0"
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"channel": "pinned"'
+
+  - name: refuses to pin a tool that is not managed by gup
+    env: *iso
+    steps:
+      - run:
+          command: gup pin not-installed v1.0.0
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "not managed by gup"
+
+  - name: keeps a pinned tool at its version during gup update
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup update
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains:
+              - gup.test/outdated
+              - v1.0.0
+      - assert:
+          stdout:
+            not_contains: v1.1.0
+
+  - name: reinstalls a pinned tool at the pin when the installed version differs
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.1.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup update
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: updates an unpinned tool while a pinned tool stays put in the same run
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup update
+      # pinned 'outdated' stays at v1.0.0...
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - assert:
+          stdout:
+            not_contains: v1.1.0
+      # ...while unpinned 'pinnable' moved to v1.1.0.
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: allows the tool to update again after unpin
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup unpin outdated
+      - run:
+          command: gup update
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: unpin is idempotent for a tool that is not pinned
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup unpin outdated
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "not pinned"
+
+  - name: reports a pinned tool at its version as pinned (JSON)
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - '"channel": "pinned"'
+              - '"pinned_version": "v1.0.0"'
+              - '"status": "pinned"'
+      # A pin is never compared against @latest.
+      - assert:
+          stdout:
+            contains: '"latest_version": ""'
+
+  - name: reports pin-mismatch and suggests gup update when versions differ
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.1.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup check
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - pinned
+              - "gup update"
+
+  - name: exposes pin-mismatch in JSON
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.1.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          stdout:
+            contains:
+              - '"status": "pin-mismatch"'
+              - '"pinned_version": "v1.0.0"'
+              - '"current_version": "v1.1.0"'
+
+  - name: export preserves the pinned state and version
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup export --output
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - '"schema_version": 2'
+              - '"channel": "pinned"'
+              - '"version": "v1.0.0"'
+
+  - name: import installs the exact pinned version
+    env: *iso
+    steps:
+      - fixture:
+          file: pinned.json
+          content: |
+            {"schema_version":2,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"v1.0.0","channel":"pinned"}]}
+      - run:
+          command: gup import --file "${workdir}/pinned.json"
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - assert:
+          stdout:
+            not_contains: v1.1.0
+
+  - name: still reads an existing schema_version 1 config
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: cfg.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup check --file "${workdir}/cfg.json" --json
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: '"channel": "latest"'
+
+  - name: fails fast on an invalid pinned config instead of installing @latest
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: cfg.json
+          content: |
+            {"schema_version":2,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"latest","channel":"pinned"}]}
+      - run:
+          command: gup check --file "${workdir}/cfg.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: pinned
+
+  - name: fails fast on an unknown channel instead of treating it as latest
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: cfg.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"v1.0.0","channel":"stable"}]}
+      - run:
+          command: gup check --file "${workdir}/cfg.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "unknown channel"
+
+  - name: rejects channel pinned under schema_version 1
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: cfg.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"v1.0.0","channel":"pinned"}]}
+      - run:
+          command: gup check --file "${workdir}/cfg.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: pinned
+
+  - name: keeps gup update --json valid with a pinned package
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      - run:
+          command: gup update --json
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - '"channel": "pinned"'
+              - '"name": "outdated"'

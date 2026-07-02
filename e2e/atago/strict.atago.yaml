@@ -1,0 +1,101 @@
+# Strict failure-mode and contract checks that the original ShellSpec suite did
+# not cover: exact exit codes for misuse, error messages that name the culprit,
+# and the version banner contract. All offline; each scenario isolates its own
+# HOME/GOBIN like the rest of the suite (bootstrap: e2e/run.sh).
+# Run with: make e2e
+version: "1"
+
+suite:
+  name: gup strict contracts (offline)
+
+scenarios:
+  - name: version banner carries the injected version and stays off stderr
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: gup version
+      - assert:
+          exit_code: 0
+          stdout:
+            matches: "^gup version v0\\.0\\.0-e2e "
+          stderr:
+            empty: true
+
+  - name: updating a binary that is not installed fails and names it
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup update no-such-tool-xyz
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "not found 'no-such-tool-xyz'"
+              - "unable to update package"
+
+  - name: removing a binary that is not installed fails and names the path
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup remove --force no-such-tool-xyz
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "no such file or directory"
+      - assert:
+          stderr:
+            contains: no-such-tool-xyz
+
+  - name: list on an empty GOBIN succeeds with an explicit notice, not silence
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup list
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: no binaries are installed
+
+  - name: export on an empty GOBIN warns but still writes a config
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup export
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: exporting an empty configuration
+          file:
+            path: home/.config/gup/gup.json
+            exists: true
+
+  - name: a clean update run emits no ERROR anywhere
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update outdated
+      - assert:
+          exit_code: 0
+          stdout:
+            not_matches: "gup:ERROR"
+      - assert:
+          stderr:
+            not_matches: "gup:ERROR"
