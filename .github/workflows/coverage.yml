@@ -7,15 +7,25 @@ on:
   pull_request:
     branches: [main]
 
+# octocov needs to read/write the Actions-artifact datastore (report/diff in
+# .octocov.yml) and comment coverage on pull requests. The repo's default token
+# permissions are read-only, which makes those API calls 403, so grant the
+# needed scopes explicitly here.
+permissions:
+  contents: read
+  actions: write
+  pull-requests: write
+
 jobs:
-  unit_test:
-    name: Unit test (linux)
+  coverage:
+    name: Coverage (unit + e2e)
 
     strategy:
       matrix:
         platform: [ubuntu-latest]
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -24,11 +34,21 @@ jobs:
 
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1"
+          go-version-file: "go.mod"
           check-latest: true
 
-      - name: Run tests with coverage report output
-        run: go test -cover -coverpkg=./... -coverprofile=cover.out ./...
+      # The offline E2E suite drives the real CLI through atago; it builds a
+      # `go build -cover` gup and collects its covdata via GOCOVERDIR.
+      - name: Install atago
+        uses: nao1215/setup-atago@e4b6719aea547a68e6c15252222babab7f492a88 # v0.1.1
+        with:
+          version: v0.1.0
+
+      # Combines unit-test coverage with self-hosted E2E coverage, then merges
+      # both into cover.out. The E2E suite is fully offline (it starts its own
+      # module proxy), so no extra dependencies are needed on the runner.
+      - name: Run combined unit + E2E coverage
+        run: make coverage
 
       - uses: k1LoW/octocov-action@b3b6ee60482a667950f87553abf1df63217235d9 # v1.5.1
         with:
