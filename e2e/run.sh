@@ -39,8 +39,20 @@ trap cleanup EXIT
 
 mkdir -p "$TMP/bin"
 
+# COVER=1 builds a coverage-instrumented gup so `make coverage` can collect the
+# real CLI's runtime coverage. atago passes the environment (including
+# GOCOVERDIR, exported by the caller) through to every spec command, so each gup
+# child process writes its own covdata on exit. The default path (COVER unset)
+# stays byte-for-byte identical, keeping `make e2e` fast.
+GUP_COVER_FLAGS=""
+if [ -n "${COVER:-}" ]; then
+	GUP_COVER_FLAGS="-cover -covermode=atomic -coverpkg=./..."
+	echo "e2e: COVER=1 -> building coverage-instrumented gup"
+fi
+
 echo "e2e: building gup and the test proxy..."
-(cd "$REPO_ROOT" && go build -ldflags '-X github.com/nao1215/gup/internal/cmdinfo.Version=v0.0.0-e2e' -o "$TMP/bin/gup" .)
+# shellcheck disable=SC2086 # GUP_COVER_FLAGS must word-split into separate args.
+(cd "$REPO_ROOT" && go build $GUP_COVER_FLAGS -ldflags '-X github.com/nao1215/gup/internal/cmdinfo.Version=v0.0.0-e2e' -o "$TMP/bin/gup" .)
 (cd "$REPO_ROOT" && go build -o "$TMP/bin/testproxy" ./e2e/testproxy)
 
 echo "e2e: starting offline module proxy..."

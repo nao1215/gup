@@ -1,4 +1,4 @@
-.PHONY: build test e2e clean vet fmt chkfmt changelog update-tools help coverage-tree
+.PHONY: build test e2e coverage clean vet fmt chkfmt changelog update-tools help coverage-tree
 
 APP         = gup
 VERSION     = $(shell git describe --tags --abbrev=0)
@@ -22,7 +22,7 @@ build:  ## Build binary
 	env GO111MODULE=on GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO_BUILD) $(GO_LDFLAGS) -o $(APP) main.go
 
 clean: ## Clean project
-	-rm -rf $(APP) cover.out cover.html
+	-rm -rf $(APP) cover.out cover.html .coverage
 
 
 test: ## Start test
@@ -31,6 +31,9 @@ test: ## Start test
 
 e2e: ## Run offline end-to-end tests against the real CLI (requires atago)
 	./e2e/run.sh
+
+coverage: ## Combine unit + self-hosted E2E coverage into cover.out / cover.html (uses a `go build -cover` gup; scratch under .coverage/)
+	bash ./scripts/coverage.sh
 
 vet: ## Start go vet
 	$(GO_VET) $(GO_PACKAGES)
