@@ -1,0 +1,32 @@
+# Golden-output (snapshot) checks (atago v0.3.x). Unlike `contains`, a snapshot
+# pins the EXACT bytes gup emits for a deterministic, offline input, so any
+# unintended change to a machine-readable format is caught. Only fully
+# deterministic outputs are snapshotted here (no version banner, OS/arch, or
+# absolute paths). Refresh intentionally-changed goldens with:
+#   atago run --update-snapshots e2e/atago
+# Run with: make e2e
+version: "1"
+
+suite:
+  name: gup golden output (offline)
+
+scenarios:
+  - name: export --output emits the canonical gup.json for a pinned tool
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      # The exported JSON (schema_version, import path, pinned version/channel)
+      # is fully determined by the offline fixture, so it is a stable golden.
+      - run:
+          command: gup export --output
+      - assert:
+          exit_code: 0
+          stdout:
+            snapshot: export-pinned-outdated
