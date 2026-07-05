@@ -1,0 +1,107 @@
+# Exercises 'gup completion' for every shell plus --install against the real
+# binary. The per-shell switch in completion.go and the file-deploying install
+# path (internal/completion) were previously only unit-tested; driving the CLI
+# here measures the code an end user actually runs. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup completion (offline)
+
+scenarios:
+  - name: prints bash completion to STDOUT
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: gup completion bash
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "# bash completion V2 for gup"
+
+  - name: prints fish completion to STDOUT
+    env: *iso
+    steps:
+      - run:
+          command: gup completion fish
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "fish completion for gup"
+
+  - name: prints zsh completion to STDOUT
+    env: *iso
+    steps:
+      - run:
+          command: gup completion zsh
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "#compdef gup"
+
+  - name: prints powershell completion to STDOUT
+    env: *iso
+    steps:
+      - run:
+          command: gup completion powershell
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Register-ArgumentCompleter"
+
+  - name: rejects an unknown shell name
+    env: *iso
+    steps:
+      - run:
+          command: gup completion tcsh
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "invalid argument"
+
+  - name: guidance is printed when neither a shell nor --install is given
+    env: *iso
+    steps:
+      - run:
+          command: gup completion
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "requires a shell name"
+              - "--install"
+
+  - name: --install writes shell completion files under the user config paths
+    env: *iso
+    steps:
+      - run:
+          command: gup completion --install
+      - assert:
+          exit_code: 0
+      # bash goes under $HOME/.local/share (XDG_DATA_HOME unset), fish under
+      # $XDG_CONFIG_HOME, zsh under $HOME/.zsh - proving all three were deployed.
+      - assert:
+          file:
+            path: home/.local/share/bash-completion/completions/gup
+            exists: true
+      - assert:
+          file:
+            path: home/.config/fish/completions/gup.fish
+            exists: true
+      - assert:
+          file:
+            path: home/.zsh/completion/_gup
+            exists: true
+
+  - name: --install rejects a shell argument
+    env: *iso
+    steps:
+      - run:
+          command: gup completion --install bash
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "cannot be used with shell argument"

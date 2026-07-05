@@ -20,6 +20,7 @@ const (
 	pkg3        = "pkg3"
 	nameTest2   = "test2"
 	nameMissing = "missing"
+	blankTarget = "   "
 )
 
 // excludeNotice builds the notice Exclude emits for a dropped binary, matching
@@ -56,7 +57,7 @@ func TestFilterBinaryPaths(t *testing.T) {
 
 	t.Run("returns an empty list when every target is blank", func(t *testing.T) {
 		t.Parallel()
-		got := FilterBinaryPaths(binList, []string{"   ", ""})
+		got := FilterBinaryPaths(binList, []string{blankTarget, ""})
 		if diff := cmp.Diff([]string{}, got); diff != "" {
 			t.Fatalf("value is mismatch (-want +got):\n%s", diff)
 		}
@@ -313,5 +314,31 @@ func TestPackageInfoByTargets_presentButUnreadableIsNotMissing(t *testing.T) {
 	}
 	if len(missing) != 0 {
 		t.Fatalf("PackageInfoByTargets() missing = %v, want none (dummy exists on disk)", missing)
+	}
+}
+
+// TestMissingTargets_skipsBlankTarget covers the branch that ignores a target
+// whose normalized name is empty (whitespace only), so it is never reported as
+// missing.
+func TestMissingTargets_skipsBlankTarget(t *testing.T) {
+	t.Parallel()
+	got := MissingTargets([]string{"/gobin/foo"}, []string{blankTarget})
+	if len(got) != 0 {
+		t.Fatalf("MissingTargets() = %v, want empty (blank target skipped)", got)
+	}
+}
+
+// TestExclude_skipsBlankName covers the branch that ignores a blank exclude
+// name, so a whitespace-only entry excludes nothing.
+func TestExclude_skipsBlankName(t *testing.T) {
+	t.Parallel()
+	pkgs := []goutil.Package{{Name: "foo"}, {Name: "bar"}}
+	notified := 0
+	got := Exclude(pkgs, []string{blankTarget}, func(string) { notified++ })
+	if len(got) != len(pkgs) {
+		t.Fatalf("Exclude() dropped packages for a blank name: got %d, want %d", len(got), len(pkgs))
+	}
+	if notified != 0 {
+		t.Fatalf("Exclude() notified %d times for a blank name, want 0", notified)
 	}
 }

@@ -436,3 +436,19 @@ func Test_doCheck_customGoBuildTag_goVersionDiffColor(t *testing.T) {
 		t.Fatalf("expected latest go version in green, got:\n%s", buf.String())
 	}
 }
+
+// TestDoCheckWith_notInstalledByGoInstall covers the branch that flags a binary
+// with no resolvable module path as "not installed by 'go install'".
+func TestDoCheckWith_notInstalledByGoInstall(t *testing.T) {
+	t.Parallel()
+	pkgs := []goutil.Package{{
+		Name:       "legacy",
+		ModulePath: "", // no module path -> can not be checked against a proxy
+		Version:    &goutil.Version{Current: "v0.0.1"},
+	}}
+	// jsonOut=true keeps output machine-readable and avoids color/tty concerns.
+	code := doCheckWith(testDeps(), discardPrinter(), pkgs, 1, 0, false, false, true)
+	if code == 0 {
+		t.Fatal("doCheckWith() exit = 0, want non-zero for an uncheckable binary")
+	}
+}

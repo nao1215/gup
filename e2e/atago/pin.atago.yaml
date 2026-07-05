@@ -325,3 +325,73 @@ scenarios:
             contains:
               - '"channel": "pinned"'
               - '"name": "outdated"'
+
+  - name: rejects pinning to a channel keyword such as latest
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated latest
+      # "Pinned" is a success message written to STDOUT, so the rejection is
+      # asserted on STDOUT (absence) plus the concrete error on STDERR.
+      - assert:
+          exit_code: 1
+          stdout:
+            not_contains: "Pinned"
+          stderr:
+            contains: "channel keyword"
+
+  - name: rejects specifying the version twice
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated@v1.0.0 v2.0.0
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "specify the version once"
+
+  - name: pin fails fast on a malformed channel-source config
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: broken.json
+          content: |
+            {this is not valid json
+      - run:
+          command: gup pin outdated v1.0.0 --file "${workdir}/broken.json"
+      - assert:
+          exit_code: 1
+          stdout:
+            not_contains: "Pinned"
+          stderr:
+            contains: "is not valid JSON"
+
+  - name: unpin reports a clear error for an empty tool name
+    env: *iso
+    steps:
+      - run:
+          command: gup unpin "@"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "missing tool name"
+
+  - name: unpin fails fast on a malformed channel-source config
+    env: *iso
+    steps:
+      - fixture:
+          file: broken.json
+          content: |
+            {this is not valid json
+      - run:
+          command: gup unpin outdated --file "${workdir}/broken.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "is not valid JSON"

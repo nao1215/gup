@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -252,4 +253,37 @@ func TestMan(t *testing.T) {
 			t.Fatalf("man() = %d, want 1", got)
 		}
 	})
+}
+
+// TestWriteManpageAtomically_copyFailure covers the io.Copy error branch: a
+// source reader that fails mid-copy must surface an error and leave no man page.
+//
+//nolint:paralleltest // relies on process-wide filesystem state
+func TestWriteManpageAtomically_copyFailure(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "gup.1.gz")
+	if err := writeManpageAtomically(out, errReader{}, "gup"); err == nil {
+		t.Fatal("writeManpageAtomically() err = nil, want copy failure")
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		t.Fatalf("man page should not exist after failed copy, stat err = %v", err)
+	}
+}
+
+// TestWriteManpageAtomically_createTempFailure covers the temp-file creation
+// error branch when the destination directory is not writable.
+//
+//nolint:paralleltest // relies on process-wide filesystem state
+func TestWriteManpageAtomically_createTempFailure(t *testing.T) {
+	skipIfDirWriteFaultUnsupported(t)
+	dir := t.TempDir()
+	roDir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(roDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+
+	if err := writeManpageAtomically(filepath.Join(roDir, "gup.1.gz"), strings.NewReader("body"), "gup"); err == nil {
+		t.Fatal("writeManpageAtomically() err = nil, want temp-create failure")
+	}
 }

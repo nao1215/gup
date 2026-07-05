@@ -181,3 +181,78 @@ scenarios:
             contains:
               - "replace directive"
               - "go install"
+
+  - name: --dry-run reports the update but leaves the installed binary untouched
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --dry-run
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+      # Dry-run must not touch $GOBIN: the binary stays at the original version.
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - assert:
+          stdout:
+            not_contains: v1.1.0
+
+  - name: --quiet prints a summary line and still updates
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --quiet
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "gup: 1 updated"
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: rejects a binary named in two conflicting channel flags
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --main outdated --master outdated
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "specified in both"
+              - "--main"
+              - "--master"
+
+  - name: a pin to a nonexistent version fails the update at install time
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v9.9.9
+      - run:
+          command: gup update
+      # The failure names the pinned tool, confirming this is the pinned-install
+      # failure path and not some unrelated exit-1 error.
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: outdated
+      # The originally installed version is left in place after the failed reinstall.
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0

@@ -234,3 +234,31 @@ func TestGetTimeoutFlag(t *testing.T) {
 		}
 	})
 }
+
+// TestMustRegisterFlagCompletion_panicsOnUnknownFlag covers the panic guard that
+// fires when a completion function is attached to a flag that does not exist -
+// a build-time programmer error, surfaced as a panic rather than a silent noop.
+func TestMustRegisterFlagCompletion_panicsOnUnknownFlag(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("mustRegisterFlagCompletion() did not panic for an unknown flag")
+		}
+	}()
+	mustRegisterFlagCompletion(&cobra.Command{}, "no-such-flag",
+		func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		})
+}
+
+// TestMustMarkFileFlagAsJSON_panicsOnMissingFileFlag covers the panic guard that
+// fires when the shared --file flag has not been registered.
+func TestMustMarkFileFlagAsJSON_panicsOnMissingFileFlag(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("mustMarkFileFlagAsJSON() did not panic when --file is absent")
+		}
+	}()
+	mustMarkFileFlagAsJSON(&cobra.Command{})
+}

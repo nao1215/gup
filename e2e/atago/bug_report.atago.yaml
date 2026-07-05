@@ -1,0 +1,39 @@
+# Exercises 'gup bug-report' against the real binary. bug_report.go was excluded
+# from coverage because it opens a web browser; atago drives it with PATH pointed
+# at an empty directory so the browser launcher (xdg-open) is never found, gup
+# falls back to printing the issue template to STDOUT, and the whole command runs
+# deterministically with no browser window and no network. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup bug-report (offline)
+
+scenarios:
+  - name: prints the pre-filled issue template when no browser can be opened
+    env:
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+      # An empty PATH for the gup child process: its exec("xdg-open") lookup fails,
+      # openBrowser() returns false, and the STDOUT fallback fires. atago resolves
+      # the 'gup'/'mkdir' commands via the launcher environment, so overriding the
+      # child PATH here does not stop the scenario from running the built binary.
+      PATH: "${workdir}/emptybin"
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/emptybin
+      - run:
+          command: gup bug-report
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - "Please file a new issue"
+              - "## gup version"
+              - "## OS"
+      # The injected e2e version is embedded in the template body.
+      - assert:
+          stdout:
+            contains: "v0.0.0-e2e"

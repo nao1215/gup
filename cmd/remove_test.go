@@ -496,7 +496,7 @@ func Test_hasSuffixFold(t *testing.T) {
 		{name: "no suffix match", s: "tool.bin", suffix: dotExe, want: false},
 		{name: "s shorter than suffix", s: "ex", suffix: dotExe, want: false},
 		{name: "s one char shorter than suffix", s: ".ex", suffix: dotExe, want: false},
-		{name: "empty suffix matches anything", s: "tool", suffix: "", want: true},
+		{name: "empty suffix matches anything", s: testBinTool, suffix: "", want: true},
 		{name: "empty suffix and empty s", s: "", suffix: "", want: true},
 		{name: "empty s nonempty suffix", s: "", suffix: dotExe, want: false},
 		{name: "equal length match", s: abcLiteral, suffix: abcLiteral, want: true},
@@ -549,4 +549,30 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 		os.Stdin = oldOsStdin
 		os.Remove(tmpFile.Name())
 	}, nil
+}
+
+// TestRemoveLoop_removeFailure covers the branch that reports an os.Remove
+// failure: the target exists but its parent directory is read-only, so the
+// unlink is denied.
+//
+//nolint:paralleltest // relies on process-wide filesystem state
+func TestRemoveLoop_removeFailure(t *testing.T) {
+	skipIfDirWriteFaultUnsupported(t)
+	gobin := t.TempDir()
+	bin := filepath.Join(gobin, testBinTool)
+	if err := os.WriteFile(bin, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(gobin, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(gobin, 0o700) })
+
+	p, buf := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{testBinTool}); got != 1 {
+		t.Fatalf("removeLoop() = %d, want 1 on remove failure", got)
+	}
+	if buf.Len() == 0 {
+		t.Error("removeLoop() expected an error message")
+	}
 }

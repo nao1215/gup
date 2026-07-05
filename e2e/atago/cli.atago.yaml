@@ -1,0 +1,113 @@
+# Top-level CLI contracts that exercise the process entrypoint (main.go), the
+# root command wiring (root.go) and the dynamic shell-completion callback
+# (completePathBinaries). These paths only run when the real binary is launched,
+# so they were unmeasured until the atago suite drove them. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup cli entrypoint (offline)
+
+scenarios:
+  - name: an unknown subcommand fails via the process error path and names it
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      # cmd.Execute() returns an error, so main() prints it and exits non-zero -
+      # the only path that reaches main.go's error branch.
+      - run:
+          command: gup no-such-subcommand
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "unknown command"
+
+  - name: an unknown flag fails via the process error path
+    env: *iso
+    steps:
+      - run:
+          command: gup --no-such-flag
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "unknown flag"
+
+  - name: top-level --version prints the injected banner
+    env: *iso
+    steps:
+      - run:
+          command: gup --version
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "v0.0.0-e2e"
+
+  - name: the -V short flag matches --version
+    env: *iso
+    steps:
+      - run:
+          command: gup -V
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "v0.0.0-e2e"
+
+  - name: --help lists the subcommands
+    env: *iso
+    steps:
+      - run:
+          command: gup --help
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - "Available Commands"
+              - "update"
+              - "bug-report"
+
+  - name: --no-color runs the persistent pre-run without error
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      # PersistentPreRunE reads --no-color and applies the color preference before
+      # the subcommand runs; a plain list confirms the wired-up flow succeeds.
+      - run:
+          command: gup --no-color list
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+
+  - name: dynamic completion lists installed binaries by prefix
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      # cobra's hidden __complete drives completePathBinaries with the typed
+      # prefix; "up" must match uptodate but filter out outdated.
+      - run:
+          command: gup __complete update up
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: uptodate
+      - assert:
+          stdout:
+            not_contains: outdated
+
+  - name: dynamic completion with an empty prefix lists every binary
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup __complete update ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated

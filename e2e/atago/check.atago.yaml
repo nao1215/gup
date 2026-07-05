@@ -63,3 +63,36 @@ scenarios:
       - assert:
           stderr:
             not_contains: "not found 'junk'"
+
+  - name: human-readable check lists an outdated binary and suggests gup update
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      # No --json: exercises the human-readable renderer, the per-binary check
+      # line, and the "run the following command" update hint.
+      - run:
+          command: gup check
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - "check binary under"
+              - outdated
+              - "gup update"
+
+  - name: --quiet check hides up-to-date binaries but prints the summary
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check --quiet
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "gup: 0 update available"
+      # In quiet mode the up-to-date binary's per-line output is suppressed.
+      - assert:
+          stdout:
+            not_contains: "check binary under"

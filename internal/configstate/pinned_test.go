@@ -130,7 +130,7 @@ func TestSetPin_addsAndReplaces(t *testing.T) {
 	}
 	target := goutil.Package{Name: testToolName, ImportPath: pinTestImport}
 
-	got, err := SetPin(conf, target, "v1.2.3")
+	got, err := SetPin(conf, target, testVersion123)
 	if err != nil {
 		t.Fatalf("SetPin() error: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestSetPin_addsAndReplaces(t *testing.T) {
 			tool = &got[i]
 		}
 	}
-	if tool == nil || tool.UpdateChannel != goutil.UpdateChannelPinned || tool.PinnedVersion != "v1.2.3" {
+	if tool == nil || tool.UpdateChannel != goutil.UpdateChannelPinned || tool.PinnedVersion != testVersion123 {
 		t.Fatalf("SetPin did not pin tool: %+v", tool)
 	}
 

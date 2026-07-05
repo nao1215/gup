@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +39,7 @@ func writeUserConfig(t *testing.T, content string) {
 func TestRunPin_writesPinnedConfig(t *testing.T) {
 	setupXDGBase(t)
 	stubPinPackageInfo(t, []goutil.Package{
-		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: "v0.9.0"}},
+		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: testVersionZeroNine}},
 	})
 
 	p, _ := newTestPrinter()
@@ -65,7 +67,7 @@ func TestRunPin_succeedsWithoutGoCommand(t *testing.T) {
 	setupXDGBase(t)
 	t.Setenv("PATH", "")
 	stubPinPackageInfo(t, []goutil.Package{
-		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: "v0.9.0"}},
+		{Name: testBinTool, ImportPath: pinnedTestImport, Version: &goutil.Version{Current: testVersionZeroNine}},
 	})
 
 	p, buf := newTestPrinter()
@@ -182,5 +184,90 @@ func TestRunPin_malformedConfigFails(t *testing.T) {
 	p, _ := newTestPrinter()
 	if code := runPin(p, newPinCmd(), []string{testBinTool, testVersionOne}); code != 1 {
 		t.Fatalf("runPin() with a malformed config = %d, want 1", code)
+	}
+}
+
+// TestRunPin_packageInfoError covers the branch that surfaces a failure to read
+// the installed binaries when resolving the pin target.
+//
+//nolint:paralleltest // mutates package-level pinPackageInfo
+func TestRunPin_packageInfoError(t *testing.T) {
+	orig := pinPackageInfo
+	t.Cleanup(func() { pinPackageInfo = orig })
+	pinPackageInfo = func(*print.Printer) ([]goutil.Package, error) {
+		return nil, errors.New("cannot list binaries")
+	}
+	cmd := newPinCmd()
+	if err := cmd.ParseFlags(nil); err != nil {
+		t.Fatal(err)
+	}
+	p, buf := newTestPrinter()
+	if got := runPin(p, cmd, []string{testBinTool, testVersionOne}); got != 1 {
+		t.Fatalf("runPin() exit = %d, want 1", got)
+	}
+	if buf.Len() == 0 {
+		t.Error("runPin() expected an error message")
+	}
+}
+
+// TestRunPin_writeConfigFailure covers the branch that reports a failure to
+// persist the pin to gup.json.
+//
+//nolint:paralleltest // mutates package-level pinPackageInfo and writeConfFile
+func TestRunPin_writeConfigFailure(t *testing.T) {
+	origInfo := pinPackageInfo
+	origWrite := writeConfFile
+	t.Cleanup(func() { pinPackageInfo = origInfo; writeConfFile = origWrite })
+
+	pinPackageInfo = func(*print.Printer) ([]goutil.Package, error) {
+		return []goutil.Package{{Name: testBinTool, ImportPath: testImportExampleTool, Version: &goutil.Version{Current: testVersionOne}}}, nil
+	}
+	writeConfFile = func(io.Writer, []goutil.Package) error {
+		return errors.New("disk full")
+	}
+
+	cmd := newPinCmd()
+	dir := t.TempDir()
+	if err := cmd.ParseFlags([]string{testFlagFile, filepath.Join(dir, "gup.json")}); err != nil {
+		t.Fatal(err)
+	}
+	p, buf := newTestPrinter()
+	if got := runPin(p, cmd, []string{testBinTool, testVersionOne}); got != 1 {
+		t.Fatalf("runPin() exit = %d, want 1", got)
+	}
+	if buf.Len() == 0 {
+		t.Error("runPin() expected an error message")
+	}
+}
+
+// TestRunUnpin_writeConfigFailure covers the branch that reports a failure to
+// persist an unpin to gup.json. The config already carries a pin so RemovePin
+// reports a change and the write is attempted.
+//
+//nolint:paralleltest // mutates package-level writeConfFile
+func TestRunUnpin_writeConfigFailure(t *testing.T) {
+	origWrite := writeConfFile
+	t.Cleanup(func() { writeConfFile = origWrite })
+
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "gup.json")
+	pinned := `{"schema_version":2,"packages":[{"name":"tool","import_path":"example.com/tool","version":"v1.0.0","channel":"pinned"}]}`
+	if err := os.WriteFile(cfg, []byte(pinned), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeConfFile = func(io.Writer, []goutil.Package) error {
+		return errors.New("disk full")
+	}
+
+	cmd := newUnpinCmd()
+	if err := cmd.ParseFlags([]string{testFlagFile, cfg}); err != nil {
+		t.Fatal(err)
+	}
+	p, buf := newTestPrinter()
+	if got := runUnpin(p, cmd, []string{testBinTool}); got != 1 {
+		t.Fatalf("runUnpin() exit = %d, want 1", got)
+	}
+	if buf.Len() == 0 {
+		t.Error("runUnpin() expected an error message")
 	}
 }

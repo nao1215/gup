@@ -413,7 +413,7 @@ func Test_runImport_ambiguousConfig(t *testing.T) {
 	if !strings.Contains(out, "multiple gup.json") {
 		t.Errorf("expected ambiguity error, got: %s", out)
 	}
-	if !strings.Contains(out, "--file") {
+	if !strings.Contains(out, testFlagFile) {
 		t.Errorf("expected error to mention --file, got: %s", out)
 	}
 }
@@ -526,5 +526,15 @@ func Test_runImport_timeoutZeroDisablesDeadline(t *testing.T) {
 
 	if sawDeadline {
 		t.Error("install operation should not receive a deadline when --timeout is 0")
+	}
+}
+
+// TestInstallFromConfig_missingVersion covers the installer branch that fails a
+// package whose gup.json entry has no usable version.
+func TestInstallFromConfig_missingVersion(t *testing.T) {
+	t.Parallel()
+	pkgs := []goutil.Package{{Name: "tool", ImportPath: testImportExampleTool, Version: nil}}
+	if code := installFromConfig(discardPrinter(), pkgs, false, false, 1, 0); code == 0 {
+		t.Fatal("installFromConfig() exit = 0, want non-zero for a version-less package")
 	}
 }

@@ -55,6 +55,7 @@ const (
 	testFlagDryRun        = "--dry-run"
 	testFlagNotify        = "--notify"
 	testFlagJobs          = "--jobs"
+	testFlagFile          = "--file"
 	testCmdGup            = "gup"
 	testCmdList           = "list"
 	testCmdExport         = "export"
@@ -74,6 +75,9 @@ const (
 	testVersion123        = "v1.2.3"
 	testVersionTwo        = "v2.0.0"
 	testBinTool           = "tool"
+	testNameOld           = "old"
+	testImportExampleOld  = "example.com/old"
+	testVersionZeroNine   = "v0.9.0"
 	testBinPosixerExe     = "posixer.exe"
 	testBinToolA          = "tool-a"
 	testCmdVersion        = "version"
@@ -685,5 +689,104 @@ func Test_binaryExistsInDir(t *testing.T) {
 	}
 	if binaryExistsInDir(dir, "") {
 		t.Fatal("empty name should not be detected")
+	}
+}
+
+// TestWithGoBin_restoresUnsetState covers withGoBin's branch that unsets GOBIN
+// again when it was not present before.
+//
+//nolint:paralleltest // mutates the GOBIN environment variable
+func TestWithGoBin_restoresUnsetState(t *testing.T) {
+	_ = os.Unsetenv("GOBIN")
+	t.Cleanup(func() { _ = os.Unsetenv("GOBIN") })
+	dir := t.TempDir()
+	restore, err := withGoBin(dir)
+	if err != nil {
+		t.Fatalf("withGoBin() err = %v", err)
+	}
+	if got := os.Getenv("GOBIN"); got != dir {
+		t.Fatalf("GOBIN = %q, want %q", got, dir)
+	}
+	restore()
+	if _, ok := os.LookupEnv("GOBIN"); ok {
+		t.Fatal("GOBIN should be unset again after restore")
+	}
+}
+
+// TestMigratePackages_modulePathRetryFailure covers the branch that retries the
+// install at a renamed module path and still surfaces an error when the retry
+// itself fails.
+//
+//nolint:paralleltest // mutates package-level installByVersionMigrateCtx and GOBIN
+func TestMigratePackages_modulePathRetryFailure(t *testing.T) {
+	t.Setenv("GOBIN", t.TempDir())
+	orig := installByVersionMigrateCtx
+	t.Cleanup(func() { installByVersionMigrateCtx = orig })
+
+	calls := 0
+	installByVersionMigrateCtx = func(context.Context, string, string) error {
+		calls++
+		if calls == 1 {
+			// A module-path-mismatch error triggers the rename+retry path.
+			return errors.New("module declares its path as: example.com/new\n\tbut was required as: example.com/old")
+		}
+		return errors.New("retry still broken")
+	}
+
+	pkgs := []goutil.Package{{Name: testNameOld, ImportPath: testImportExampleOld, Version: &goutil.Version{Current: testVersionOne}}}
+	code := migratePackages(discardPrinter(), pkgs, t.TempDir(), false, false, 1, true, 0)
+	if code == 0 {
+		t.Fatal("migratePackages() exit = 0, want non-zero after retry failure")
+	}
+	if calls != 2 {
+		t.Fatalf("install attempts = %d, want 2 (initial + retry)", calls)
+	}
+}
+
+// TestValidateMigratePaths_mkdirAfterPathFailure covers the branch that reports
+// a failure to create AFTER_PATH when its parent is a regular file.
+//
+//nolint:paralleltest // filesystem-only
+func TestValidateMigratePaths_mkdirAfterPathFailure(t *testing.T) {
+	before := t.TempDir()
+	fileParent := filepath.Join(t.TempDir(), "afile")
+	if err := os.WriteFile(fileParent, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after := filepath.Join(fileParent, "sub") // parent is a file, MkdirAll must fail
+	if err := validateMigratePaths(before, after, false); err == nil {
+		t.Fatal("validateMigratePaths() err = nil, want create failure")
+	}
+}
+
+// TestValidateMigratePaths_dryRunUncreatableAfterPath covers the dry-run branch
+// that reports AFTER_PATH can not be created because an ancestor is not a
+// directory, without touching the filesystem.
+//
+//nolint:paralleltest // filesystem-only
+func TestValidateMigratePaths_dryRunUncreatableAfterPath(t *testing.T) {
+	before := t.TempDir()
+	fileParent := filepath.Join(t.TempDir(), "afile")
+	if err := os.WriteFile(fileParent, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after := filepath.Join(fileParent, "sub")
+	if err := validateMigratePaths(before, after, true); err == nil {
+		t.Fatal("validateMigratePaths() dry-run err = nil, want uncreatable AFTER_PATH")
+	}
+}
+
+// TestValidateMigratePaths_symlinkedSameDir covers the branch that rejects an
+// AFTER_PATH which is a symlink resolving to BEFORE_PATH.
+//
+//nolint:paralleltest // filesystem-only
+func TestValidateMigratePaths_symlinkedSameDir(t *testing.T) {
+	before := t.TempDir()
+	after := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(before, after); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := validateMigratePaths(before, after, false); err == nil {
+		t.Fatal("validateMigratePaths() err = nil, want same-directory rejection")
 	}
 }
