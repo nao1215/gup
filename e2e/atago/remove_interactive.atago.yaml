@@ -1,0 +1,85 @@
+# Drives 'gup remove' through a REAL pseudo-terminal (atago v0.3.x pty step), so
+# the interactive confirmation prompt that only appears when stdin is a TTY is
+# exercised end-to-end. The non-TTY behavior (refusal without --force) is covered
+# in list_remove.atago.yaml; this file covers the confirm/cancel/default-yes
+# branches that a piped stdin can never reach. The pty runtime is POSIX-only, so
+# these scenarios are skipped on Windows. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup remove (interactive, pty)
+
+scenarios:
+  - name: answering y at the confirmation prompt deletes the binary
+    skip:
+      os: windows
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - pty:
+          command: gup remove outdated
+          env: *iso
+          timeout: 30s
+          session:
+            - expect: "Y/n"
+            - send: "y"
+            - send: { key: enter }
+      - assert:
+          exit_code: 0
+          screen:
+            contains: removed
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: false
+
+  - name: answering n at the confirmation prompt keeps the binary
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - pty:
+          command: gup remove outdated
+          env: *iso
+          timeout: 30s
+          session:
+            - expect: "Y/n"
+            - send: "n"
+            - send: { key: enter }
+      - assert:
+          screen:
+            contains: "cancel removal"
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: true
+
+  - name: pressing enter takes the [Y/n] default and deletes the binary (#146)
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - pty:
+          command: gup remove outdated
+          env: *iso
+          timeout: 30s
+          session:
+            - expect: "Y/n"
+            - send: { key: enter }
+      - assert:
+          exit_code: 0
+          screen:
+            contains: removed
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: false

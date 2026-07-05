@@ -33,12 +33,19 @@ temp tree. It never touches your real `$HOME`, `~/.config/gup`, or `$GOBIN`, and
 needs no network access. The tests are plain-YAML specs run by
 [atago](https://github.com/nao1215/atago).
 
+The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
+`gup remove` prompt, and golden-output snapshots), so an older atago will fail to
+parse those specs. CI pins the same version via setup-atago.
+
 ```shell
-# Install atago once
+# Install atago once (v0.3.4 or newer)
 go install github.com/nao1215/atago@latest
 
 # Run the whole offline suite
 make e2e
+
+# Refresh golden snapshots after an intentional output change
+atago run --update-snapshots e2e/atago
 ```
 
 The harness lives under `e2e/`: `e2e/run.sh` builds gup, starts the offline

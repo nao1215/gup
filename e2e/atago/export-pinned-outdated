@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "packages": [
+    {
+      "name": "outdated",
+      "import_path": "gup.test/outdated",
+      "version": "v1.0.0",
+      "channel": "pinned"
+    }
+  ]
+}
