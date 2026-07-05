@@ -438,7 +438,7 @@ func assertNoTempFiles(t *testing.T, dir, base string) {
 //
 //nolint:paralleltest // relies on process-wide filesystem state
 func TestWriteConfigFile_createTempFailure(t *testing.T) {
-	skipIfRoot(t)
+	skipIfDirWriteFaultUnsupported(t)
 	dir := t.TempDir()
 	roDir := filepath.Join(dir, "readonly")
 	if err := os.Mkdir(roDir, 0o500); err != nil {

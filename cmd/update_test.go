@@ -1385,7 +1385,10 @@ func TestUpdateWithChannels_modulePathRenameRetry(t *testing.T) {
 	if len(succeeded) != 1 {
 		t.Fatalf("succeeded = %d, want 1", len(succeeded))
 	}
-	if renamed["old"] != "new" {
-		t.Fatalf("renamed = %v, want old->new", renamed)
+	// On Windows the reinstalled binary carries the .exe suffix, so derive the
+	// expected new name the same way the command does instead of hardcoding it.
+	wantNew := binaryNameFromImportPath("example.com/new")
+	if renamed[testNameOld] != wantNew {
+		t.Fatalf("renamed = %v, want %s->%s", renamed, testNameOld, wantNew)
 	}
 }

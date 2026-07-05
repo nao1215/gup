@@ -275,7 +275,7 @@ func TestWriteManpageAtomically_copyFailure(t *testing.T) {
 //
 //nolint:paralleltest // relies on process-wide filesystem state
 func TestWriteManpageAtomically_createTempFailure(t *testing.T) {
-	skipIfRoot(t)
+	skipIfDirWriteFaultUnsupported(t)
 	dir := t.TempDir()
 	roDir := filepath.Join(dir, "readonly")
 	if err := os.Mkdir(roDir, 0o500); err != nil {

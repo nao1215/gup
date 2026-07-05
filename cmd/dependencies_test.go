@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/nao1215/gup/internal/print"
@@ -17,14 +18,19 @@ func discardPrinter() *print.Printer {
 	return print.New(io.Discard, io.Discard)
 }
 
-// skipIfRoot skips a test that relies on filesystem permission enforcement,
-// because root bypasses the read-only bit and the I/O failure never happens.
-// gup's CI runs as the non-root runner user, so these branches are still
-// exercised there.
-func skipIfRoot(t *testing.T) {
+// skipIfDirWriteFaultUnsupported skips a test that forces an I/O failure by
+// making a directory read-only (chmod 0500). That trick only works where Unix
+// directory permissions gate writes: root bypasses the read-only bit, and
+// Windows ignores these bits for directory writability. gup's coverage CI runs
+// as the non-root Linux runner user, so these branches are still exercised
+// there.
+func skipIfDirWriteFaultUnsupported(t *testing.T) {
 	t.Helper()
 	if os.Geteuid() == 0 {
 		t.Skip("skipping: read-only permissions are bypassed when running as root")
+	}
+	if runtime.GOOS == goosWindows {
+		t.Skip("skipping: Windows does not enforce read-only dir permissions for writes")
 	}
 }
 

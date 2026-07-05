@@ -992,6 +992,9 @@ func TestAtomicWriteFile_createTempFailure(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("skipping: read-only permissions are bypassed when running as root")
 	}
+	if IsWindows() {
+		t.Skip("skipping: Windows does not enforce read-only dir permissions for writes")
+	}
 	dir := t.TempDir()
 	roDir := filepath.Join(dir, "readonly")
 	if err := os.Mkdir(roDir, 0o500); err != nil {

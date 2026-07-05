@@ -557,7 +557,7 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 //
 //nolint:paralleltest // relies on process-wide filesystem state
 func TestRemoveLoop_removeFailure(t *testing.T) {
-	skipIfRoot(t)
+	skipIfDirWriteFaultUnsupported(t)
 	gobin := t.TempDir()
 	bin := filepath.Join(gobin, testBinTool)
 	if err := os.WriteFile(bin, []byte("x"), 0o600); err != nil {
