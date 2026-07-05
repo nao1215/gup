@@ -162,7 +162,10 @@ scenarios:
             GOBIN: "${workdir}/before"
       - run:
           command: gup migrate "${workdir}/before" "${workdir}/after" no-such-tool
+      # Only the missing name is requested, so nothing matches and migrate fails
+      # after warning about it (consistent with the other negative-path cases).
       - assert:
+          exit_code: 1
           stderr:
             contains: "not found 'no-such-tool'"
 

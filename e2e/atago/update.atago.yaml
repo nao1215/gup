@@ -244,8 +244,12 @@ scenarios:
           command: gup pin outdated v9.9.9
       - run:
           command: gup update
+      # The failure names the pinned tool, confirming this is the pinned-install
+      # failure path and not some unrelated exit-1 error.
       - assert:
           exit_code: 1
+          stderr:
+            contains: outdated
       # The originally installed version is left in place after the failed reinstall.
       - run:
           command: go version -m gobin/outdated

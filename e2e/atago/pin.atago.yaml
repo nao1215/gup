@@ -333,10 +333,14 @@ scenarios:
           command: go install gup.test/outdated@v1.0.0
       - run:
           command: gup pin outdated latest
+      # "Pinned" is a success message written to STDOUT, so the rejection is
+      # asserted on STDOUT (absence) plus the concrete error on STDERR.
       - assert:
           exit_code: 1
-          stderr:
+          stdout:
             not_contains: "Pinned"
+          stderr:
+            contains: "channel keyword"
 
   - name: rejects specifying the version twice
     env: *iso
@@ -365,6 +369,8 @@ scenarios:
           exit_code: 1
           stdout:
             not_contains: "Pinned"
+          stderr:
+            contains: "is not valid JSON"
 
   - name: unpin reports a clear error for an empty tool name
     env: *iso
@@ -387,3 +393,5 @@ scenarios:
           command: gup unpin outdated --file "${workdir}/broken.json"
       - assert:
           exit_code: 1
+          stderr:
+            contains: "is not valid JSON"
