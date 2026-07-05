@@ -669,7 +669,7 @@ func Test_installWithSelectedVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		called = ""
-		if err := installWithSelectedVersion(deps, context.Background(), "example.com/tool", tt.channel); err != nil {
+		if err := installWithSelectedVersion(deps, context.Background(), testImportExampleTool, tt.channel); err != nil {
 			t.Errorf("channel=%q: unexpected error: %v", tt.channel, err)
 		}
 		if called != tt.want {
@@ -683,13 +683,13 @@ func Test_installWithSelectedVersion_contextCanceled(t *testing.T) {
 	deps := testDeps()
 	deps.installLatest = func(ctx context.Context, _ string) error {
 		<-ctx.Done()
-		return fmt.Errorf("can't install %s:\n%w", "example.com/tool", ctx.Err())
+		return fmt.Errorf("can't install %s:\n%w", testImportExampleTool, ctx.Err())
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := installWithSelectedVersion(deps, ctx, "example.com/tool", goutil.UpdateChannelLatest)
+	err := installWithSelectedVersion(deps, ctx, testImportExampleTool, goutil.UpdateChannelLatest)
 	if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), context.Canceled.Error()) {
 		t.Fatalf("installWithSelectedVersion() error = %v, want cancellation to be surfaced", err)
 	}
@@ -1310,7 +1310,82 @@ func Test_update_ambiguousConfigFailsFast(t *testing.T) {
 		t.Errorf("update() = %d, want 1", got)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, "--file") {
+	if !strings.Contains(out, "multiple gup.json") || !strings.Contains(out, testFlagFile) {
 		t.Errorf("expected ambiguity error mentioning --file, got: %s", out)
+	}
+}
+
+// TestRemoveOldBinaryIfRenamed_removesOldBinary covers the success path that
+// deletes the pre-rename binary from GOBIN.
+//
+//nolint:paralleltest // mutates the GOBIN environment variable
+func TestRemoveOldBinaryIfRenamed_removesOldBinary(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GOBIN", dir)
+	oldPath := filepath.Join(dir, "oldname")
+	if err := os.WriteFile(oldPath, []byte("bin"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeOldBinaryIfRenamed("oldname", "newname"); err != nil {
+		t.Fatalf("removeOldBinaryIfRenamed() err = %v", err)
+	}
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Fatalf("old binary still present, stat err = %v", err)
+	}
+}
+
+// TestRemoveOldBinaryIfRenamed_missingOldBinaryIsNoError covers the branch that
+// treats an already-absent old binary as success.
+//
+//nolint:paralleltest // mutates the GOBIN environment variable
+func TestRemoveOldBinaryIfRenamed_missingOldBinaryIsNoError(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GOBIN", dir)
+	if err := removeOldBinaryIfRenamed("absent", "newname"); err != nil {
+		t.Fatalf("removeOldBinaryIfRenamed() err = %v, want nil", err)
+	}
+}
+
+// TestUpdateWithChannels_modulePathRenameRetry covers the update path where the
+// first install fails because the module was renamed: gup rewrites the import
+// path, retries the install, and records the binary rename.
+//
+//nolint:paralleltest // mutates the GOBIN environment variable
+func TestUpdateWithChannels_modulePathRenameRetry(t *testing.T) {
+	t.Setenv("GOBIN", t.TempDir())
+	deps := testDeps()
+	deps.getLatestVer = func(context.Context, string) (string, error) { return "v1.1.0", nil }
+	calls := 0
+	deps.installLatest = func(context.Context, string) error {
+		calls++
+		if calls == 1 {
+			return errors.New("module declares its path as: example.com/new\n\tbut was required as: example.com/old")
+		}
+		return nil
+	}
+
+	pkgs := []goutil.Package{{
+		Name:          testNameOld,
+		ImportPath:    testImportExampleOld,
+		ModulePath:    testImportExampleOld,
+		Version:       &goutil.Version{Current: testVersionOne},
+		UpdateChannel: goutil.UpdateChannelLatest,
+	}}
+	channelMap := map[string]goutil.UpdateChannel{"old": goutil.UpdateChannelLatest}
+
+	// jsonOut=true keeps output machine-readable and avoids the human renderer,
+	// which would dereference the (test-omitted) GoVersion for display.
+	code, succeeded, renamed := updateWithChannels(deps, discardPrinter(), pkgs, false, false, 1, true, channelMap, nil, 0, true, false)
+	if code != 0 {
+		t.Fatalf("updateWithChannels() exit = %d, want 0", code)
+	}
+	if calls != 2 {
+		t.Fatalf("install attempts = %d, want 2 (initial + retry)", calls)
+	}
+	if len(succeeded) != 1 {
+		t.Fatalf("succeeded = %d, want 1", len(succeeded))
+	}
+	if renamed["old"] != "new" {
+		t.Fatalf("renamed = %v, want old->new", renamed)
 	}
 }

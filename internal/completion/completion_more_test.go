@@ -982,3 +982,24 @@ func TestCompletionFilePaths(t *testing.T) {
 		}
 	}
 }
+
+// TestAtomicWriteFile_createTempFailure covers the temp-file creation error
+// branch when the destination directory is not writable. It is skipped as root,
+// where the read-only bit is ignored; gup's CI runs as a non-root user.
+//
+//nolint:paralleltest // relies on process-wide filesystem state
+func TestAtomicWriteFile_createTempFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("skipping: read-only permissions are bypassed when running as root")
+	}
+	dir := t.TempDir()
+	roDir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(roDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+
+	if err := atomicWriteFile(filepath.Join(roDir, "completion"), []byte("data"), "completion file"); err == nil {
+		t.Fatal("atomicWriteFile() err = nil, want temp-create failure in a read-only dir")
+	}
+}

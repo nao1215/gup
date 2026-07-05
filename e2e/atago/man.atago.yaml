@@ -1,0 +1,52 @@
+# Exercises 'gup man' against the real binary. Historically man.go was excluded
+# from coverage because generating man-pages needs a writable MANPATH and root
+# privilege for the default /usr/share/man; atago drives the CLI with a private
+# MANPATH under ${workdir}, so the whole generate/copy/gzip/atomic-write path is
+# now measured. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup man (offline)
+
+scenarios:
+  - name: generates gzipped man-pages under a writable MANPATH
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+      # A custom MANPATH whose man1 directory does not exist yet: gup must create
+      # it and write the pages there instead of touching the system /usr/share/man.
+      MANPATH: "${workdir}/man"
+    steps:
+      - run:
+          command: gup man
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Generate"
+          file:
+            path: man/man1/gup.1.gz
+            exists: true
+      # The subcommand pages are generated too, proving the whole doc tree copied.
+      - assert:
+          file:
+            path: man/man1/gup-update.1.gz
+            exists: true
+
+  - name: reports a clear error when the man directory can not be created
+    env: *iso
+    steps:
+      # MANPATH points under a regular file, so MkdirAll for the man1 dir fails
+      # and gup surfaces the "can not generate man-pages" error instead of panicking.
+      - fixture:
+          file: blocker
+          content: "not a directory"
+      - run:
+          command: gup man
+          env:
+            MANPATH: "${workdir}/blocker"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "can not generate man-pages"

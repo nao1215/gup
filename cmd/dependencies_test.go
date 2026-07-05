@@ -3,7 +3,10 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"os"
+	"testing"
 
 	"github.com/nao1215/gup/internal/print"
 )
@@ -13,6 +16,23 @@ import (
 func discardPrinter() *print.Printer {
 	return print.New(io.Discard, io.Discard)
 }
+
+// skipIfRoot skips a test that relies on filesystem permission enforcement,
+// because root bypasses the read-only bit and the I/O failure never happens.
+// gup's CI runs as the non-root runner user, so these branches are still
+// exercised there.
+func skipIfRoot(t *testing.T) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("skipping: read-only permissions are bypassed when running as root")
+	}
+}
+
+// errReader is an io.Reader that always fails, used to drive the io.Copy error
+// branch in the gzip/atomic-write helpers.
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("forced read failure") }
 
 // newTestPrinter returns a Printer whose normal and error output both go to a
 // single buffer, plus the buffer for assertions. It replaces the old pattern of

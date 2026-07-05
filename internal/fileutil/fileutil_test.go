@@ -206,3 +206,29 @@ func TestResolveSymlinkTarget(t *testing.T) {
 func isWindows() bool {
 	return os.PathSeparator == '\\'
 }
+
+// TestResolveSymlinkTarget_relativeLink covers the branch that resolves a
+// relative symlink target against the link's own directory, so the returned
+// path is the absolute file the link points at.
+//
+//nolint:paralleltest // creates symlinks under a temp dir
+func TestResolveSymlinkTarget_relativeLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real.json")
+	if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.json")
+	// A RELATIVE target ("real.json") must be joined with the link's directory.
+	if err := os.Symlink("real.json", link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	got, err := ResolveSymlinkTarget(link)
+	if err != nil {
+		t.Fatalf("ResolveSymlinkTarget() err = %v", err)
+	}
+	if got != filepath.Clean(target) {
+		t.Fatalf("ResolveSymlinkTarget() = %q, want %q", got, target)
+	}
+}

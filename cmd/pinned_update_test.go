@@ -2,15 +2,146 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/nao1215/gup/internal/goutil"
 )
 
-const pinnedTestImport = "example.com/tool"
+// TestUpdatePinned_missingVersionField exercises the defensive nil-Version
+// initialization in updatePinned: a pinned package with no Version struct is
+// still installed at its pin, not skipped.
+func TestUpdatePinned_missingVersionField(t *testing.T) {
+	t.Parallel()
+	installed := ""
+	deps := testDeps()
+	deps.installByVersion = func(_ context.Context, importPath, version string) error {
+		installed = importPath + "@" + version
+		return nil
+	}
+	p := goutil.Package{
+		Name:          testBinTool,
+		ImportPath:    testImportExampleTool,
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: testVersionOne,
+		Version:       nil, // no version info yet
+	}
+	res := updatePinned(deps, context.Background(), p, false)
+	if res.err != nil {
+		t.Fatalf("updatePinned() err = %v, want nil", res.err)
+	}
+	if installed != "example.com/tool@v1.0.0" {
+		t.Fatalf("installed = %q, want example.com/tool@v1.0.0", installed)
+	}
+}
 
-// pinnedTestPkg builds an installed package for "example.com/tool" with a
+// TestUpdatePinned_emptyPinTarget covers the defensive guard that refuses to
+// install when a pinned package has no recorded version.
+func TestUpdatePinned_emptyPinTarget(t *testing.T) {
+	t.Parallel()
+	p := goutil.Package{
+		Name:          testBinTool,
+		ImportPath:    testImportExampleTool,
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: "   ",
+	}
+	res := updatePinned(testDeps(), context.Background(), p, false)
+	if res.err == nil {
+		t.Fatal("updatePinned() err = nil, want error for empty pin target")
+	}
+}
+
+// TestUpdatePinned_noImportPath covers the branch that reports a pinned package
+// gup can not reinstall because its import path is unknown.
+func TestUpdatePinned_noImportPath(t *testing.T) {
+	t.Parallel()
+	p := goutil.Package{
+		Name:          testBinTool,
+		ImportPath:    "", // unknown import path
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: testVersionOne,
+		Version:       &goutil.Version{Current: testVersionZeroNine}, // pin not satisfied
+	}
+	res := updatePinned(testDeps(), context.Background(), p, false)
+	if res.err == nil {
+		t.Fatal("updatePinned() err = nil, want error for missing import path")
+	}
+}
+
+// TestUpdatePinned_installFailure covers the branch that surfaces an install
+// error at the pinned version.
+func TestUpdatePinned_installFailure(t *testing.T) {
+	t.Parallel()
+	deps := testDeps()
+	deps.installByVersion = func(context.Context, string, string) error {
+		return errors.New("boom")
+	}
+	p := goutil.Package{
+		Name:          testBinTool,
+		ImportPath:    testImportExampleTool,
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: testVersionOne,
+		Version:       &goutil.Version{Current: testVersionZeroNine},
+	}
+	res := updatePinned(deps, context.Background(), p, false)
+	if res.err == nil {
+		t.Fatal("updatePinned() err = nil, want install error")
+	}
+}
+
+// TestInstallWithSelectedVersion_pinnedRejected covers the guard that never
+// installs a pinned package through the channel installer.
+func TestInstallWithSelectedVersion_pinnedRejected(t *testing.T) {
+	t.Parallel()
+	err := installWithSelectedVersion(testDeps(), context.Background(), testImportExampleTool, goutil.UpdateChannelPinned)
+	if err == nil {
+		t.Fatal("installWithSelectedVersion() err = nil, want error for pinned channel")
+	}
+}
+
+// TestInstallWithSelectedVersion_masterAndMain routes the master/main channels
+// to their installers.
+func TestInstallWithSelectedVersion_masterAndMain(t *testing.T) {
+	t.Parallel()
+	var called string
+	deps := testDeps()
+	deps.installByVersion = func(_ context.Context, _, version string) error { called = "byVersion:" + version; return nil }
+	deps.installMainOrMaster = func(context.Context, string) error { called = "mainOrMaster"; return nil }
+
+	if err := installWithSelectedVersion(deps, context.Background(), testImportExampleTool, goutil.UpdateChannelMaster); err != nil {
+		t.Fatalf("master: err = %v", err)
+	}
+	if called != "byVersion:master" {
+		t.Fatalf("master routed to %q", called)
+	}
+	if err := installWithSelectedVersion(deps, context.Background(), testImportExampleTool, goutil.UpdateChannelMain); err != nil {
+		t.Fatalf("main: err = %v", err)
+	}
+	if called != "mainOrMaster" {
+		t.Fatalf("main routed to %q", called)
+	}
+}
+
+// TestCheckPinned_nilVersion covers the nil-Version initialization in checkPinned.
+func TestCheckPinned_nilVersion(t *testing.T) {
+	t.Parallel()
+	p := goutil.Package{
+		Name:          testBinTool,
+		UpdateChannel: goutil.UpdateChannelPinned,
+		PinnedVersion: testVersionOne,
+		Version:       nil,
+	}
+	res := checkPinned(p, false)
+	// With no installed version the pin is not satisfied -> pin-mismatch.
+	if res.status != statusPinMismatch {
+		t.Fatalf("checkPinned() status = %q, want %q", res.status, statusPinMismatch)
+	}
+}
+
+const pinnedTestImport = testImportExampleTool
+
+// pinnedTestPkg builds an installed package for testImportExampleTool with a
 // resolved pin (channel + PinnedVersion), as configstate would hand to
 // updateWithChannels.
 func pinnedTestPkg(installed, pinned string) goutil.Package {
@@ -90,7 +221,7 @@ func TestUpdatePinned_emptyPinIsError(t *testing.T) {
 		return nil
 	}
 
-	p := pinnedTestPkg("v1.0.0", "")
+	p := pinnedTestPkg(testVersionOne, "")
 	res := updatePinned(deps, t.Context(), p, false)
 	if res.err == nil {
 		t.Fatal("expected an error for a pin with no recorded version, never a silent @latest")

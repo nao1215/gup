@@ -59,3 +59,149 @@ scenarios:
             exists: true
           stdout:
             contains: gup.test/uptodate
+
+  - name: import --dry-run reports the plan without installing anything
+    env: *iso
+    steps:
+      - fixture:
+          file: import.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup import --dry-run --file "${workdir}/import.json"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: gup.test/uptodate
+      # Dry-run must not write into the real $GOBIN.
+      - assert:
+          file:
+            path: gobin/uptodate
+            exists: false
+
+  - name: import rejects a config with an invalid package entry
+    env: *iso
+    steps:
+      - fixture:
+          file: bad.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"","channel":"latest"}]}
+      - run:
+          command: gup import --file "${workdir}/bad.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "invalid package entry"
+
+  - name: migrate reports a clear error when BEFORE_PATH does not exist
+    env: *iso
+    steps:
+      - run:
+          command: gup migrate "${workdir}/missing-before" "${workdir}/after"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "BEFORE_PATH does not exist"
+
+  - name: migrate rejects the same directory for BEFORE_PATH and AFTER_PATH
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: gup migrate "${workdir}/before" "${workdir}/before"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "same directory"
+
+  - name: migrate rejects an AFTER_PATH that is an existing regular file
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - fixture:
+          file: after-file
+          content: "i am a file"
+      - run:
+          command: gup migrate "${workdir}/before" "${workdir}/after-file"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "AFTER_PATH is not a directory"
+
+  - name: migrate --dry-run plans the migration without installing into AFTER_PATH
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: gup migrate --dry-run "${workdir}/before" "${workdir}/after"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: gup.test/outdated
+      # Dry-run must neither create AFTER_PATH nor install the binary there.
+      - assert:
+          file:
+            path: after/outdated
+            exists: false
+
+  - name: migrate warns about a requested binary missing from BEFORE_PATH
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: gup migrate "${workdir}/before" "${workdir}/after" no-such-tool
+      - assert:
+          stderr:
+            contains: "not found 'no-such-tool'"
+
+  - name: migrate skips a binary that already exists in AFTER_PATH without --force
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      # Pre-populate AFTER_PATH with the same binary so migrate skips it.
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/after"
+      - run:
+          command: gup migrate "${workdir}/before" "${workdir}/after"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "already exists in AFTER_PATH"
+
+  - name: migrate --force reinstalls over an existing binary in AFTER_PATH
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/after"
+      - run:
+          command: gup migrate --force "${workdir}/before" "${workdir}/after"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: gup.test/outdated
+      - assert:
+          stdout:
+            not_contains: "already exists in AFTER_PATH"

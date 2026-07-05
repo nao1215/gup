@@ -59,3 +59,48 @@ scenarios:
           file:
             path: gobin/outdated
             exists: true
+
+  - name: list --json annotates an installed binary as installed
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup list --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].name"
+              equals: outdated
+      - assert:
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: installed
+
+  - name: list --json on an empty GOBIN emits a valid empty JSON array
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup list --json
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "[]"
+
+  - name: remove rejects an unsafe binary name that escapes GOBIN
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup remove --force "../evil"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "invalid command name"

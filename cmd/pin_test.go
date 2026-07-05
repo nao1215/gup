@@ -104,3 +104,12 @@ func TestTargetPackage(t *testing.T) {
 		t.Errorf("targetPackage(path) = %+v", byPath)
 	}
 }
+
+// TestParsePinArgs_tooManyArgs covers the default branch that rejects more than
+// two arguments.
+func TestParsePinArgs_tooManyArgs(t *testing.T) {
+	t.Parallel()
+	if _, _, err := parsePinArgs([]string{"a", "b", "c"}); err == nil {
+		t.Fatal("parsePinArgs() err = nil, want error for three args")
+	}
+}

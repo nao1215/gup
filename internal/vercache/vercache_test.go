@@ -328,3 +328,35 @@ func TestChannelResolver(t *testing.T) {
 		}
 	})
 }
+
+// TestChannelResolver_pinnedNotResolvable covers the guard that refuses to
+// resolve a pinned channel against the proxy: pinned packages must be installed
+// at their exact recorded version, never resolved to @latest.
+func TestChannelResolver_pinnedNotResolvable(t *testing.T) {
+	t.Parallel()
+	resolve := ChannelResolver(
+		func(context.Context, string) (string, error) { return "v1.0.0", nil },
+		func(context.Context, string, string) (string, error) { return "v1.0.0", nil },
+	)
+	if _, err := resolve(context.Background(), "example.com/tool", goutil.UpdateChannelPinned); err == nil {
+		t.Fatal("ChannelResolver() err = nil, want error for pinned channel")
+	}
+}
+
+// TestChannelResolver_masterRoutesToRef covers the @master branch, which
+// resolves directly against the master ref.
+func TestChannelResolver_masterRoutesToRef(t *testing.T) {
+	t.Parallel()
+	var ref string
+	resolve := ChannelResolver(
+		func(context.Context, string) (string, error) { return "", nil },
+		func(_ context.Context, _, r string) (string, error) { ref = r; return "v2.0.0", nil },
+	)
+	got, err := resolve(context.Background(), "example.com/tool", goutil.UpdateChannelMaster)
+	if err != nil {
+		t.Fatalf("ChannelResolver() err = %v", err)
+	}
+	if got != "v2.0.0" || ref != "master" {
+		t.Fatalf("ChannelResolver() = %q via ref %q, want v2.0.0 via master", got, ref)
+	}
+}

@@ -26,7 +26,7 @@ func TestRenameWithBackupSwap_Success(t *testing.T) {
 	if err := os.WriteFile(src, []byte("new"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(dst, []byte(testNameOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -54,7 +54,7 @@ func TestRenameWithBackupSwap_RestoreOnFailure(t *testing.T) {
 	src := filepath.Join(dir, "missing.tmp")
 	dst := filepath.Join(dir, "gup.json")
 
-	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(dst, []byte(testNameOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,7 +75,7 @@ func Test_shouldRetryRenameWithReplace(t *testing.T) {
 	t.Parallel()
 
 	dst := filepath.Join(t.TempDir(), "gup.json")
-	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(dst, []byte(testNameOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,7 +101,7 @@ func Test_renameWithReplace_errorWhenSrcMissing(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "missing.tmp")
 	dst := filepath.Join(dir, "gup.json")
-	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(dst, []byte(testNameOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -188,7 +188,7 @@ func Test_renameWithBackupSwap_restoreFailure(t *testing.T) {
 	if err := os.WriteFile(src, []byte("new"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(dst, []byte(testNameOld), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -430,5 +430,63 @@ func assertNoTempFiles(t *testing.T, dir, base string) {
 		if strings.HasPrefix(name, base+".tmp-") || strings.HasPrefix(name, base+".bak-") {
 			t.Fatalf("stray temp/backup file left behind: %s", name)
 		}
+	}
+}
+
+// TestWriteConfigFile_createTempFailure covers the temp-file creation error
+// branch when the destination directory is not writable.
+//
+//nolint:paralleltest // relies on process-wide filesystem state
+func TestWriteConfigFile_createTempFailure(t *testing.T) {
+	skipIfRoot(t)
+	dir := t.TempDir()
+	roDir := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(roDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+
+	err := writeConfigFile(filepath.Join(roDir, "gup.json"), []goutil.Package{{Name: "x"}})
+	if err == nil {
+		t.Fatal("writeConfigFile() err = nil, want error creating temp file in a read-only dir")
+	}
+}
+
+// TestWriteConfigFile_backupSwapPath drives the rename-backup-swap fallback used
+// when os.Rename can not overwrite the destination (the Windows path), by making
+// the first rename report os.ErrExist so shouldRetryRenameWithReplace triggers
+// the backup swap; the swap itself uses the real rename.
+//
+//nolint:paralleltest // mutates package-level renameFunc
+func TestWriteConfigFile_backupSwapPath(t *testing.T) {
+	origRename := renameFunc
+	t.Cleanup(func() { renameFunc = origRename })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.json")
+	if err := os.WriteFile(path, []byte(testNameOld), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	renameFunc = func(oldpath, newpath string) error {
+		calls++
+		if calls == 1 {
+			// First tmp->dst rename: pretend the destination can not be
+			// overwritten, so renameWithReplace falls back to the backup swap.
+			return os.ErrExist
+		}
+		return origRename(oldpath, newpath)
+	}
+
+	if err := writeConfigFile(path, []goutil.Package{{Name: "x", ImportPath: "example.com/x", Version: &goutil.Version{Current: testVersionOne}}}); err != nil {
+		t.Fatalf("writeConfigFile() err = %v", err)
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "example.com/x") {
+		t.Fatalf("config not written through backup swap: %s", data)
 	}
 }

@@ -2,12 +2,13 @@
 coverage:
   paths:
     - cover.out
-  acceptable: 80%
+  acceptable: 90%
+  # Every shipped source file is now measured: the atago-driven E2E suite drives
+  # the real CLI (including 'gup man', 'gup bug-report', unknown-command and the
+  # root command wiring), so main.go/root.go/man.go/bug_report.go no longer need
+  # to be excluded. Only the offline module proxy under e2e/testproxy remains
+  # excluded: it is E2E test infrastructure, not part of the gup binary.
   exclude:
-    - "github.com/nao1215/gup/main.go"
-    - "github.com/nao1215/gup/cmd/root.go"
-    - "github.com/nao1215/gup/cmd/man.go"
-    - "github.com/nao1215/gup/cmd/bug_report.go"
     - "github.com/nao1215/gup/e2e/testproxy/main.go"
   badge:
     path: doc/coverage.svg

@@ -25,11 +25,12 @@ const (
 	testVer100   = "v1.0.0"
 	testVer200   = "v2.0.0"
 
-	testOldName  = "old-name"
-	testNewName  = "new-name"
-	testFooPath  = "example.com/foo/cmd/foo"
-	testToolName = "tool"
-	testToolPath = "example.com/tool/cmd/tool"
+	testOldName    = "old-name"
+	testNewName    = "new-name"
+	testFooPath    = "example.com/foo/cmd/foo"
+	testToolName   = "tool"
+	testVersion123 = "v1.2.3"
+	testToolPath   = "example.com/tool/cmd/tool"
 
 	testFoo       = "foo"
 	testBar       = "bar"
@@ -474,9 +475,9 @@ func TestSanitizePackage(t *testing.T) {
 		pkg     goutil.Package
 		wantVer string
 	}{
-		{name: "nil version -> latest", pkg: goutil.Package{Name: "tool", ImportPath: "github.com/example/tool"}, wantVer: latestKeyword},
-		{name: "blank version -> latest", pkg: goutil.Package{Name: "tool", ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "  "}}, wantVer: latestKeyword},
-		{name: "valid version preserved + trimmed", pkg: goutil.Package{Name: " tool ", ImportPath: " github.com/example/tool ", Version: &goutil.Version{Current: " v1.2.3 "}}, wantVer: "v1.2.3"},
+		{name: "nil version -> latest", pkg: goutil.Package{Name: testToolName, ImportPath: "github.com/example/tool"}, wantVer: latestKeyword},
+		{name: "blank version -> latest", pkg: goutil.Package{Name: testToolName, ImportPath: "github.com/example/tool", Version: &goutil.Version{Current: "  "}}, wantVer: latestKeyword},
+		{name: "valid version preserved + trimmed", pkg: goutil.Package{Name: " tool ", ImportPath: " github.com/example/tool ", Version: &goutil.Version{Current: " v1.2.3 "}}, wantVer: testVersion123},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -875,5 +876,44 @@ func TestMergePackages_keepsRenameWithUnchangedImportPath(t *testing.T) {
 	}
 	if got[0].Name != testBar {
 		t.Errorf("kept entry = %q, want %q", got[0].Name, testBar)
+	}
+}
+
+// TestSavedPinnedVersion_fallsBackToRecordedVersion covers the branch that, for
+// a pinned package with no dedicated PinnedVersion, falls back to the recorded
+// current version.
+func TestSavedPinnedVersion_fallsBackToRecordedVersion(t *testing.T) {
+	t.Parallel()
+	got := savedPinnedVersion(goutil.Package{
+		UpdateChannel: goutil.UpdateChannelPinned,
+		Version:       &goutil.Version{Current: testVersion123},
+	})
+	if got != testVersion123 {
+		t.Fatalf("savedPinnedVersion() = %q, want v1.2.3", got)
+	}
+}
+
+// TestSavedPinnedVersion_noVersionInfo covers the branch that returns an empty
+// string for a pinned package with neither a PinnedVersion nor a recorded
+// version.
+func TestSavedPinnedVersion_noVersionInfo(t *testing.T) {
+	t.Parallel()
+	got := savedPinnedVersion(goutil.Package{
+		UpdateChannel: goutil.UpdateChannelPinned,
+		Version:       nil,
+	})
+	if got != "" {
+		t.Fatalf("savedPinnedVersion() = %q, want empty", got)
+	}
+}
+
+// TestResolveChannels_mainAndLatestConflict covers the branch that rejects a
+// binary named in both --main and --latest.
+func TestResolveChannels_mainAndLatestConflict(t *testing.T) {
+	t.Parallel()
+	pkgs := []goutil.Package{{Name: testToolName, ImportPath: "example.com/tool"}}
+	_, _, err := ResolveChannels(pkgs, nil, []string{"tool"}, nil, []string{"tool"}, nil, func(string) {})
+	if err == nil {
+		t.Fatal("ResolveChannels() err = nil, want conflict error for --main and --latest")
 	}
 }
