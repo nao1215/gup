@@ -1,0 +1,15 @@
+{{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  {{- /* Deliberately omit <priority>: Hugo defaults programmatically-added
+         pages (the cookbook and every real-world page, created via AddPage in
+         content/_content.gotmpl) to priority 0, which told crawlers the site's
+         richest content was the least important. With no priority element the
+         crawler weights every URL equally. */ -}}
+  {{ range .Pages }}
+  <url>
+    <loc>{{ .Permalink }}</loc>{{ if not .Lastmod.IsZero }}
+    <lastmod>{{ .Lastmod.Format "2006-01-02T15:04:05-07:00" | safeHTML }}</lastmod>{{ end }}{{ with .Sitemap.ChangeFreq }}
+    <changefreq>{{ . }}</changefreq>{{ end }}
+  </url>
+  {{ end }}
+</urlset>

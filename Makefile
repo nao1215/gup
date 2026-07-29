@@ -1,4 +1,4 @@
-.PHONY: build test e2e coverage clean vet fmt chkfmt changelog update-tools help coverage-tree
+.PHONY: build test e2e coverage clean vet fmt chkfmt changelog update-tools help coverage-tree website website-serve
 
 APP         = gup
 VERSION     = $(shell git describe --tags --abbrev=0)
@@ -34,6 +34,12 @@ e2e: ## Run offline end-to-end tests against the real CLI (requires atago)
 
 coverage: ## Combine unit + self-hosted E2E coverage into cover.out / cover.html (uses a `go build -cover` gup; scratch under .coverage/)
 	bash ./scripts/coverage.sh
+
+website: ## Build the documentation website into website/public (requires hugo)
+	cd website && hugo --gc --minify --cleanDestinationDir
+
+website-serve: ## Serve the documentation website locally with live reload (requires hugo)
+	cd website && hugo server
 
 vet: ## Start go vet
 	$(GO_VET) $(GO_PACKAGES)

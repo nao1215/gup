@@ -1,0 +1,26 @@
+{{- /* Wrap markdown tables in a horizontally-scrollable container instead of
+     making the <table> itself display:block (which strips the implicit ARIA
+     table role, so screen readers stop announcing it as a table). The table
+     stays a real table; only the wrapper scrolls. */ -}}
+<div class="table-wrap">
+<table>
+<thead>
+{{- range .THead }}
+<tr>
+{{- range . }}
+<th{{ with .Alignment }} style="text-align: {{ . }}"{{ end }}>{{ .Text }}</th>
+{{- end }}
+</tr>
+{{- end }}
+</thead>
+<tbody>
+{{- range .TBody }}
+<tr>
+{{- range . }}
+<td{{ with .Alignment }} style="text-align: {{ . }}"{{ end }}>{{ .Text }}</td>
+{{- end }}
+</tr>
+{{- end }}
+</tbody>
+</table>
+</div>
