@@ -219,6 +219,7 @@ func TestCookbook_EveryRecipeSectionIsExercised(t *testing.T) {
 	scenarioPattern := regexp.MustCompile(`^  - name: "([^"]+)"$`)
 	sections := make(map[string]bool)
 	for _, line := range strings.Split(cookbook, "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		match := sectionPattern.FindStringSubmatch(line)
 		if len(match) == 2 && match[1] != "Find a recipe by task" {
 			sections[match[1]] = true
@@ -227,6 +228,7 @@ func TestCookbook_EveryRecipeSectionIsExercised(t *testing.T) {
 
 	covered := make(map[string]bool)
 	for _, line := range strings.Split(spec, "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		match := scenarioPattern.FindStringSubmatch(line)
 		if len(match) != 2 {
 			continue
