@@ -1,0 +1,1 @@
+<h{{ .Level }} id="{{ .Anchor | safeURL }}">{{ .Text }}{{ if ge .Level 2 }} <a class="hlink" href="#{{ .Anchor | safeURL }}" aria-label="Link to this section">#</a>{{ end }}</h{{ .Level }}>

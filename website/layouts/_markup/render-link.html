@@ -1,0 +1,9 @@
+{{- /* Site-absolute destinations ("/cookbook/") are prefixed with the base
+     path so pages work under https://<host>/gup/. Everything else —
+     external URLs, fragments, page-relative paths — passes through. */ -}}
+{{- $u := .Destination -}}
+{{- if and (hasPrefix $u "/") (not (hasPrefix $u "//")) -}}
+  {{- $u = relURL (strings.TrimPrefix "/" $u) -}}
+{{- end -}}
+<a href="{{ $u }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>
+{{- /* chomp trailing newline */ -}}

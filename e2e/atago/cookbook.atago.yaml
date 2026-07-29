@@ -1,0 +1,768 @@
+# The recipes published on https://nao1215.github.io/gup/cookbook/ (the
+# committed doc/cookbook.md), run against the real binary so a command a reader
+# copies off the site cannot silently stop working.
+#
+# Every scenario name starts with the "## " section title it comes from,
+# followed by ": ". TestCookbook_EverySectionIsExercised (cmd/docs_drift_test.go)
+# reads both files and fails when a section has no scenario here, or a scenario
+# names a section the cookbook no longer has - so the mapping cannot rot and no
+# hand-maintained list has to be kept in step.
+#
+# The recipes name real-world tools (gopls, golangci-lint); offline, the fixture
+# modules served by e2e/testproxy stand in for them. The command SHAPE is what is
+# under test: the flags, their combinations, the exit codes, and the output a
+# reader is told to pipe into jq. Run with: make e2e
+version: "1"
+
+suite:
+  name: gup cookbook recipes (offline)
+
+scenarios:
+  # ---------------------------------------------------------------- See what you have
+  - name: "See what you have: gup list names the import path and version"
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup list
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - uptodate
+              - gup.test/uptodate
+              - v1.0.0
+
+  - name: "See what you have: gup list --json carries the fields the recipe pipes into jq"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup list --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].name"
+              equals: uptodate
+      - assert:
+          stdout:
+            json:
+              path: "$[0].import_path"
+              equals: gup.test/uptodate
+      - assert:
+          stdout:
+            json:
+              path: "$[0].channel"
+              equals: latest
+      - assert:
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: installed
+
+  # ------------------------------------------------------- Find what is out of date
+  # The front page of the site quotes this run: the header line, a per-binary
+  # line, and the closing suggestion. All three are pinned here.
+  - name: "Find what is out of date: gup check reports without installing anything"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup check
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - "check binary under $GOPATH/bin or $GOBIN"
+              - "gup.test/outdated"
+              - "If you want to update binaries, run the following command."
+              - "$ gup update outdated"
+      # check installs nothing: the binary is still the version it was.
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: "Find what is out of date: --quiet drops the up-to-date lines and adds a summary"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check --quiet
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - "gup.test/outdated"
+              - "1 update available"
+      - assert:
+          stdout:
+            not_contains: "gup.test/uptodate"
+
+  - name: "Find what is out of date: naming binaries checks only those"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check uptodate
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "gup.test/uptodate"
+      - assert:
+          stdout:
+            not_contains: "gup.test/outdated"
+
+  - name: "Find what is out of date: --json selects the update-available names"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: update-available
+      - assert:
+          stdout:
+            json:
+              path: "$[0].latest_version"
+              equals: v1.1.0
+
+  - name: "Find what is out of date: --ignore-go-update compares versions only"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check --ignore-go-update
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "gup.test/uptodate"
+
+  # ------------------------------------------------------------- Update everything
+  - name: "Update everything: gup update brings the whole set up to date"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "update binary under $GOPATH/bin or $GOBIN"
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "Update everything: --dry-run changes nothing on disk"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --dry-run
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: "Update everything: --jobs and --timeout are accepted together"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --jobs 4 --timeout 5m
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "Update everything: --ignore-go-update still installs a newer version"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --ignore-go-update
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  # -------------------------------------------------------- Update only some tools
+  - name: "Update only some tools: naming a binary leaves the others alone"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup update outdated
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: "Update only some tools: --exclude skips the named binary"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup update --exclude outdated
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "Update only some tools: --exclude combines with --dry-run"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup update --exclude outdated --dry-run
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  # ------------------------------------------------------ Hold a tool at a version
+  - name: "Hold a tool at a version: a pinned tool stays put while the rest update"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin pinnable v1.0.0
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Pinned pinnable to v1.0.0"
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.0.0
+      # The unpinned tool in the same run still moved.
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "Hold a tool at a version: the tool@version form records the same pin"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup pin pinnable@v1.0.0
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"channel": "pinned"'
+
+  - name: "Hold a tool at a version: --json reports the pin the recipe greps for"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup pin pinnable v1.0.0
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              path: "$[0].channel"
+              equals: pinned
+      - assert:
+          stdout:
+            json:
+              path: "$[0].pinned_version"
+              equals: v1.0.0
+      - assert:
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: pinned
+
+  - name: "Hold a tool at a version: unpin lets it move again"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup pin pinnable v1.0.0
+      - run:
+          command: gup unpin pinnable
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup update pinnable
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  # ---------------------------------------------------------------- Follow a branch
+  - name: "Follow a branch: --main, --master and --latest pick the source per tool"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/maintool@main
+      - run:
+          command: go install gup.test/mastertool@master
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --main maintool --master mastertool --latest outdated
+      - assert:
+          exit_code: 0
+          file:
+            path: gobin/maintool
+            exists: true
+      - assert:
+          file:
+            path: gobin/mastertool
+            exists: true
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "Follow a branch: the channel is saved, so a later plain update reuses it"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/maintool@main
+      - run:
+          command: gup update --main maintool
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"channel": "main"'
+      # No --main this time: the saved channel is what drives the run.
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"channel": "main"'
+
+  # ------------------------------------------------------- Reproduce the set elsewhere
+  - name: "Reproduce the set elsewhere: export writes the set and import installs it"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup export
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.config/gup/gup.json
+            contains: gup.test/uptodate
+      # A second machine: a fresh GOBIN reading the same config.
+      - run:
+          command: gup import
+          env:
+            GOBIN: "${workdir}/gobin2"
+      - assert:
+          exit_code: 0
+          file:
+            path: gobin2/uptodate
+            exists: true
+
+  - name: "Reproduce the set elsewhere: --output prints the config for your dotfiles"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup export --output
+      - assert:
+          exit_code: 0
+          stdout:
+            contains:
+              - '"schema_version"'
+              - gup.test/uptodate
+
+  - name: "Reproduce the set elsewhere: import --dry-run installs nothing"
+    env: *iso
+    steps:
+      - fixture:
+          file: gup.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup import --file "${workdir}/gup.json" --dry-run
+      - assert:
+          exit_code: 0
+          file:
+            path: gobin/uptodate
+            exists: false
+
+  # --------------------------------------------------------------- Move to a new $GOBIN
+  - name: "Move to a new $GOBIN: migrate reinstalls at the recorded versions"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/old"
+      - run:
+          command: gup migrate "${workdir}/old" "${workdir}/new"
+      - assert:
+          exit_code: 0
+          file:
+            path: new/outdated
+            exists: true
+      # The recorded version, not @latest: v1.1.0 exists and was NOT taken.
+      - run:
+          command: go version -m new/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+      # Add-only: the source directory is left alone.
+      - assert:
+          file:
+            path: old/outdated
+            exists: true
+
+  - name: "Move to a new $GOBIN: naming binaries migrates only those"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/old"
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+          env:
+            GOBIN: "${workdir}/old"
+      - run:
+          command: gup migrate "${workdir}/old" "${workdir}/new" outdated
+      - assert:
+          exit_code: 0
+          file:
+            path: new/outdated
+            exists: true
+      - assert:
+          file:
+            path: new/uptodate
+            exists: false
+
+  - name: "Move to a new $GOBIN: --dry-run plans it, --force overwrites on purpose"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/old"
+      - run:
+          command: gup migrate "${workdir}/old" "${workdir}/new" --dry-run
+      - assert:
+          exit_code: 0
+          file:
+            path: new/outdated
+            exists: false
+      - run:
+          command: gup migrate "${workdir}/old" "${workdir}/new"
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup migrate "${workdir}/old" "${workdir}/new" --force
+      - assert:
+          exit_code: 0
+          file:
+            path: new/outdated
+            exists: true
+
+  # ------------------------------------------------------------------- Remove a tool
+  - name: "Remove a tool: --force deletes it without asking"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup remove --force outdated
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: removed
+          file:
+            path: gobin/outdated
+            exists: false
+
+  - name: "Remove a tool: without a terminal it fails fast instead of blocking"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      # No PTY here, so stdin is not a terminal: the recipe's warning about CI.
+      - run:
+          command: gup remove outdated
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "--force"
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: true
+
+  # ------------------------------------------------------------------------ Script it
+  - name: "Script it: --json stays parseable while a package fails"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      - run:
+          command: gup update --json
+      - assert:
+          exit_code: 1
+          stdout:
+            contains:
+              - '"status": "error"'
+              - '"status": "updated"'
+
+  - name: "Script it: --quiet --no-color emits neither noise nor escape codes"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup update --quiet --no-color
+      - assert:
+          exit_code: 0
+          stdout:
+            not_matches: "\\["
+      - assert:
+          stdout:
+            contains: "up-to-date"
+
+  - name: "Script it: NO_COLOR is honored like the flag"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup update
+          env:
+            NO_COLOR: "1"
+      - assert:
+          exit_code: 0
+          stdout:
+            not_matches: "\\["
+
+  - name: "Script it: an empty GOBIN is a first run, not an error"
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup check --json
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "[]"
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+
+  # ------------------------------------------------------------- When an update fails
+  - name: "When an update fails: the hint names the next step on stderr"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      - run:
+          command: gup update tool
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "gup:ERROR"
+              - "does not contain package"
+              - "gup:HINT"
+              - "major version"
+
+  - name: "When an update fails: the same text is the --json hint field"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      - run:
+          command: gup update --json
+      - assert:
+          exit_code: 1
+          stdout:
+            json:
+              path: "$[0].status"
+              equals: error
+      - assert:
+          stdout:
+            contains: '"hint"'
+
+  - name: "When an update fails: the other tools in the run still update"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 1
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  # ------------------------------------------------------- Completion and man pages
+  - name: "Completion and man pages: --install writes the files the shells read"
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/home
+      - run:
+          command: gup completion --install
+          env:
+            SHELL: /bin/bash
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.local/share/bash-completion/completions/gup
+            exists: true
+
+  - name: "Completion and man pages: each shell script is printed to STDOUT"
+    env: *iso
+    steps:
+      - run:
+          command: gup completion bash
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "# bash completion V2 for gup"
+      - run:
+          command: gup completion zsh
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "#compdef gup"
+      - run:
+          command: gup completion fish
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "fish completion for gup"
+      - run:
+          command: gup completion powershell
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Register-ArgumentCompleter"
+
+  - name: "Completion and man pages: completion offers the binaries in this GOBIN"
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup __complete update ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+
+  - name: "Completion and man pages: man writes gzipped pages under MANPATH"
+    env: *iso
+    steps:
+      - run:
+          command: gup man
+          env:
+            MANPATH: "${workdir}/man"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: Generate
+          file:
+            path: man/man1/gup.1.gz
+            exists: true

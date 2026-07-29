@@ -1,0 +1,509 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --link: #0757ba;
+  --border: #d1d9e0;
+  --code-bg: #f6f8fa;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --link: #58a6ff;
+    --border: #30363d;
+    --code-bg: #161b22;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+}
+
+header nav {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  align-items: baseline;
+}
+
+header nav a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+header nav a:hover {
+  text-decoration: underline;
+}
+
+header nav .brand {
+  font-weight: 700;
+  margin-right: 0.5rem;
+}
+
+header nav .sponsor {
+  color: #bf3989;
+}
+
+@media (prefers-color-scheme: dark) {
+  header nav .sponsor {
+    color: #f778ba;
+  }
+}
+
+/* --- home page logo --- */
+
+.logo {
+  text-align: center;
+}
+
+.logo img {
+  max-width: min(400px, 100%);
+  border-radius: 8px;
+}
+
+/* Landing hero: a smaller logo sitting directly above the tagline h1, so the
+   "what is this" headline is the first text a visitor and a crawler see. */
+.hero {
+  text-align: center;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.hero-logo {
+  max-width: min(360px, 90%);
+  height: auto;
+  border-radius: 8px;
+}
+
+.hero h1 {
+  margin: 0.75rem 0 0;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+/* Embedded doc images (demo/snapshot GIFs) keep their intrinsic ratio while
+   scaling down, so the reserved width/height box never overflows the column. */
+main img {
+  max-width: 100%;
+  height: auto;
+}
+
+main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+footer {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+footer p {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+footer a {
+  color: var(--muted);
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  margin: 1.75em 0 0.5em;
+}
+
+h1 {
+  margin-top: 0.5em;
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+}
+
+h3 {
+  font-size: 1.1rem;
+}
+
+a {
+  color: var(--link);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+code, pre {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+code {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+
+pre {
+  background: var(--code-bg);
+  border-radius: 6px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 1em;
+}
+
+.highlight pre {
+  background: var(--code-bg) !important;
+}
+
+/* A real <table> (not display:block) so browsers keep announcing it as a table
+   to assistive tech; horizontal scrolling for wide tables lives on the
+   .table-wrap container emitted by the table render hook and the spec-reference
+   shortcode instead. */
+table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+th, td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--code-bg);
+}
+
+blockquote {
+  margin: 1rem 0;
+  padding: 0 1rem;
+  color: var(--muted);
+  border-left: 3px solid var(--border);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* --- navigation state --- */
+
+header nav a.active {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+
+/* --- heading anchors: visible on hover --- */
+
+.hlink {
+  text-decoration: none;
+  opacity: 0;
+  font-weight: 400;
+  transition: opacity 0.1s;
+}
+
+h1:hover .hlink, h2:hover .hlink, h3:hover .hlink, h4:hover .hlink {
+  opacity: 0.7;
+}
+
+/* --- "On this page" box --- */
+
+details.toc {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+details.toc summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+details.toc ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+details.toc a {
+  text-decoration: none;
+}
+
+details.toc a:hover {
+  text-decoration: underline;
+}
+
+/* --- copy button on code blocks --- */
+
+pre {
+  position: relative;
+}
+
+pre .copy {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 0.75rem ui-monospace, monospace;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+pre:hover .copy {
+  opacity: 1;
+}
+
+pre .copy:hover {
+  color: var(--fg);
+}
+
+/* --- subtle zebra striping for wide tables --- */
+
+tbody tr:nth-child(even) {
+  background: var(--code-bg);
+}
+
+/* --- landing: "Where to go" as a card grid --- */
+
+#where-to-go + ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+  gap: 0.75rem;
+}
+
+#where-to-go + ul li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+
+#where-to-go + ul li a:first-child {
+  font-weight: 600;
+}
+
+/* --- performance: skip off-screen layout on the heaviest pages (#237) --- */
+/* content-visibility:auto lets the browser skip layout and paint of off-screen
+   code blocks and tables — the real-world pages reach ~1.7 MB with 1,896 <pre>
+   blocks — while contain-intrinsic-size gives a placeholder box so the scrollbar
+   stays stable and remembered sizes avoid re-layout thrash on scroll. */
+main pre,
+main .table-wrap {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 6rem;
+}
+
+/* --- accessibility: skip-to-content link (#242) --- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10;
+  padding: 0.5rem 0.85rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* --- accessibility: copy button reachable by keyboard and touch (#242) --- */
+/* Previously only pre:hover revealed it, so keyboard users tabbed onto an
+   invisible control and touch devices (no hover) never saw it at all. */
+pre:focus-within .copy,
+.copy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  pre .copy {
+    opacity: 1;
+  }
+}
+
+/* --- accessibility: visible focus outlines (#242) --- */
+header nav a:focus-visible,
+.hlink:focus-visible,
+.copy:focus-visible,
+main a:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* --- cookbook / reference: sticky TOC sidebar on wide viewports (#241) --- */
+/* Anchor jumps land clear of the top edge instead of flush against it. */
+main h2,
+main h3 {
+  scroll-margin-top: 1rem;
+}
+
+/* Narrow (and any non-toc page): keep the collapsible inline TOC, no sidebar. */
+.sidebar {
+  display: none;
+}
+
+.toc-filter {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+@media (min-width: 1200px) {
+  /* Widen the column band for TOC pages so a sidebar fits beside the 56rem
+     article instead of wasting the margin the narrow cap leaves. */
+  main:has(.page.has-toc) {
+    max-width: 76rem;
+  }
+
+  .page.has-toc {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+
+  .page.has-toc article {
+    max-width: 56rem;
+    min-width: 0;
+  }
+
+  .sidebar {
+    display: block;
+  }
+
+  .sidebar-inner {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    font-size: 0.9rem;
+  }
+
+  .toc-nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .toc-nav ul ul {
+    padding-left: 0.9rem;
+  }
+
+  .toc-nav li {
+    margin: 0.15rem 0;
+  }
+
+  .toc-nav a {
+    text-decoration: none;
+    color: var(--muted);
+  }
+
+  .toc-nav a:hover {
+    color: var(--fg);
+    text-decoration: underline;
+  }
+
+  /* The inline collapsible TOC is redundant once the sidebar is shown. */
+  .toc-inline {
+    display: none;
+  }
+}
+/* --- client-side search box in the nav (#236) --- */
+.search {
+  position: relative;
+  display: inline-flex;
+}
+
+.search-box {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.2rem 0.55rem;
+  width: 9rem;
+  max-width: 40vw;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Pagefind renders its input and results into this dropdown once loaded; the
+   CSS variables theme it to match the site in both light and dark. */
+.search-ui {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.4rem;
+  width: min(92vw, 24rem);
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  z-index: 30;
+  --pagefind-ui-primary: var(--link);
+  --pagefind-ui-text: var(--fg);
+  --pagefind-ui-background: var(--bg);
+  --pagefind-ui-border: var(--border);
+  --pagefind-ui-tag: var(--code-bg);
+  --pagefind-ui-font: inherit;
+}

@@ -1,0 +1,20 @@
+{{/* Build the cookbook page from doc/cookbook.md, committed in this repository
+     and mounted under assets/. The committed file stays the single source of
+     truth; this template only strips the H1 (the layout renders the title) and
+     rewrites repository-relative links to GitHub. */}}
+
+{{ $gh := "https://github.com/nao1215/gup/blob/main/" }}
+
+{{ with resources.Get "doc/cookbook.md" }}
+  {{ $md := .Content }}
+  {{ $md = replaceRE `\A# Cookbook\n` "" $md }}
+  {{ $md = replaceRE `\]\(\.\./` (printf "](%s" $gh) $md }}
+  {{ $.AddPage (dict
+      "path" "cookbook"
+      "title" "Cookbook"
+      "params" (dict
+        "description" "Copyable gup one-liners indexed by task: list and check your $GOBIN, update in parallel, pin a version, follow a branch, export the set to another machine, migrate to a new $GOBIN."
+        "toc" true
+        "filter" true)
+      "content" (dict "mediaType" "text/markdown" "value" $md)) }}
+{{ end }}

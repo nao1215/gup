@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{{- $title := printf "%s · %s" .Title site.Title }}
+{{- with .Params.seoTitle }}{{ $title = . }}{{ end }}
+{{- if .IsHome }}{{ $title = printf "%s — %s" site.Title site.Params.tagline }}{{ end }}
+<title>{{ $title }}</title>
+{{- $desc := or .Params.description site.Params.description }}
+<meta name="description" content="{{ $desc }}">
+<link rel="canonical" href="{{ .Permalink }}">
+{{- /* A right-ratio (1.91:1) social card and a square favicon, both derived at
+       build time from a committed screenshot: it is fit to 1000px wide and
+       padded onto a 1200x630 dark canvas so X/Slack/Discord render a full card
+       instead of cropping the source. Falls back to the raw file if the
+       processable asset is ever unavailable. */ -}}
+{{- $ogImage := absURL "img/overview.png" }}{{ $ogW := "1100" }}{{ $ogH := "600" }}{{ $favicon := relURL "img/overview.png" }}{{ $faviconType := "image/png" }}
+{{- with resources.Get "imgsrc/overview.png" }}
+  {{- $fit := .Resize "1000x q90" }}
+  {{- $padY := div (sub 630 $fit.Height) 2 }}
+  {{- $card := $fit.Filter (images.Padding $padY 100 (sub 630 (add $fit.Height $padY)) 100 "#0d1117") }}
+  {{- $ogImage = $card.Permalink }}{{ $ogW = string $card.Width }}{{ $ogH = string $card.Height }}
+  {{- $icon := (.Fill "64x64 Center png") }}
+  {{- $favicon = $icon.RelPermalink }}{{ $faviconType = "image/png" }}
+{{- end }}
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $desc }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ .Permalink }}">
+<meta property="og:image" content="{{ $ogImage }}">
+<meta property="og:image:width" content="{{ $ogW }}">
+<meta property="og:image:height" content="{{ $ogH }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ $title }}">
+<meta name="twitter:description" content="{{ $desc }}">
+<meta name="twitter:image" content="{{ $ogImage }}">
+<link rel="icon" href="{{ $favicon }}" type="{{ $faviconType }}"{{ if eq $faviconType "image/png" }} sizes="64x64"{{ end }}>
+{{- $css := slice (resources.Get "css/site.css") (resources.Get "css/chroma.css") | resources.Concat "css/bundle.css" | minify | fingerprint }}
+<link rel="stylesheet" href="{{ $css.RelPermalink }}">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header>
+<nav>
+<a class="brand" href="{{ site.Home.RelPermalink }}">gup</a>
+{{- range site.Menus.main }}
+<a{{ if or ($.IsMenuCurrent "main" .) ($.HasMenuCurrent "main" .) }} class="active"{{ end }} href="{{ .URL }}">{{ .Name }}</a>
+{{- end }}
+<a href="https://github.com/nao1215/gup">GitHub</a>
+<a class="sponsor" href="https://github.com/sponsors/nao1215">&#9825; Sponsor</a>
+<div class="search">
+<input type="search" id="search-box" class="search-box" placeholder="Search…" aria-label="Search the documentation" autocomplete="off" data-pagefind-base="{{ relURL "" }}">
+<div id="search-ui" class="search-ui" hidden></div>
+</div>
+</nav>
+</header>
+<main id="main" data-pagefind-body>
+{{ block "main" . }}{{ end }}
+</main>
+<footer>
+<p>MIT licensed · <a href="https://github.com/nao1215/gup">nao1215/gup</a> · every page on this site is generated from files committed in the repository.</p>
+</footer>
+<script>
+// Lazy copy buttons: building a button for every <pre> at load is ~1,896
+// synchronous DOM insertions on the heaviest real-world page, before first
+// paint. Create each button only when its block scrolls near the viewport, via
+// IntersectionObserver — off-screen blocks stay button-free, and a block a
+// finger can reach on a touch device is one that has scrolled into view. CSS
+// reveals the button on hover, keyboard focus, and always on hover-less pointers.
+(function () {
+  if (!(navigator.clipboard && window.isSecureContext)) return;
+  var main = document.getElementById("main");
+  if (!main) return;
+  function addButton(pre) {
+    if (pre.querySelector(".copy")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "copy";
+    b.textContent = "copy";
+    b.setAttribute("aria-label", "Copy code to clipboard");
+    b.addEventListener("click", function () {
+      var code = pre.querySelector("code");
+      navigator.clipboard.writeText(code ? code.innerText : pre.innerText).then(function () {
+        b.textContent = "copied";
+      }, function () {
+        b.textContent = "failed";
+      }).then(function () {
+        setTimeout(function () { b.textContent = "copy"; }, 1200);
+      });
+    });
+    pre.appendChild(b);
+  }
+  var pres = main.querySelectorAll("pre");
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { addButton(en.target); io.unobserve(en.target); }
+      });
+    }, { rootMargin: "300px" });
+    pres.forEach(function (pre) { io.observe(pre); });
+  } else {
+    pres.forEach(addButton);
+  }
+})();
+</script>
+<script>
+// Live recipe filter for the cookbook: type "pty" or "snapshot" and only the
+// matching h2 sections (and their TOC entries) stay visible. Sections are
+// contiguous sibling runs between h2 headings, so group the article's children
+// by heading and toggle each group. No-op on pages without a .toc-filter input.
+(function () {
+  var input = document.querySelector(".toc-filter");
+  if (!input) return;
+  var main = document.getElementById("main");
+  var article = main && main.querySelector("article");
+  if (!article) return;
+  var groups = [];
+  var cur = null;
+  Array.prototype.forEach.call(article.children, function (node) {
+    if (node.tagName === "H2") {
+      cur = { heading: node, nodes: [node], text: node.textContent.toLowerCase() };
+      groups.push(cur);
+    } else if (cur) {
+      cur.nodes.push(node);
+      cur.text += " " + node.textContent.toLowerCase();
+    }
+  });
+  var tocLinks = {};
+  document.querySelectorAll(".toc-nav a, .toc-inline a").forEach(function (a) {
+    var href = a.getAttribute("href");
+    if (href && href.charAt(0) === "#") {
+      var id = href.slice(1);
+      (tocLinks[id] = tocLinks[id] || []).push(a);
+    }
+  });
+  function apply() {
+    var q = input.value.trim().toLowerCase();
+    groups.forEach(function (g) {
+      var show = !q || g.text.indexOf(q) !== -1;
+      g.nodes.forEach(function (n) { n.hidden = !show; });
+      (tocLinks[g.heading.id] || []).forEach(function (a) {
+        var li = a.closest("li");
+        if (li) li.hidden = !show;
+      });
+    });
+  }
+  input.addEventListener("input", apply);
+})();
+</script>
+<script>
+// Client-side search, lazy: the Pagefind UI (script, stylesheet, and the WASM
+// index chunks) is self-hosted under /pagefind/ and fetched only when the user
+// first focuses the search box, so it adds nothing to a normal page load. The
+// index is built in CI by the Pagefind pass in .github/workflows/website.yml;
+// on a local `make website` (no Pagefind) the assets are absent and the box
+// simply does nothing.
+(function () {
+  var box = document.getElementById("search-box");
+  var ui = document.getElementById("search-ui");
+  if (!box || !ui) return;
+  var base = box.getAttribute("data-pagefind-base") || "/";
+  var loaded = false;
+  function load() {
+    if (loaded) return;
+    loaded = true;
+    var css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = base + "pagefind/pagefind-ui.css";
+    document.head.appendChild(css);
+    var s = document.createElement("script");
+    s.src = base + "pagefind/pagefind-ui.js";
+    s.onload = function () {
+      if (typeof PagefindUI === "undefined") return;
+      /* global PagefindUI */
+      new PagefindUI({ element: "#search-ui", showImages: false, showSubResults: true });
+      ui.hidden = false;
+      var real = ui.querySelector("input");
+      if (real) {
+        real.value = box.value;
+        real.focus();
+        real.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      box.hidden = true;
+    };
+    s.onerror = function () { loaded = false; }; // let a later focus retry
+    document.body.appendChild(s);
+  }
+  box.addEventListener("focus", load);
+})();
+</script>
+</body>
+</html>

@@ -106,7 +106,7 @@ func removeLoop(p *print.Printer, gobin string, force bool, target []string) int
 				// A failed confirmation read (EOF, closed pipe, ...) is not a
 				// cancellation: report it and fail so the caller does not mistake a
 				// never-confirmed removal for a successful one.
-				p.Err(err)
+				p.Err(fmt.Errorf("confirmation could not be read: %w\nUse --force to skip confirmation", err))
 				result = 1
 				continue
 			}

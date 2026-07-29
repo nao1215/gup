@@ -1,0 +1,22 @@
+{{ define "main" }}
+<div class="page{{ if .Params.toc }} has-toc{{ end }}">
+{{ if .Params.toc }}
+<aside class="sidebar" aria-label="On this page">
+<div class="sidebar-inner">
+{{ if .Params.filter }}<input type="search" class="toc-filter" placeholder="Filter recipes…" aria-label="Filter recipes by keyword" autocomplete="off">{{ end }}
+<nav class="toc-nav">{{ .TableOfContents }}</nav>
+</div>
+</aside>
+{{ end }}
+<article>
+<h1>{{ .Title }}</h1>
+{{ if .Params.toc }}
+<details class="toc toc-inline">
+<summary>On this page</summary>
+{{ .TableOfContents }}
+</details>
+{{ end }}
+{{ .Content }}
+</article>
+</div>
+{{ end }}

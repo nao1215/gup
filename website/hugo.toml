@@ -1,0 +1,67 @@
+# Configuration for the hosted documentation website (GitHub Pages).
+# Content comes from the repository itself: doc/cookbook.md is mounted read-only
+# and turned into a page by content/_content.gotmpl, so the committed file stays
+# the single source of truth.
+baseURL = "https://nao1215.github.io/gup/"
+locale = "en"
+title = "gup"
+disableKinds = ["taxonomy", "term", "rss"]
+enableRobotsTXT = true
+timeZone = "UTC"
+
+[params]
+tagline = "update and manage the Go tools in your $GOBIN"
+description = "gup updates every binary installed by 'go install' in parallel, pins the ones that must stay put, and exports the whole set so another machine can reproduce it."
+
+[markup.highlight]
+noClasses = false
+
+[markup.tableOfContents]
+startLevel = 2
+endLevel = 3
+
+[[menus.main]]
+name = "Install"
+pageRef = "/install"
+weight = 10
+
+[[menus.main]]
+name = "Cookbook"
+pageRef = "/cookbook"
+weight = 20
+
+[[menus.main]]
+name = "Reference"
+pageRef = "/reference"
+weight = 30
+
+[module]
+[[module.mounts]]
+source = "content"
+target = "content"
+
+[[module.mounts]]
+source = "layouts"
+target = "layouts"
+
+[[module.mounts]]
+source = "assets"
+target = "assets"
+
+# Repository docs, mounted so pages can be generated from the committed files.
+[[module.mounts]]
+source = "../doc/cookbook.md"
+target = "assets/doc/cookbook.md"
+
+# Images served as-is.
+[[module.mounts]]
+source = "../doc/img"
+target = "static/img"
+
+# The same images, mounted again as processable assets so the layouts can derive
+# sized variants at build time (a right-ratio social card, a square favicon) and
+# emit intrinsic width/height for embedded images, without committing any extra
+# binary — everything still comes from doc/img.
+[[module.mounts]]
+source = "../doc/img"
+target = "assets/imgsrc"
