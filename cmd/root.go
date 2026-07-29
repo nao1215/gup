@@ -35,12 +35,13 @@ gup updates all binaries in parallel, so it is very fast. It also provides
 subcommands for manipulating binaries under $GOPATH/bin ($GOBIN).
 gup is cross-platform software that runs on Windows, Mac and Linux.
 
+Documentation: https://nao1215.github.io/gup/
+
 If you are using oh-my-zsh, then gup has an alias set up. The alias
 is gup - git pull --rebase. Therefore, please make sure that the
 oh-my-zsh alias is disabled (e.g. $ \gup update).
 
-If you find gup useful, please consider sponsoring the project:
-  https://github.com/sponsors/nao1215
+GitHub Sponsors: https://github.com/sponsors/nao1215
 `,
 		Example: `  gup update
   gup update --dry-run

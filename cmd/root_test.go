@@ -316,6 +316,21 @@ func TestExecute_RootVersionFlag(t *testing.T) {
 	}
 }
 
+func TestExecute_RootHelpIncludesProjectLinks(t *testing.T) {
+	got, err := helper_runGupCaptureAllOutput(t, []string{testCmdGup, "--help"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Documentation: https://nao1215.github.io/gup/",
+		"GitHub Sponsors: https://github.com/sponsors/nao1215",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("gup --help output does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
 // TestSubcommandExamples verifies the root command and every subcommand ship
 // copy-paste-friendly Example help mentioning the command (issue #326).
 func TestSubcommandExamples(t *testing.T) {
