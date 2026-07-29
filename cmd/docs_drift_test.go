@@ -102,18 +102,16 @@ func documentedCommands(source, markdown string) []documentedInvocation {
 		if !inFence {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "$ ") {
-			trimmed = strings.TrimPrefix(trimmed, "$ ")
-		}
+		trimmed = strings.TrimPrefix(trimmed, "$ ")
 		words := shellWords(trimmed)
 		for i, word := range words {
 			if word == "#" || word == "|" || word == ";" || word == "&" || word == ">" {
 				break
 			}
-			if strings.HasPrefix(word, "gup:") {
+			if strings.HasPrefix(word, testCmdGup+":") {
 				continue
 			}
-			if word == "gup" || word == "\\gup" {
+			if word == testCmdGup || word == "\\"+testCmdGup {
 				args := words[i+1:]
 				for j, arg := range args {
 					if arg == "#" || arg == "|" || arg == ";" || arg == "&" || arg == ">" {
@@ -191,9 +189,10 @@ func validateDocumentedInvocation(invocation documentedInvocation) error {
 }
 
 func TestDocs_EveryDocumentedInvocationParses(t *testing.T) {
+	t.Parallel()
 	root := repositoryRoot(t)
 	sources := append([]string{"README.md", "doc/cookbook.md"}, websiteMarkdownSources(t, root)...)
-	var invocations []documentedInvocation
+	invocations := make([]documentedInvocation, 0, 128)
 	for _, source := range sources {
 		invocations = append(invocations, documentedCommands(source, readRepositoryFile(t, root, source))...)
 	}
@@ -201,8 +200,8 @@ func TestDocs_EveryDocumentedInvocationParses(t *testing.T) {
 		t.Fatalf("found only %d documented gup invocations; the extractor or the docs probably regressed", len(invocations))
 	}
 	for _, invocation := range invocations {
-		invocation := invocation
 		t.Run(fmt.Sprintf("%s:%d %s", invocation.source, invocation.line, strings.Join(invocation.args, " ")), func(t *testing.T) {
+			t.Parallel()
 			if err := validateDocumentedInvocation(invocation); err != nil {
 				t.Fatalf("%s:%d documents a command the parser rejects: gup %s: %v", invocation.source, invocation.line, strings.Join(invocation.args, " "), err)
 			}
@@ -211,6 +210,7 @@ func TestDocs_EveryDocumentedInvocationParses(t *testing.T) {
 }
 
 func TestCookbook_EveryRecipeSectionIsExercised(t *testing.T) {
+	t.Parallel()
 	root := repositoryRoot(t)
 	cookbook := readRepositoryFile(t, root, "doc/cookbook.md")
 	spec := readRepositoryFile(t, root, "e2e/atago/cookbook.atago.yaml")
@@ -271,14 +271,13 @@ func markdownHeadingIDs(markdown string) map[string]bool {
 }
 
 func TestSite_InternalLinksAndImagesResolve(t *testing.T) {
+	t.Parallel()
 	root := repositoryRoot(t)
-	documents := []struct {
-		path string
-	}{
-		{path: "doc/cookbook.md"},
-	}
+	websiteSources := websiteMarkdownSources(t, root)
+	documents := make([]struct{ path string }, 0, len(websiteSources)+1)
+	documents = append(documents, struct{ path string }{path: "doc/cookbook.md"})
 	routes := map[string]bool{"/": true, "/cookbook/": true}
-	for _, source := range websiteMarkdownSources(t, root) {
+	for _, source := range websiteSources {
 		name := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source))
 		route := "/"
 		if name != "_index" {
@@ -324,6 +323,7 @@ func TestSite_InternalLinksAndImagesResolve(t *testing.T) {
 }
 
 func TestSite_CookbookUsesCommittedSource(t *testing.T) {
+	t.Parallel()
 	root := repositoryRoot(t)
 	template := readRepositoryFile(t, root, "website/content/_content.gotmpl")
 	config := readRepositoryFile(t, root, "website/hugo.toml")

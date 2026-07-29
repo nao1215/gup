@@ -36,6 +36,8 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Build site
         run: hugo --gc --minify --cleanDestinationDir --baseURL "${{ steps.pages.outputs.base_url }}/"
