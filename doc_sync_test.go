@@ -69,6 +69,23 @@ func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	}
 }
 
+func Test_websiteFooter_hasCanonicalLicense(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("website/layouts/baseof.html")
+	if err != nil {
+		t.Fatalf("failed to read website footer template: %v", err)
+	}
+	content := string(raw)
+	want := `<a href="https://github.com/nao1215/gup/blob/main/LICENSE">Apache License 2.0</a>`
+	if !strings.Contains(content, want) {
+		t.Errorf("website footer is missing the canonical license link %q", want)
+	}
+	if strings.Contains(strings.ToLower(content), "mit licensed") {
+		t.Error("website footer incorrectly identifies gup as MIT licensed")
+	}
+}
+
 // Test_translatedReadmes_haveRequiredSections asserts that every section the
 // English README carries (issue #306: Benchmark, release integrity, Migrate) is
 // also present in each translation, keyed off language-independent content so a
