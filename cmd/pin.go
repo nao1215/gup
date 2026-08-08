@@ -63,8 +63,8 @@ func newUnpinCmd() *cobra.Command {
 The binary's gup.json entry is reset to the @latest channel, so the next
 'gup update' updates it normally. Unpinning a tool that is not pinned does
 nothing and succeeds.`,
-		Example:           `  gup unpin golangci-lint`,
-		Args:              cobra.ExactArgs(1),
+		Example: `  gup unpin golangci-lint`,
+		Args:    cobra.ExactArgs(1),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 0 {
 				return completePathBinaries(cmd, args, toComplete)
