@@ -38,7 +38,7 @@ stays on the version you rely on (for example to match CI or a team-wide
 development environment). Run 'gup unpin' to allow the tool to update again.`,
 		Example: `  gup pin golangci-lint v1.62.0
   gup pin golangci-lint@v1.62.0`,
-		Args:              cobra.RangeArgs(pinMinArgs, pinMaxArgs),
+		Args: cobra.RangeArgs(pinMinArgs, pinMaxArgs),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 0 {
 				return completePathBinaries(cmd, args, toComplete)
