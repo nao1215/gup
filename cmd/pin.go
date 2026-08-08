@@ -65,7 +65,12 @@ The binary's gup.json entry is reset to the @latest channel, so the next
 nothing and succeeds.`,
 		Example:           `  gup unpin golangci-lint`,
 		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completePathBinaries,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return completePathBinaries(cmd, args, toComplete)
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runUnpin(printerFor(cmd), cmd, args))
 		},
