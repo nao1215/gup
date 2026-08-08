@@ -60,7 +60,12 @@ If BINARY arguments are given, only those binaries are migrated.`,
 		Args: requireMinArgs(migrateMinArgs,
 			"requires BEFORE_PATH and AFTER_PATH",
 			"gup migrate /old/gobin /new/gobin"),
-		ValidArgsFunction: cobra.NoFileCompletions,
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) < migrateMinArgs {
+				return nil, cobra.ShellCompDirectiveFilterDirs
+			}
+			return completePathBinaries(cmd, args, toComplete)
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runMigrate(printerFor(cmd), cmd, args))
 		},
