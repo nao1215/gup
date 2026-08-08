@@ -262,3 +262,37 @@ func TestMustMarkFileFlagAsJSON_panicsOnMissingFileFlag(t *testing.T) {
 	}()
 	mustMarkFileFlagAsJSON(&cobra.Command{})
 }
+
+// TestAddTimeoutFlag_completion covers every command that carries the shared
+// --timeout flag. A duration is not a path, so cobra's default file completion
+// must be suppressed for its value.
+func TestAddTimeoutFlag_completion(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: "update", cmd: newUpdateCmd()},
+		{name: "check", cmd: newCheckCmd()},
+		{name: "import", cmd: newImportCmd()},
+		{name: "migrate", cmd: newMigrateCmd()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.cmd.Flags().Lookup(timeoutFlagName) == nil {
+				t.Fatalf("%s has no --%s flag", tt.name, timeoutFlagName)
+			}
+			completion, ok := tt.cmd.GetFlagCompletionFunc(timeoutFlagName)
+			if !ok {
+				t.Fatalf("--%s has no completion function, so shells fall back to file completion", timeoutFlagName)
+			}
+			got, directive := completion(tt.cmd, nil, "")
+			if directive != cobra.ShellCompDirectiveNoFileComp {
+				t.Errorf("directive = %v, want NoFileComp", directive)
+			}
+			if len(got) != 0 {
+				t.Errorf("completions = %v, want none", got)
+			}
+		})
+	}
+}

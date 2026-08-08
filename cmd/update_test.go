@@ -126,6 +126,118 @@ func Test_completePathBinaries_prefix(t *testing.T) {
 	}
 }
 
+// helper_makeBinaries creates empty executable files named by names in a fresh
+// directory and returns it. Completion only reads directory entries, so the
+// files need no content.
+func helper_makeBinaries(t *testing.T, names ...string) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte{}, 0o600); err != nil {
+			t.Fatalf("failed to create %s: %v", path, err)
+		}
+	}
+	return dir
+}
+
+func Test_completeBinaryNames(t *testing.T) {
+	t.Parallel()
+
+	binList := []string{
+		filepath.Join("a", testBinGal),
+		filepath.Join("b", testCmdGup),
+		filepath.Join("c", testBinSubaru),
+	}
+	tests := []struct {
+		name       string
+		toComplete string
+		want       []string
+	}{
+		{name: "empty prefix returns every base name", toComplete: "", want: []string{testBinGal, testCmdGup, testBinSubaru}},
+		{name: "prefix filters candidates", toComplete: "g", want: []string{testBinGal, testCmdGup}},
+		{name: "exact prefix keeps one candidate", toComplete: "sub", want: []string{testBinSubaru}},
+		{name: "unmatched prefix returns no candidate", toComplete: "zzz", want: []string{}},
+		// The base name is completed, never the directory it lives in.
+		{name: "directory part is not a prefix match", toComplete: "a", want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := completeBinaryNames(binList, tt.toComplete)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("completeBinaryNames(_, %q) mismatch (-want +got):\n%s", tt.toComplete, diff)
+			}
+		})
+	}
+}
+
+// Test_completeBinaryNames_windowsCaseInsensitive covers the Windows branch,
+// where file names are case-insensitive so "GA" must still find "gal.exe".
+func Test_completeBinaryNames_windowsCaseInsensitive(t *testing.T) {
+	if runtime.GOOS != goosWindows {
+		t.Skip("case-insensitive matching is a Windows-only behavior")
+	}
+	t.Parallel()
+
+	got := completeBinaryNames([]string{filepath.Join("a", testBinGal+".exe")}, "GA")
+	if diff := cmp.Diff([]string{testBinGal + ".exe"}, got); diff != "" {
+		t.Errorf("completeBinaryNames mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// Test_completeBinariesInDir asserts that completion reads the directory it is
+// handed instead of $GOBIN. 'gup migrate' relies on it: BEFORE_PATH is normally
+// an old GOBIN that is no longer the current one.
+func Test_completeBinariesInDir(t *testing.T) {
+	t.Setenv("GOBIN", helper_makeBinaries(t, testBinGobinOnly))
+	dir := helper_makeBinaries(t, testBinGal, testBinSubaru)
+
+	got, directive := completeBinariesInDir(dir, "")
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", directive)
+	}
+	if diff := cmp.Diff([]string{testBinGal, testBinSubaru}, got); diff != "" {
+		t.Errorf("completeBinariesInDir mismatch (-want +got):\n%s", diff)
+	}
+
+	got, _ = completeBinariesInDir(dir, "s")
+	if diff := cmp.Diff([]string{testBinSubaru}, got); diff != "" {
+		t.Errorf("completeBinariesInDir with prefix mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// Test_completeBinariesInDir_missing covers a half-typed path: that is an
+// ordinary state during completion, so it must offer nothing rather than report
+// a completion failure.
+func Test_completeBinariesInDir_missing(t *testing.T) {
+	t.Parallel()
+
+	got, directive := completeBinariesInDir(filepath.Join(t.TempDir(), "no-such-dir"), "")
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("directive = %v, want NoFileComp", directive)
+	}
+	if len(got) != 0 {
+		t.Errorf("completions = %v, want none", got)
+	}
+}
+
+// Test_completeBinariesInDir_notDirectory verifies that a real read failure is
+// surfaced as a completion error instead of being silently dropped.
+func Test_completeBinariesInDir_notDirectory(t *testing.T) {
+	t.Parallel()
+
+	file := filepath.Join(helper_makeBinaries(t, testBinGal), testBinGal)
+	got, directive := completeBinariesInDir(file, "")
+	if directive != cobra.ShellCompDirectiveError {
+		t.Errorf("directive = %v, want Error", directive)
+	}
+	if got != nil {
+		t.Errorf("completions = %v, want nil", got)
+	}
+}
+
 func Test_catchSignal(t *testing.T) {
 	signals := make(chan os.Signal, 1)
 	done := make(chan struct{})

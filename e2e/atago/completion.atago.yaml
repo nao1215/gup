@@ -105,3 +105,130 @@ scenarios:
           exit_code: 1
           stderr:
             contains: "cannot be used with shell argument"
+
+  # The scenarios below drive cobra's hidden __complete command - exactly what a
+  # shell runs on <TAB>. gup prints the candidates on STDOUT and the directive
+  # name ("ShellCompDirectiveNoFileComp", ...) on STDERR, so both the offered
+  # names and the file-completion behavior are asserted against the real binary.
+
+  - name: migrate completes directories while BEFORE_PATH and AFTER_PATH are typed
+    env: *iso
+    steps:
+      - run:
+          command: gup __complete migrate ""
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: ShellCompDirectiveFilterDirs
+      # The second positional argument is a directory too.
+      - run:
+          command: gup __complete migrate "${workdir}/before" ""
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: ShellCompDirectiveFilterDirs
+
+  - name: migrate completes BINARY from BEFORE_PATH instead of the current GOBIN
+    env: *iso
+    steps:
+      # outdated lives only under BEFORE_PATH, uptodate only under the current
+      # $GOBIN. migrate reinstalls what BEFORE_PATH holds, so only outdated is a
+      # legal BINARY argument here.
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOBIN: "${workdir}/before"
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup __complete migrate "${workdir}/before" "${workdir}/after" ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+            not_contains: uptodate
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+      # A typed prefix that only the $GOBIN binary matches must stay empty.
+      - run:
+          command: gup __complete migrate "${workdir}/before" "${workdir}/after" up
+      - assert:
+          exit_code: 0
+          stdout:
+            not_contains: uptodate
+
+  - name: migrate offers no BINARY when BEFORE_PATH does not exist yet
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup __complete migrate "${workdir}/no-such-dir" "${workdir}/after" ""
+      - assert:
+          exit_code: 0
+          stdout:
+            not_contains: uptodate
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+
+  - name: pin completes a binary for TOOL but not for VERSION
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup __complete pin ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: pinnable
+      # The second argument is a VERSION: offering a binary name there would be
+      # wrong, and cobra keeps calling the completion past the argument maximum.
+      - run:
+          command: gup __complete pin pinnable ""
+      - assert:
+          exit_code: 0
+          stdout:
+            not_contains: pinnable
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+
+  - name: unpin completes one binary and nothing beyond it
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup __complete unpin ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: pinnable
+      - run:
+          command: gup __complete unpin pinnable ""
+      - assert:
+          exit_code: 0
+          stdout:
+            not_contains: pinnable
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+
+  - name: --timeout completes no file name
+    env: *iso
+    steps:
+      # A duration is not a path, so the shell must not fall back to file
+      # completion (which is what ShellCompDirectiveDefault would request).
+      - run:
+          command: gup __complete update --timeout ""
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+            not_contains: ShellCompDirectiveDefault
+      - run:
+          command: gup __complete migrate --timeout ""
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: ShellCompDirectiveNoFileComp
+            not_contains: ShellCompDirectiveDefault

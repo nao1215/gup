@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1033,6 +1034,119 @@ func TestExecute_CompletionForShell(t *testing.T) {
 			}
 			if tt.wantHeader != "" && !strings.Contains(got, tt.wantHeader) {
 				t.Errorf("completion output does not include %q", tt.wantHeader)
+			}
+		})
+	}
+}
+
+// helper_shellCompletion drives cobra's hidden "__complete" command through the
+// real root command, the same way a shell does. It returns the candidate names
+// and the directive line so the wiring - not just the helper functions - is
+// covered.
+func helper_shellCompletion(t *testing.T, args ...string) ([]string, cobra.ShellCompDirective) {
+	t.Helper()
+
+	rootCmd := newRootCmd()
+	stdout := &bytes.Buffer{}
+	rootCmd.SetOut(stdout)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs(append([]string{cobra.ShellCompRequestCmd}, args...))
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("__complete %v: %v", args, err)
+	}
+
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) == 0 {
+		t.Fatalf("__complete %v printed nothing", args)
+	}
+	directiveLine := lines[len(lines)-1]
+	if !strings.HasPrefix(directiveLine, ":") {
+		t.Fatalf("__complete %v: last line %q is not a directive", args, directiveLine)
+	}
+	directive, err := strconv.Atoi(strings.TrimPrefix(directiveLine, ":"))
+	if err != nil {
+		t.Fatalf("__complete %v: can't parse directive %q: %v", args, directiveLine, err)
+	}
+
+	candidates := []string{}
+	for _, line := range lines[:len(lines)-1] {
+		if line == "" {
+			continue
+		}
+		// cobra separates a candidate from its description with a tab.
+		candidates = append(candidates, strings.SplitN(line, "\t", 2)[0])
+	}
+	return candidates, cobra.ShellCompDirective(directive)
+}
+
+// Test_shellCompletion_arguments runs the completions a shell actually requests,
+// through the assembled command tree. It is the regression net for the argument
+// completion contracts: migrate reads its own BEFORE_PATH, pin/unpin only accept
+// one binary, and --timeout never completes file names.
+func Test_shellCompletion_arguments(t *testing.T) {
+	gobin := helper_makeBinaries(t, testBinGobinOnly)
+	t.Setenv("GOBIN", gobin)
+	before := helper_makeBinaries(t, testBinBeforeOnly)
+	after := t.TempDir()
+
+	tests := []struct {
+		name          string
+		args          []string
+		want          []string
+		wantDirective cobra.ShellCompDirective
+	}{
+		{
+			name:          "update completes $GOBIN binaries",
+			args:          []string{testCmdUpdate, ""},
+			want:          []string{testBinGobinOnly},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "migrate completes directories for BEFORE_PATH",
+			args:          []string{testCmdMigrate, ""},
+			want:          []string{},
+			wantDirective: cobra.ShellCompDirectiveFilterDirs,
+		},
+		{
+			name:          "migrate completes BINARY from BEFORE_PATH, not $GOBIN",
+			args:          []string{testCmdMigrate, before, after, ""},
+			want:          []string{testBinBeforeOnly},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "pin completes a binary for its first argument",
+			args:          []string{testCmdPin, ""},
+			want:          []string{testBinGobinOnly},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "pin does not complete a binary for VERSION",
+			args:          []string{testCmdPin, testBinGobinOnly, ""},
+			want:          []string{},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "unpin does not complete past its single argument",
+			args:          []string{"unpin", testBinGobinOnly, ""},
+			want:          []string{},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "--timeout does not complete file names",
+			args:          []string{testCmdUpdate, testFlagTimeout, ""},
+			want:          []string{},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, directive := helper_shellCompletion(t, tt.args...)
+			if directive != tt.wantDirective {
+				t.Errorf("directive = %v, want %v", directive, tt.wantDirective)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("completions mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

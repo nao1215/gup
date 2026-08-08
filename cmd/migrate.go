@@ -60,12 +60,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 		Args: requireMinArgs(migrateMinArgs,
 			"requires BEFORE_PATH and AFTER_PATH",
 			"gup migrate /old/gobin /new/gobin"),
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) < migrateMinArgs {
-				return nil, cobra.ShellCompDirectiveFilterDirs
-			}
-			return completePathBinaries(cmd, args, toComplete)
-		},
+		ValidArgsFunction: completeMigrateArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runMigrate(printerFor(cmd), cmd, args))
 		},
@@ -79,6 +74,18 @@ If BINARY arguments are given, only those binaries are migrated.`,
 	addTimeoutFlag(cmd)
 
 	return cmd
+}
+
+// completeMigrateArgs completes migrate's positional arguments. BEFORE_PATH and
+// AFTER_PATH are directories, so only directories are offered until both are
+// given; the optional BINARY arguments are then completed from the binaries that
+// actually live under the BEFORE_PATH the user typed, which is what runMigrate
+// scans - not the current $GOBIN.
+func completeMigrateArgs(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) < migrateMinArgs {
+		return nil, cobra.ShellCompDirectiveFilterDirs
+	}
+	return completeBinariesInDir(args[0], toComplete)
 }
 
 func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
