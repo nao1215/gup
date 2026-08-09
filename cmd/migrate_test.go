@@ -11,8 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/spf13/cobra"
 )
 
 func Test_migrate_missingArgs(t *testing.T) {
@@ -89,6 +92,13 @@ const (
 	testNameTest2         = "test2"
 	testUnknown           = "unknown"
 	testBinDummy          = "dummy"
+	testBinGal            = "gal"
+	testBinSubaru         = "subaru"
+	testBinGobinOnly      = "gobin-only"
+	testCmdMigrate        = "migrate"
+	testCmdPin            = "pin"
+	testFlagTimeout       = "--timeout"
+	testBinBeforeOnly     = "before-only"
 )
 
 // captureMigrateOutput runs fn with a buffer-backed printer and returns the
@@ -788,5 +798,70 @@ func TestValidateMigratePaths_symlinkedSameDir(t *testing.T) {
 	}
 	if err := validateMigratePaths(before, after, false); err == nil {
 		t.Fatal("validateMigratePaths() err = nil, want same-directory rejection")
+	}
+}
+
+// Test_completeMigrateArgs pins migrate's staged argument completion: BEFORE_PATH
+// and AFTER_PATH complete as directories, and the optional BINARY arguments come
+// from the BEFORE_PATH the user typed - not from $GOBIN, which migrate never
+// reads.
+func Test_completeMigrateArgs(t *testing.T) {
+	gobin := helper_makeBinaries(t, testBinGobinOnly)
+	t.Setenv("GOBIN", gobin)
+	before := helper_makeBinaries(t, testBinGal, testBinSubaru)
+	after := t.TempDir()
+
+	tests := []struct {
+		name          string
+		args          []string
+		toComplete    string
+		want          []string
+		wantDirective cobra.ShellCompDirective
+	}{
+		{
+			name:          "BEFORE_PATH completes directories",
+			args:          []string{},
+			wantDirective: cobra.ShellCompDirectiveFilterDirs,
+		},
+		{
+			name:          "AFTER_PATH completes directories",
+			args:          []string{before},
+			wantDirective: cobra.ShellCompDirectiveFilterDirs,
+		},
+		{
+			name:          "BINARY completes the binaries under BEFORE_PATH",
+			args:          []string{before, after},
+			want:          []string{testBinGal, testBinSubaru},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "BINARY honors the typed prefix",
+			args:          []string{before, after},
+			toComplete:    "g",
+			want:          []string{testBinGal},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+		{
+			name:          "further BINARY arguments keep completing BEFORE_PATH",
+			args:          []string{before, after, testBinGal},
+			want:          []string{testBinGal, testBinSubaru},
+			wantDirective: cobra.ShellCompDirectiveNoFileComp,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, directive := completeMigrateArgs(nil, tt.args, tt.toComplete)
+			if directive != tt.wantDirective {
+				t.Errorf("directive = %v, want %v", directive, tt.wantDirective)
+			}
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("completions mismatch (-want +got):\n%s", diff)
+			}
+			for _, name := range got {
+				if name == testBinGobinOnly {
+					t.Error("completion offered a $GOBIN binary that is absent from BEFORE_PATH")
+				}
+			}
+		})
 	}
 }

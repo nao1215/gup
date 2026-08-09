@@ -38,13 +38,8 @@ stays on the version you rely on (for example to match CI or a team-wide
 development environment). Run 'gup unpin' to allow the tool to update again.`,
 		Example: `  gup pin golangci-lint v1.62.0
   gup pin golangci-lint@v1.62.0`,
-		Args: cobra.RangeArgs(pinMinArgs, pinMaxArgs),
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 0 {
-				return completePathBinaries(cmd, args, toComplete)
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
+		Args:              cobra.RangeArgs(pinMinArgs, pinMaxArgs),
+		ValidArgsFunction: completeFirstArgPathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runPin(printerFor(cmd), cmd, args))
 		},
@@ -63,14 +58,9 @@ func newUnpinCmd() *cobra.Command {
 The binary's gup.json entry is reset to the @latest channel, so the next
 'gup update' updates it normally. Unpinning a tool that is not pinned does
 nothing and succeeds.`,
-		Example: `  gup unpin golangci-lint`,
-		Args:    cobra.ExactArgs(1),
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 0 {
-				return completePathBinaries(cmd, args, toComplete)
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
+		Example:           `  gup unpin golangci-lint`,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeFirstArgPathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			OsExit(runUnpin(printerFor(cmd), cmd, args))
 		},
@@ -78,6 +68,18 @@ nothing and succeeds.`,
 	cmd.Flags().StringP("file", "f", "", "specify gup.json file path to read/write")
 	mustMarkFileFlagAsJSON(cmd)
 	return cmd
+}
+
+// completeFirstArgPathBinaries completes $GOBIN binary names for the first
+// positional argument only. cobra keeps calling ValidArgsFunction even after the
+// Args validator's maximum is reached, so the commands whose later arguments are
+// not binary names (pin's VERSION) or that accept no further argument (unpin)
+// need this guard to stop offering binaries where none can be accepted.
+func completeFirstArgPathBinaries(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return completePathBinaries(cmd, args, toComplete)
+	}
+	return nil, cobra.ShellCompDirectiveNoFileComp
 }
 
 // parsePinArgs splits the pin arguments into a target and a concrete version,

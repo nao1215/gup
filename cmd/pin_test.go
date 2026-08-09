@@ -4,7 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -111,5 +114,68 @@ func TestParsePinArgs_tooManyArgs(t *testing.T) {
 	t.Parallel()
 	if _, _, err := parsePinArgs([]string{"a", "b", "c"}); err == nil {
 		t.Fatal("parsePinArgs() err = nil, want error for three args")
+	}
+}
+
+// Test_completeFirstArgPathBinaries guards the "one binary argument" contract of
+// pin and unpin: cobra keeps calling ValidArgsFunction past the Args validator's
+// maximum, so binaries must only be offered where one can still be accepted.
+//
+//nolint:paralleltest // t.Setenv pins $GOBIN, which forbids parallel subtests
+func Test_completeFirstArgPathBinaries(t *testing.T) {
+	t.Setenv("GOBIN", helper_makeBinaries(t, testBinGal, testBinSubaru))
+
+	tests := []struct {
+		name       string
+		args       []string
+		toComplete string
+		want       []string
+	}{
+		{name: "first argument completes binaries", args: []string{}, want: []string{testBinGal, testBinSubaru}},
+		{name: "first argument honors the typed prefix", args: []string{}, toComplete: "s", want: []string{testBinSubaru}},
+		// pin's second argument is a VERSION, and unpin accepts no second
+		// argument at all: neither takes another binary name.
+		{name: "second argument offers nothing", args: []string{testBinGal}},
+		{name: "argument past the maximum offers nothing", args: []string{testBinGal, testVersionOne}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, directive := completeFirstArgPathBinaries(nil, tt.args, tt.toComplete)
+			if directive != cobra.ShellCompDirectiveNoFileComp {
+				t.Errorf("directive = %v, want NoFileComp", directive)
+			}
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("completions mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// Test_pinAndUnpinUseFirstArgCompletion keeps the two commands wired to the
+// shared completion helper, so a future edit cannot silently regress one of them.
+//
+//nolint:paralleltest // t.Setenv pins $GOBIN, which forbids parallel subtests
+func Test_pinAndUnpinUseFirstArgCompletion(t *testing.T) {
+	t.Setenv("GOBIN", helper_makeBinaries(t, testBinGal))
+
+	for _, tt := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: testCmdPin, cmd: newPinCmd()},
+		{name: "unpin", cmd: newUnpinCmd()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.cmd.ValidArgsFunction == nil {
+				t.Fatal("ValidArgsFunction is not registered")
+			}
+			got, _ := tt.cmd.ValidArgsFunction(tt.cmd, nil, "")
+			if diff := cmp.Diff([]string{testBinGal}, got); diff != "" {
+				t.Errorf("first argument completions mismatch (-want +got):\n%s", diff)
+			}
+			if got, _ := tt.cmd.ValidArgsFunction(tt.cmd, []string{testBinGal}, ""); len(got) != 0 {
+				t.Errorf("second argument completions = %v, want none", got)
+			}
+		})
 	}
 }

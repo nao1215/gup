@@ -584,23 +584,56 @@ func binaryNameFromImportPathWith(importPath, goos, goExe string) string {
 	return binName
 }
 
+// completePathBinaries completes the names of the binaries installed under the
+// current $GOBIN (or $GOPATH/bin). Use it for the commands that act on the
+// binaries gup manages by default (update, check, remove, pin, unpin).
 func completePathBinaries(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	binList, _ := pkgselect.BinaryPaths()
+	binList, err := pkgselect.BinaryPaths()
+	if err != nil {
+		// Completion has no channel to print an error on, so tell the shell the
+		// completion failed instead of pretending no binary is installed.
+		return nil, cobra.ShellCompDirectiveError
+	}
+	return completeBinaryNames(binList, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeBinariesInDir completes the names of the binaries directly under dir.
+// The commands that take an explicit source directory as a positional argument
+// (migrate's BEFORE_PATH) must use this instead of completePathBinaries: they
+// act on the binaries in that directory, which is typically NOT the current
+// $GOBIN - migrating away from an old GOBIN is the whole point of the command.
+func completeBinariesInDir(dir, toComplete string) ([]string, cobra.ShellCompDirective) {
+	binList, err := goutil.BinaryPathList(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// A directory the user has not finished typing yet is an ordinary
+			// state during completion, not a failure: offer nothing.
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return nil, cobra.ShellCompDirectiveError
+	}
+	return completeBinaryNames(binList, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeBinaryNames returns the base names of binList that start with
+// toComplete. Prefix matching is case-insensitive on Windows, where file names
+// are, so "GO<TAB>" still finds "gopls.exe".
+func completeBinaryNames(binList []string, toComplete string) []string {
 	prefix := toComplete
 	if runtime.GOOS == goosWindows {
 		prefix = strings.ToLower(prefix)
 	}
 	filtered := make([]string, 0, len(binList))
-	for i, b := range binList {
-		binList[i] = filepath.Base(b)
-		candidate := binList[i]
+	for _, b := range binList {
+		name := filepath.Base(b)
+		candidate := name
 		if runtime.GOOS == goosWindows {
 			candidate = strings.ToLower(candidate)
 		}
 		if prefix != "" && !strings.HasPrefix(candidate, prefix) {
 			continue
 		}
-		filtered = append(filtered, binList[i])
+		filtered = append(filtered, name)
 	}
-	return filtered, cobra.ShellCompDirectiveNoFileComp
+	return filtered
 }

@@ -74,9 +74,9 @@ const timeoutFlagName = "timeout"
 func addTimeoutFlag(cmd *cobra.Command) {
 	cmd.Flags().Duration(timeoutFlagName, defaultGoOpTimeout,
 		"per-package timeout for go operations (e.g. 90s, 5m); default 0 means no timeout, so a slow go install is never killed")
-	if err := cmd.RegisterFlagCompletionFunc(timeoutFlagName, cobra.NoFileCompletions); err != nil {
-		panic(err)
-	}
+	// A duration is not a path, so never fall back to cobra's default file
+	// completion for its value.
+	mustRegisterFlagCompletion(cmd, timeoutFlagName, cobra.NoFileCompletions)
 }
 
 // getTimeoutFlag reads the shared --timeout flag.
