@@ -226,6 +226,13 @@ func Test_completeBinariesInDir_missing(t *testing.T) {
 // Test_completeBinariesInDir_notDirectory verifies that a real read failure is
 // surfaced as a completion error instead of being silently dropped.
 func Test_completeBinariesInDir_notDirectory(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		// Windows reports a non-directory path as ERROR_PATH_NOT_FOUND, which Go
+		// maps to os.ErrNotExist, so the "path not typed out yet" branch handles
+		// it there and no error reaches the caller. Only POSIX distinguishes the
+		// two with ENOTDIR.
+		t.Skip("a non-directory path is not distinguishable from a missing one on Windows")
+	}
 	t.Parallel()
 
 	file := filepath.Join(helper_makeBinaries(t, testBinGal), testBinGal)
