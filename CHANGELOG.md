@@ -1,3 +1,32 @@
+## [v1.8.0](https://github.com/nao1215/gup/compare/v1.7.1...v1.8.0) (2026-08-09)
+
+### Features
+
+* Add a documentation website at [nao1215.github.io/gup](https://nao1215.github.io/gup/), built and deployed from the repository via GitHub Pages. (#432)
+* `gup --help` now prints the documentation and GitHub Sponsors links. (#433)
+* `gup migrate` completes its positional arguments: directories while `BEFORE_PATH` and `AFTER_PATH` are being typed, then the binaries that actually live under the given `BEFORE_PATH`. (#438, #439)
+
+### Bug Fixes
+
+* Toolchain commands such as `go` and `gofmt` are skipped by their `cmd/...` import path, not only by their missing main module. Installing Go through mise and similar tools places them in `$GOBIN`, where gup used to try to reinstall them with `go install cmd/go@latest`. (#206, #413)
+* `gup pin` and `gup unpin` complete a binary name only where one can still be accepted: not for pin's `VERSION`, and not past unpin's single argument. (#438)
+* `--timeout` no longer completes file names; a duration is not a path. (#438, #439)
+* Correct the license shown in the website footer. (#434)
+
+### Documentation
+
+* Document the [aqua](https://aquaproj.github.io/) installation method in all translated READMEs. (#415)
+* Update the repository badges. (#424)
+
+### Tests
+
+* Replace the ShellSpec end-to-end suite with [atago](https://github.com/nao1215/atago)-driven specs that run the real CLI against a self-contained offline module proxy, and extend them with pty and snapshot scenarios. (#418, #421, #427, #428, #429, #430)
+* Combine unit and end-to-end coverage into a single report and raise the acceptable threshold to 90%. (#419, #420)
+
+### Chore
+
+* Bump `actions/attest-build-provenance` from 4.1.0 to 4.1.1, `golangci/golangci-lint-action` from 9.2.1 to 9.3.0, `goreleaser/goreleaser-action` from 7.2.2 to 7.2.3, `actions/setup-go` from 6.5.0 to 7.0.0, `reviewdog/action-actionlint` from 1.72.0 to 1.73.0, `actions/checkout` from 7.0.0 to 7.0.1, `k1LoW/octocov-action` from 1.5.1 to 1.5.2, `actions/configure-pages` from 5 to 6, `actions/deploy-pages` from 4 to 5, and `actions/upload-pages-artifact` from 3 to 5.
+
 ## [v1.7.1](https://github.com/nao1215/gup/compare/v1.7.0...v1.7.1) (2026-06-26)
 
 ### Bug Fixes
