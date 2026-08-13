@@ -433,7 +433,7 @@ El flujo de desarrollo, la lista de comprobación de calidad y la gestión de he
 Las contribuciones no solo están relacionadas con el desarrollo. Por ejemplo, ¡GitHub Star me motiva a desarrollar!
 
 ### Historial de Estrellas
-[![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nao1215/gup&type=Date)](https://star-history.dera.page/#nao1215/gup&Date)
 
 ## Contacto
 Si quieres enviar comentarios como "encontré un error" o "solicitud de características adicionales" al desarrollador, por favor usa uno de los siguientes contactos.

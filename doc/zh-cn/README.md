@@ -447,7 +447,7 @@ $ \gup update
 贡献不仅与开发相关。例如，GitHub Star 激励我进行开发！
 
 ### Star 历史记录
-[![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nao1215/gup&type=Date)](https://star-history.dera.page/#nao1215/gup&Date)
 
 ## 联系
 如果您想向开发者发送诸如"发现错误"或"请求附加功能"等评论，请使用以下联系方式之一。

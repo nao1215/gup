@@ -433,7 +433,7 @@ $ \gup update
 Вклады связаны не только с разработкой. Например, GitHub Star мотивирует меня к разработке!
 
 ### История звёзд
-[![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nao1215/gup&type=Date)](https://star-history.dera.page/#nao1215/gup&Date)
 
 ## Контакты
 Если вы хотите отправить комментарии, такие как "найден баг" или "запрос дополнительных функций" разработчику, пожалуйста, используйте один из следующих контактов.

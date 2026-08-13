@@ -433,7 +433,7 @@ Le workflow de développement, la checklist qualité et la gestion des outils so
 Les contributions ne sont pas seulement liées au développement. Par exemple, GitHub Star me motive à développer !
 
 ### Historique des étoiles
-[![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nao1215/gup&type=Date)](https://star-history.dera.page/#nao1215/gup&Date)
 
 ## Contact
 Si vous souhaitez envoyer des commentaires tels que "trouvé un bug" ou "demande de fonctionnalités supplémentaires" au développeur, veuillez utiliser l'un des contacts suivants.

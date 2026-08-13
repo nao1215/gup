@@ -435,7 +435,7 @@ $ \gup update
 貢献は開発に関連するものだけではありません。たとえば、GitHub Starは開発のモチベーションになります！
 
 ### Star履歴
-[![Star History Chart](https://api.star-history.com/svg?repos=nao1215/gup&type=Date)](https://star-history.com/#nao1215/gup&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=nao1215/gup&type=Date)](https://star-history.dera.page/#nao1215/gup&Date)
 
 ## 連絡先
 「バグを見つけた」や「追加機能のリクエスト」などのコメントを開発者に送りたい場合は、以下の連絡先をご利用ください。
