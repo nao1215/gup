@@ -108,6 +108,66 @@ nfpms:
         dst: /usr/share/zsh/vendor-completions/_gup
         file_info:
           mode: 0644
+# winget distribution for Windows. `nao1215.gup` already exists in the community
+# repository, but nothing here put it there: a third-party bot watches the
+# releases and submits manifests when it gets around to it, which is why v1.5.1,
+# v1.6.0, and v1.7.0 never reached winget at all and v1.8.0 arrived five days
+# late carrying v1.7.1's release notes. Publishing from the release takes that
+# over — the identifier is unchanged, so the next tag simply supersedes the
+# bot's last submission, and the bot skips a version that is already there.
+#
+# The Windows archives are zips, which winget installs as a portable package, so
+# no installer is built or signed. The manifests go to a branch on
+# nao1215/winget-pkgs, a fork of the community repository, and the pull request
+# is opened against microsoft/winget-pkgs. The publisher and description fields
+# match what the package page already shows, so the takeover is not a visible
+# change to anyone who has gup installed.
+winget:
+  - name: gup
+    package_identifier: nao1215.gup
+    publisher: Chikamatsu Naohiro
+    publisher_url: "https://github.com/nao1215"
+    publisher_support_url: "https://github.com/nao1215/gup/issues"
+    author: Chikamatsu Naohiro
+    homepage: "https://github.com/nao1215/gup"
+    short_description: 'gup - Update binaries installed by "go install" with goroutines'
+    description: |
+      gup updates and manages the global Go command-line tools in $GOBIN.
+      `go install` places each program there but never updates it again, keeps no
+      manifest of what it installed, and offers no way to hold a tool at a
+      version you depend on. gup brings the whole set up to date in parallel,
+      pins selected tools to exact versions, and adds the management commands
+      `go install` lacks: list and check what is installed, remove binaries,
+      export and import the set to reproduce it on another machine, and migrate
+      it to a new $GOBIN.
+    license: Apache-2.0
+    license_url: "https://github.com/nao1215/gup/blob/main/LICENSE"
+    copyright: "Copyright (c) Chikamatsu Naohiro"
+    copyright_url: "https://github.com/nao1215/gup/blob/main/LICENSE"
+    release_notes_url: "https://github.com/nao1215/gup/releases/tag/{{ .Tag }}"
+    tags:
+      - cli-app
+      - command-line-tool
+      - cross-platform
+      - go
+      - golang
+      - golang-tools
+      - update
+      - updater
+      - user-friendly
+    skip_upload: auto
+    repository:
+      owner: nao1215
+      name: winget-pkgs
+      branch: "gup-{{ .Version }}"
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
 brews:
   - name: gup
     description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'
