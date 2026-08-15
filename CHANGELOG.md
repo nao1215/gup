@@ -1,3 +1,9 @@
+## [v1.8.1](https://github.com/nao1215/gup/compare/v1.8.0...v1.8.1) (2026-08-15)
+
+### Features
+
+* Windows installs are published to winget from the release. `nao1215.gup` already existed in the community repository, but a third-party bot submitted the manifests on its own schedule and missed v1.5.1, v1.6.0, and v1.7.0 outright; v1.8.0 arrived five days after the tag carrying v1.7.1's release notes. A tagged release now generates the manifests and opens the pull request against microsoft/winget-pkgs itself, so `winget install --id nao1215.gup` tracks the release page. The identifier is unchanged, so nothing changes for anyone who already installed gup that way. (#445)
+
 ## [v1.8.0](https://github.com/nao1215/gup/compare/v1.7.1...v1.8.0) (2026-08-09)
 
 ### Features
