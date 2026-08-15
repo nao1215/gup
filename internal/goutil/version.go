@@ -155,9 +155,8 @@ func VersionUpToDate(current, available string) bool {
 	return versionUpToDate(current, available)
 }
 
-// GoVersionUpToDate is VersionUpToDate for Go toolchain versions: it first
-// normalizes known non-semver separators (e.g. "go1.26.0-X:nodwarf5") so custom
-// toolchains compare correctly. The "go" prefix must already be stripped.
+// GoVersionUpToDate compares Go toolchain versions after stripping the "go"
+// prefix and custom toolchain suffixes, following Go's own toolchain parsing.
 func GoVersionUpToDate(current, available string) bool {
 	return goVersionUpToDate(current, available)
 }
