@@ -1041,10 +1041,11 @@ func TestNormalizeGoVersionForCompare(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "keep semver chars", in: "1.26.0-X.nodwarf5+meta", want: "1.26.0-X.nodwarf5+meta"},
-		{name: "replace colon", in: "1.26.0-X:nodwarf5", want: "1.26.0-X.nodwarf5"},
-		{name: "replace tilde", in: "1.26.0-X~nodwarf5", want: "1.26.0-X.nodwarf5"},
-		{name: "trim spaces", in: " 1.26.0-X:nodwarf5 ", want: "1.26.0-X.nodwarf5"},
+		{name: "plain version", in: "go1.26.0", want: "1.26.0"},
+		{name: "rc1", in: "go1.26.0rc1", want: "1.26.0rc1"},
+		{name: "experiment suffix", in: "go1.26.0-X:nodwarf5", want: "1.26.0"},
+		{name: "different experiment", in: "go1.26.0-X:jsonv2", want: "1.26.0"},
+		{name: "custom suffix", in: "go1.26.0-bigcorp", want: "1.26.0"},
 	}
 
 	for _, tt := range tests {
