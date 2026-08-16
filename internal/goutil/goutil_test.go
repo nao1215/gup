@@ -1041,10 +1041,11 @@ func TestNormalizeGoVersionForCompare(t *testing.T) {
 		in   string
 		want string
 	}{
-		{name: "keep semver chars", in: "1.26.0-X.nodwarf5+meta", want: "1.26.0-X.nodwarf5+meta"},
-		{name: "replace colon", in: "1.26.0-X:nodwarf5", want: "1.26.0-X.nodwarf5"},
-		{name: "replace tilde", in: "1.26.0-X~nodwarf5", want: "1.26.0-X.nodwarf5"},
-		{name: "trim spaces", in: " 1.26.0-X:nodwarf5 ", want: "1.26.0-X.nodwarf5"},
+		{name: "plain version", in: "go1.26.0", want: "1.26.0"},
+		{name: "rc1", in: "go1.26rc1", want: "1.26rc1"},
+		{name: "experiment suffix", in: "go1.26.0-X:nodwarf5", want: "1.26.0"},
+		{name: "different experiment", in: "go1.26.0-X:jsonv2", want: "1.26.0"},
+		{name: "custom suffix", in: "go1.26.0-bigcorp", want: "1.26.0"},
 	}
 
 	for _, tt := range tests {
@@ -1070,8 +1071,34 @@ func TestPackage_IsGoUpToDate_customBuildTag(t *testing.T) {
 		},
 	}
 
-	if !pkgInfo.IsGoUpToDate() {
-		t.Fatal("custom Go build tag with ':' should be treated as up-to-date when equal")
+	pkgInfo2 := pkgInfo
+	pkgInfo2.GoVersion = &Version{
+		Current: "go1.26.0-X:jsonv2",
+		Latest:  "go1.26.0-X:nodwarf5",
+	}
+
+	tests := []struct {
+		name string
+		in   Package
+		want bool
+	}{
+		{name: "original case", in: pkgInfo, want: true},
+		{name: "different custom build tags", in: pkgInfo2, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.in.IsGoUpToDate()
+			if got != tt.want {
+				t.Fatalf(
+					"IsGoUpToDate(%q, %q) = %v, want %v",
+					tt.in.GoVersion.Current,
+					tt.in.GoVersion.Latest,
+					got,
+					tt.want,
+				)
+			}
+		})
 	}
 }
 

@@ -85,8 +85,8 @@ func (p *Package) IsPackageUpToDate() bool {
 // Returns true if current >= available.
 func (p *Package) IsGoUpToDate() bool {
 	return goVersionUpToDate(
-		strings.TrimPrefix(p.GoVersion.Current, "go"),
-		strings.TrimPrefix(p.GoVersion.Latest, "go"),
+		p.GoVersion.Current,
+		p.GoVersion.Latest,
 	)
 }
 
@@ -112,26 +112,15 @@ func goVersionUpToDate(current, available string) bool {
 
 func normalizeGoVersionForCompare(ver string) string {
 	ver = strings.TrimSpace(ver)
-	if ver == "" {
-		return ver
+	ver = strings.TrimPrefix(ver, "go")
+
+	// Toolchain suffixes are not part of the Go release version.
+	// This follows cmd/go/internal/gover.FromToolchain semantics.
+	if i := strings.IndexAny(ver, "- \t"); i >= 0 {
+		ver = ver[:i]
 	}
 
-	var b strings.Builder
-	b.Grow(len(ver))
-	for _, r := range ver {
-		switch {
-		case r >= '0' && r <= '9',
-			r >= 'a' && r <= 'z',
-			r >= 'A' && r <= 'Z',
-			r == '.',
-			r == '-',
-			r == '+':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('.')
-		}
-	}
-	return b.String()
+	return ver
 }
 
 // versionUpToDate parses versions and compares them.
@@ -166,9 +155,8 @@ func VersionUpToDate(current, available string) bool {
 	return versionUpToDate(current, available)
 }
 
-// GoVersionUpToDate is VersionUpToDate for Go toolchain versions: it first
-// normalizes known non-semver separators (e.g. "go1.26.0-X:nodwarf5") so custom
-// toolchains compare correctly. The "go" prefix must already be stripped.
+// GoVersionUpToDate compares Go toolchain versions after stripping the "go"
+// prefix and custom toolchain suffixes, following Go's own toolchain parsing.
 func GoVersionUpToDate(current, available string) bool {
 	return goVersionUpToDate(current, available)
 }
