@@ -1,5 +1,5 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-32-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-33-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
@@ -514,6 +514,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://chenrui.dev"><img src="https://avatars.githubusercontent.com/u/1580956?v=4?s=100" width="100px;" alt="Rui Chen"/><br /><sub><b>Rui Chen</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Achenrui333" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/phanirithvij"><img src="https://avatars.githubusercontent.com/u/29627898?v=4?s=100" width="100px;" alt="phanirithvij"/><br /><sub><b>phanirithvij</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aphanirithvij" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Darkcast"><img src="https://avatars.githubusercontent.com/u/1676655?v=4?s=100" width="100px;" alt="Darkcast"/><br /><sub><b>Darkcast</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ADarkcast" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hpsbranco"><img src="https://avatars.githubusercontent.com/u/3085888?v=4?s=100" width="100px;" alt="HenriqueB"/><br /><sub><b>HenriqueB</b></sub></a><br /><a href="https://github.com/nao1215/gup/commits?author=hpsbranco" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
