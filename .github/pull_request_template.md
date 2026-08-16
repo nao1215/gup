@@ -12,7 +12,5 @@
 
 - [ ] Added or updated unit tests for the change
 - [ ] `make test` / `make vet` / `make fmt` pass locally
-- [ ] If I changed `README.md`, I updated the translated READMEs under
-      `doc/<lang>/README.md` for the affected sections, or confirmed the
-      "translation may lag behind English" banner is present
-      (see [CONTRIBUTING.md](../CONTRIBUTING.md#documentation-and-translations))
+- [ ] If I changed `README.md`, I kept its first-class sections intact
+      (see [CONTRIBUTING.md](../CONTRIBUTING.md#documentation))
