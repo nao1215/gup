@@ -2,7 +2,7 @@
   "files": [
     "README.md"
   ],
-  "imageSize": 100,
+  "imageSize": 64,
   "commit": false,
   "commitType": "docs",
   "commitConvention": "angular",
@@ -294,6 +294,15 @@
       "profile": "https://github.com/Darkcast",
       "contributions": [
         "bug"
+      ]
+    },
+    {
+      "login": "hpsbranco",
+      "name": "HenriqueB",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3085888?v=4",
+      "profile": "https://github.com/hpsbranco",
+      "contributions": [
+        "code"
       ]
     }
   ],
