@@ -68,7 +68,9 @@ func Test_websiteFooter_hasCanonicalLicense(t *testing.T) {
 // a marker has drifted into an unrelated part of the README.
 func readmeSection(content, heading string) (string, bool) {
 	level := strings.IndexByte(heading+" ", ' ') // number of leading '#' characters
-	lines := strings.Split(content, "\n")
+	// Git checks the README out with CRLF endings on Windows, which would leave a
+	// trailing \r on every line and never match a heading.
+	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
 	start := -1
 	for i, line := range lines {
 		if line == heading {
