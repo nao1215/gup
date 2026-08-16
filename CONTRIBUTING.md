@@ -61,20 +61,18 @@ Use the command below to add or update tool dependencies:
 make update-tools
 ```
 
-## Documentation and translations
-`README.md` (English) is the **source of truth** for user-facing documentation.
-Translated READMEs live under `doc/<lang>/README.md` (`ja`, `es`, `fr`, `ko`,
-`ru`, `zh-cn`).
+## Documentation
+`README.md` (English) is the only user-facing documentation file in the
+repository; the [documentation website](https://nao1215.github.io/gup/) is built
+from `website/`. gup used to carry translated READMEs under `doc/<lang>/`, but
+they drifted behind English faster than they could be maintained, so they were
+removed — English is the single source of truth.
 
 When you change `README.md`:
 
-- Update the translated READMEs for the affected sections, **or** leave them as
-  is — every translation carries a "this translation may lag behind English"
-  banner (marked with the `<!-- gup:translation-sync -->` comment) so readers
-  know where the latest information lives.
-- Keep the English README's first-class sections intact. A CI test
-  (`doc_sync_test.go`) enforces that `README.md` keeps its required sections and
-  that every translated README keeps the sync banner and a link back to English.
+- Keep the first-class sections intact. A CI test (`doc_sync_test.go`) enforces
+  that `README.md` keeps its required sections, that each section still carries
+  its commands and links, and that the install commands are current.
 - Run `make test` so `doc_sync_test.go` runs before you open the PR.
 
 ## Releasing

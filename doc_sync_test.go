@@ -6,40 +6,14 @@ import (
 	"testing"
 )
 
-// README.md is the source of truth for user-facing documentation (issue #282).
-// These tests keep the translated READMEs honest: the English file must keep its
-// structural sections, and every translation must carry the sync banner that
-// links back to English so readers know where the latest information lives.
+// README.md is the only user-facing documentation file in the repository
+// (issue #282). These tests keep it honest: the structural sections must stay
+// in place, the sections' content must not silently disappear, and the
+// copy-pasteable install commands must stay current.
 
-// translationSyncMarker is a language-agnostic marker that must sit next to the
-// "this translation may lag behind English" banner in every translated README.
-const translationSyncMarker = "<!-- gup:translation-sync -->"
-
-// canonicalLanguageBar is the language switcher every translated README must
-// carry verbatim, so each doc links to English and to every sibling language
-// (including a self-link). This guards against drift like a missing self-link
-// or a different ordering between translations.
-const canonicalLanguageBar = "[English](../../README.md) | " +
-	"[日本語](../ja/README.md) | " +
-	"[Русский](../ru/README.md) | " +
-	"[中文](../zh-cn/README.md) | " +
-	"[한국어](../ko/README.md) | " +
-	"[Español](../es/README.md) | " +
-	"[Français](../fr/README.md)"
-
-// translatedReadmePaths returns the localized READMEs that must stay in sync
-// with the English source of truth. Centralizing the list keeps the path
-// strings in one place (so goconst is satisfied) without introducing a global.
-func translatedReadmePaths() []string {
-	return []string{
-		"doc/ja/README.md",
-		"doc/es/README.md",
-		"doc/fr/README.md",
-		"doc/ko/README.md",
-		"doc/ru/README.md",
-		"doc/zh-cn/README.md",
-	}
-}
+// readmePath is the English README, the single source of truth for user-facing
+// documentation. Naming it once keeps goconst satisfied without a global.
+const readmePath = "README.md"
 
 func Test_englishReadme_hasRequiredSections(t *testing.T) {
 	t.Parallel()
@@ -57,14 +31,14 @@ func Test_englishReadme_hasRequiredSections(t *testing.T) {
 		"## Contributing",
 		"## LICENSE",
 	}
-	raw, err := os.ReadFile("README.md")
+	raw, err := os.ReadFile(readmePath)
 	if err != nil {
-		t.Fatalf("failed to read README.md: %v", err)
+		t.Fatalf("failed to read %s: %v", readmePath, err)
 	}
 	content := string(raw)
 	for _, section := range requiredEnglishSections {
 		if !strings.Contains(content, section) {
-			t.Errorf("README.md is missing required section %q", section)
+			t.Errorf("%s is missing required section %q", readmePath, section)
 		}
 	}
 }
@@ -86,22 +60,16 @@ func Test_websiteFooter_hasCanonicalLicense(t *testing.T) {
 	}
 }
 
-// Test_translatedReadmes_haveRequiredSections asserts that every section the
-// English README carries (issue #306: Benchmark, release integrity, Migrate) is
-// also present in each translation, keyed off language-independent content so a
-// missing section is caught even though headings are translated.
-func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
+// Test_englishReadme_hasRequiredSectionContent asserts that each documented
+// section still carries the payload it is built around. The heading test above
+// only checks that a heading EXISTS; it cannot catch a section whose body was
+// gutted while the heading stayed. Keying off shell commands, URLs, and literal
+// synopses makes the check robust against prose rewrites (issue #306).
+func Test_englishReadme_hasRequiredSectionContent(t *testing.T) {
 	t.Parallel()
-	// requiredSectionMarkers maps a human-readable section name to a set of
-	// language-independent strings that the section's content always carries
-	// verbatim, regardless of the translation language. Section HEADINGS are fully
-	// translated (e.g. "## Benchmark" becomes "## 基准测试" / "## Бенчмарк"), so we
-	// cannot key the presence check off heading text. Instead we key off the
-	// stable, untranslated payload each section is built around: shell commands,
-	// URLs, tool names, and the literal command synopsis. These are identical in
-	// every README, so their presence is a robust proxy for "this section exists,
-	// translated, in this file". The test fails if any translation drops one of the
-	// sections the English README carries (issue #306).
+	// requiredSectionMarkers maps a human-readable section name to the stable
+	// strings that section's content is built around: shell commands, URLs, tool
+	// names, and the literal command synopsis.
 	requiredSectionMarkers := map[string][]string{
 		// Verifying release integrity: the cosign / SLSA verification commands.
 		"Verifying release integrity": {
@@ -129,7 +97,7 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"https://no-color.org/", // NO_COLOR convention link
 		},
 		// Pin a tool to a specific version: the pin/unpin commands and the
-		// pinned-channel JSON are identical in every translation.
+		// pinned-channel JSON.
 		"Pin a tool to a specific version": {
 			"gup pin golangci-lint v1.62.0", // pin example command
 			"gup unpin golangci-lint",       // unpin example command
@@ -144,8 +112,7 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"AMD Ryzen AI Max+ 395",                     // benchmark measurement-environment note
 		},
 		// Generate man-pages: the MANPATH note added when man learned to honor
-		// MANPATH (the literal env-var name is identical in every translation, so a
-		// translation that still carries the old one-line description is caught).
+		// MANPATH.
 		"Generate man-pages": {
 			"MANPATH", // man writes under each MANPATH entry's man1 dir
 		},
@@ -156,40 +123,29 @@ func Test_translatedReadmes_haveRequiredSections(t *testing.T) {
 			"`HOME`", // --install fails fast when HOME is empty
 		},
 	}
-	for _, path := range translatedReadmePaths() {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
-			if err != nil {
-				t.Fatalf("failed to read %s: %v", path, err)
+	raw, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", readmePath, err)
+	}
+	content := string(raw)
+	for section, markers := range requiredSectionMarkers {
+		for _, marker := range markers {
+			if !strings.Contains(content, marker) {
+				t.Errorf("%s is missing the %q section: expected to find %q", readmePath, section, marker)
 			}
-			content := string(raw)
-			for section, markers := range requiredSectionMarkers {
-				for _, marker := range markers {
-					if !strings.Contains(content, marker) {
-						t.Errorf("%s is missing the %q section: expected to find %q", path, section, marker)
-					}
-				}
-			}
-		})
+		}
 	}
 }
 
-// Test_translatedReadmes_haveCanonicalInstallCommands asserts that the
-// copy-pasteable install/usage commands are byte-for-byte identical across the
-// English README and every translation. The section-marker test above only
-// checks that a section EXISTS; it cannot catch a section whose command is
-// present but stale (e.g. a translation still showing `brew install
-// nao1215/gup` after English moved to `brew install nao1215/tap/gup`). Commands
-// are language-independent payload, so they must match verbatim — a mismatch is
-// a copy-paste hazard for users and is exactly the "content exists but is wrong"
-// drift section markers miss.
-func Test_translatedReadmes_haveCanonicalInstallCommands(t *testing.T) {
+// Test_englishReadme_hasCanonicalInstallCommands asserts that the
+// copy-pasteable install commands are byte-for-byte what gup actually supports.
+// A stale command (e.g. `brew install nao1215/gup` after the tap moved to
+// `brew install nao1215/tap/gup`) is a copy-paste hazard for users, and it is
+// exactly the "content exists but is wrong" drift the section checks miss.
+func Test_englishReadme_hasCanonicalInstallCommands(t *testing.T) {
 	t.Parallel()
-	// canonicalCommands are install/usage one-liners that must appear verbatim in
-	// English and in every translation. Keep this list in sync with the command
-	// blocks in README.md's "How to install" section. The English README is
-	// asserted too, so a typo there is caught instead of silently propagating.
+	// canonicalCommands are install one-liners that must appear verbatim. Keep
+	// this list in sync with the command blocks in README.md's "How to install".
 	canonicalCommands := []string{
 		"go install github.com/nao1215/gup@latest",
 		"brew install nao1215/tap/gup",
@@ -197,46 +153,14 @@ func Test_translatedReadmes_haveCanonicalInstallCommands(t *testing.T) {
 		"mise use -g gup@latest",
 		"nix profile install nixpkgs#gogup",
 	}
-	readmes := append([]string{"README.md"}, translatedReadmePaths()...)
-	for _, path := range readmes {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
-			if err != nil {
-				t.Fatalf("failed to read %s: %v", path, err)
-			}
-			content := string(raw)
-			for _, command := range canonicalCommands {
-				if !strings.Contains(content, command) {
-					t.Errorf("%s is missing or has a stale install command: expected verbatim %q", path, command)
-				}
-			}
-		})
+	raw, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", readmePath, err)
 	}
-}
-
-func Test_translatedReadmes_haveSyncBanner(t *testing.T) {
-	t.Parallel()
-	for _, path := range translatedReadmePaths() {
-		t.Run(path, func(t *testing.T) {
-			t.Parallel()
-			raw, err := os.ReadFile(path) //nolint:gosec // fixed in-repo doc path
-			if err != nil {
-				t.Fatalf("failed to read %s: %v", path, err)
-			}
-			content := string(raw)
-			if !strings.Contains(content, translationSyncMarker) {
-				t.Errorf("%s is missing the translation sync marker %q", path, translationSyncMarker)
-			}
-			// Every translation must link back to the English source of truth.
-			if !strings.Contains(content, "../../README.md") {
-				t.Errorf("%s does not link back to the English README (../../README.md)", path)
-			}
-			// Every translation must carry the same language switcher (English +
-			// all siblings + a self-link), so navigation stays consistent.
-			if !strings.Contains(content, canonicalLanguageBar) {
-				t.Errorf("%s is missing the canonical language bar:\n%s", path, canonicalLanguageBar)
-			}
-		})
+	content := string(raw)
+	for _, command := range canonicalCommands {
+		if !strings.Contains(content, command) {
+			t.Errorf("%s is missing or has a stale install command: expected verbatim %q", readmePath, command)
+		}
 	}
 }

@@ -9,9 +9,6 @@
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)
 [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/nao1215/gup/total)](https://github.com/nao1215/gup/releases)
 
-[日本語](./doc/ja/README.md) | [Русский](./doc/ru/README.md) | [中文](./doc/zh-cn/README.md) | [한국어](./doc/ko/README.md) | [Español](./doc/es/README.md) | [Français](./doc/fr/README.md)
-
-
 ![sample](./doc/img/sample.gif)
 
 gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again, keeps no manifest of what it installed, and offers no way to hold a tool at a version you depend on. gup manages that tool set: it brings the whole set up to date in parallel, can `pin` selected tools to exact versions, and adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
