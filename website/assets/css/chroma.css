@@ -134,6 +134,7 @@
   /* LiteralNumberInteger */ .chroma .mi { color:#a5d6ff }
   /* LiteralNumberIntegerLong */ .chroma .il { color:#a5d6ff }
   /* LiteralNumberOct */ .chroma .mo { color:#a5d6ff }
+  /* Punctuation */ .chroma .p { color:#e6edf3 }
   /* Operator */ .chroma .o { color:#ff7b72;font-weight:bold }
   /* OperatorWord */ .chroma .ow { color:#ff7b72;font-weight:bold }
   /* OperatorReserved */ .chroma .or { color:#ff7b72;font-weight:bold }
