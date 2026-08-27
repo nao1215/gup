@@ -36,6 +36,8 @@ The release workflow then:
 - updates the Homebrew tap (`nao1215/homebrew-tap`);
 - pushes the winget manifests to `nao1215/winget-pkgs` and opens the pull request against [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).
 
+Packaging that needs nothing from us: the [homebrew-core formula](https://formulae.brew.sh/formula/gup) carries `autobump`, so Homebrew opens its own bump pull request from the new tag, and the AUR packages (`gup`, `gup-bin`) plus the nixpkgs `gogup` attribute are maintained by other people on their own schedule.
+
 ## Required secrets
 - `GITHUB_TOKEN`: provided automatically; used to create the GitHub Release.
 - `TAP_GITHUB_TOKEN`: a token with write access to `nao1215/homebrew-tap`,
@@ -52,7 +54,7 @@ Until this was wired up a third-party bot submitted gup's manifests on its own s
   generated notes and artifacts.
 - Verify a downloaded artifact as described in
   [Verifying release integrity](../README.md#verifying-release-integrity).
-- Confirm `brew upgrade gup` picks up the new version.
+- Confirm `brew upgrade gup` picks up the new version. The tap formula is pushed by the release job; the homebrew-core bump lands separately once Homebrew's autobump pull request merges.
 - Confirm the winget pull request was opened, under [pull requests authored by nao1215](https://github.com/microsoft/winget-pkgs/pulls/nao1215). A winget failure is logged without failing the release, so a green release job does not by itself mean the submission happened.
 - If no pull request appears, recover it by hand: the manifests were still generated under `dist/winget/manifests/n/nao1215/gup/<version>/`, and the three files can be committed to a `gup-<version>` branch on `nao1215/winget-pkgs` and submitted against `microsoft/winget-pkgs` `master`. A failure at the push step points at the token's scope; a failure only at the pull-request step points at a fine-grained token being used where a classic one is required.
 

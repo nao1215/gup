@@ -57,7 +57,7 @@ from any directory and keep alongside your dotfiles.
 go install github.com/nao1215/gup@latest
 ```
 
-Homebrew, winget, mise, nix, aqua, and prebuilt packages are on the
+Homebrew, winget, mise, nix, aqua, the AUR, and prebuilt packages are on the
 [install page](/install/).
 
 ## Integrations
