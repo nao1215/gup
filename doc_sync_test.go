@@ -196,10 +196,13 @@ func Test_englishReadme_hasCanonicalInstallCommands(t *testing.T) {
 	// "How to install" section. Keep this list in sync with its command blocks.
 	canonicalCommands := []string{
 		"go install github.com/nao1215/gup@latest",
+		"brew install gup",
 		"brew install nao1215/tap/gup",
 		"winget install --id nao1215.gup",
 		"mise use -g gup@latest",
 		"nix profile install nixpkgs#gogup",
+		"aqua g -i nao1215/gup",
+		"paru -S gup-bin",
 	}
 	// obsoleteCommands are install lines gup has moved away from. Checking that
 	// the canonical form is PRESENT does not catch a superseded line left sitting
