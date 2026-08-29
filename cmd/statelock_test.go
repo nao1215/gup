@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -518,10 +519,17 @@ func Test_dirLockTarget_locksATargetThatDoesNotExistYet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the directory was not created: %v", err)
 	}
+	if !info.IsDir() {
+		t.Fatalf("%s was created but is not a directory", target)
+	}
 	// The permission must be the one the commands use, or taking the lock first
-	// would silently change what a user ends up with.
-	if perm := info.Mode().Perm(); perm != binDirPerm {
-		t.Errorf("created the directory with mode %o, want %o", perm, binDirPerm)
+	// would silently change what a user ends up with. Only POSIX applies the mode
+	// passed to MkdirAll; Windows derives directory permissions from ACLs and
+	// reports 0777 whatever was asked for, so there is nothing to compare there.
+	if runtime.GOOS != goosWindows {
+		if perm := info.Mode().Perm(); perm != binDirPerm {
+			t.Errorf("created the directory with mode %o, want %o", perm, binDirPerm)
+		}
 	}
 }
 
