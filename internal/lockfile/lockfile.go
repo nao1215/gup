@@ -28,23 +28,31 @@
 // works. A lock whose owning PID is gone on this host is reclaimed at once; one
 // whose origin cannot be checked that way (another host, an unreadable file) is
 // reclaimed when its heartbeat has stopped long enough.
+//
+// Every step that could act on the WRONG file - taking a lock over, refreshing
+// it, releasing it - is made to act on a file it holds rather than on a path it
+// looked at a moment ago. Taking over and releasing rename the file aside first,
+// because only one process can rename a given file, and then check what they
+// took; the heartbeat verifies and refreshes through a single descriptor. A path
+// checked and then acted on is two operations on what may be two different
+// files, which is how a lock ends up refreshing, or deleting, its successor's.
 package lockfile
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/nao1215/gup/internal/fileutil"
@@ -293,23 +301,6 @@ type Lock struct {
 // Path returns the lock file this lock holds.
 func (l *Lock) Path() string { return l.path }
 
-// exitFunc is os.Exit, indirected so the signal path can be tested without
-// killing the test binary. It is read from the signal goroutine and written by
-// tests, so both go through exitMu: a seam that trips the race detector makes
-// `go test -race` unusable for everything else in the package.
-var (
-	exitMu   sync.Mutex //nolint:gochecknoglobals // guards exitFunc
-	exitFunc = os.Exit  //nolint:gochecknoglobals // test seam
-)
-
-// exitProcess ends the process through the current exit function.
-func exitProcess(code int) {
-	exitMu.Lock()
-	fn := exitFunc
-	exitMu.Unlock()
-	fn(code)
-}
-
 // nowFunc is time.Now, indirected so staleness can be tested without sleeping.
 var nowFunc = time.Now //nolint:gochecknoglobals // test seam
 
@@ -349,7 +340,6 @@ func Acquire(ctx context.Context, path, command string) (*Lock, error) {
 	}
 	lock.freeInProcess = freeInProcess
 	lock.startHeartbeat()
-	registerForSignals(lock)
 	return lock, nil
 }
 
@@ -442,13 +432,19 @@ func acquireOnDisk(ctx context.Context, path, command string) (*Lock, error) {
 			return nil, fmt.Errorf("can not create the gup lock file %s: %w", path, err)
 		}
 
-		owner, stale := inspect(path)
+		owner, observed, stale := inspect(path)
 		var reclaimErr error
 		if stale {
-			reclaimErr = reclaim(path)
-			// A permission problem will not resolve by waiting, and waiting would
-			// only replace a clear diagnosis with a timeout.
-			if reclaimErr != nil && errors.Is(reclaimErr, fs.ErrPermission) {
+			reclaimErr = reclaim(path, observed)
+			switch {
+			case errors.Is(reclaimErr, errLockChanged):
+				// The file is no longer the one that was judged abandoned, so the
+				// judgment does not apply to what is there now. Look again rather than
+				// report a lock that may well be held.
+				stale, reclaimErr = false, nil
+			case reclaimErr != nil && errors.Is(reclaimErr, fs.ErrPermission):
+				// A permission problem will not resolve by waiting, and waiting would
+				// only replace a clear diagnosis with a timeout.
 				return nil, &ReclaimError{Path: path, Err: reclaimErr}
 			}
 		}
@@ -471,20 +467,76 @@ func acquireOnDisk(ctx context.Context, path, command string) (*Lock, error) {
 	}
 }
 
-// reclaim removes an abandoned lock file by renaming it aside first. Only one
-// process can rename a given file, so two processes that both judged it
-// abandoned cannot both go on to create it; the loser sees the winner's fresh
-// lock on its next attempt. A file that has already vanished counts as reclaimed.
-func reclaim(path string) error {
-	aside := fmt.Sprintf("%s.stale-%d-%d", path, os.Getpid(), nowFunc().UnixNano())
-	if err := os.Rename(path, aside); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
+// errLockChanged reports that the file acted on was not the one the caller had
+// observed, so whatever was decided about it has to be decided again.
+var errLockChanged = errors.New("the gup lock file changed while it was being examined")
+
+// reclaim removes an abandoned lock file - but only the exact file that was
+// judged abandoned.
+//
+// Renaming is the atomic step. Only one process can rename a given file, so two
+// processes that both judged it abandoned cannot both go on to create it; the
+// loser sees the winner's fresh lock on its next attempt. What renaming alone
+// does NOT give is a guarantee that the file being taken over is still the one
+// the decision was about: between the judgment and the rename, the owner's
+// heartbeat may have run, or a faster process may have reclaimed the file and
+// created its own. Removing THAT file would hand the lock to a second process
+// while the first is still working, which is the one outcome this package
+// exists to prevent.
+//
+// So the file is examined after it is detached, when it can no longer change,
+// and put back untouched unless it is byte for byte - and modification time for
+// modification time - the file that was judged. A file that has already vanished
+// counts as reclaimed: there is nothing left to hold.
+func reclaim(path string, observed state) error {
+	if !observed.exists {
+		// It was already gone when it was looked at, so there is nothing to take
+		// over and nothing to prove; the caller simply tries to create it again.
+		return nil
+	}
+	aside, err := detach(path, "stale")
+	if err != nil || aside == "" {
 		return err
+	}
+	if !observed.matches(aside) {
+		restore(aside, path)
+		return errLockChanged
 	}
 	_ = os.Remove(aside)
 	return nil
+}
+
+// detach renames the lock file aside so it can be examined and disposed of
+// without a file created after the look being mistaken for it. It returns an
+// empty name when the file has already gone, which every caller treats as
+// success: the postcondition each of them wants is that the observed file is no
+// longer at the path.
+func detach(path, reason string) (string, error) {
+	aside := fmt.Sprintf("%s.%s-%d-%d", path, reason, os.Getpid(), nowFunc().UnixNano())
+	if err := os.Rename(path, aside); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	return aside, nil
+}
+
+// restore puts a detached lock file back after it turns out not to have been the
+// caller's to take.
+//
+// It renames unconditionally, and that is deliberate. Reaching here means a file
+// belonging to a live owner was briefly detached, and putting it back is what
+// keeps that owner's lock. A third process that created its own lock at the path
+// inside that window loses it - but it finds out, because every operation it
+// goes on to perform checks the nonce and reports a take-over, whereas the owner
+// whose file was dropped would carry on with no lock and no idea.
+func restore(aside, path string) {
+	if err := os.Rename(aside, path); err != nil {
+		// Nothing further can be done: the file cannot go back and must not be
+		// left lying around under a name no owner will ever recognize.
+		_ = os.Remove(aside)
+	}
 }
 
 // createLockFile creates path exclusively and writes the owner record into it.
@@ -532,7 +584,23 @@ func createLockFile(path, command string) (*Lock, error) {
 		return nil, fmt.Errorf("can not write the gup lock file %s: %w", path, err)
 	}
 
+	// Between the exclusive create and the line above, this process holds a lock
+	// file that names nobody: an empty file, which no waiter can attribute to a
+	// live owner. A process descheduled there for longer than the staleness bound
+	// has its file reclaimed, and would otherwise return from here believing it
+	// took the lock while its successor was already working. The acquisition is
+	// only real if the file at the path is still the one that was created.
+	if !ownsFile(path, nonce) {
+		return nil, fmt.Errorf("the gup lock file %s was taken over while it was being written: %w", path, fs.ErrExist)
+	}
+
 	return &Lock{path: path, nonce: nonce}, nil
+}
+
+// ownsFile reports whether the lock file at path carries this nonce.
+func ownsFile(path, nonce string) bool {
+	owner, err := readOwner(path)
+	return err == nil && owner.Nonce != "" && owner.Nonce == nonce
 }
 
 // newNonce returns a random identifier for one acquisition.
@@ -564,16 +632,30 @@ func newNonce() (string, error) {
 // record is unreadable or truncated, or one naming no usable PID. A lock file
 // that vanished between the failed create and this read reports abandoned so the
 // caller retries immediately.
-func inspect(path string) (owner Owner, stale bool) {
+//
+// The returned state is what the verdict rests on. It travels with the verdict
+// so the take-over can prove it is removing the file that was judged, and not
+// one that replaced it in the meantime.
+func inspect(path string) (Owner, state, bool) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return Owner{}, true
+		return Owner{}, state{}, true
+	}
+	observed := state{exists: true, mod: info.ModTime()}
+
+	var owner Owner
+	attributable := false
+	if raw, readErr := os.ReadFile(filepath.Clean(path)); readErr == nil {
+		observed.raw = raw
+		var parsed Owner
+		if json.Unmarshal(raw, &parsed) == nil {
+			owner, attributable = parsed, true
+		}
 	}
 
-	age := nowFunc().Sub(info.ModTime())
-	owner, readErr := readOwner(path)
-	if readErr == nil && owner.PID > 0 && ownedByThisHost(owner) && age <= pidTrustWindow() {
-		return owner, !processAlive(owner.PID)
+	age := nowFunc().Sub(observed.mod)
+	if attributable && owner.PID > 0 && ownedByThisHost(owner) && age <= pidTrustWindow() {
+		return owner, observed, !processAlive(owner.PID)
 	}
 
 	// Not attributable to a live local process - another host, an unreadable
@@ -582,9 +664,40 @@ func inspect(path string) (owner Owner, stale bool) {
 	// been abandoned. A freshly created file whose owner record has not been
 	// written yet lands here too, and is correctly treated as held.
 	if age > staleAfter() {
-		return owner, true
+		return owner, observed, true
 	}
-	return owner, false
+	return owner, observed, false
+}
+
+// state is the lock file exactly as it looked when a decision was made about it:
+// its content and its modification time. A take-over that cannot show the file
+// is unchanged since then is a take-over of something it never examined.
+type state struct {
+	// exists is false when the file was already gone when it was looked at.
+	exists bool
+	// raw is the file's content, or nil when it could not be read.
+	raw []byte
+	// mod is the modification time the staleness verdict was measured against.
+	mod time.Time
+}
+
+// matches reports whether the file at path is still the one this state
+// describes. The modification time is compared as well as the content, because
+// it is what the staleness verdict was computed from: a heartbeat that ran in
+// the meantime writes the same bytes back and would otherwise pass unnoticed.
+func (s state) matches(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.ModTime().Equal(s.mod) {
+		return false
+	}
+	if s.raw == nil {
+		// The content could not be read when the verdict was reached, so the
+		// modification time is the whole of what the verdict rested on - which is
+		// the case for a lock file whose permissions deny reading it.
+		return true
+	}
+	raw, err := os.ReadFile(filepath.Clean(path))
+	return err == nil && bytes.Equal(raw, s.raw)
 }
 
 // ownedByThisHost reports whether the owner record was written on this machine,
@@ -612,18 +725,6 @@ func readOwner(path string) (Owner, error) {
 	return owner, nil
 }
 
-// stillOurs reports whether the file at the lock's path is the one this lock
-// created. Everything destructive - removing the file, refreshing its timestamp
-// - goes through this check, so a lock that was reclaimed while this process was
-// stopped can neither be deleted nor kept alive by its former owner.
-func (l *Lock) stillOurs() bool {
-	owner, err := readOwner(l.path)
-	if err != nil {
-		return false
-	}
-	return owner.Nonce != "" && owner.Nonce == l.nonce
-}
-
 // startHeartbeat begins touching the lock file so a long-running command is not
 // mistaken for a crashed one.
 func (l *Lock) startHeartbeat() {
@@ -639,20 +740,47 @@ func (l *Lock) startHeartbeat() {
 			case <-l.stopHeartbeat:
 				return
 			case <-ticker.C:
-				// Refresh only while the file is still this lock's. Touching a
-				// successor's lock would keep IT alive on this process's behalf,
-				// hiding the successor's own death from the next waiter.
-				if !l.stillOurs() {
-					continue
-				}
-				now := nowFunc()
-				// A failure here is not worth interrupting the user's command over:
-				// the worst case is that this lock becomes reclaimable early, and the
-				// caller is about to release it anyway.
-				_ = os.Chtimes(l.path, now, now)
+				l.refresh()
 			}
 		}
 	}()
+}
+
+// refresh moves the lock file's modification time forward to say the owner is
+// still working - and only while the file is still this lock's, because
+// refreshing a successor's lock would keep IT alive on this process's behalf and
+// hide the successor's own death from everyone waiting.
+//
+// The check and the refresh go through ONE descriptor, and the refresh is a
+// rewrite of the bytes that were just read rather than a change of timestamp by
+// name. Checking the path and then touching the path is two operations on what
+// may by then be two different files: a lock reclaimed in between would be read
+// as this one and refreshed for its new owner. A descriptor cannot drift that
+// way - it names the file it opened, so the worst case is a write to a file that
+// has already been taken away, which nobody sees.
+//
+// Every failure is silent on purpose. A heartbeat that cannot be written makes
+// this lock reclaimable earlier than it should be, which is a far smaller
+// problem than interrupting the user's command over it.
+func (l *Lock) refresh() {
+	// The path is gup's own lock file, derived from the resource it guards.
+	file, err := os.OpenFile(l.path, os.O_RDWR, lockFileMode)
+	if err != nil {
+		return
+	}
+	defer func() { _ = file.Close() }()
+
+	raw, err := io.ReadAll(file)
+	if err != nil {
+		return
+	}
+	var owner Owner
+	if json.Unmarshal(raw, &owner) != nil || owner.Nonce == "" || owner.Nonce != l.nonce {
+		return
+	}
+	// The same bytes, written back at the same offset: the content is unchanged
+	// and the modification time moves, which is the whole of what a heartbeat is.
+	_, _ = file.WriteAt(raw, 0)
 }
 
 // Release removes the lock file and stops the heartbeat. Calling it twice is
@@ -667,7 +795,6 @@ func (l *Lock) Release() error {
 			close(l.stopHeartbeat)
 			<-l.heartbeatDone
 		}
-		unregisterFromSignals(l)
 		l.releaseErr = l.releaseFile()
 		if l.freeInProcess != nil {
 			l.freeInProcess()
@@ -682,113 +809,54 @@ func (l *Lock) Release() error {
 // this process was stopped past the staleness bound on a shared filesystem, or
 // because an operator removed the file - is replaced by a successor's lock at
 // the same path. Removing it unconditionally would delete a lock another gup is
-// actively relying on, and the process after that would walk straight in. A file
-// that is already gone is not an error: the postcondition "this process no
-// longer holds the lock" is satisfied either way.
+// actively relying on, and the process after that would walk straight in.
+//
+// The file is therefore detached first and identified afterwards, for the same
+// reason a take-over is: reading the nonce at a path and then deleting that path
+// are two operations, and a lock reclaimed between them would be deleted on the
+// strength of its predecessor's identity. A file that turns out to belong to
+// someone else goes back where it was. A file that is already gone is not an
+// error: the postcondition "this process no longer holds the lock" is satisfied
+// either way.
 func (l *Lock) releaseFile() error {
-	owner, err := readOwner(l.path)
+	aside, err := detach(l.path, "release")
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		// Present but unreadable: it is not provably ours, so it is left alone.
+		return fmt.Errorf("can not remove the gup lock file %s: %w", l.path, err)
+	}
+	if aside == "" {
+		return nil
+	}
+	owner, err := readOwner(aside)
+	if err != nil || owner.Nonce != l.nonce {
+		// Not provably ours - a successor's lock, or a file too damaged to attribute
+		// - so it is put back exactly as it was found.
+		restore(aside, l.path)
 		return &TakenOverError{Path: l.path}
 	}
-	if owner.Nonce != l.nonce {
-		return &TakenOverError{Path: l.path}
-	}
-	if err := os.Remove(l.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := os.Remove(aside); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("can not remove the gup lock file %s: %w", l.path, err)
 	}
 	return nil
 }
 
-// signalGuard releases every held lock when the process is interrupted.
+// A word on interruption, since the absence of a signal handler here is a
+// decision rather than an omission.
 //
-// gup's subcommands exit through os.Exit, so a Ctrl-C during `gup update` would
-// otherwise terminate the process with no deferred Release having run, leaving
-// lock files that block the next command until they age out. One guard serves
-// every lock: with several held at once, handling the signal per lock would race
-// several goroutines into os.Exit and release only whichever won.
-var signalGuard = struct { //nolint:gochecknoglobals // process-wide by definition
-	mu    sync.Mutex
-	locks []*Lock
-	ch    chan os.Signal
-	stop  chan struct{}
-}{}
-
-// handledSignals are the termination signals a process can act on. SIGKILL is
-// absent because it cannot be caught; that path is covered by the PID check,
-// which reclaims a dead owner's lock immediately. SIGHUP is present because
-// closing a terminal is a routine way to end a long update.
-var handledSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} //nolint:gochecknoglobals // a fixed list
-
-// registerForSignals arranges for lock to be released if the process is
-// interrupted, starting the watcher on the first registration.
-func registerForSignals(lock *Lock) {
-	signalGuard.mu.Lock()
-	defer signalGuard.mu.Unlock()
-
-	signalGuard.locks = append(signalGuard.locks, lock)
-	if signalGuard.ch != nil {
-		return
-	}
-	signalGuard.ch = make(chan os.Signal, 1)
-	signalGuard.stop = make(chan struct{})
-	signal.Notify(signalGuard.ch, handledSignals...)
-
-	ch, stop := signalGuard.ch, signalGuard.stop
-	go func() {
-		select {
-		case <-stop:
-			return
-		case sig := <-ch:
-			releaseAllForSignal()
-			exitProcess(exitStatusFor(sig))
-		}
-	}()
-}
-
-// unregisterFromSignals drops lock from the guard, stopping the watcher once
-// nothing is held. Leaving signal.Notify installed after the last release would
-// keep gup's altered SIGINT disposition in place for the rest of the process.
-func unregisterFromSignals(lock *Lock) {
-	signalGuard.mu.Lock()
-	defer signalGuard.mu.Unlock()
-
-	signalGuard.locks = slices.DeleteFunc(signalGuard.locks, func(l *Lock) bool { return l == lock })
-	if len(signalGuard.locks) > 0 || signalGuard.ch == nil {
-		return
-	}
-	signal.Stop(signalGuard.ch)
-	close(signalGuard.stop)
-	signalGuard.ch = nil
-	signalGuard.stop = nil
-}
-
-// releaseAllForSignal removes the lock files of every held lock. It touches the
-// files only, not the heartbeat goroutines or the in-process registry, because
-// the process is about to exit and the only state that outlives it is on disk.
-func releaseAllForSignal() {
-	signalGuard.mu.Lock()
-	locks := slices.Clone(signalGuard.locks)
-	signalGuard.mu.Unlock()
-
-	for _, l := range locks {
-		_ = l.releaseFile()
-	}
-}
-
-// exitStatusFor maps a signal to the exit status a shell expects from a process
-// killed by it (128 + signal number), so scripts see the same status they would
-// have seen without gup's handler installed.
-func exitStatusFor(sig os.Signal) int {
-	const signalExitBase = 128
-	if s, ok := sig.(syscall.Signal); ok && s > 0 {
-		return signalExitBase + int(s)
-	}
-	return 1
-}
+// It is tempting to catch SIGINT and delete the lock files on the way out. That
+// is wrong, and subtly so: deleting the file does not stop the work. The command
+// that holds the lock is still installing binaries and rewriting gup.json in
+// another goroutine, and a second gup started in the moment between the deletion
+// and the process actually dying walks into exactly the overlap the lock exists
+// to prevent - with no error anywhere, because both processes believe they hold
+// it.
+//
+// So the lock is held until the process is gone, and nothing gets to shorten
+// that. gup's long-running commands already cancel their work on a signal (see
+// cmd's signal-cancelling context): the run unwinds, the command returns, and
+// the deferred Release removes the file - in that order, which is the order that
+// is safe. A command that has no such handler is killed outright by the default
+// disposition, and its lock file is reclaimed by the next gup the moment it
+// notices the owning PID is gone. Neither path can leave two gups running.
 
 // inProcessLocks serializes acquisitions of the same path inside one process.
 // The on-disk lock alone cannot do this: O_EXCL does not distinguish "held by

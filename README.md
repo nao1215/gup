@@ -474,9 +474,10 @@ The second one exits non-zero after reporting who is in the way:
 
 Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup writes `gup.json` by atomic rename, so a reader always sees a complete file and has nothing to wait for.
 
-A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock however long it has been suspended, so pausing an update with Ctrl-Z never lets a second gup in. Ctrl-C releases the lock right away.
+A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock while it is suspended, so pausing an update with Ctrl-Z does not let a second gup in — up to about an hour, after which the heartbeat decides again. That bound is deliberate: a PID outlives the process that owned it, and once the operating system recycles the number, an unbounded check would report a long-dead gup as still running forever.
 
-### Desktop notification
+Ctrl-C does not release the lock — the process holding it does, by ending. Deleting the lock file from a signal handler would free it while the command is still installing binaries and rewriting `gup.json` on its way out, so a second gup started in that moment would run alongside the first. Instead an interrupted `gup update` stops its work, unwinds, and removes the lock file itself; a command killed outright leaves the file behind, and the next gup reclaims it as soon as it sees the owning process is gone.
+
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
 ```shell

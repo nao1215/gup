@@ -124,9 +124,16 @@ A lock left behind by a killed gup does not wedge the tool. The lock file
 records the owning process, so one whose process is gone is reclaimed at once. A
 lock gup cannot attribute that way — one written by another machine on a shared
 home directory — is refreshed while its owner works and reclaimed once that
-stops. A live local owner keeps its lock however long it has been suspended, so
-pausing an update with Ctrl-Z never lets a second gup in, and Ctrl-C releases it
-right away.
+stops. A live local owner keeps its lock while it is suspended, so pausing an
+update with Ctrl-Z does not let a second gup in — up to about an hour, after
+which the heartbeat decides again, because a recycled PID would otherwise report
+a long-dead gup as still running forever.
+
+Ctrl-C does not release the lock; the process holding it does, by ending.
+Deleting the file from a signal handler would free it while the command is still
+installing binaries and rewriting `gup.json` on its way out. An interrupted
+`gup update` stops its work, unwinds, and removes the lock file itself; a
+command killed outright leaves the file behind for the next gup to reclaim.
 
 ## JSON output fields
 
