@@ -367,3 +367,95 @@ func stringSlice(v any) []string {
 	}
 	return out
 }
+
+// Test_releaseWorkflow_gatesPublishOnArtifactSmoke asserts the publish job runs
+// only after the artifact smoke tests pass, on all three operating systems. A
+// broken artifact cannot be taken back once a tag is published, and the smoke
+// job is only a gate if `needs` says so - a smoke job that merely runs in
+// parallel with the release lets the release win the race.
+func Test_releaseWorkflow_gatesPublishOnArtifactSmoke(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no jobs block")
+	}
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'release' job")
+	}
+
+	needs := stringSlice(release["needs"])
+	if single, ok := release["needs"].(string); ok {
+		needs = []string{single}
+	}
+	for _, want := range []string{"smoke", "smoke-cross"} {
+		if _, ok := jobs[want]; !ok {
+			t.Errorf("release workflow has no %q job", want)
+		}
+		if !slices.Contains(needs, want) {
+			t.Errorf("the release job does not depend on %q (needs = %v); publishing could proceed past a failed smoke test",
+				want, needs)
+		}
+	}
+
+	// The cross-OS leg is the point of splitting the job: running the Windows and
+	// macOS binaries is the one thing the Ubuntu leg cannot do.
+	crossJob, ok := jobs["smoke-cross"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'smoke-cross' job")
+	}
+	matrix := jobMatrixOS(t, crossJob)
+	for _, want := range []string{"macos-latest", "windows-latest"} {
+		if !slices.Contains(matrix, want) {
+			t.Errorf("smoke-cross does not run on %s; its matrix is %v", want, matrix)
+		}
+	}
+}
+
+// Test_releaseSmokeWorkflow_coversEveryOS asserts the pre-release smoke workflow
+// exercises the artifacts on all three operating systems, so a packaging
+// regression is caught on the pull request that introduces it rather than at
+// tag time.
+func Test_releaseSmokeWorkflow_coversEveryOS(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release-smoke.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no jobs block")
+	}
+	build, ok := jobs["build"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no 'build' job")
+	}
+	if build["runs-on"] != "ubuntu-latest" {
+		t.Errorf("the build job runs on %v, want ubuntu-latest", build["runs-on"])
+	}
+
+	verify, ok := jobs["verify"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no 'verify' job")
+	}
+	matrix := jobMatrixOS(t, verify)
+	for _, want := range []string{"macos-latest", "windows-latest"} {
+		if !slices.Contains(matrix, want) {
+			t.Errorf("the verify job does not run on %s; its matrix is %v", want, matrix)
+		}
+	}
+}
+
+// jobMatrixOS returns the strategy.matrix.os entries of a job.
+func jobMatrixOS(t *testing.T, job map[string]any) []string {
+	t.Helper()
+	strategy, ok := job["strategy"].(map[string]any)
+	if !ok {
+		t.Fatal("job has no strategy block")
+	}
+	matrix, ok := strategy["matrix"].(map[string]any)
+	if !ok {
+		t.Fatal("job strategy has no matrix")
+	}
+	return stringSlice(matrix["os"])
+}
