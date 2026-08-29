@@ -119,9 +119,26 @@ gh attestation verify gup_1.0.0_linux_amd64.tar.gz --repo nao1215/gup
 gup completion --install
 ```
 
-That writes bash, fish, and zsh completion into the paths your shell already
-reads. For PowerShell, redirect a `.ps1` and source it from your profile. See
-[Completion and man pages](/cookbook/#completion-and-man-pages).
+On Linux and macOS that writes bash, fish, and zsh completion into the paths your
+shell already reads.
+
+On Windows the same command sets up PowerShell:
+
+```powershell
+gup completion --install
+. $PROFILE   # or open a new PowerShell window
+```
+
+It writes `gup.completion.ps1` beside your PowerShell profile and adds one
+guarded dot-source line to the profile, inside a block marked
+`# setting for gup command (auto generate)`. The rest of your profile is left
+untouched, the profile is created if it does not exist, and re-running the
+command never duplicates the entry. gup uses `$PROFILE` when it is exported, and
+otherwise prefers whichever of `Documents\PowerShell` (PowerShell 7) or
+`Documents\WindowsPowerShell` (Windows PowerShell 5.1) already has a profile,
+resolved under `USERPROFILE`.
+
+See [Completion and man pages](/cookbook/#completion-and-man-pages).
 
 ## If `gup` runs `git pull --rebase`
 

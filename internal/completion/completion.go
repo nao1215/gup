@@ -23,6 +23,12 @@ var renameFunc = os.Rename //nolint:gochecknoglobals // swapped in tests
 // DeployShellCompletionFileIfNeeded creates the shell completion files.
 // If a file with the same contents already exists, it is not recreated.
 //
+// The shells installed depend on the platform, because the platforms do not
+// offer the same ones: on Windows the target is PowerShell (see powershell.go),
+// and everywhere else it is bash, fish and zsh. It is not a subset of a common
+// behavior - a Windows user has no ~/.local/share/bash-completion for gup to
+// write into, and a POSIX user's login shell is not PowerShell.
+//
 // It returns a non-nil error when HOME (or an XDG_DATA_HOME/XDG_CONFIG_HOME/
 // ZDOTDIR override) is unset or relative (so completion files are never written
 // into relative paths under the current directory) or when any required
@@ -30,7 +36,7 @@ var renameFunc = os.Rename //nolint:gochecknoglobals // swapped in tests
 // aggregated so a single run reports every failure (#343).
 func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 	if IsWindows() {
-		return nil
+		return deployPowerShellCompletion(cmd)
 	}
 	home := strings.TrimSpace(os.Getenv("HOME"))
 	if home == "" {
@@ -54,9 +60,16 @@ func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 	)
 }
 
-// IsWindows check whether runtime is windosw or not.
+// goos is runtime.GOOS, indirected so the platform-specific install paths can
+// be exercised from a test on any host. Completion install is the one part of
+// gup whose behavior differs by OS in a way that cannot be reached through the
+// filesystem alone, and a Windows-only code path that only Windows CI ever runs
+// is a path that breaks between Windows CI runs.
+var goos = runtime.GOOS //nolint:gochecknoglobals // test seam
+
+// IsWindows reports whether gup is running on Windows.
 func IsWindows() bool {
-	return runtime.GOOS == "windows"
+	return goos == "windows"
 }
 
 // completionFile describes a shell completion file gup manages: which shell it
@@ -156,8 +169,10 @@ func (c completionFile) sync(cmd *cobra.Command) error {
 // removed and path keeps its previous contents. The parent directory is created
 // as needed. When path already exists its permissions are preserved; a new file
 // uses the restrictive 0600 mode os.CreateTemp applies. This mirrors the atomic
-// gup.json write in cmd/config_file.go. (Completion install is POSIX-only - the
-// caller returns early on Windows - so the plain os.Rename replace is atomic.)
+// gup.json write in cmd/config_file.go. The rename replaces the destination on
+// Windows too: Go's os.Rename is MoveFileEx with MOVEFILE_REPLACE_EXISTING
+// there, so the PowerShell install gets the same all-or-nothing guarantee as the
+// POSIX shells.
 func atomicWriteFile(path string, data []byte, what string) (err error) {
 	path = filepath.Clean(path)
 	// Reject an existing directory before staging any temp file, so a mistaken

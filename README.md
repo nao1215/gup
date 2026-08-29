@@ -424,8 +424,7 @@ Generate /usr/share/man/man1/gup.1.gz
 
 ### Generate shell completion file (for bash, zsh, fish, PowerShell)
 `completion` prints completion scripts to STDOUT when you pass a shell name.
-To install completion files into your user environment for bash/fish/zsh, use `--install`.
-For PowerShell, redirect the output to a `.ps1` file and source it from your profile.
+`--install` sets completion up for you instead, for the shells of the platform you are on.
 
 ```shell
 $ gup completion bash > gup.bash
@@ -437,7 +436,18 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-`--install` writes to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written. Re-running `--install` is idempotent and does not duplicate the zsh init snippet in `.zshrc`.
+On Linux and macOS, `--install` writes bash, fish, and zsh completion to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written.
+
+On Windows, the same command sets up PowerShell — no redirecting and no hand-editing:
+
+```powershell
+PS> gup completion --install
+PS> . $PROFILE   # or open a new PowerShell window
+```
+
+It writes `gup.completion.ps1` next to your PowerShell profile and adds one guarded dot-source line to the profile itself, inside a block marked `# setting for gup command (auto generate)`. Everything else in your profile is left exactly as it was, the profile (and its parent directory) is created if it does not exist yet, and the write is atomic. gup picks the profile `$PROFILE` names when that variable is exported, and otherwise prefers whichever of `Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell` (Windows PowerShell 5.1) already has one, resolved under `USERPROFILE`. With neither `USERPROFILE` nor `HOME` set it fails fast with a clear message rather than guessing.
+
+Re-running `--install` is idempotent on every platform: it does not duplicate the zsh init snippet in `.zshrc` or the gup block in your PowerShell profile.
 
 ### Running two gup commands at once
 The commands that change your `$GOBIN` or `gup.json` — `update`, `import`, `export`, `migrate`, `remove`, `pin`, and `unpin` — take an advisory lock at `$XDG_CONFIG_HOME/gup/gup.lock` for the length of the run, so a second one refuses to start rather than interleaving with the first.
