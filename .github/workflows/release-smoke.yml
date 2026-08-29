@@ -25,9 +25,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Release artifacts are built with Go 1.27 (latest patch), not go.mod's
+      # minimum, so the smoke job exercises exactly the toolchain release.yml
+      # publishes with.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: "go.mod"
+          go-version: "1.27"
+          check-latest: true
           cache: false
 
       - name: Build release artifacts (snapshot, no publish)

@@ -2,11 +2,17 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
+
+// workflowDir holds the GitHub Actions workflows the tests below inspect.
+const workflowDir = ".github/workflows"
 
 // These tests guard the release pipeline configuration so the supply-chain and
 // release-notes guarantees promised in the README and issues #283/#285 cannot
@@ -184,6 +190,180 @@ func keys(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
+	}
+	return out
+}
+
+// Test_workflows_pinActionsToCommitSHA asserts that every third-party action in
+// every workflow is pinned to a full 40-character commit SHA with the version it
+// tracks in a trailing comment. A mutable tag (`@v3`) hands whoever can move that
+// tag the ability to run arbitrary code in this repository's CI - including the
+// release job, which holds the tokens that publish to Homebrew, winget, and the
+// Scoop bucket. Most workflows were already pinned; website.yml was not, and
+// nothing made that visible. This test is what keeps a newly added step from
+// re-opening the hole.
+func Test_workflows_pinActionsToCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", workflowDir, err)
+	}
+
+	// A full commit SHA followed by a "# vX.Y.Z" comment naming the version it
+	// pins, so a reader can tell what the opaque hash actually is.
+	pinned := regexp.MustCompile(`^[^@\s]+@[0-9a-f]{40}\s+#\s*\S`)
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
+			continue
+		}
+		path := filepath.Join(workflowDir, entry.Name())
+		raw, err := os.ReadFile(path) //nolint:gosec // path is an in-repo workflow file
+		if err != nil {
+			t.Errorf("failed to read %s: %v", path, err)
+			continue
+		}
+		for i, line := range strings.Split(string(raw), "\n") {
+			trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "- "))
+			if !strings.HasPrefix(trimmed, "uses:") {
+				continue
+			}
+			ref := strings.TrimSpace(strings.TrimPrefix(trimmed, "uses:"))
+			// A local composite action (./.github/actions/...) has no upstream
+			// owner to pin against; it is this repository's own content.
+			if strings.HasPrefix(ref, "./") {
+				continue
+			}
+			if !pinned.MatchString(ref) {
+				t.Errorf("%s:%d pins an action by tag or branch, not by commit SHA with a version comment: %q",
+					path, i+1, ref)
+			}
+		}
+	}
+}
+
+// Test_workflows_haveGovulncheck asserts the vulnerability scan exists and stays
+// wired to pull requests, main, and a schedule. The scheduled leg is the point:
+// the advisory database changes without gup changing, so a scan that only ran on
+// pull requests would report a clean repository right up until someone happened
+// to open one.
+func Test_workflows_haveGovulncheck(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "govulncheck.yml"))
+
+	// yaml.v3 follows the YAML 1.2 core schema, so the `on:` key stays the string
+	// "on" rather than being folded into the boolean true the way YAML 1.1 did.
+	triggers, ok := doc["on"].(map[string]any)
+	if !ok {
+		t.Fatal("govulncheck workflow has no trigger block")
+	}
+	for _, want := range []string{"pull_request", "push", "schedule", "workflow_dispatch"} {
+		if _, ok := triggers[want]; !ok {
+			t.Errorf("govulncheck workflow is missing the %q trigger", want)
+		}
+	}
+
+	perms, ok := doc["permissions"].(map[string]any)
+	if !ok {
+		t.Fatal("govulncheck workflow is missing a permissions block")
+	}
+	if perms["contents"] != "read" {
+		t.Errorf("govulncheck workflow should run with 'contents: read', got %v", perms["contents"])
+	}
+	if len(perms) != 1 {
+		t.Errorf("govulncheck workflow grants more than read access to the checkout: %v", perms)
+	}
+}
+
+// Test_goreleaser_explicitArchitectures asserts the build matrix is stated, not
+// inherited. GoReleaser's default goarch list includes 386, so leaving the key
+// out published a 32-bit artifact gup never claimed to support, never smoke
+// tested, and never documented. The OS and arch sets here are what README.md,
+// website/content/install.md, and scripts/smoke_artifacts.sh are all written
+// against.
+func Test_goreleaser_explicitArchitectures(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, ".goreleaser.yml")
+
+	builds, ok := doc["builds"].([]any)
+	if !ok || len(builds) == 0 {
+		t.Fatal("builds section is missing in .goreleaser.yml")
+	}
+	build, ok := builds[0].(map[string]any)
+	if !ok {
+		t.Fatal("builds[0] is not a mapping in .goreleaser.yml")
+	}
+
+	for key, want := range map[string][]string{
+		"goos":   {"linux", "windows", "darwin"},
+		"goarch": {"amd64", "arm64"},
+	} {
+		got := stringSlice(build[key])
+		if len(got) == 0 {
+			t.Errorf("builds[0].%s is not declared; GoReleaser would fall back to its defaults", key)
+			continue
+		}
+		if len(got) != len(want) {
+			t.Errorf("builds[0].%s = %v, want exactly %v", key, got, want)
+			continue
+		}
+		for _, w := range want {
+			if !slices.Contains(got, w) {
+				t.Errorf("builds[0].%s = %v, missing %q", key, got, w)
+			}
+		}
+	}
+}
+
+// Test_goreleaser_scoopBucket asserts the Scoop manifest is published into this
+// repository's own bucket/ directory. Pointing it at a separate repository would
+// need a cross-repository token the release workflow does not have, so the
+// release would fail at publish time - after the GitHub Release already exists.
+func Test_goreleaser_scoopBucket(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, ".goreleaser.yml")
+
+	scoops, ok := doc["scoops"].([]any)
+	if !ok || len(scoops) == 0 {
+		t.Fatal("scoops section is missing in .goreleaser.yml (no Scoop manifest is published)")
+	}
+	scoop, ok := scoops[0].(map[string]any)
+	if !ok {
+		t.Fatal("scoops[0] is not a mapping in .goreleaser.yml")
+	}
+	if scoop["directory"] != "bucket" {
+		t.Errorf("scoops[0].directory = %v, want \"bucket\" (the in-repo Scoop bucket)", scoop["directory"])
+	}
+	repo, ok := scoop["repository"].(map[string]any)
+	if !ok {
+		t.Fatal("scoops[0].repository is missing in .goreleaser.yml")
+	}
+	if repo["owner"] != "nao1215" || repo["name"] != "gup" {
+		t.Errorf("scoops[0].repository = %v/%v, want nao1215/gup so the built-in GITHUB_TOKEN can publish it",
+			repo["owner"], repo["name"])
+	}
+	if _, ok := repo["token"]; ok {
+		t.Error("scoops[0].repository declares a token; publishing into this same repository needs only the workflow's GITHUB_TOKEN")
+	}
+	// The bucket has to be a real directory in the repository, or `scoop bucket
+	// add` clones something Scoop cannot read.
+	if _, err := os.Stat("bucket/README.md"); err != nil {
+		t.Errorf("bucket/README.md is missing: %v", err)
+	}
+}
+
+// stringSlice converts a YAML sequence of scalars into []string.
+func stringSlice(v any) []string {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
 	}
 	return out
 }

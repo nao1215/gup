@@ -19,10 +19,15 @@ jobs:
         with:
           persist-credentials: false
 
+      # Lint on the same toolchain the release binaries are built with (Go 1.27),
+      # so a diagnostic that only the newest vet/analysis passes emit is caught
+      # here rather than at release time. The module minimum (go.mod, Go 1.25) is
+      # still compiled by build.yml and tested by unit_test.yml.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.25"
+          go-version: "1.27"
+          check-latest: true
 
       - name: Run golangci-lint as an enforced gate
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0

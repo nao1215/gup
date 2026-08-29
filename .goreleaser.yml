@@ -17,6 +17,17 @@ builds:
       - linux
       - windows
       - darwin
+    # The supported architectures are stated rather than inherited. GoReleaser's
+    # default goarch list also builds 386, which gup has never claimed to
+    # support, never smoke-tested, and never documented: a 32-bit artifact
+    # appeared on every release page purely because nothing here said otherwise.
+    # amd64 and arm64 are the two the README, the website, and
+    # scripts/smoke_artifacts.sh all name, so they are the two that get built -
+    # and every downstream manifest (archives, nfpms, winget, scoop, brew) is
+    # generated from exactly this set.
+    goarch:
+      - amd64
+      - arm64
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
@@ -168,6 +179,33 @@ winget:
           owner: microsoft
           name: winget-pkgs
           branch: master
+# Scoop distribution for Windows, alongside winget above. winget reaches users
+# who install through the Microsoft Store tooling; Scoop is what the Windows
+# developers who already keep their CLI tools in a bucket use, and gup is a
+# developer tool. The bucket lives in this repository under `bucket/`, which
+# Scoop accepts exactly like a dedicated bucket repository:
+#
+#   scoop bucket add nao1215 https://github.com/nao1215/gup
+#   scoop install nao1215/gup
+#
+# Keeping the bucket here means GoReleaser publishes the manifest with the
+# release workflow's built-in GITHUB_TOKEN - no cross-repository token to
+# provision, and no second repository whose only content is one generated JSON
+# file. The manifest's architecture keys are generated from the `builds.goarch`
+# list above, so the Windows amd64/arm64 zip URLs and their SHA-256 hashes come
+# from the same artifacts the release publishes. Skipped by `--skip=publish`,
+# so snapshot builds stay hermetic.
+scoops:
+  - name: gup
+    repository:
+      owner: nao1215
+      name: gup
+      branch: main
+    directory: bucket
+    homepage: "https://github.com/nao1215/gup"
+    description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'
+    license: Apache-2.0
+    commit_msg_template: "chore(scoop): update the bucket manifest for {{ .Tag }}"
 brews:
   - name: gup
     description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'

@@ -26,7 +26,23 @@ make coverage-tree
 
 ![treemap](./doc/img/cover-tree.svg)
 
-### 4. Run the end-to-end tests (optional but recommended for CLI changes)
+### 4. Check for known vulnerabilities
+`govulncheck` scans gup against the official Go vulnerability database and
+reports only advisories that are actually reachable from gup's code. It answers a
+different question from the `gosec` linter golangci-lint already runs (insecure
+code gup writes), so both are kept.
+
+```shell
+go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+govulncheck ./...
+```
+
+CI runs the same pinned version against every supported Go version on pull
+requests, on pushes to main, and daily
+(`.github/workflows/govulncheck.yml`) — the schedule is what catches an advisory
+published against a dependency gup already ships.
+
+### 5. Run the end-to-end tests (optional but recommended for CLI changes)
 gup has an offline end-to-end suite that exercises the real `gup` binary and the
 real `go` toolchain against a self-contained module proxy, all inside a throwaway
 temp tree. It never touches your real `$HOME`, `~/.config/gup`, or `$GOBIN`, and
@@ -53,7 +69,7 @@ module proxy (`e2e/testproxy`), and runs the atago specs in `e2e/atago/`. The
 same `make e2e` command runs in CI (`.github/workflows/e2e.yml`), where atago
 is installed by [setup-atago](https://github.com/nao1215/setup-atago).
 
-### 5. Manage developer tools with Go tool declarations
+### 6. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.
 Use the command below to add or update tool dependencies:
 

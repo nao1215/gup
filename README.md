@@ -18,11 +18,23 @@ Documentation: **https://nao1215.github.io/gup/**
 ## Supported OS (unit testing with GitHub Actions)
 
 - Linux
-- Mac
+- Mac (macOS 13 Ventura or newer, the range Go 1.27 supports)
 - Windows
 
+### Supported Go versions
+Unit tests run on Go 1.25, 1.26, and 1.27 across Linux, macOS, and Windows, and a
+separate job tracks the latest Go release so a toolchain that is not yet a
+supported minor cannot break gup unnoticed. `go.mod` declares Go 1.25 as the
+minimum, so building from source needs Go 1.25 or newer.
+
+The prebuilt release binaries are built with the latest Go 1.27 patch release:
+installing a package or archive gives you the current Go runtime even if you
+never install Go yourself. Because Go 1.27 dropped support for macOS 12 and
+earlier, the macOS release binaries require macOS 13 Ventura or newer; on an
+older macOS, build gup from source with a Go version that still supports it.
+
 ## How to install
-gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
+gup is packaged in homebrew-core, the winget community repository, its own Scoop bucket, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
 
 ### Use "go install"
 If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
@@ -45,6 +57,16 @@ brew install nao1215/tap/gup
 ```shell
 winget install --id nao1215.gup
 ```
+
+### Use Scoop (Windows)
+[Scoop](https://scoop.sh/) installs gup from this repository's own bucket:
+```shell
+scoop bucket add nao1215 https://github.com/nao1215/gup
+scoop install nao1215/gup
+```
+The bucket manifest lives in [`bucket/`](./bucket) and is regenerated on every
+release, so the Windows `amd64`/`arm64` archive URLs and their SHA-256 hashes
+always match the artifacts on the release page.
 
 ### Use mise-en-place
 ```shell
@@ -70,7 +92,20 @@ paru -S gup-bin  # prebuilt binary
 ```
 
 ### Install from Package or Binary
-[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
+[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats for `amd64` and `arm64`, plus `.tar.gz` archives for Linux/macOS and `.zip` archives for Windows. gup command uses the go command internally, so the golang installation is required.
+
+Download the package that matches your distribution and architecture, then:
+```shell
+# Debian, Ubuntu
+$ sudo dpkg -i gup_1.8.1_linux_amd64.deb
+
+# Fedora, RHEL, openSUSE
+$ sudo rpm -Uvh gup_1.8.1_linux_amd64.rpm
+
+# Alpine Linux
+$ sudo apk add --allow-untrusted gup_1.8.1_linux_amd64.apk
+```
+Replace `1.8.1` with the release you downloaded and `amd64` with `arm64` where applicable. The packages also install the bash, fish, and zsh completion files.
 
 ## Verifying release integrity
 Every release ships supply-chain metadata so you can verify what you download:

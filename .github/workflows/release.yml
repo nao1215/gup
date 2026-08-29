@@ -23,10 +23,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Published binaries are built with the latest Go 1.27 patch release, the
+      # newest toolchain gup supports, rather than go.mod's minimum (Go 1.25) -
+      # users of a prebuilt artifact get the current runtime and its security
+      # fixes even when they never install Go themselves.
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: "go.mod"
+          go-version: "1.27"
+          check-latest: true
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - name: Install Syft (SBOM generator)
