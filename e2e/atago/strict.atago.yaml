@@ -28,9 +28,13 @@ scenarios:
   - name: updating a binary that is not installed fails and names it
     env: *iso
     steps:
-      - run:
-          shell: true
-          command: mkdir -p ${workdir}/gobin
+      - fixture: &empty_gobin
+          # A fixture rather than `mkdir -p`: writing a file creates its parent
+          # directory on every OS, while `mkdir -p` needs a POSIX shell the
+          # Windows leg does not have. gup skips dot-prefixed $GOBIN entries, so
+          # the placeholder does not make the directory look non-empty.
+          file: gobin/.keep
+          content: "placeholder so $GOBIN exists but holds no binaries"
       - run:
           command: gup update no-such-tool-xyz
       - assert:
@@ -40,12 +44,15 @@ scenarios:
               - "not found 'no-such-tool-xyz'"
               - "unable to update package"
 
+  # The failure is the same, but the errno text is the operating system's, so the
+  # scenario is split instead of weakened to a substring both happen to share:
+  # what a user reads is part of the contract on each platform.
   - name: removing a binary that is not installed fails and names the path
+    skip:
+      os: windows
     env: *iso
     steps:
-      - run:
-          shell: true
-          command: mkdir -p ${workdir}/gobin
+      - fixture: *empty_gobin
       - run:
           command: gup remove --force no-such-tool-xyz
       - assert:
@@ -56,12 +63,26 @@ scenarios:
           stderr:
             contains: no-such-tool-xyz
 
+  - name: removing a binary that is not installed fails and names the path (windows)
+    only:
+      os: windows
+    env: *iso
+    steps:
+      - fixture: *empty_gobin
+      - run:
+          command: gup remove --force no-such-tool-xyz
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "cannot find the file"
+      - assert:
+          stderr:
+            contains: no-such-tool-xyz
+
   - name: list on an empty GOBIN succeeds with an explicit notice, not silence
     env: *iso
     steps:
-      - run:
-          shell: true
-          command: mkdir -p ${workdir}/gobin
+      - fixture: *empty_gobin
       - run:
           command: gup list
       - assert:
@@ -72,9 +93,7 @@ scenarios:
   - name: export on an empty GOBIN warns but still writes a config
     env: *iso
     steps:
-      - run:
-          shell: true
-          command: mkdir -p ${workdir}/gobin
+      - fixture: *empty_gobin
       - run:
           command: gup export
       - assert:

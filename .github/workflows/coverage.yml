@@ -42,7 +42,10 @@ jobs:
       - name: Install atago
         uses: nao1215/setup-atago@e4b6719aea547a68e6c15252222babab7f492a88 # v0.1.1
         with:
-          version: v0.20.0
+          # v0.21.0 is the version the cross-platform specs were written and
+          # verified against; the per-OS `skip:`/`only:` gates they use are
+          # validated by its loader.
+          version: v0.21.0
 
       # Combines unit-test coverage with self-hosted E2E coverage, then merges
       # both into cover.out. The E2E suite is fully offline (it starts its own

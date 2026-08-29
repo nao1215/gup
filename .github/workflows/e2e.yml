@@ -1,19 +1,52 @@
 name: E2E
 
+# gup's offline end-to-end suite drives the real binary through atago against a
+# self-contained module proxy. It used to run on Linux only, which left the two
+# platforms where gup's behavior actually differs -- Windows' .exe suffix,
+# %LOCALAPPDATA% config paths and PowerShell completion; macOS' own paths and
+# man locations -- covered by unit tests alone.
+#
+# Pull requests gate on Linux plus Windows: Linux runs every spec, and Windows
+# runs the specs classified for it in e2e/os_matrix.tsv, which is the leg most
+# likely to catch a real regression per second spent. macOS joins on pushes to
+# main, on a schedule, and on demand, because it is POSIX like Linux and has
+# historically diverged least -- a daily signal rather than a per-pull-request
+# one.
+#
+# The bootstrap is `go run ./e2e/runner`, not a shell script: the Windows leg
+# must not depend on Git for Windows being installed, or it would be testing the
+# runner image rather than gup.
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # 03:00 UTC daily, ahead of the govulncheck scan.
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
 
 jobs:
   e2e:
-    name: Offline E2E (atago)
-    runs-on: ubuntu-latest
+    name: Offline E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # The Linux suite takes well under a minute; the cap is there so a hung
+    # scenario -- a spec waiting on a prompt, a proxy that never binds -- fails
+    # instead of burning a job's full six hours.
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pull requests get Linux + Windows; everything else (push to main, the
+        # schedule, workflow_dispatch, and therefore any pre-release run) adds
+        # macOS. macOS is POSIX like Linux and runs the same full suite, so it is
+        # a drift check rather than a per-pull-request gate.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,7 +60,13 @@ jobs:
       - name: Install atago
         uses: nao1215/setup-atago@e4b6719aea547a68e6c15252222babab7f492a88 # v0.1.1
         with:
-          version: v0.20.0
+          # v0.21.0 is the version the cross-platform specs were written and
+          # verified against; the per-OS `skip:`/`only:` gates they use are
+          # validated by its loader.
+          version: v0.21.0
 
+      # The runner picks the specs classified for this OS and prints how many of
+      # the total it is running, so a shrunken leg is visible in the log rather
+      # than silent.
       - name: Run offline end-to-end tests
-        run: make e2e
+        run: go run ./e2e/runner

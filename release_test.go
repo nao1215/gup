@@ -14,6 +14,13 @@ import (
 // workflowDir holds the GitHub Actions workflows the tests below inspect.
 const workflowDir = ".github/workflows"
 
+// The GitHub-hosted runner labels the cross-platform jobs are asserted against.
+const (
+	runnerMacOS   = "macos-latest"
+	runnerWindows = "windows-latest"
+	runnerUbuntu  = "ubuntu-latest"
+)
+
 // These tests guard the release pipeline configuration so the supply-chain and
 // release-notes guarantees promised in the README and issues #283/#285 cannot
 // silently regress. They parse the committed YAML rather than running the
@@ -407,7 +414,7 @@ func Test_releaseWorkflow_gatesPublishOnArtifactSmoke(t *testing.T) {
 		t.Fatal("release workflow has no 'smoke-cross' job")
 	}
 	matrix := jobMatrixOS(t, crossJob)
-	for _, want := range []string{"macos-latest", "windows-latest"} {
+	for _, want := range []string{runnerMacOS, runnerWindows} {
 		if !slices.Contains(matrix, want) {
 			t.Errorf("smoke-cross does not run on %s; its matrix is %v", want, matrix)
 		}
@@ -430,8 +437,8 @@ func Test_releaseSmokeWorkflow_coversEveryOS(t *testing.T) {
 	if !ok {
 		t.Fatal("release-smoke workflow has no 'build' job")
 	}
-	if build["runs-on"] != "ubuntu-latest" {
-		t.Errorf("the build job runs on %v, want ubuntu-latest", build["runs-on"])
+	if build["runs-on"] != runnerUbuntu {
+		t.Errorf("the build job runs on %v, want %s", build["runs-on"], runnerUbuntu)
 	}
 
 	verify, ok := jobs["verify"].(map[string]any)
@@ -439,7 +446,7 @@ func Test_releaseSmokeWorkflow_coversEveryOS(t *testing.T) {
 		t.Fatal("release-smoke workflow has no 'verify' job")
 	}
 	matrix := jobMatrixOS(t, verify)
-	for _, want := range []string{"macos-latest", "windows-latest"} {
+	for _, want := range []string{runnerMacOS, runnerWindows} {
 		if !slices.Contains(matrix, want) {
 			t.Errorf("the verify job does not run on %s; its matrix is %v", want, matrix)
 		}
@@ -458,4 +465,67 @@ func jobMatrixOS(t *testing.T, job map[string]any) []string {
 		t.Fatal("job strategy has no matrix")
 	}
 	return stringSlice(matrix["os"])
+}
+
+// Test_e2eWorkflow_runsOnEveryOS asserts the end-to-end suite is not quietly
+// Linux-only again. gup ships on three operating systems and behaves differently
+// on each -- the .exe suffix, the config directory, PowerShell completion -- so a
+// suite that drives the real binary on one of them is testing a third of what it
+// claims to.
+func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "e2e.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("e2e workflow has no jobs block")
+	}
+	job, ok := jobs["e2e"].(map[string]any)
+	if !ok {
+		t.Fatal("e2e workflow has no 'e2e' job")
+	}
+
+	// The matrix is a fromJSON expression so pull requests get a shorter list
+	// than pushes; asserting on the raw expression is what keeps that check
+	// honest without evaluating GitHub's expression language here.
+	strategy, ok := job["strategy"].(map[string]any)
+	if !ok {
+		t.Fatal("the e2e job has no strategy block")
+	}
+	matrix, ok := strategy["matrix"].(map[string]any)
+	if !ok {
+		t.Fatal("the e2e job strategy has no matrix")
+	}
+	osExpr, _ := matrix["os"].(string)
+	for _, want := range []string{runnerUbuntu, runnerWindows, runnerMacOS} {
+		if !strings.Contains(osExpr, want) {
+			t.Errorf("the e2e matrix never runs on %s; os = %q", want, osExpr)
+		}
+	}
+
+	// A hung scenario must fail the job rather than occupy a runner for six
+	// hours, which is the default when no timeout is set.
+	if _, ok := job["timeout-minutes"]; !ok {
+		t.Error("the e2e job has no timeout-minutes; a hung scenario would run until GitHub's six-hour cap")
+	}
+
+	// The bootstrap has to be the Go runner: a bash one would make the Windows
+	// leg depend on Git for Windows rather than on gup.
+	steps, ok := job["steps"].([]any)
+	if !ok {
+		t.Fatal("the e2e job has no steps")
+	}
+	ranRunner := false
+	for _, s := range steps {
+		step, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		if run, ok := step["run"].(string); ok && strings.Contains(run, "go run ./e2e/runner") {
+			ranRunner = true
+		}
+	}
+	if !ranRunner {
+		t.Error("the e2e job does not run 'go run ./e2e/runner'")
+	}
 }

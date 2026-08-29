@@ -30,7 +30,7 @@ test: ## Start test
 	$(GO_TOOL) cover -html=cover.out -o cover.html
 
 e2e: ## Run offline end-to-end tests against the real CLI (requires atago)
-	./e2e/run.sh
+	$(GO) run ./e2e/runner
 
 coverage: ## Combine unit + self-hosted E2E coverage into cover.out / cover.html (uses a `go build -cover` gup; scratch under .coverage/)
 	bash ./scripts/coverage.sh

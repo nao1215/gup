@@ -51,23 +51,37 @@ needs no network access. The tests are plain-YAML specs run by
 
 The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 `gup remove` prompt, and golden-output snapshots), so an older atago will fail to
-parse those specs. CI pins the same version via setup-atago.
+parse those specs. CI pins v0.21.0 via setup-atago.
 
 ```shell
-# Install atago once (v0.3.4 or newer)
+# Install atago once
 go install github.com/nao1215/atago@latest
 
-# Run the whole offline suite
+# Run the specs classified for this operating system
 make e2e
 
+# Run one spec, or pass any atago flag through
+go run ./e2e/runner --filter update
+
 # Refresh golden snapshots after an intentional output change
-atago run --update-snapshots e2e/atago
+go run ./e2e/runner --update-snapshots
 ```
 
-The harness lives under `e2e/`: `e2e/run.sh` builds gup, starts the offline
-module proxy (`e2e/testproxy`), and runs the atago specs in `e2e/atago/`. The
-same `make e2e` command runs in CI (`.github/workflows/e2e.yml`), where atago
-is installed by [setup-atago](https://github.com/nao1215/setup-atago).
+The harness lives under `e2e/`. `e2e/runner` builds gup, starts the offline
+module proxy (`e2e/testproxy`), warms a shared module cache, and runs the atago
+specs in `e2e/atago/`. It is a Go program rather than a shell script because the
+suite runs on Windows too, where a bash bootstrap would make the leg depend on
+Git for Windows being installed. `e2e/run.sh` still works; it now just calls the
+runner.
+
+`e2e/os_matrix.tsv` classifies every spec by operating system. A spec that does
+not run everywhere must say why, and `TestOSMatrix_classifiesEverySpec` fails
+when a spec is added without a decision — that is what keeps the macOS and
+Windows legs from quietly shrinking into an unstated subset. When you add a spec,
+add its row.
+
+CI (`.github/workflows/e2e.yml`) runs Linux and Windows on every pull request and
+adds macOS on pushes to main, on a daily schedule, and on demand.
 
 ### 6. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.
