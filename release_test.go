@@ -520,10 +520,13 @@ func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
 	if runsOn, _ := job["runs-on"].(string); !strings.Contains(runsOn, "matrix.os") {
 		t.Errorf("the e2e job's runs-on is %q, want it to resolve from matrix.os", runsOn)
 	}
-	osExpr, _ := matrix["os"].(string)
+	// A plain list, not an expression: the matrix must not be able to shrink for
+	// pull requests, because a leg that runs only after merge reports a break
+	// when it is already on main.
+	osList := stringSlice(matrix["os"])
 	for _, want := range []string{runnerUbuntu, runnerWindows, runnerMacOS} {
-		if !strings.Contains(osExpr, want) {
-			t.Errorf("the e2e matrix never runs on %s; os = %q", want, osExpr)
+		if !slices.Contains(osList, want) {
+			t.Errorf("the e2e matrix never runs on %s; os = %v", want, osList)
 		}
 	}
 

@@ -80,8 +80,8 @@ when a spec is added without a decision — that is what keeps the macOS and
 Windows legs from quietly shrinking into an unstated subset. When you add a spec,
 add its row.
 
-CI (`.github/workflows/e2e.yml`) runs Linux and Windows on every pull request and
-adds macOS on pushes to main, on a daily schedule, and on demand.
+CI (`.github/workflows/e2e.yml`) runs Linux, macOS and Windows on every pull
+request, and again on a daily schedule.
 
 ### 6. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.

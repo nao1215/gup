@@ -6,12 +6,11 @@ name: E2E
 # %LOCALAPPDATA% config paths and PowerShell completion; macOS' own paths and
 # man locations -- covered by unit tests alone.
 #
-# Pull requests gate on Linux plus Windows: Linux runs every spec, and Windows
-# runs the specs classified for it in e2e/os_matrix.tsv, which is the leg most
-# likely to catch a real regression per second spent. macOS joins on pushes to
-# main, on a schedule, and on demand, because it is POSIX like Linux and has
-# historically diverged least -- a daily signal rather than a per-pull-request
-# one.
+# Every pull request runs all three operating systems. Linux and macOS run every
+# spec; Windows runs the specs classified for it in e2e/os_matrix.tsv. The
+# schedule stays because the suite drives the real Go toolchain and a real module
+# proxy, so it can break without gup changing -- but it is a second signal, not
+# the only one.
 #
 # The bootstrap is `go run ./e2e/runner`, not a shell script: the Windows leg
 # must not depend on Git for Windows being installed, or it would be testing the
@@ -42,11 +41,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests get Linux + Windows; everything else (push to main, the
-        # schedule, workflow_dispatch, and therefore any pre-release run) adds
-        # macOS. macOS is POSIX like Linux and runs the same full suite, so it is
-        # a drift check rather than a per-pull-request gate.
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        # Every pull request runs all three. macOS was briefly a scheduled-only
+        # drift check, on the theory that it is POSIX like Linux and would rarely
+        # diverge -- which is a guess, and one that a spec table claiming macOS
+        # coverage cannot be allowed to rest on. A leg that only runs after merge
+        # tells you about a break when it is already on main.
+        os:
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
