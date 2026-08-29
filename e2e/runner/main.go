@@ -166,23 +166,47 @@ func run(args []string) error {
 	return nil
 }
 
+// valueFlags are the `atago run` options that take their value as the NEXT
+// argument, so the runner can skip that value instead of mistaking it for a spec
+// path. Keeping the list explicit is the only way to parse a Go flag package
+// command line without reimplementing it: `--filter update` and `--verbose
+// specfile` are indistinguishable without knowing which flags take values.
+var valueFlags = map[string]bool{
+	"artifacts-dir": true,
+	"filter":        true,
+	"parallel":      true,
+	"profile":       true,
+	"repeat":        true,
+	"report":        true,
+	"retry-failed":  true,
+	"skip-tag":      true,
+	"tag":           true,
+}
+
 // hasTarget reports whether the caller named spec files or directories of their
 // own, as opposed to passing only atago flags.
 //
-// A target is recognized by being a path that exists, not by "does not start
-// with a dash". atago's flags take their values as separate arguments
-// (`--filter update`), so the simpler rule read `update` as a spec path, left
-// the classified targets off the command line, and made atago fall back to
-// searching the whole repository -- which on Windows would have run every spec
-// including the ones e2e/os_matrix.tsv excludes, silently defeating the
-// classification the Windows leg depends on.
+// Getting this wrong is silent rather than loud: the runner drops the classified
+// spec list, atago falls back to searching the whole repository, and the Windows
+// leg runs every spec including the ones e2e/os_matrix.tsv excludes -- defeating
+// the classification that leg depends on. Two rules were too naive for that.
+// "Does not start with a dash" read `update` in `--filter update` as a path.
+// "Is a path that exists" still reads `--filter e2e` as one, because e2e IS a
+// directory here. So option values are consumed the way the flag package
+// consumes them, and only what is left over counts as a target.
 func hasTarget(args []string) bool {
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if !strings.HasPrefix(arg, "-") {
+			return true
+		}
+		name := strings.TrimLeft(arg, "-")
+		// `--flag=value` carries its value inline, so nothing follows to skip.
+		if strings.Contains(name, "=") {
 			continue
 		}
-		if _, err := os.Stat(arg); err == nil {
-			return true
+		if valueFlags[name] {
+			i++
 		}
 	}
 	return false

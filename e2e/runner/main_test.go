@@ -32,6 +32,21 @@ func TestHasTarget(t *testing.T) {
 			args: []string{"--parallel", "4", "--report", "json"},
 			want: false,
 		},
+		// The case both earlier rules got wrong: the value of --filter happens to
+		// name a directory that exists (the repository really does have an `e2e`
+		// directory), so "is a path" is not enough to call it a target either.
+		"flag value that names an existing directory": {
+			args: []string{"--filter", dir},
+			want: false,
+		},
+		"flag value that names an existing file": {
+			args: []string{"--report", spec},
+			want: false,
+		},
+		"boolean flag followed by a target": {
+			args: []string{"--update-snapshots", spec},
+			want: true,
+		},
 		"an existing spec file":      {args: []string{spec}, want: true},
 		"an existing directory":      {args: []string{dir}, want: true},
 		"a flag then a target":       {args: []string{"--verbose", spec}, want: true},

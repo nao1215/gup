@@ -54,8 +54,8 @@ The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 parse those specs. CI pins v0.21.0 via setup-atago.
 
 ```shell
-# Install atago once
-go install github.com/nao1215/atago@latest
+# Install atago once, at the version CI pins, so local runs and CI agree
+go install github.com/nao1215/atago@v0.21.0
 
 # Run the specs classified for this operating system
 make e2e

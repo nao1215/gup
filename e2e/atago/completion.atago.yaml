@@ -143,12 +143,24 @@ scenarios:
           command: gup completion --install
       - assert:
           exit_code: 0
-      # Two installs, one block: the marker is what makes the second run replace
-      # the block in place instead of appending a second copy.
+      # Two installs, one block. Asserting the marker merely EXISTS would pass
+      # with two blocks appended, which is the exact regression the marker
+      # exists to prevent, so the occurrence count is what is checked.
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains: "# setting for gup command (auto generate)"
+            count: 1
       - assert:
           file:
             path: home/Microsoft.PowerShell_profile.ps1
             contains: "# end of setting for gup command"
+            count: 1
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains: "gup.completion.ps1"
+            count: 2
 
   - name: --install rejects a shell argument
     env: *iso

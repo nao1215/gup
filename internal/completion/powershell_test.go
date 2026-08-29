@@ -4,6 +4,7 @@ package completion
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -171,68 +172,132 @@ func TestDeployShellCompletion_repairsAHandBrokenPowerShellBlock(t *testing.T) {
 	}
 }
 
-// TestPowerShellProfilePath_prefersAnExistingProfile covers the version split.
-// PowerShell 5.1 reads Documents\WindowsPowerShell and PowerShell 7 reads
-// Documents\PowerShell; writing to the one the user does not have produces an
-// install that appears to succeed and does nothing.
-func TestPowerShellProfilePath_prefersAnExistingProfile(t *testing.T) {
-	home := windowsInstall(t)
-
-	winPS := filepath.Join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1")
-	if err := os.MkdirAll(filepath.Dir(winPS), 0o750); err != nil {
+// writeProfile creates a profile file with some content of the user's own, so a
+// test can tell an install that appended from one that rewrote.
+func writeProfile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("failed to create the profile directory: %v", err)
 	}
-	if err := os.WriteFile(winPS, []byte("# mine\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("# mine\n"), 0o600); err != nil {
 		t.Fatalf("failed to write the profile: %v", err)
 	}
+}
 
-	got, err := powerShellProfilePath()
+// windowsPowerShellProfile returns the Windows PowerShell 5.1 profile path under
+// home, the sibling of the PowerShell 7 one psProfile returns.
+func windowsPowerShellProfile(home string) string {
+	return filepath.Join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1")
+}
+
+// TestPowerShellProfilePaths_wiresUpEveryExistingProfile covers the version
+// split, which is the case an install can silently get wrong. Windows PowerShell
+// 5.1 reads Documents\WindowsPowerShell and PowerShell 7 reads
+// Documents\PowerShell, and both are commonly installed side by side; wiring up
+// only one leaves the other shell with no completion after a command that
+// reported success.
+func TestPowerShellProfilePaths_wiresUpEveryExistingProfile(t *testing.T) {
+	home := windowsInstall(t)
+	pwsh7, _ := psProfile(home)
+	winPS := windowsPowerShellProfile(home)
+	writeProfile(t, pwsh7)
+	writeProfile(t, winPS)
+
+	got, err := powerShellProfilePaths()
 	if err != nil {
-		t.Fatalf("powerShellProfilePath() error: %v", err)
+		t.Fatalf("powerShellProfilePaths() error: %v", err)
 	}
-	if got != winPS {
-		t.Errorf("powerShellProfilePath() = %q, want the existing Windows PowerShell profile %q", got, winPS)
+	for _, want := range []string{pwsh7, winPS} {
+		if !slices.Contains(got, want) {
+			t.Errorf("powerShellProfilePaths() = %v, missing the existing profile %q", got, want)
+		}
 	}
 }
 
-// TestPowerShellProfilePath_defaultsToPowerShell7 covers a machine with no
+// TestPowerShellProfilePaths_prefersAnExistingProfile covers the 5.1-only user:
+// with no PowerShell 7 profile, the install must not create one and stop there.
+func TestPowerShellProfilePaths_prefersAnExistingProfile(t *testing.T) {
+	home := windowsInstall(t)
+	winPS := windowsPowerShellProfile(home)
+	writeProfile(t, winPS)
+
+	got, err := powerShellProfilePaths()
+	if err != nil {
+		t.Fatalf("powerShellProfilePaths() error: %v", err)
+	}
+	if len(got) != 1 || got[0] != winPS {
+		t.Errorf("powerShellProfilePaths() = %v, want only the existing Windows PowerShell profile %q", got, winPS)
+	}
+}
+
+// TestPowerShellProfilePaths_defaultsToPowerShell7 covers a machine with no
 // profile yet: the file has to be created somewhere, and PowerShell 7's path is
 // the one a current install reads.
-func TestPowerShellProfilePath_defaultsToPowerShell7(t *testing.T) {
+func TestPowerShellProfilePaths_defaultsToPowerShell7(t *testing.T) {
 	home := windowsInstall(t)
 
-	got, err := powerShellProfilePath()
+	got, err := powerShellProfilePaths()
 	if err != nil {
-		t.Fatalf("powerShellProfilePath() error: %v", err)
+		t.Fatalf("powerShellProfilePaths() error: %v", err)
 	}
 	want := filepath.Join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
-	if got != want {
-		t.Errorf("powerShellProfilePath() = %q, want %q", got, want)
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("powerShellProfilePaths() = %v, want only %q", got, want)
 	}
 }
 
-// TestPowerShellProfilePath_honorsPROFILE covers a user who relocated their
-// profile and exported $PROFILE: they have already answered the question, so
-// gup must not guess a different file.
-func TestPowerShellProfilePath_honorsPROFILE(t *testing.T) {
+// TestPowerShellProfilePaths_honorsPROFILE covers a user who relocated their
+// profile and exported $PROFILE: they have already answered the question, so gup
+// installs there and nowhere else, even when the standard locations exist.
+func TestPowerShellProfilePaths_honorsPROFILE(t *testing.T) {
 	home := windowsInstall(t)
+	writeProfile(t, windowsPowerShellProfile(home))
 	custom := filepath.Join(home, "elsewhere", "profile.ps1")
 	t.Setenv("PROFILE", custom)
 
-	got, err := powerShellProfilePath()
+	got, err := powerShellProfilePaths()
 	if err != nil {
-		t.Fatalf("powerShellProfilePath() error: %v", err)
+		t.Fatalf("powerShellProfilePaths() error: %v", err)
 	}
-	if got != custom {
-		t.Errorf("powerShellProfilePath() = %q, want the exported PROFILE %q", got, custom)
+	if len(got) != 1 || got[0] != custom {
+		t.Errorf("powerShellProfilePaths() = %v, want only the exported PROFILE %q", got, custom)
 	}
 }
 
-// TestPowerShellProfilePath_rejectsRelativePaths mirrors the POSIX install's
+// TestDeployShellCompletion_installsIntoBothPowerShellProfiles is the same rule
+// end to end: with both shells' profiles present, both get a completer beside
+// them and a block that sources it.
+func TestDeployShellCompletion_installsIntoBothPowerShellProfiles(t *testing.T) {
+	home := windowsInstall(t)
+	pwsh7, pwsh7Completion := psProfile(home)
+	winPS := windowsPowerShellProfile(home)
+	writeProfile(t, pwsh7)
+	writeProfile(t, winPS)
+
+	if err := DeployShellCompletionFileIfNeeded(&cobra.Command{Use: testAppName}); err != nil {
+		t.Fatalf("DeployShellCompletionFileIfNeeded() error: %v", err)
+	}
+
+	winPSCompletion := filepath.Join(filepath.Dir(winPS), psCompletionFileName)
+	for profile, completion := range map[string]string{pwsh7: pwsh7Completion, winPS: winPSCompletion} {
+		if !strings.Contains(readFile(t, completion), "Register-ArgumentCompleter") {
+			t.Errorf("%s is not a PowerShell completer", completion)
+		}
+		got := readFile(t, profile)
+		if !strings.HasPrefix(got, "# mine\n") {
+			t.Errorf("the install disturbed the user's own content in %s:\n%s", profile, got)
+		}
+		if !strings.Contains(got, completion) {
+			t.Errorf("%s does not source %s:\n%s", profile, completion, got)
+		}
+	}
+}
+
+// TestPowerShellProfilePaths_rejectsRelativePaths mirrors the POSIX install's
 // fail-fast rule: gup never absolutizes a relative HOME-like value, because
 // doing so writes configuration into whatever directory the user was standing
 // in.
-func TestPowerShellProfilePath_rejectsRelativePaths(t *testing.T) {
+func TestPowerShellProfilePaths_rejectsRelativePaths(t *testing.T) {
 	tests := map[string]struct {
 		env   map[string]string
 		named string
@@ -247,34 +312,34 @@ func TestPowerShellProfilePath_rejectsRelativePaths(t *testing.T) {
 				t.Setenv(k, v)
 			}
 
-			_, err := powerShellProfilePath()
+			_, err := powerShellProfilePaths()
 			if err == nil {
-				t.Fatal("powerShellProfilePath() accepted a relative path")
+				t.Fatal("powerShellProfilePaths() accepted a relative path")
 			}
 			if !strings.Contains(err.Error(), tt.named) {
-				t.Errorf("powerShellProfilePath() error %q does not name %s", err, tt.named)
+				t.Errorf("powerShellProfilePaths() error %q does not name %s", err, tt.named)
 			}
 		})
 	}
 }
 
-// TestPowerShellProfilePath_requiresAHomeDirectory covers the environment the
+// TestPowerShellProfilePaths_requiresAHomeDirectory covers the environment the
 // POSIX install already fails fast on, from the Windows side: with nothing
 // naming a home, there is no correct place to write, so gup says so instead of
 // writing into the current directory.
-func TestPowerShellProfilePath_requiresAHomeDirectory(t *testing.T) {
+func TestPowerShellProfilePaths_requiresAHomeDirectory(t *testing.T) {
 	windowsInstall(t)
 	t.Setenv(envUserProfile, "")
 	t.Setenv(envHome, "")
 	t.Setenv("PROFILE", "")
 
-	_, err := powerShellProfilePath()
+	_, err := powerShellProfilePaths()
 	if err == nil {
-		t.Fatal("powerShellProfilePath() succeeded with no home directory set")
+		t.Fatal("powerShellProfilePaths() succeeded with no home directory set")
 	}
 	for _, want := range []string{envUserProfile, envHome} {
 		if !strings.Contains(err.Error(), want) {
-			t.Errorf("powerShellProfilePath() error %q does not mention %s", err, want)
+			t.Errorf("powerShellProfilePaths() error %q does not mention %s", err, want)
 		}
 	}
 }

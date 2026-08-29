@@ -222,7 +222,10 @@ func Test_workflows_pinActionsToCommitSHA(t *testing.T) {
 	pinned := regexp.MustCompile(`^[^@\s]+@[0-9a-f]{40}\s+#\s*\S`)
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
+		// GitHub Actions accepts both extensions, so a .yaml workflow must not be
+		// able to slip past the pinning guardrail by spelling its suffix
+		// differently.
+		if entry.IsDir() || !isWorkflowFile(entry.Name()) {
 			continue
 		}
 		path := filepath.Join(workflowDir, entry.Name())
@@ -453,7 +456,13 @@ func Test_releaseSmokeWorkflow_coversEveryOS(t *testing.T) {
 	}
 }
 
-// jobMatrixOS returns the strategy.matrix.os entries of a job.
+// jobMatrixOS returns the strategy.matrix.os entries of a job, after checking
+// that the job's runs-on actually resolves from that matrix.
+//
+// Declaring macOS and Windows in a matrix proves nothing on its own: a job whose
+// runs-on is hard-coded to ubuntu-latest runs every leg on Ubuntu while the
+// matrix still lists three names, and the leg that was supposed to execute a
+// Windows binary quietly does not. The binding is the part that matters.
 func jobMatrixOS(t *testing.T, job map[string]any) []string {
 	t.Helper()
 	strategy, ok := job["strategy"].(map[string]any)
@@ -464,7 +473,19 @@ func jobMatrixOS(t *testing.T, job map[string]any) []string {
 	if !ok {
 		t.Fatal("job strategy has no matrix")
 	}
+
+	runsOn, _ := job["runs-on"].(string)
+	if !strings.Contains(runsOn, "matrix.os") {
+		t.Errorf("runs-on is %q, want it to resolve from matrix.os; otherwise every matrix leg runs on the same runner", runsOn)
+	}
 	return stringSlice(matrix["os"])
+}
+
+// isWorkflowFile reports whether name is a GitHub Actions workflow. Both
+// extensions are accepted by GitHub, so both are inspected here.
+func isWorkflowFile(name string) bool {
+	ext := filepath.Ext(name)
+	return ext == ".yml" || ext == ".yaml"
 }
 
 // Test_e2eWorkflow_runsOnEveryOS asserts the end-to-end suite is not quietly
@@ -495,6 +516,9 @@ func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
 	matrix, ok := strategy["matrix"].(map[string]any)
 	if !ok {
 		t.Fatal("the e2e job strategy has no matrix")
+	}
+	if runsOn, _ := job["runs-on"].(string); !strings.Contains(runsOn, "matrix.os") {
+		t.Errorf("the e2e job's runs-on is %q, want it to resolve from matrix.os", runsOn)
 	}
 	osExpr, _ := matrix["os"].(string)
 	for _, want := range []string{runnerUbuntu, runnerWindows, runnerMacOS} {

@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -65,20 +66,29 @@ var psOrphanMarkerRE = regexp.MustCompile(
 // writes are atomic, and an already-correct install rewrites nothing, so
 // re-running --install is a no-op rather than a duplicate.
 func deployPowerShellCompletion(cmd *cobra.Command) error {
-	profilePath, err := powerShellProfilePath()
+	profiles, err := powerShellProfilePaths()
 	if err != nil {
 		return err
 	}
 
-	completionPath := filepath.Join(filepath.Dir(profilePath), psCompletionFileName)
-	// sync compares before writing, so an unchanged completer is left alone -
-	// the same "re-running --install rewrites nothing" behavior the POSIX shells
-	// get. The profile is reconciled afterwards either way, so a block a user
-	// deleted is repaired even when the completer itself is already current.
-	if err := powerShellCompletionSpec(completionPath).sync(cmd); err != nil {
-		return err
+	// Errors are aggregated rather than returned at the first failure, so a user
+	// with two profiles where only one directory is writable still gets the other
+	// wired up and hears about both outcomes - the same rule the POSIX install
+	// follows across its three shells (#343).
+	var errs []error
+	for _, profilePath := range profiles {
+		completionPath := filepath.Join(filepath.Dir(profilePath), psCompletionFileName)
+		// sync compares before writing, so an unchanged completer is left alone -
+		// the same "re-running --install rewrites nothing" behavior the POSIX shells
+		// get. The profile is reconciled afterwards either way, so a block a user
+		// deleted is repaired even when the completer itself is already current.
+		if err := powerShellCompletionSpec(completionPath).sync(cmd); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		errs = append(errs, syncPowerShellProfile(profilePath, completionPath))
 	}
-	return syncPowerShellProfile(profilePath, completionPath)
+	return errors.Join(errs...)
 }
 
 // powerShellCompletionSpec describes the generated completer file, reusing the
@@ -150,39 +160,50 @@ func appendBlock(content, block string) string {
 	return content + block
 }
 
-// powerShellProfilePath decides which profile to wire up.
+// powerShellProfilePaths decides which profiles to wire up.
 //
-// $PROFILE is PowerShell's own answer to this question, and it wins when it is
-// exported, because a user with a relocated profile has already told the system
-// where it is. PowerShell does not export it by default, though, so the fallback
-// reconstructs the standard locations from the user's home directory and prefers
-// one that already exists: a user running PowerShell 5.1 has
-// Documents\WindowsPowerShell, a user on PowerShell 7 has Documents\PowerShell,
-// and writing to the wrong one would produce an install that silently does
-// nothing. With neither present, the PowerShell 7 path is created, since that is
-// the shell a new install gets.
-func powerShellProfilePath() (string, error) {
+// $PROFILE is PowerShell's own answer to this question, and when it is exported
+// it is the only answer: a user with a relocated profile has already told the
+// system where theirs is, and installing anywhere else would be second-guessing
+// them.
+//
+// PowerShell does not export it by default, so otherwise the standard locations
+// are reconstructed from the user's home directory - and EVERY one that already
+// exists is wired up, not just the first. Windows PowerShell 5.1 and PowerShell 7
+// read different profiles (Documents\WindowsPowerShell and Documents\PowerShell),
+// and both are commonly installed side by side; picking one would leave the other
+// shell with no completion after an install that reported success, which is the
+// worst outcome available here. Installing into both costs one small extra file
+// and makes the promise true in whichever shell the user opens next.
+//
+// With none of them present, the PowerShell 7 path is created, since that is the
+// shell a current install gets.
+func powerShellProfilePaths() ([]string, error) {
 	if profile := strings.TrimSpace(os.Getenv("PROFILE")); profile != "" {
 		if !filepath.IsAbs(profile) {
-			return "", fmt.Errorf(
+			return nil, fmt.Errorf(
 				"PROFILE must be an absolute path to install PowerShell completion, but is a relative path: %q",
 				profile)
 		}
-		return profile, nil
+		return []string{profile}, nil
 	}
 
 	home, err := powerShellHome()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	candidates := powerShellProfileCandidates(home)
+	existing := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
 		if fileutil.IsFile(candidate) {
-			return candidate, nil
+			existing = append(existing, candidate)
 		}
 	}
-	return candidates[0], nil
+	if len(existing) > 0 {
+		return existing, nil
+	}
+	return candidates[:1], nil
 }
 
 // powerShellProfileCandidates lists the profile locations to consider, most

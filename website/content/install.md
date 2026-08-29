@@ -134,9 +134,11 @@ guarded dot-source line to the profile, inside a block marked
 `# setting for gup command (auto generate)`. The rest of your profile is left
 untouched, the profile is created if it does not exist, and re-running the
 command never duplicates the entry. gup uses `$PROFILE` when it is exported, and
-otherwise prefers whichever of `Documents\PowerShell` (PowerShell 7) or
-`Documents\WindowsPowerShell` (Windows PowerShell 5.1) already has a profile,
-resolved under `USERPROFILE`.
+otherwise wires up every profile that already exists under
+`Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell`
+(Windows PowerShell 5.1), creating the PowerShell 7 one when neither does. Those
+paths resolve under `USERPROFILE`, falling back to `HOME`; with neither set the
+command fails with a message naming both rather than guessing.
 
 See [Completion and man pages](/cookbook/#completion-and-man-pages).
 

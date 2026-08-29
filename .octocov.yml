@@ -7,9 +7,14 @@ coverage:
   # the real CLI (including 'gup man', 'gup bug-report', unknown-command and the
   # root command wiring), so main.go/root.go/man.go/bug_report.go no longer need
   # to be excluded. Only the offline module proxy under e2e/testproxy remains
-  # excluded: it is E2E test infrastructure, not part of the gup binary.
+  # excluded: it is E2E test infrastructure, not part of the gup binary. The
+  # runner that builds gup and launches that suite is excluded for the same
+  # reason, and cannot meaningfully cover itself: it is what runs the tests. The
+  # classification logic it depends on lives in e2e/osmatrix.go and IS measured,
+  # because that is ordinary code with ordinary tests.
   exclude:
     - "github.com/nao1215/gup/e2e/testproxy/main.go"
+    - "github.com/nao1215/gup/e2e/runner/main.go"
   badge:
     path: doc/coverage.svg
 diff:
