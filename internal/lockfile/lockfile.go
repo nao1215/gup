@@ -119,6 +119,22 @@ func heartbeatInterval() time.Duration { return durationFromEnv(envHeartbeat, de
 
 func staleAfter() time.Duration { return durationFromEnv(envStale, defaultStaleAfter) }
 
+// normalizePath resolves a lock path to a cleaned absolute one.
+//
+// Every entry point normalizes through here, and they must all agree: the
+// in-process registry is keyed by the result, so if one caller keyed "x.lock"
+// and another "./x.lock" they would take two different in-process slots for one
+// file, and the second acquisition would wait out the whole timeout against
+// itself. Failing is better than falling back to the relative path, because a
+// key that is ambiguous is a lock that does not lock.
+func normalizePath(path string) (string, error) {
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("can not resolve the gup lock path %s: %w", path, err)
+	}
+	return abs, nil
+}
+
 // PathForDir returns the lock file guarding a directory whose contents gup
 // mutates, such as a $GOBIN or a migrate destination.
 func PathForDir(dir string) string { return filepath.Join(dir, dirLockName) }
@@ -287,12 +303,9 @@ var nowFunc = time.Now //nolint:gochecknoglobals // test seam
 // the wait, and canceling it after acquisition is not enough on its own to
 // release the lock - the caller's Release is what does that.
 func Acquire(ctx context.Context, path, command string) (*Lock, error) {
-	path, err := filepath.Abs(filepath.Clean(path))
+	path, err := normalizePath(path)
 	if err != nil {
-		// Without an absolute path the in-process registry key is ambiguous and
-		// two callers naming the same file could both proceed, so this is an error
-		// rather than a silent fallback to the relative path.
-		return nil, fmt.Errorf("can not resolve the gup lock path: %w", err)
+		return nil, err
 	}
 	if fileutil.IsDir(path) {
 		return nil, fmt.Errorf("lock path %s is a directory, not a file", path)
@@ -347,7 +360,17 @@ func (m *MultiLock) Paths() []string {
 // that writes nothing needs no lock, and expressing that as "no resources" keeps
 // the decision with the command instead of duplicating it here.
 func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLock, error) {
-	ordered := slices.Clone(paths)
+	// Normalize BEFORE sorting and deduplicating, or two spellings of one path
+	// survive as two entries and the second acquisition waits out the timeout
+	// against the first - a deadlock with a stopwatch on it.
+	ordered := make([]string, 0, len(paths))
+	for _, path := range paths {
+		normalized, err := normalizePath(path)
+		if err != nil {
+			return nil, err
+		}
+		ordered = append(ordered, normalized)
+	}
 	slices.Sort(ordered)
 	ordered = slices.Compact(ordered)
 

@@ -47,10 +47,18 @@ func TestHasTarget(t *testing.T) {
 			args: []string{"--update-snapshots", spec},
 			want: true,
 		},
-		"an existing spec file":      {args: []string{spec}, want: true},
-		"an existing directory":      {args: []string{dir}, want: true},
-		"a flag then a target":       {args: []string{"--verbose", spec}, want: true},
-		"a flag value then a target": {args: []string{"--filter", "update", spec}, want: true},
+		// `--` ends the options: what follows is a target however it is spelled.
+		"terminator then a target": {args: []string{"--", spec}, want: true},
+		"terminator then an oddly named target": {
+			args: []string{"--", "--weird.atago.yaml"},
+			want: true,
+		},
+		"terminator with nothing after it": {args: []string{"--"}, want: false},
+		"flags then a terminator":          {args: []string{"--verbose", "--"}, want: false},
+		"an existing spec file":            {args: []string{spec}, want: true},
+		"an existing directory":            {args: []string{dir}, want: true},
+		"a flag then a target":             {args: []string{"--verbose", spec}, want: true},
+		"a flag value then a target":       {args: []string{"--filter", "update", spec}, want: true},
 	}
 
 	for name, tt := range tests {

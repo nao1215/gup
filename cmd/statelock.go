@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/configstate"
@@ -16,6 +17,12 @@ import (
 // acquireStateLock is lockfile.AcquireAll, indirected so tests can observe what
 // a subcommand asked to lock without arranging real concurrent processes.
 var acquireStateLock = lockfile.AcquireAll //nolint:gochecknoglobals // test seam
+
+// binDirPerm is the permission gup uses when it creates a directory it installs
+// binaries into: a migrate AFTER_PATH, or a $GOBIN that does not exist yet. The
+// lock and the commands share it so taking the lock first cannot change the
+// permissions a user ends up with.
+const binDirPerm = 0o755
 
 // lockTargets computes the lock files a subcommand needs, from its flags and
 // arguments. Returning an empty list means the command changes nothing and
@@ -117,21 +124,31 @@ func binDirLockTargets(_ *cobra.Command, _ []string) ([]string, error) {
 	return dirLockTarget(gobin), nil
 }
 
-// dirLockTarget returns the lock guarding an existing directory, and nothing at
-// all when the path is not one.
+// dirLockTarget returns the lock guarding a directory whose contents a command
+// is about to change, creating the directory when it does not exist yet.
 //
-// Not creating the directory is deliberate. Taking the lock first would mean
-// creating the resource before the command has looked at it, which changes two
-// things a user can see: a path that is a regular file stops producing the
-// command's own diagnosis ("AFTER_PATH is not a directory") and starts producing
-// a lock-file error instead, and a directory the command would have created with
-// its own permissions gets the lock's instead. Skipping the lock when the
-// directory does not exist yet costs nothing worth having: there is no content
-// there for two processes to corrupt, and whichever of them creates it goes on
-// to hold the lock for every run after the first.
+// The directory is created here, with the same permission the commands use, for
+// a reason worth stating: a target that does not exist yet is exactly when two
+// processes are most likely to collide. Two `gup import` runs pointed at a new
+// $GOBIN, or two migrations into a new AFTER_PATH, would otherwise both find
+// nothing to lock and install into the same directory at once. Skipping the lock
+// there would leave the first run of every command - the one nobody has tested
+// on their machine yet - as the only unprotected one.
+//
+// What is NOT done here is forcing the issue when the path cannot be a
+// directory. A regular file at the target, or a parent that rejects the mkdir,
+// yields no lock so the command produces its own diagnosis ("AFTER_PATH is not a
+// directory") instead of a lock-file error about the same problem. Nothing is
+// written in that case anyway, because the command is about to fail on it.
 func dirLockTarget(dir string) []string {
 	if !fileutil.IsDir(dir) {
-		return nil
+		if _, err := os.Lstat(dir); err == nil {
+			// The path exists but is not a directory: the command says so better.
+			return nil
+		}
+		if err := os.MkdirAll(dir, binDirPerm); err != nil {
+			return nil
+		}
 	}
 	return []string{lockfile.PathForDir(dir)}
 }

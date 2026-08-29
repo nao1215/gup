@@ -501,8 +501,42 @@ func Test_dirLockTarget_onlyLocksAnExistingDirectory(t *testing.T) {
 	if got := dirLockTarget(regular); got != nil {
 		t.Errorf("dirLockTarget(regular file) = %v, want no lock so the command reports the problem itself", got)
 	}
-	if got := dirLockTarget(filepath.Join(dir, "does-not-exist")); got != nil {
-		t.Errorf("dirLockTarget(missing path) = %v, want no lock rather than creating the directory", got)
+}
+
+// Test_dirLockTarget_locksATargetThatDoesNotExistYet is the first-run case, and
+// the one most likely to collide: two `gup import` runs pointed at a new $GOBIN,
+// or two migrations into a new AFTER_PATH, would otherwise both find nothing to
+// lock and install into the same directory at once.
+func Test_dirLockTarget_locksATargetThatDoesNotExistYet(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "not-created-yet")
+
+	got := dirLockTarget(target)
+	if len(got) != 1 || got[0] != lockfile.PathForDir(target) {
+		t.Fatalf("dirLockTarget(missing directory) = %v, want it created and locked", got)
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		t.Fatalf("the directory was not created: %v", err)
+	}
+	// The permission must be the one the commands use, or taking the lock first
+	// would silently change what a user ends up with.
+	if perm := info.Mode().Perm(); perm != binDirPerm {
+		t.Errorf("created the directory with mode %o, want %o", perm, binDirPerm)
+	}
+}
+
+// Test_dirLockTarget_leavesAnUncreatableTargetToTheCommand covers a parent that
+// rejects the mkdir: no lock, so the command reports the real problem instead of
+// a lock-file error about the same one.
+func Test_dirLockTarget_leavesAnUncreatableTargetToTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	blocker := filepath.Join(dir, "a-file")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("failed to write the file: %v", err)
+	}
+
+	if got := dirLockTarget(filepath.Join(blocker, "under-a-file")); got != nil {
+		t.Errorf("dirLockTarget(uncreatable path) = %v, want no lock", got)
 	}
 }
 

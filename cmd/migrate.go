@@ -24,8 +24,6 @@ const (
 	// migrateMinArgs is the minimum number of positional arguments for migrate
 	// (BEFORE_PATH and AFTER_PATH).
 	migrateMinArgs = 2
-	// afterPathDirPerm is the permission used when creating AFTER_PATH.
-	afterPathDirPerm = 0o755
 	// commandLineArguments is the import path 'go install' records for binaries
 	// built from local files; such binaries cannot be reinstalled by path.
 	commandLineArguments = "command-line-arguments"
@@ -198,7 +196,7 @@ func validateMigratePaths(beforePath, afterPath string, dryRun bool) error {
 			if cErr := ensureAfterPathCreatable(afterPath); cErr != nil {
 				return cErr
 			}
-		} else if mkErr := os.MkdirAll(afterPath, afterPathDirPerm); mkErr != nil {
+		} else if mkErr := os.MkdirAll(afterPath, binDirPerm); mkErr != nil {
 			return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
 		}
 	default:

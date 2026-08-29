@@ -197,6 +197,13 @@ var valueFlags = map[string]bool{
 func hasTarget(args []string) bool {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		// `--` ends the options: everything after it is an operand, however it is
+		// spelled. Without this, `-- --oddly-named.atago.yaml` reads as two flags,
+		// the classified targets get appended anyway, and atago runs specs the
+		// caller did not ask for.
+		if arg == "--" {
+			return i+1 < len(args)
+		}
 		if !strings.HasPrefix(arg, "-") {
 			return true
 		}

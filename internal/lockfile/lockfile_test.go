@@ -964,3 +964,49 @@ func stubExit(fn func(int)) func() {
 		exitMu.Unlock()
 	}
 }
+
+// TestAcquireAll_normalizesBeforeDeduplicating covers two spellings of one path.
+// Acquire normalizes before keying the in-process registry, so if AcquireAll
+// deduplicated the raw strings the two would take separate slots for one file
+// and the second would wait out the whole timeout against the first.
+func TestAcquireAll_normalizesBeforeDeduplicating(t *testing.T) { //nolint:paralleltest // changes the working directory
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	start := time.Now()
+	held, err := AcquireAll(t.Context(), cmdUpdate, "x.lock", "./x.lock", filepath.Join(dir, "x.lock"))
+	if err != nil {
+		t.Fatalf("AcquireAll() error: %v", err)
+	}
+	t.Cleanup(func() { _ = held.Release() })
+
+	if got := held.Paths(); len(got) != 1 {
+		t.Errorf("AcquireAll() held %v, want one lock for three spellings of one path", got)
+	}
+	// The failure mode is a wait, not an error, so the elapsed time is the
+	// assertion that matters.
+	if elapsed := time.Since(start); elapsed > defaultWait {
+		t.Errorf("AcquireAll() took %v, which means the spellings contended with each other", elapsed)
+	}
+}
+
+// TestNormalizePath covers the shared normalization every entry point uses.
+func TestNormalizePath(t *testing.T) { //nolint:paralleltest // changes the working directory
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	first, err := normalizePath("x.lock")
+	if err != nil {
+		t.Fatalf("normalizePath() error: %v", err)
+	}
+	second, err := normalizePath("./x.lock")
+	if err != nil {
+		t.Fatalf("normalizePath() error: %v", err)
+	}
+	if first != second {
+		t.Errorf("normalizePath() gave %q and %q for the same file", first, second)
+	}
+	if !filepath.IsAbs(first) {
+		t.Errorf("normalizePath() = %q, want an absolute path", first)
+	}
+}
