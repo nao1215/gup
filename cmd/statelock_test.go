@@ -156,6 +156,33 @@ func Test_withStateLock_propagatesContextCancellation(t *testing.T) { //nolint:p
 	}
 }
 
+// Test_withStateLock_toleratesACommandWithNoContext covers a command whose Run
+// is invoked without going through Execute. cobra only fills the context in
+// ExecuteC, so Context() is nil there, and handing that to the lock would panic
+// on ctx.Err() -- a safety mechanism that crashes the program it protects is
+// worse than none.
+func Test_withStateLock_toleratesACommandWithNoContext(t *testing.T) { //nolint:paralleltest // swaps package-level test seams
+	lockPath := filepath.Join(t.TempDir(), "gup.lock")
+	restore := useLockPath(t, lockPath)
+	defer restore()
+
+	buf := new(bytes.Buffer)
+	cmd := &cobra.Command{Use: testCmdGup}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	// Deliberately no SetContext: this is what a directly invoked Run sees.
+
+	ran := false
+	got := withStateLock(print.New(buf, buf), cmd, testCmdUpdate, func() int {
+		ran = true
+		return 0
+	})
+
+	if got != 0 || !ran {
+		t.Errorf("withStateLock() = %d (ran=%v), want the subcommand to run and return 0; output = %q", got, ran, buf.String())
+	}
+}
+
 // Test_stateLockPath_isBesideTheConfigFile pins the lock's location to gup's own
 // config directory. A lock in a shared temp directory would be global to the
 // machine rather than scoped to the gup.json it protects, so a user who

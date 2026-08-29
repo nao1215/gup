@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/lockfile"
 	"github.com/nao1215/gup/internal/print"
@@ -35,7 +37,17 @@ var stateLockPath = config.LockFilePath //nolint:gochecknoglobals // test seam
 // true of any snapshot of a system still being changed, and is why `gup check`
 // reports what it saw rather than promising it is still current.
 func withStateLock(p *print.Printer, cmd *cobra.Command, command string, run func() int) int {
-	lock, err := acquireStateLock(cmd.Context(), stateLockPath(), command)
+	// cobra fills the context in ExecuteC, so the production path always has one;
+	// a command whose Run is invoked directly (a test, or a future caller that
+	// builds the command itself) has a nil one, and passing that through would
+	// panic on the first ctx.Err() rather than fail the command. The lock is a
+	// safety mechanism, so it must not be the thing that crashes gup.
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	lock, err := acquireStateLock(ctx, stateLockPath(), command)
 	if err != nil {
 		p.Err(err)
 		return 1
