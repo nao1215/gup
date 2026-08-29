@@ -11,13 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	// testAppName is the root command's name in these tests; goconst asks for it
-	// once it appears in more than a couple of places.
-	testAppName = "gup"
-	// envUserProfile is the Windows home-directory variable the install reads.
-	envUserProfile = "USERPROFILE"
-)
+// testAppName is the root command's name in these tests; goconst asks for it
+// once it appears in more than a couple of places.
+const testAppName = "gup"
 
 // windowsInstall points the package at its Windows behavior and gives the
 // install a home directory of its own, so the PowerShell path is exercised on
@@ -27,13 +23,13 @@ func windowsInstall(t *testing.T) string {
 	t.Helper()
 
 	original := goos
-	goos = "windows"
+	goos = goosWindows
 	t.Cleanup(func() { goos = original })
 
 	home := t.TempDir()
 	t.Setenv(envUserProfile, home)
 	t.Setenv("PROFILE", "")
-	t.Setenv("HOME", home)
+	t.Setenv(envHome, home)
 	return home
 }
 
@@ -242,7 +238,7 @@ func TestPowerShellProfilePath_rejectsRelativePaths(t *testing.T) {
 		named string
 	}{
 		"relative PROFILE":     {env: map[string]string{"PROFILE": "profile.ps1"}, named: "PROFILE"},
-		"relative USERPROFILE": {env: map[string]string{envUserProfile: "home", "HOME": ""}, named: envUserProfile},
+		"relative USERPROFILE": {env: map[string]string{envUserProfile: "home", envHome: ""}, named: envUserProfile},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -269,14 +265,14 @@ func TestPowerShellProfilePath_rejectsRelativePaths(t *testing.T) {
 func TestPowerShellProfilePath_requiresAHomeDirectory(t *testing.T) {
 	windowsInstall(t)
 	t.Setenv(envUserProfile, "")
-	t.Setenv("HOME", "")
+	t.Setenv(envHome, "")
 	t.Setenv("PROFILE", "")
 
 	_, err := powerShellProfilePath()
 	if err == nil {
 		t.Fatal("powerShellProfilePath() succeeded with no home directory set")
 	}
-	for _, want := range []string{envUserProfile, "HOME"} {
+	for _, want := range []string{envUserProfile, envHome} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("powerShellProfilePath() error %q does not mention %s", err, want)
 		}

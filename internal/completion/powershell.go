@@ -206,7 +206,7 @@ func powerShellProfileCandidates(home string) []string {
 // value, because doing so would write configuration into whatever directory the
 // user happened to be in.
 func powerShellHome() (string, error) {
-	for _, name := range []string{"USERPROFILE", "HOME"} {
+	for _, name := range []string{envUserProfile, envHome} {
 		value := strings.TrimSpace(os.Getenv(name))
 		if value == "" {
 			continue

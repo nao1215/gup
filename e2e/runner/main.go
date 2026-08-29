@@ -168,15 +168,22 @@ func run(args []string) error {
 
 // hasTarget reports whether the caller named spec files or directories of their
 // own, as opposed to passing only atago flags.
+//
+// A target is recognized by being a path that exists, not by "does not start
+// with a dash". atago's flags take their values as separate arguments
+// (`--filter update`), so the simpler rule read `update` as a spec path, left
+// the classified targets off the command line, and made atago fall back to
+// searching the whole repository -- which on Windows would have run every spec
+// including the ones e2e/os_matrix.tsv excludes, silently defeating the
+// classification the Windows leg depends on.
 func hasTarget(args []string) bool {
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") {
-			// atago's flags are either --name=value or a bare boolean; a following
-			// value is only consumed by the value-taking ones, and mistaking one for
-			// a target would be caught immediately by atago itself.
 			continue
 		}
-		return true
+		if _, err := os.Stat(arg); err == nil {
+			return true
+		}
 	}
 	return false
 }

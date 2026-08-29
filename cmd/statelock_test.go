@@ -18,7 +18,7 @@ import (
 // newLockTestCommand returns a cobra command wired to buf, which is what
 // withStateLock's printer writes to.
 func newLockTestCommand(buf *bytes.Buffer) *cobra.Command {
-	cmd := &cobra.Command{Use: "gup"}
+	cmd := &cobra.Command{Use: testCmdGup}
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 	cmd.SetContext(context.Background())

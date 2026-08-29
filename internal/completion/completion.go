@@ -67,9 +67,18 @@ func DeployShellCompletionFileIfNeeded(cmd *cobra.Command) error {
 // is a path that breaks between Windows CI runs.
 var goos = runtime.GOOS //nolint:gochecknoglobals // test seam
 
+// goosWindows is runtime.GOOS on Windows, the one platform whose completion
+// install differs. envHome and envUserProfile name the variables the install
+// paths are resolved from.
+const (
+	goosWindows    = "windows"
+	envHome        = "HOME"
+	envUserProfile = "USERPROFILE"
+)
+
 // IsWindows reports whether gup is running on Windows.
 func IsWindows() bool {
-	return goos == "windows"
+	return goos == goosWindows
 }
 
 // completionFile describes a shell completion file gup manages: which shell it
