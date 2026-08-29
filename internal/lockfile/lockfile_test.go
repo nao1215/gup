@@ -1,11 +1,13 @@
 // Package lockfile's tests run without t.Parallel where they swap the package's
-// nowFunc/exitFunc test seams, which are process-wide.
+// nowFunc/exitFunc test seams or set environment variables, which are
+// process-wide.
 package lockfile
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +20,32 @@ import (
 
 // cmdUpdate is the subcommand name these tests record as the lock's owner; it is
 // repeated often enough that goconst asks for a name.
-const cmdUpdate = "update"
+const (
+	cmdUpdate = "update"
+	// ownerHolder is the nonce these tests give a planted lock, and
+	// testLockPath a path used only in message-formatting assertions.
+	ownerHolder  = "holder"
+	testLockPath = "/tmp/gup.lock"
+)
+
+// TestPathFor pins where a lock lives relative to what it guards. The lock has
+// to travel with the resource: a lock derived from gup's config directory would
+// not serialize two processes that share a $GOBIN but were started with
+// different XDG_CONFIG_HOME values.
+func TestPathFor(t *testing.T) {
+	t.Parallel()
+
+	if got, want := PathForDir(filepath.Join("home", "bin")), filepath.Join("home", "bin", ".gup.lock"); got != want {
+		t.Errorf("PathForDir() = %q, want %q", got, want)
+	}
+	// The dot prefix is what keeps the lock out of gup's own $GOBIN listing.
+	if !strings.HasPrefix(filepath.Base(PathForDir("bin")), ".") {
+		t.Error("the directory lock is not dot-prefixed, so it would show up as an installed binary")
+	}
+	if got, want := PathForFile(filepath.Join("cfg", "gup.json")), filepath.Join("cfg", "gup.json")+".lock"; got != want {
+		t.Errorf("PathForFile() = %q, want %q", got, want)
+	}
+}
 
 // TestAcquire_createsAndReleasesLockFile covers the ordinary lifecycle: the lock
 // file appears while held, records the caller's identity, and is gone afterwards
@@ -35,14 +62,7 @@ func TestAcquire_createsAndReleasesLockFile(t *testing.T) {
 		t.Errorf("Path() = %q, want %q", lock.Path(), path)
 	}
 
-	raw, err := os.ReadFile(path) //nolint:gosec // path is this test's temp file
-	if err != nil {
-		t.Fatalf("the lock file was not created: %v", err)
-	}
-	var owner Owner
-	if err := json.Unmarshal(raw, &owner); err != nil {
-		t.Fatalf("the lock file is not valid JSON: %v (%q)", err, raw)
-	}
+	owner := readOwnerForTest(t, path)
 	if owner.PID != os.Getpid() {
 		t.Errorf("owner.PID = %d, want this process %d", owner.PID, os.Getpid())
 	}
@@ -51,6 +71,9 @@ func TestAcquire_createsAndReleasesLockFile(t *testing.T) {
 	}
 	if owner.Acquired.IsZero() {
 		t.Error("owner.Acquired was not recorded")
+	}
+	if owner.Nonce == "" {
+		t.Error("owner.Nonce was not recorded; the lock would not be identifiable after a take-over")
 	}
 
 	if err := lock.Release(); err != nil {
@@ -61,9 +84,9 @@ func TestAcquire_createsAndReleasesLockFile(t *testing.T) {
 	}
 }
 
-// TestAcquire_createsParentDirectory covers a first run on a machine where
-// ~/.config/gup does not exist yet: the lock must not fail just because nothing
-// has written gup.json before.
+// TestAcquire_createsParentDirectory covers a first run on a machine where the
+// target directory does not exist yet: the lock must not fail just because
+// nothing has been written there before.
 func TestAcquire_createsParentDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -116,6 +139,123 @@ func TestRelease_toleratesAnAlreadyDeletedLockFile(t *testing.T) {
 	}
 }
 
+// TestRelease_doesNotDeleteASuccessorsLock is the one that matters most. When a
+// lock is reclaimed as abandoned, the original holder is still running and will
+// eventually release. If Release removed whatever file sits at its path, it
+// would delete the successor's lock, and the process after that would walk
+// straight into a critical section two others were already in.
+func TestRelease_doesNotDeleteASuccessorsLock(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	first, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+
+	// Stand in for "another gup reclaimed this lock and took it": the file at the
+	// path is now someone else's acquisition.
+	successor := Owner{PID: os.Getpid(), Host: hostname(t), Command: "remove", Acquired: time.Now(), Nonce: "successor-nonce"}
+	writeOwner(t, path, successor)
+
+	err = first.Release()
+	var takenOver *TakenOverError
+	if !errors.As(err, &takenOver) {
+		t.Errorf("Release() error = %v, want *TakenOverError so the overlap is reported", err)
+	}
+
+	got := readOwnerForTest(t, path)
+	if got.Nonce != successor.Nonce {
+		t.Fatalf("the successor's lock was deleted or replaced by the previous owner's Release(); nonce = %q", got.Nonce)
+	}
+}
+
+// TestRelease_leavesAnUnreadableLockFileAlone covers the same rule when the file
+// cannot be parsed: unprovable ownership is not ownership, so it is not removed.
+func TestRelease_leavesAnUnreadableLockFileAlone(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("{not json"), lockFileMode); err != nil {
+		t.Fatalf("failed to corrupt the lock file: %v", err)
+	}
+
+	var takenOver *TakenOverError
+	if err := lock.Release(); !errors.As(err, &takenOver) {
+		t.Errorf("Release() error = %v, want *TakenOverError", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("an unreadable lock file was removed by a process that could not prove it owned it: %v", err)
+	}
+}
+
+// TestHeartbeat_doesNotRefreshASuccessorsLock is the same ownership rule applied
+// to the other destructive operation. A previous owner that kept touching its
+// successor's file would keep that lock looking alive after the successor died,
+// hiding the successor's death from everyone waiting.
+func TestHeartbeat_doesNotRefreshASuccessorsLock(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	t.Cleanup(func() { _ = lock.Release() })
+
+	writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: "remove", Nonce: "successor-nonce"})
+
+	old := time.Now().Add(-2 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the successor's lock: %v", err)
+	}
+	// stillOurs is the guard the heartbeat consults before every touch, so this
+	// asserts the decision without waiting out a ticker.
+	if lock.stillOurs() {
+		t.Fatal("the previous owner would have refreshed the successor's lock")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat the lock file: %v", err)
+	}
+	if !info.ModTime().Equal(old) {
+		t.Error("the successor's lock was refreshed by its previous owner")
+	}
+}
+
+// TestHeartbeat_keepsALongRunningLockFresh covers the case the staleness bound
+// exists for: a lock nobody can attribute to a live local process must keep
+// looking alive while its owner is working.
+func TestHeartbeat_keepsALongRunningLockFresh(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	t.Cleanup(func() { _ = lock.Release() })
+
+	if !lock.stillOurs() {
+		t.Fatal("the lock does not recognize its own file, so the heartbeat would never touch it")
+	}
+	old := time.Now().Add(-2 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock file: %v", err)
+	}
+	now := time.Now()
+	if err := os.Chtimes(path, now, now); err != nil {
+		t.Fatalf("failed to touch the lock file: %v", err)
+	}
+	if _, stale := inspect(path); stale {
+		t.Error("a freshly touched lock file was judged abandoned")
+	}
+}
+
 // TestAcquire_reportsALockHeldByAnotherLiveProcess is the double-execution case:
 // a second gup must refuse rather than proceed, and must say who is running. The
 // holder is written directly (rather than by a second Acquire) so the lock looks
@@ -126,10 +266,11 @@ func TestAcquire_reportsALockHeldByAnotherLiveProcess(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "gup.lock")
 	writeOwner(t, path, Owner{
-		PID:      os.Getpid(), // alive, so the lock is not stale
+		PID:      os.Getpid(), // alive, so the lock is not abandoned
 		Host:     hostname(t),
 		Command:  cmdUpdate,
 		Acquired: time.Now(),
+		Nonce:    ownerHolder,
 	})
 
 	start := time.Now()
@@ -145,21 +286,52 @@ func TestAcquire_reportsALockHeldByAnotherLiveProcess(t *testing.T) {
 	if busy.Owner.PID != os.Getpid() {
 		t.Errorf("BusyError.Owner.PID = %d, want %d", busy.Owner.PID, os.Getpid())
 	}
-	// The message has to be actionable: which process, and what to do about it.
 	for _, want := range []string{"another gup process is already running", "gup update", path} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Acquire() error %q does not mention %q", err.Error(), want)
 		}
 	}
-	// It waits before giving up, but not long: a user who typed two commands
-	// wants an answer, not a hang.
-	if waited := time.Since(start); waited < retryInterval || waited > 5*DefaultWait {
-		t.Errorf("Acquire() waited %v, want roughly %v", waited, DefaultWait)
+	// Telling a user to delete a lock whose owner is alive invites the concurrent
+	// run the lock exists to prevent.
+	if strings.Contains(err.Error(), "Delete it by hand") {
+		t.Errorf("Acquire() error advises deleting a live lock: %q", err.Error())
 	}
-
-	// The other process's lock file must survive the refusal.
+	if waited := time.Since(start); waited < retryInterval || waited > 5*defaultWait {
+		t.Errorf("Acquire() waited %v, want roughly %v", waited, defaultWait)
+	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("the refused acquisition removed the holder's lock file: %v", err)
+	}
+}
+
+// TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs is the rule an
+// earlier version had backwards. The heartbeat is a fallback for owners whose
+// liveness cannot be checked, not an expiry: a `gup update` suspended with
+// Ctrl-Z, or a laptop resumed from sleep, stops the heartbeat without stopping
+// the process, and stealing there puts two gups in the critical section at once.
+func TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	writeOwner(t, path, Owner{
+		PID:      os.Getpid(), // alive, on this host
+		Host:     hostname(t),
+		Command:  cmdUpdate,
+		Acquired: time.Now(),
+		Nonce:    ownerHolder,
+	})
+	old := time.Now().Add(-100 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock file: %v", err)
+	}
+
+	_, err := Acquire(t.Context(), path, cmdUpdate)
+	var busy *BusyError
+	if !errors.As(err, &busy) {
+		t.Fatalf("Acquire() error = %v, want *BusyError: a live local owner keeps its lock regardless of age", err)
+	}
+	if got := readOwnerForTest(t, path); got.Nonce != ownerHolder {
+		t.Error("the live owner's lock file was taken over")
 	}
 }
 
@@ -175,42 +347,41 @@ func TestAcquire_takesOverALockWhoseOwnerIsGone(t *testing.T) {
 		Host:     hostname(t),
 		Command:  cmdUpdate,
 		Acquired: time.Now(),
+		Nonce:    "dead",
 	})
 
 	lock, err := Acquire(t.Context(), path, cmdUpdate)
 	if err != nil {
-		t.Fatalf("Acquire() error: %v, want the stale lock to be taken over", err)
+		t.Fatalf("Acquire() error: %v, want the abandoned lock to be taken over", err)
 	}
 	t.Cleanup(func() { _ = lock.Release() })
 
-	owner, readErr := readOwner(path)
-	if readErr != nil {
-		t.Fatalf("readOwner() error: %v", readErr)
-	}
-	if owner.PID != os.Getpid() {
-		t.Errorf("the lock file still names the dead owner (pid %d), want this process %d", owner.PID, os.Getpid())
+	if got := readOwnerForTest(t, path); got.PID != os.Getpid() {
+		t.Errorf("the lock file still names the dead owner (pid %d), want this process %d", got.PID, os.Getpid())
 	}
 }
 
 // TestAcquire_takesOverALockWhoseHeartbeatStopped covers what the PID check
 // cannot answer: a lock file from another host (a home directory shared over
-// NFS), or one whose PID has been reused. The heartbeat age is the fallback, and
-// without it such a lock would block gup forever.
-func TestAcquire_takesOverALockWhoseHeartbeatStopped(t *testing.T) { //nolint:paralleltest // swaps the package-level nowFunc/exitFunc seams
+// NFS), whose PID means nothing locally. Without the heartbeat fallback such a
+// lock would block gup forever.
+func TestAcquire_takesOverALockWhoseHeartbeatStopped(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "gup.lock")
 	writeOwner(t, path, Owner{
-		PID:      os.Getpid(), // alive, so only the heartbeat can make this stale
+		PID:      os.Getpid(), // alive HERE, but the record claims another machine
 		Host:     "some-other-machine",
 		Command:  cmdUpdate,
 		Acquired: time.Now(),
+		Nonce:    "remote",
 	})
+	old := time.Now().Add(-2 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock file: %v", err)
+	}
 
-	// Age the lock past staleAfter by moving the clock forward rather than by
-	// sleeping, so the test costs nothing.
-	restore := freezeClock(t, time.Now().Add(2*staleAfter))
-	defer restore()
-
-	lock, err := Acquire(context.Background(), path, "import")
+	lock, err := Acquire(t.Context(), path, "import")
 	if err != nil {
 		t.Fatalf("Acquire() error: %v, want the abandoned lock to be taken over", err)
 	}
@@ -230,6 +401,7 @@ func TestAcquire_waitsOutAFreshLockFromAnotherHost(t *testing.T) {
 		Host:     "some-other-machine",
 		Command:  cmdUpdate,
 		Acquired: time.Now(),
+		Nonce:    "remote",
 	})
 
 	if _, err := Acquire(t.Context(), path, cmdUpdate); err == nil {
@@ -241,45 +413,103 @@ func TestAcquire_waitsOutAFreshLockFromAnotherHost(t *testing.T) {
 // truncated by a crash mid-write or corrupted on disk. While it is fresh it is
 // assumed to be a live writer and respected; once it stops being touched it is
 // reclaimed, so unparseable content cannot wedge gup permanently.
-func TestAcquire_takesOverAnUnreadableLockFileOnceItAges(t *testing.T) { //nolint:paralleltest // swaps the package-level nowFunc/exitFunc seams
+func TestAcquire_takesOverAnUnreadableLockFileOnceItAges(t *testing.T) {
+	t.Parallel()
+
 	path := filepath.Join(t.TempDir(), "gup.lock")
 	if err := os.WriteFile(path, []byte("{not json"), lockFileMode); err != nil {
 		t.Fatalf("failed to write the corrupt lock file: %v", err)
 	}
 
-	if _, err := Acquire(context.Background(), path, cmdUpdate); err == nil {
+	if _, err := Acquire(t.Context(), path, cmdUpdate); err == nil {
 		t.Fatal("Acquire() took over a freshly written but unreadable lock file")
 	}
 
-	restore := freezeClock(t, time.Now().Add(2*staleAfter))
-	defer restore()
-
-	lock, err := Acquire(context.Background(), path, cmdUpdate)
+	old := time.Now().Add(-2 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock file: %v", err)
+	}
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
 	if err != nil {
 		t.Fatalf("Acquire() error: %v, want an aged corrupt lock file to be reclaimed", err)
 	}
 	t.Cleanup(func() { _ = lock.Release() })
 }
 
-// TestAcquire_honorsContextCancellation covers Ctrl-C (or a --timeout expiring)
-// while gup is waiting its turn: the wait must end at once with the context's
-// error rather than running out the full DefaultWait.
-func TestAcquire_honorsContextCancellation(t *testing.T) {
+// TestAcquire_doesNotSpinWhenAnAbandonedLockCannotBeRemoved is the stopping
+// guarantee. An abandoned lock in a directory this user cannot write is the one
+// combination where the take-over fails every time; an earlier version looped
+// straight back to the top without consulting the deadline or the context, so it
+// burned a core until the machine was rebooted.
+func TestAcquire_doesNotSpinWhenAnAbandonedLockCannotBeRemoved(t *testing.T) {
+	t.Parallel()
+	requireUnprivilegedPOSIX(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.lock")
+	writeOwner(t, path, Owner{PID: deadPID(t), Host: hostname(t), Command: cmdUpdate, Nonce: "dead"})
+	// Read+execute only: the file can be opened and read, but not renamed away.
+	//nolint:gosec // G302: 0o500 is a DIRECTORY mode, and denying write is the point.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("failed to make the directory read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) //nolint:gosec // G302: restoring a directory mode
+
+	start := time.Now()
+	_, err := Acquire(t.Context(), path, cmdUpdate)
+	elapsed := time.Since(start)
+
+	var reclaimErr *ReclaimError
+	if !errors.As(err, &reclaimErr) {
+		t.Fatalf("Acquire() error = %v, want *ReclaimError naming the file that cannot be removed", err)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("Acquire() error %q does not name the lock file", err)
+	}
+	// A permission failure cannot be waited out, so it must be reported at once
+	// rather than after the full wait.
+	if elapsed > defaultWait {
+		t.Errorf("Acquire() took %v to report an unrecoverable take-over, want well under %v", elapsed, defaultWait)
+	}
+}
+
+// TestAcquire_honorsContextCancellationWhileWaiting covers Ctrl-C (or a
+// --timeout expiring) while gup is waiting its turn: the wait must end at once
+// with the context's error rather than running out the full timeout.
+func TestAcquire_honorsContextCancellationWhileWaiting(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "gup.lock")
-	writeOwner(t, path, Owner{
-		PID:      os.Getpid(),
-		Host:     hostname(t),
-		Command:  cmdUpdate,
-		Acquired: time.Now(),
-	})
+	writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go func() {
+		time.Sleep(2 * retryInterval)
+		cancel()
+	}()
+
+	start := time.Now()
+	_, err := Acquire(ctx, path, cmdUpdate)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Acquire() error = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(start); elapsed > defaultWait {
+		t.Errorf("Acquire() waited %v after cancellation, want it to return promptly", elapsed)
+	}
+}
+
+// TestAcquire_honorsAnAlreadyCancelledContext covers the caller that arrives
+// with a dead context: no filesystem work should happen at all.
+func TestAcquire_honorsAnAlreadyCancelledContext(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, err := Acquire(ctx, path, "update")
-	if !errors.Is(err, context.Canceled) {
+	if _, err := Acquire(ctx, path, cmdUpdate); !errors.Is(err, context.Canceled) {
 		t.Errorf("Acquire() error = %v, want context.Canceled", err)
 	}
 }
@@ -337,8 +567,8 @@ func TestAcquire_serializesGoroutinesInOneProcess(t *testing.T) {
 	}
 }
 
-// TestAcquire_rejectsADirectoryLockPath covers a misconfigured XDG_CONFIG_HOME
-// (or a directory literally named gup.lock): the error must name the problem
+// TestAcquire_rejectsADirectoryLockPath covers a misconfigured path (or a
+// directory literally named like the lock): the error must name the problem
 // instead of surfacing as an opaque create failure.
 func TestAcquire_rejectsADirectoryLockPath(t *testing.T) {
 	t.Parallel()
@@ -356,38 +586,136 @@ func TestAcquire_rejectsADirectoryLockPath(t *testing.T) {
 	}
 }
 
+// TestAcquireAll_takesEverythingOrNothing covers the multi-resource case. A
+// command that writes both a $GOBIN and a gup.json needs both, and a partial
+// hold left behind by a failed acquisition would block the resource it did get
+// for no reason.
+func TestAcquireAll_takesEverythingOrNothing(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	free := filepath.Join(dir, "free.lock")
+	taken := filepath.Join(dir, "taken.lock")
+	writeOwner(t, taken, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
+
+	if _, err := AcquireAll(t.Context(), cmdUpdate, free, taken); err == nil {
+		t.Fatal("AcquireAll() succeeded even though one lock was held")
+	}
+	if _, err := os.Stat(free); !os.IsNotExist(err) {
+		t.Errorf("AcquireAll() left the first lock held after failing on the second: %v", err)
+	}
+}
+
+// TestAcquireAll_ordersAndDeduplicates covers the deadlock rule: two commands
+// asking for the same resources in different orders must acquire them in the
+// same order, and a resource named twice must be locked once.
+func TestAcquireAll_ordersAndDeduplicates(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.lock")
+	b := filepath.Join(dir, "b.lock")
+
+	forward, err := AcquireAll(t.Context(), cmdUpdate, a, b, a)
+	if err != nil {
+		t.Fatalf("AcquireAll() error: %v", err)
+	}
+	if got := len(forward.Paths()); got != 2 {
+		t.Errorf("AcquireAll() held %d locks, want 2 after deduplication", got)
+	}
+	forwardPaths := forward.Paths()
+	if err := forward.Release(); err != nil {
+		t.Fatalf("Release() error: %v", err)
+	}
+
+	reverse, err := AcquireAll(t.Context(), cmdUpdate, b, a)
+	if err != nil {
+		t.Fatalf("AcquireAll() error: %v", err)
+	}
+	t.Cleanup(func() { _ = reverse.Release() })
+
+	if !slicesEqual(forwardPaths, reverse.Paths()) {
+		t.Errorf("acquisition order differs by argument order: %v vs %v; that is how two processes deadlock",
+			forwardPaths, reverse.Paths())
+	}
+}
+
+// TestAcquireAll_withNoPathsIsANoOp covers a command that writes nothing, such
+// as `gup update --dry-run`: it must not create or contend for anything.
+func TestAcquireAll_withNoPathsIsANoOp(t *testing.T) {
+	t.Parallel()
+
+	held, err := AcquireAll(t.Context(), cmdUpdate)
+	if err != nil {
+		t.Fatalf("AcquireAll() with no paths error: %v", err)
+	}
+	if got := held.Paths(); len(got) != 0 {
+		t.Errorf("AcquireAll() with no paths held %v", got)
+	}
+	if err := held.Release(); err != nil {
+		t.Errorf("Release() error: %v", err)
+	}
+}
+
 // TestBusyError_degradesWithoutOwnerDetails covers the message when the lock
 // file could not be parsed: it must still tell the user which file to look at
 // rather than printing a half-built sentence.
 func TestBusyError_degradesWithoutOwnerDetails(t *testing.T) {
 	t.Parallel()
 
-	err := &BusyError{Path: "/tmp/gup.lock"}
-	got := err.Error()
+	got := (&BusyError{Path: testLockPath}).Error()
 	if strings.Contains(got, "pid") {
 		t.Errorf("BusyError.Error() = %q, want no pid clause when the owner is unknown", got)
 	}
-	if !strings.Contains(got, "/tmp/gup.lock") {
+	if !strings.Contains(got, testLockPath) {
 		t.Errorf("BusyError.Error() = %q, want it to name the lock file", got)
+	}
+}
+
+// TestReclaimError_saysWhatToDo covers the one case where deleting the file by
+// hand IS the right advice, and the case where there is no underlying error to
+// quote.
+func TestReclaimError_saysWhatToDo(t *testing.T) {
+	t.Parallel()
+
+	withCause := (&ReclaimError{Path: testLockPath, Err: fs.ErrPermission}).Error()
+	if !strings.Contains(withCause, "Delete it by hand") || !strings.Contains(withCause, "permission") {
+		t.Errorf("ReclaimError.Error() = %q, want the cause and the remedy", withCause)
+	}
+	if !errors.Is(&ReclaimError{Err: fs.ErrPermission}, fs.ErrPermission) {
+		t.Error("ReclaimError does not unwrap to its cause")
+	}
+	if got := (&ReclaimError{Path: testLockPath}).Error(); !strings.Contains(got, "re-creating") {
+		t.Errorf("ReclaimError.Error() without a cause = %q, want it to explain the race", got)
 	}
 }
 
 // TestReleaseOnSignal covers the interruption path. gup's subcommands exit
 // through os.Exit, so without this handler a Ctrl-C during `gup update` would
-// leave a lock file behind and block the next command until it aged out.
-func TestReleaseOnSignal(t *testing.T) { //nolint:paralleltest // swaps the package-level nowFunc/exitFunc seams
-	path := filepath.Join(t.TempDir(), "gup.lock")
-	lock, err := Acquire(context.Background(), path, cmdUpdate)
+// leave lock files behind. Every held lock is released, not just one, because a
+// command can hold a $GOBIN lock and a gup.json lock at the same time.
+func TestReleaseOnSignal(t *testing.T) { //nolint:paralleltest // swaps the package-level exitFunc seam
+	dir := t.TempDir()
+	first, err := Acquire(context.Background(), filepath.Join(dir, "a.lock"), cmdUpdate)
 	if err != nil {
 		t.Fatalf("Acquire() error: %v", err)
 	}
+	second, err := Acquire(context.Background(), filepath.Join(dir, "b.lock"), cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = first.Release()
+		_ = second.Release()
+	})
 
 	exited := make(chan int, 1)
-	originalExit := exitFunc
-	exitFunc = func(code int) { exited <- code }
-	t.Cleanup(func() { exitFunc = originalExit })
+	restoreExit := stubExit(func(code int) { exited <- code })
+	t.Cleanup(restoreExit)
 
-	lock.signals <- os.Interrupt
+	// Send a real signal where the platform allows it, so the signal.Notify
+	// wiring is exercised and not just the channel behind it.
+	raiseInterrupt(t)
 
 	select {
 	case code := <-exited:
@@ -397,12 +725,41 @@ func TestReleaseOnSignal(t *testing.T) { //nolint:paralleltest // swaps the pack
 	case <-time.After(5 * time.Second):
 		t.Fatal("the signal handler did not run")
 	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("the lock file survived the interrupt: %v", err)
+	for _, lock := range []*Lock{first, second} {
+		if _, err := os.Stat(lock.Path()); !os.IsNotExist(err) {
+			t.Errorf("%s survived the interrupt: %v", lock.Path(), err)
+		}
 	}
-	// Release after the handler already removed the file must stay quiet.
+}
+
+// TestUnregisterFromSignals_stopsWatchingWhenNothingIsHeld covers the cleanup:
+// leaving signal.Notify installed would keep gup's altered SIGINT disposition in
+// place for the rest of the process, after the reason for it is gone.
+func TestUnregisterFromSignals_stopsWatchingWhenNothingIsHeld(t *testing.T) { //nolint:paralleltest // inspects the package-level signal guard
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	lock, err := Acquire(context.Background(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+
+	signalGuard.mu.Lock()
+	watching := signalGuard.ch != nil
+	signalGuard.mu.Unlock()
+	if !watching {
+		t.Error("no signal watcher was installed while a lock was held")
+	}
+
 	if err := lock.Release(); err != nil {
-		t.Errorf("Release() after the signal handler error: %v", err)
+		t.Fatalf("Release() error: %v", err)
+	}
+
+	signalGuard.mu.Lock()
+	defer signalGuard.mu.Unlock()
+	if signalGuard.ch != nil {
+		t.Error("the signal watcher is still installed after the last lock was released")
+	}
+	if len(signalGuard.locks) != 0 {
+		t.Errorf("the signal guard still tracks %d locks", len(signalGuard.locks))
 	}
 }
 
@@ -436,36 +793,70 @@ func TestProcessAlive(t *testing.T) {
 	}
 }
 
-// TestHeartbeat_keepsALongRunningLockFresh covers the case the staleness bound
-// exists for: `gup update` over a large toolset outlives staleAfter, and must
-// not become reclaimable while it is still working.
-func TestHeartbeat_keepsALongRunningLockFresh(t *testing.T) {
-	t.Parallel()
+// TestDurationFromEnv covers the timing overrides the end-to-end suite depends
+// on, and their refusal to accept nonsense: a typo in a test knob must fall back
+// to the shipped default rather than disable the lock's bounds.
+func TestDurationFromEnv(t *testing.T) {
+	tests := map[string]struct {
+		value string
+		want  time.Duration
+	}{
+		"unset":        {value: "", want: defaultWait},
+		"valid":        {value: "250ms", want: 250 * time.Millisecond},
+		"padded":       {value: "  1s  ", want: time.Second},
+		"unparseable":  {value: "soon", want: defaultWait},
+		"zero":         {value: "0s", want: defaultWait},
+		"negative":     {value: "-1s", want: defaultWait},
+		"bare integer": {value: "5", want: defaultWait},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(envWait, tt.value)
+			if got := waitTimeout(); got != tt.want {
+				t.Errorf("waitTimeout() with %s=%q = %v, want %v", envWait, tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTimingOverrides_shortenTheWait proves the override reaches the acquisition
+// path, which is what lets the end-to-end suite test waiting and staleness in
+// seconds instead of a minute.
+func TestTimingOverrides_shortenTheWait(t *testing.T) {
+	t.Setenv(envWait, "100ms")
 
 	path := filepath.Join(t.TempDir(), "gup.lock")
-	lock, err := Acquire(t.Context(), path, cmdUpdate)
-	if err != nil {
-		t.Fatalf("Acquire() error: %v", err)
-	}
-	t.Cleanup(func() { _ = lock.Release() })
+	writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
 
-	// Backdate the file, then drive one heartbeat tick's worth of work by hand:
-	// waiting heartbeatInterval would make this test the slowest in the package.
-	old := time.Now().Add(-2 * staleAfter)
+	start := time.Now()
+	if _, err := Acquire(context.Background(), path, cmdUpdate); err == nil {
+		t.Fatal("Acquire() succeeded against a held lock")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("Acquire() waited %v, want roughly the 100ms override", elapsed)
+	}
+}
+
+// TestStaleOverride_shortensReclaim is the same for the staleness bound: a lock
+// nobody can attribute is reclaimed after the override rather than the default
+// minute.
+func TestStaleOverride_shortensReclaim(t *testing.T) {
+	t.Setenv(envStale, "50ms")
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	if err := os.WriteFile(path, []byte("{not json"), lockFileMode); err != nil {
+		t.Fatalf("failed to write the corrupt lock file: %v", err)
+	}
+	old := time.Now().Add(-time.Second)
 	if err := os.Chtimes(path, old, old); err != nil {
 		t.Fatalf("failed to backdate the lock file: %v", err)
 	}
-	if _, stale := inspect(path); !stale {
-		t.Fatal("a backdated lock file was not judged stale; the heartbeat guards nothing")
-	}
 
-	now := time.Now()
-	if err := os.Chtimes(path, now, now); err != nil {
-		t.Fatalf("failed to touch the lock file: %v", err)
+	lock, err := Acquire(context.Background(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v, want the override to make the lock reclaimable", err)
 	}
-	if _, stale := inspect(path); stale {
-		t.Error("a freshly touched lock file was judged stale")
-	}
+	t.Cleanup(func() { _ = lock.Release() })
 }
 
 // fakeSignal is an os.Signal that is not a syscall.Signal, covering the fallback
@@ -483,9 +874,22 @@ func writeOwner(t *testing.T, path string, owner Owner) {
 	if err != nil {
 		t.Fatalf("failed to marshal the owner record: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("failed to create the lock directory: %v", err)
+	}
 	if err := os.WriteFile(path, raw, lockFileMode); err != nil {
 		t.Fatalf("failed to write the lock file: %v", err)
 	}
+}
+
+// readOwnerForTest reads the owner record, failing the test if it cannot.
+func readOwnerForTest(t *testing.T, path string) Owner {
+	t.Helper()
+	owner, err := readOwner(path)
+	if err != nil {
+		t.Fatalf("failed to read the lock file %s: %v", path, err)
+	}
+	return owner
 }
 
 // hostname returns this machine's name, which the staleness rules compare
@@ -520,11 +924,43 @@ func deadPID(t *testing.T) int {
 	return pid
 }
 
-// freezeClock points the package's clock at instant and returns the restore
-// function, so staleness can be tested without sleeping past staleAfter.
-func freezeClock(t *testing.T, instant time.Time) func() {
+// requireUnprivilegedPOSIX skips a test that depends on directory permissions
+// actually denying something. Windows does not express them this way, and root
+// bypasses them entirely, so on either the test would pass without testing.
+func requireUnprivilegedPOSIX(t *testing.T) {
 	t.Helper()
-	original := nowFunc
-	nowFunc = func() time.Time { return instant }
-	return func() { nowFunc = original }
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions do not deny rename on Windows the way POSIX modes do")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("running as root, which bypasses the directory permissions this test relies on")
+	}
+}
+
+// slicesEqual reports whether two string slices have the same contents in the
+// same order.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// stubExit swaps the process-exit behavior for a test and returns the restore
+// function. It goes through the same mutex the signal goroutine reads under.
+func stubExit(fn func(int)) func() {
+	exitMu.Lock()
+	original := exitFunc
+	exitFunc = fn
+	exitMu.Unlock()
+	return func() {
+		exitMu.Lock()
+		exitFunc = original
+		exitMu.Unlock()
+	}
 }

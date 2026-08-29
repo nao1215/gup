@@ -44,7 +44,7 @@ const (
 	testImportPathTool = "github.com/example/tool"
 	testBinPosixer     = "posixer"
 	testShellBash      = "bash"
-	testCmdCompletion  = "completion"
+	testCmdCompletion  = cmdNameCompletion
 
 	testOldModule         = "github.com/cosmtrek/air"
 	testNewModule         = "github.com/air-verse/air"
@@ -60,9 +60,9 @@ const (
 	testFlagJobs          = "--jobs"
 	testFlagFile          = "--file"
 	testCmdGup            = "gup"
-	testCmdList           = "list"
-	testCmdExport         = "export"
-	testCmdImport         = "import"
+	testCmdList           = cmdNameList
+	testCmdExport         = cmdNameExport
+	testCmdImport         = cmdNameImport
 	testShellFish         = "fish"
 	testBinMytool         = "mytool"
 	testBinMytoolExe      = "mytool.exe"
@@ -83,9 +83,9 @@ const (
 	testVersionZeroNine   = "v0.9.0"
 	testBinPosixerExe     = "posixer.exe"
 	testBinToolA          = "tool-a"
-	testCmdVersion        = "version"
-	testCmdUpdate         = "update"
-	testCmdRemove         = "remove"
+	testCmdVersion        = cmdNameVersion
+	testCmdUpdate         = cmdNameUpdate
+	testCmdRemove         = cmdNameRemove
 	testShellZsh          = "zsh"
 	testShellPowershell   = "powershell"
 	testNameSuccess       = "success"
@@ -95,13 +95,16 @@ const (
 	testBinGal            = "gal"
 	testBinSubaru         = "subaru"
 	testBinGobinOnly      = "gobin-only"
-	testCmdMigrate        = "migrate"
-	testCmdPin            = "pin"
+	testCmdMigrate        = cmdNameMigrate
+	testCmdPin            = cmdNamePin
 	testFlagTimeout       = "--timeout"
 	testBinBeforeOnly     = "before-only"
-	testCmdCheck          = "check"
-	testCmdUnpin          = "unpin"
+	testCmdCheck          = cmdNameCheck
+	testCmdUnpin          = cmdNameUnpin
 	testBinNoSuch         = "no-such-binary"
+	testCmdBugReport      = cmdNameBugReport
+	testCmdMan            = cmdNameMan
+	testCmdHelp           = "help"
 )
 
 // captureMigrateOutput runs fn with a buffer-backed printer and returns the

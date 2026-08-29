@@ -87,30 +87,46 @@ something to ignore — a saved channel is never quietly downgraded to `latest`.
 
 ## Running two gup commands at once
 
-The commands that change your `$GOBIN` or `gup.json` — `update`, `import`,
-`export`, `migrate`, `remove`, `pin`, `unpin` — take an advisory lock at
-`$XDG_CONFIG_HOME/gup/gup.lock` for the length of the run. A second one refuses
-to start instead of interleaving:
+The commands that change state take a lock on each resource they write, so a
+second one refuses to start instead of interleaving:
+
+| Command | What it locks |
+|:--|:--|
+| `update` | `$GOBIN` and the `gup.json` it may write |
+| `import` | `$GOBIN` |
+| `remove` | `$GOBIN` |
+| `migrate` | `AFTER_PATH` |
+| `export`, `pin`, `unpin` | the `gup.json` they write |
+
+The lock files sit next to what they guard: `$GOBIN/.gup.lock` and
+`<gup.json>.lock`. `$GOBIN` and your config directory move independently, so a
+per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other
+project, and two commands given the same `--file` may come from different config
+directories — a lock kept in the config directory would serialize neither.
+`.gup.lock` is dot-prefixed, so `gup list` never shows it.
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
-> gup.json, so wait for it to finish and run this command again; if that process is
-> gone, delete /home/you/.config/gup/gup.lock
+> gup.json, so wait for it to finish and run this command again. If that process is
+> gone, gup reclaims /home/you/go/bin/.gup.lock by itself
 
-Two `gup update` runs at once would both install and then both write `gup.json`,
-so the file would end up describing only whichever finished last; `gup remove`
-deleting a binary a concurrent `gup update` is reinstalling is the same
-collision with a worse result.
+Two `gup update` runs at once would both install and then both write
+`gup.json`, so the file would end up describing only whichever finished last;
+`gup remove` deleting a binary a concurrent `gup update` is reinstalling is the
+same collision with a worse result.
 
-The read-only commands (`list`, `check`, `version`, `completion`, `man`,
-`bug-report`) do **not** take the lock, so they never block behind a long
-update. gup writes `gup.json` by atomic rename, so a reader sees either the
-previous complete file or the next one, never a half-written one.
+Nothing that changes no state is blocked. `--dry-run` runs and `export --output`
+take no lock, and neither do the read-only commands (`list`, `check`, `version`,
+`completion`, `man`, `bug-report`): gup writes `gup.json` by atomic rename, so a
+reader sees either the previous complete file or the next one.
 
-A lock left behind by a killed gup does not wedge the tool: the lock file
-records the owning process and is touched while the command runs, so a lock
-whose process is gone, or whose heartbeat stopped, is taken over by the next
-command. Interrupting gup with Ctrl-C releases it immediately.
+A lock left behind by a killed gup does not wedge the tool. The lock file
+records the owning process, so one whose process is gone is reclaimed at once. A
+lock gup cannot attribute that way — one written by another machine on a shared
+home directory — is refreshed while its owner works and reclaimed once that
+stops. A live local owner keeps its lock however long it has been suspended, so
+pausing an update with Ctrl-Z never lets a second gup in, and Ctrl-C releases it
+right away.
 
 ## JSON output fields
 

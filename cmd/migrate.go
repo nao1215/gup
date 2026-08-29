@@ -63,7 +63,7 @@ If BINARY arguments are given, only those binaries are migrated.`,
 		ValidArgsFunction: completeMigrateArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "migrate", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNameMigrate, func() int {
 				return runMigrate(p, cmd, args)
 			}))
 		},

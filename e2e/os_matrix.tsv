@@ -26,6 +26,7 @@ check.atago.yaml	linux,darwin	Asserts JSON name fields equal the bare binary nam
 cli.atago.yaml	linux,darwin,windows
 completion.atago.yaml	linux,darwin,windows	Runs everywhere; the POSIX --install scenario carries its own skip and a Windows-only scenario covers the PowerShell install.
 cookbook.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix, uses POSIX shell steps, and covers 'gup man', which is not registered on Windows.
+lock.atago.yaml	linux,darwin,windows	Runs everywhere; the scenarios needing POSIX signals or POSIX directory modes carry their own skip and reason inside the spec.
 list_remove.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.
 man.atago.yaml	linux,darwin	'gup man' is deliberately not registered on Windows, which has no man(1); the command under test does not exist there.
 migrate_export_import.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.

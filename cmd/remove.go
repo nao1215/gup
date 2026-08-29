@@ -31,7 +31,7 @@ If you want to specify multiple binaries at once, separate them with space.
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "remove", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNameRemove, func() int {
 				return remove(p, cmd, args)
 			}))
 		},

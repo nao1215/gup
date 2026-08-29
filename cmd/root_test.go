@@ -867,7 +867,7 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 		args []string
 	}{
 		{name: testCmdVersion, args: []string{testCmdGup, testCmdVersion}},
-		{name: "help", args: []string{testCmdGup, "help"}},
+		{name: testCmdHelp, args: []string{testCmdGup, testCmdHelp}},
 		{name: "completion bash", args: []string{testCmdGup, testCmdCompletion, testShellBash}},
 	}
 	for _, tt := range tests {

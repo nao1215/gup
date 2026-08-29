@@ -23,7 +23,7 @@ const manpageCreateMode = 0o666
 
 func newManCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "man",
+		Use:               cmdNameMan,
 		Short:             "Generate man-pages under /usr/share/man/man1 (need root privilege)",
 		Long:              `Generate man-pages under /usr/share/man/man1 (need root privilege)`,
 		Example:           "  sudo gup man",

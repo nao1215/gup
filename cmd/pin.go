@@ -42,7 +42,7 @@ development environment). Run 'gup unpin' to allow the tool to update again.`,
 		ValidArgsFunction: completeFirstArgPathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "pin", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNamePin, func() int {
 				return runPin(p, cmd, args)
 			}))
 		},
@@ -66,7 +66,7 @@ nothing and succeeds.`,
 		ValidArgsFunction: completeFirstArgPathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "unpin", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNameUnpin, func() int {
 				return runUnpin(p, cmd, args)
 			}))
 		},

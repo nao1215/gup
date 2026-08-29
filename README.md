@@ -450,7 +450,18 @@ It writes `gup.completion.ps1` next to your PowerShell profile and adds one guar
 Re-running `--install` is idempotent on every platform: it does not duplicate the zsh init snippet in `.zshrc` or the gup block in your PowerShell profile.
 
 ### Running two gup commands at once
-The commands that change your `$GOBIN` or `gup.json` — `update`, `import`, `export`, `migrate`, `remove`, `pin`, and `unpin` — take an advisory lock at `$XDG_CONFIG_HOME/gup/gup.lock` for the length of the run, so a second one refuses to start rather than interleaving with the first.
+The commands that change state take a lock on each resource they write, so a second one refuses to start rather than interleaving with the first.
+
+| Command | What it locks |
+|:--|:--|
+| `update` | `$GOBIN` and the `gup.json` it may write |
+| `import` | `$GOBIN` |
+| `remove` | `$GOBIN` |
+| `migrate` | `AFTER_PATH` |
+| `export`, `pin`, `unpin` | the `gup.json` they write |
+
+The lock files are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it.)
+
 ```shell
 $ gup update
 ```
@@ -458,13 +469,14 @@ The second one exits non-zero after reporting who is in the way:
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
-> gup.json, so wait for it to finish and run this command again; if that process is
-> gone, delete /home/you/.config/gup/gup.lock
+> gup.json, so wait for it to finish and run this command again. If that process is
+> gone, gup reclaims /home/you/go/bin/.gup.lock by itself
 
-Two concurrent `gup update` runs would both install and then both write `gup.json`, leaving a file that describes only whichever finished last. Read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) do not take the lock and never block behind a long update; gup writes `gup.json` by atomic rename, so a reader always sees a complete file.
+Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup writes `gup.json` by atomic rename, so a reader always sees a complete file and has nothing to wait for.
 
-A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process and is refreshed while the command runs, so a lock whose process is gone — or whose refresh stopped — is taken over by the next command, and Ctrl-C releases it right away.
+A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock however long it has been suspended, so pausing an update with Ctrl-Z never lets a second gup in. Ctrl-C releases the lock right away.
 
+### Desktop notification
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
 ```shell

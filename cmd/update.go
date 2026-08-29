@@ -23,7 +23,7 @@ const latestKeyword = "latest"
 
 func newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "update",
+		Use:   cmdNameUpdate,
 		Short: "Update binaries installed by 'go install'",
 		Example: `  gup update
   gup update --dry-run
@@ -35,7 +35,7 @@ under $GOPATH/bin and automatically updates commands to the latest version,
 using the current installed Go toolchain.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "update", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNameUpdate, func() int {
 				return gup(defaultDependencies(), p, cmd, args)
 			}))
 		},

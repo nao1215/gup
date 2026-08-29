@@ -25,7 +25,7 @@ apply it with 'gup import'.`,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
-			OsExit(withStateLock(p, cmd, "export", func() int {
+			OsExit(withStateLock(p, cmd, args, cmdNameExport, func() int {
 				return export(p, cmd, args)
 			}))
 		},
