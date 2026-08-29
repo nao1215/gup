@@ -1166,3 +1166,56 @@ func TestHeartbeat_doesNotRefreshAnUnreadableLockFile(t *testing.T) {
 		t.Error("a lock file that proves nothing was kept alive by the heartbeat")
 	}
 }
+
+// TestHeartbeat_toleratesALockFileThatIsGone covers the file an operator deleted
+// while the command ran. There is nothing to keep alive and nothing to report:
+// the lock is about to be released, and interrupting a user's update over a
+// heartbeat would be a worse answer than letting the lock age out.
+func TestHeartbeat_toleratesALockFileThatIsGone(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	t.Cleanup(func() { _ = lock.Release() })
+
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("failed to remove the lock file: %v", err)
+	}
+	lock.refresh()
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the heartbeat re-created a lock file nobody holds: %v", err)
+	}
+}
+
+// TestRelease_reportsALockFileItCannotRemove covers the directory that denies
+// the removal - the same permissions problem the take-over reports, on the way
+// out instead of the way in. The work is done either way, so the caller is told
+// rather than failed, but it must be told: the file left behind will make the
+// next gup wait until it ages out.
+func TestRelease_reportsALockFileItCannotRemove(t *testing.T) { //nolint:paralleltest // changes a directory's mode
+	requireUnprivilegedPOSIX(t)
+
+	dir := t.TempDir()
+	lock, err := Acquire(t.Context(), filepath.Join(dir, "gup.lock"), cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v", err)
+	}
+	// Read+execute only: the lock file can still be read, but not moved or deleted.
+	//nolint:gosec // G302: 0o500 is a DIRECTORY mode, and denying write is the point.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatalf("failed to make the directory read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) }) //nolint:gosec // G302: restoring a directory mode
+
+	err = lock.Release()
+	if err == nil {
+		t.Fatal("Release() reported success for a lock file it could not remove")
+	}
+	if !strings.Contains(err.Error(), "can not remove the gup lock file") {
+		t.Errorf("Release() error = %v, want it to name the file that is still there", err)
+	}
+}
