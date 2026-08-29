@@ -136,14 +136,6 @@ if [ ${#unexpected[@]} -gt 0 ]; then
 fi
 checked "no artifacts outside the supported architectures"
 
-for arch in "${SUPPORTED_ARCH[@]}"; do
-	for ext in deb rpm apk; do
-		package="$(artifact_for linux "$arch" "$ext")"
-		[ -n "$package" ] || fail "no linux/${arch} .${ext} package in $DIST"
-	done
-done
-checked "package inventory: .deb/.rpm/.apk for amd64 and arm64"
-
 # ---------------------------------------------------------------------------
 # 2) Archive contents: the binary plus every completion file gup ships.
 # ---------------------------------------------------------------------------
@@ -282,13 +274,23 @@ package_paths_ok() {
 }
 
 if [ "$HOST_OS" != "linux" ]; then
-	# The Linux package formats are inspected on the Linux smoke job. macOS ships
-	# bsdtar, which reads only the first member of an APK's concatenated gzip
-	# streams, and has neither dpkg-deb nor rpm, so running these checks here
-	# would need per-tool workarounds to produce an answer that is already known
-	# on Linux.
-	skipped "Linux package inspection (.deb/.rpm/.apk)" "not a Linux host; covered by the Linux smoke job"
+	# The Linux package formats are inspected on the Linux smoke job, which is
+	# also the only job whose dist holds them: the per-OS jobs are handed the
+	# archives and manifests they can act on, not the whole build. Even with the
+	# packages present, macOS ships bsdtar -- which reads only the first member of
+	# an APK's concatenated gzip streams -- and has neither dpkg-deb nor rpm, so
+	# these checks would need per-tool workarounds to produce an answer Linux
+	# already has.
+	skipped "Linux packages (.deb/.rpm/.apk): inventory and file trees" "not a Linux host; covered by the Linux smoke job"
 else
+	for arch in "${SUPPORTED_ARCH[@]}"; do
+		for ext in deb rpm apk; do
+			package="$(artifact_for linux "$arch" "$ext")"
+			[ -n "$package" ] || fail "no linux/${arch} .${ext} package in $DIST"
+		done
+	done
+	checked "package inventory: .deb/.rpm/.apk for amd64 and arm64"
+
 	if command -v dpkg-deb >/dev/null 2>&1; then
 		for arch in "${SUPPORTED_ARCH[@]}"; do
 			deb="$(artifact_for linux "$arch" deb)"

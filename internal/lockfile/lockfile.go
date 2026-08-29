@@ -162,7 +162,7 @@ var nowFunc = time.Now //nolint:gochecknoglobals // test seam
 // lock held by a live process is reported as *BusyError after roughly
 // DefaultWait; a lock left behind by a process that no longer exists, or whose
 // heartbeat stopped, is taken over instead of reported. ctx cancellation aborts
-// the wait, and cancelling it after acquisition is not enough on its own to
+// the wait, and canceling it after acquisition is not enough on its own to
 // release the lock - the caller's Release is what does that.
 func Acquire(ctx context.Context, path, command string) (*Lock, error) {
 	path = filepath.Clean(path)

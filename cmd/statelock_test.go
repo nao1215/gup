@@ -146,10 +146,10 @@ func Test_withStateLock_propagatesContextCancellation(t *testing.T) { //nolint:p
 	})
 
 	if got != 1 {
-		t.Errorf("withStateLock() = %d, want 1 when the context is already cancelled", got)
+		t.Errorf("withStateLock() = %d, want 1 when the context is already canceled", got)
 	}
 	if ran {
-		t.Error("the subcommand ran despite a cancelled context")
+		t.Error("the subcommand ran despite a canceled context")
 	}
 	if !strings.Contains(buf.String(), context.Canceled.Error()) {
 		t.Errorf("withStateLock() output %q does not report the cancellation", buf.String())

@@ -44,12 +44,11 @@ scenarios:
               - "not found 'no-such-tool-xyz'"
               - "unable to update package"
 
-  # The failure is the same, but the errno text is the operating system's, so the
-  # scenario is split instead of weakened to a substring both happen to share:
-  # what a user reads is part of the contract on each platform.
+  # The message is gup's own (cmd/remove.go), not the operating system's errno
+  # text, so it reads identically on Windows -- one scenario covers both. The
+  # path it names does differ: it carries the .exe suffix on Windows, which is
+  # why the assertion is on the binary name rather than the whole path.
   - name: removing a binary that is not installed fails and names the path
-    skip:
-      os: windows
     env: *iso
     steps:
       - fixture: *empty_gobin
@@ -59,22 +58,6 @@ scenarios:
           exit_code: 1
           stderr:
             contains: "no such file or directory"
-      - assert:
-          stderr:
-            contains: no-such-tool-xyz
-
-  - name: removing a binary that is not installed fails and names the path (windows)
-    only:
-      os: windows
-    env: *iso
-    steps:
-      - fixture: *empty_gobin
-      - run:
-          command: gup remove --force no-such-tool-xyz
-      - assert:
-          exit_code: 1
-          stderr:
-            contains: "cannot find the file"
       - assert:
           stderr:
             contains: no-such-tool-xyz

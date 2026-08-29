@@ -19,15 +19,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # Lint on the same toolchain the release binaries are built with (Go 1.27),
-      # so a diagnostic that only the newest vet/analysis passes emit is caught
-      # here rather than at release time. The module minimum (go.mod, Go 1.25) is
-      # still compiled by build.yml and tested by unit_test.yml.
+      # The linter's toolchain is bounded by the linter, not by gup's policy. A
+      # released golangci-lint binary embeds the go/types of the Go it was built
+      # with, and type-checking a NEWER standard library makes it panic with
+      # "file requires newer Go version go1.27 (application built with go1.26)"
+      # -- so pointing this job at the Go 1.27 release toolchain took the linter
+      # out entirely. It stays on the module minimum; the newer toolchains are
+      # covered by unit_test.yml, which compiles and runs the code rather than
+      # analyzing it.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27"
-          check-latest: true
+          go-version: "1.25"
 
       - name: Run golangci-lint as an enforced gate
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0

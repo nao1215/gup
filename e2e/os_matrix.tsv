@@ -32,5 +32,5 @@ migrate_export_import.atago.yaml	linux,darwin	Asserts $GOBIN file paths without 
 pin.atago.yaml	linux,darwin	Asserts exact binary names in output and in gup.json entries; on Windows those carry the .exe suffix.
 remove_interactive.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix, and drives the confirmation prompt through a PTY.
 snapshot.atago.yaml	linux,darwin	Golden output embeds POSIX path separators, so the same run produces a different, equally correct snapshot on Windows.
-strict.atago.yaml	linux,darwin,windows	Runs everywhere; the scenario asserting the POSIX "no such file or directory" errno text is split into per-OS scenarios inside the spec.
+strict.atago.yaml	linux,darwin,windows
 update.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.
