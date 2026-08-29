@@ -25,6 +25,13 @@ func ptr[T any](v T) *T {
 // ConfigFileName is gup command configuration file.
 const ConfigFileName = "gup.json"
 
+// LockFileName is the advisory lock gup takes while a command changes $GOBIN or
+// gup.json. It lives beside gup.json rather than in a temp directory so it
+// follows the same XDG relocation the config already honors: a user who points
+// XDG_CONFIG_HOME at a per-project directory gets a per-project lock, which is
+// the same scope as the state it protects.
+const LockFileName = "gup.lock"
+
 // Config schema versions. v1 is the original format (latest/main/master
 // channels only). v2 adds the "pinned" channel, whose entries carry a concrete
 // target version. A gup.json is written as v2 only when it actually contains a
@@ -62,6 +69,12 @@ type configPackage struct {
 // FilePath return configuration-file path.
 func FilePath() string {
 	return filepath.Join(DirPath(), ConfigFileName)
+}
+
+// LockFilePath returns the path of the advisory lock file that serializes
+// gup commands which change $GOBIN or gup.json.
+func LockFilePath() string {
+	return filepath.Join(DirPath(), LockFileName)
 }
 
 // LocalFilePath returns the path to gup.json in the current directory.

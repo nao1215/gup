@@ -85,6 +85,33 @@ reads both. A malformed file, an unknown `channel`, an unsupported
 `schema_version`, or a `pinned` entry with no concrete version is an error, not
 something to ignore — a saved channel is never quietly downgraded to `latest`.
 
+## Running two gup commands at once
+
+The commands that change your `$GOBIN` or `gup.json` — `update`, `import`,
+`export`, `migrate`, `remove`, `pin`, `unpin` — take an advisory lock at
+`$XDG_CONFIG_HOME/gup/gup.lock` for the length of the run. A second one refuses
+to start instead of interleaving:
+
+> another gup process is already running (pid 40321 on carbon, running "gup update",
+> since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
+> gup.json, so wait for it to finish and run this command again; if that process is
+> gone, delete /home/you/.config/gup/gup.lock
+
+Two `gup update` runs at once would both install and then both write `gup.json`,
+so the file would end up describing only whichever finished last; `gup remove`
+deleting a binary a concurrent `gup update` is reinstalling is the same
+collision with a worse result.
+
+The read-only commands (`list`, `check`, `version`, `completion`, `man`,
+`bug-report`) do **not** take the lock, so they never block behind a long
+update. gup writes `gup.json` by atomic rename, so a reader sees either the
+previous complete file or the next one, never a half-written one.
+
+A lock left behind by a killed gup does not wedge the tool: the lock file
+records the owning process and is touched while the command runs, so a lock
+whose process is gone, or whose heartbeat stopped, is taken over by the next
+command. Interrupting gup with Ctrl-C releases it immediately.
+
 ## JSON output fields
 
 | Field | Notes |

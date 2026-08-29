@@ -99,6 +99,9 @@ const (
 	testCmdPin            = "pin"
 	testFlagTimeout       = "--timeout"
 	testBinBeforeOnly     = "before-only"
+	testCmdCheck          = "check"
+	testCmdUnpin          = "unpin"
+	testBinNoSuch         = "no-such-binary"
 )
 
 // captureMigrateOutput runs fn with a buffer-backed printer and returns the

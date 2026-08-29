@@ -62,7 +62,10 @@ If BINARY arguments are given, only those binaries are migrated.`,
 			"gup migrate /old/gobin /new/gobin"),
 		ValidArgsFunction: completeMigrateArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(runMigrate(printerFor(cmd), cmd, args))
+			p := printerFor(cmd)
+			OsExit(withStateLock(p, cmd, "migrate", func() int {
+				return runMigrate(p, cmd, args)
+			}))
 		},
 	}
 

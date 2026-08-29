@@ -439,6 +439,22 @@ $ gup completion --install
 
 `--install` writes to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written. Re-running `--install` is idempotent and does not duplicate the zsh init snippet in `.zshrc`.
 
+### Running two gup commands at once
+The commands that change your `$GOBIN` or `gup.json` — `update`, `import`, `export`, `migrate`, `remove`, `pin`, and `unpin` — take an advisory lock at `$XDG_CONFIG_HOME/gup/gup.lock` for the length of the run, so a second one refuses to start rather than interleaving with the first.
+```shell
+$ gup update
+```
+The second one exits non-zero after reporting who is in the way:
+
+> another gup process is already running (pid 40321 on carbon, running "gup update",
+> since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
+> gup.json, so wait for it to finish and run this command again; if that process is
+> gone, delete /home/you/.config/gup/gup.lock
+
+Two concurrent `gup update` runs would both install and then both write `gup.json`, leaving a file that describes only whichever finished last. Read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) do not take the lock and never block behind a long update; gup writes `gup.json` by atomic rename, so a reader always sees a complete file.
+
+A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process and is refreshed while the command runs, so a lock whose process is gone — or whose refresh stopped — is taken over by the next command, and Ctrl-C releases it right away.
+
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
 ```shell
