@@ -151,10 +151,14 @@ scenarios:
             contains: "no such file or directory"
             not_contains: "another gup process is already running"
 
-  - name: interrupting gup releases its lock immediately
-    # gup's subcommands exit through os.Exit, so without a signal handler a
-    # Ctrl-C would leave the lock file behind and the next command would wait it
-    # out. The file must be gone before the process is.
+  - name: an interrupted gup holds its lock until the process is gone
+    # Deleting the lock file from a signal handler looks tidy and is not safe:
+    # it frees the lock while the interrupted command is still installing
+    # binaries and rewriting gup.json on its way out, so a gup started in that
+    # moment runs alongside it. gup therefore holds the lock until the process
+    # ends, and the file it leaves behind is reclaimed by the next command,
+    # which reads the owner's death off the operating system rather than off a
+    # file somebody raced to delete.
     # Skipped on Windows: atago delivers POSIX signals to a process group, which
     # Windows has no equivalent for.
     skip:
@@ -175,10 +179,13 @@ scenarios:
           signal: INT
           wait:
             timeout: 10s
+      # Nothing raced the process to the file: it is exactly where its owner
+      # left it.
       - assert:
           file:
             path: aaa-gobin/.gup.lock
-            exists: false
+            exists: true
+      # And it wedges nothing, because the owner is gone.
       - run:
           command: gup remove no-such-tool
           env:
@@ -187,6 +194,7 @@ scenarios:
       - assert:
           exit_code: 1
           stderr:
+            contains: "no such file or directory"
             not_contains: "another gup process is already running"
 
   - name: processes sharing a $GOBIN contend even from different config homes
@@ -328,3 +336,65 @@ scenarios:
           stdout:
             contains: uptodate
             not_contains: "gup.lock"
+
+  - name: a symlinked gup.json contends with the file it points at
+    # Dotfile managers (stow, chezmoi, yadm) link gup.json into place, and gup
+    # writes through the link so the link survives. The lock has to follow the
+    # write: one beside the LINK would let --file link/gup.json and
+    # --file real/gup.json take two different locks on one file and never
+    # contend, which is the collision a resource-scoped lock exists to catch.
+    # Skipped on Windows, where creating a symlink needs privileges a test
+    # runner should not assume.
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - fixture:
+          file: real/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - fixture:
+          file: link/gup.json
+          symlink: "${workdir}/real/gup.json"
+      # The control case: with nothing holding the lock, the command gets as far
+      # as its own work, so the refusal below cannot pass for the wrong reason.
+      - run:
+          command: gup pin no-such-tool v1.0.0 --file ${workdir}/link/gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            not_contains: "another gup process is already running"
+      # A lock on the file the link points at, held by a machine whose PIDs mean
+      # nothing here.
+      - fixture:
+          file: real/gup.json.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"pin","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup pin no-such-tool v1.0.0 --file ${workdir}/link/gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+
+  - name: a migration that cannot run leaves no AFTER_PATH behind
+    # Taking the lock CREATES AFTER_PATH, because a destination that does not
+    # exist yet is exactly when two migrations are most likely to collide. That
+    # must not happen for a migration that is going to be rejected: failing on
+    # BEFORE_PATH and still leaving a new directory on the user's disk is a
+    # command that half ran.
+    env: *iso
+    steps:
+      - run:
+          command: gup migrate ${workdir}/no-such-gobin ${workdir}/new-gobin
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "BEFORE_PATH does not exist"
+      - assert:
+          dir:
+            path: new-gobin
+            exists: false

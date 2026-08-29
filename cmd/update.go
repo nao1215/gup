@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/notify"
@@ -176,12 +175,16 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 	// When both the user-level config and ./gup.json exist and no --file is
 	// given, fail fast instead of silently choosing one (#342), consistent with
 	// import and check.
-	confReadPath, err := config.ResolveImportFilePath(opts.confFile)
+	//
+	// This is the same resolution the state lock was taken from, not a second one:
+	// resolving again could land on a different file (another process creating
+	// ./gup.json while this update runs) and write it while holding a lock on the
+	// file that was resolved first.
+	confReadPath, confWritePath, err := resolveConfigPaths(cmd, opts.confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
-	confWritePath := configstate.ResolveWritePath(opts.confFile, confReadPath)
 
 	// A malformed or unreadable config must fail fast instead of silently
 	// falling back to @latest, which would update from the wrong channel and

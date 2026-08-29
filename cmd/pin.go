@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/nao1215/gup/internal/binname"
-	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/configstate"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/pkgselect"
@@ -147,7 +146,8 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	confReadPath, err := config.ResolveImportFilePath(confFile)
+	// The same resolution the state lock was taken from: see resolveConfigPaths.
+	confReadPath, writePath, err := resolveConfigPaths(cmd, confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -164,7 +164,6 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	writePath := configstate.ResolveWritePath(confFile, confReadPath)
 	if err := writeConfigFile(writePath, merged); err != nil {
 		p.Err(err)
 		return 1
@@ -192,7 +191,8 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	confReadPath, err := config.ResolveImportFilePath(confFile)
+	// The same resolution the state lock was taken from: see resolveConfigPaths.
+	confReadPath, writePath, err := resolveConfigPaths(cmd, confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -209,7 +209,6 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	writePath := configstate.ResolveWritePath(confFile, confReadPath)
 	if err := writeConfigFile(writePath, merged); err != nil {
 		p.Err(err)
 		return 1

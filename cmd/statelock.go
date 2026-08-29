@@ -162,22 +162,103 @@ func configFileLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{lockfile.PathForFile(writePath)}, nil
+	return configFileLock(writePath)
 }
 
-// resolveConfigWritePath mirrors the resolution pin/unpin/update perform, so the
-// lock guards the file that is actually written rather than the one that would
-// have been written by default.
+// configFileLock returns the lock guarding the gup.json a command writes.
+//
+// It follows a symlink to the file the write actually lands on, because that is
+// what the write does: writeConfigFile resolves the link and rewrites its
+// target, so that a dotfile manager's link survives the update. A lock placed
+// beside the LINK would leave `--file link/gup.json` and
+// `--file real/gup.json` taking two different locks on one file, which is the
+// case a lock scoped to the resource exists to catch.
+func configFileLock(writePath string) ([]string, error) {
+	resolved, err := fileutil.ResolveSymlinkTarget(writePath)
+	if err != nil {
+		return nil, fmt.Errorf("can not resolve config path %s: %w", writePath, err)
+	}
+	return []string{lockfile.PathForFile(resolved)}, nil
+}
+
+// resolveConfigWritePath returns where the command writes gup.json, using the
+// one resolution the command is allowed to make (see resolveConfigPaths).
 func resolveConfigWritePath(cmd *cobra.Command) (string, error) {
 	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
 		return "", err
 	}
-	readPath, err := config.ResolveImportFilePath(confFile)
-	if err != nil {
-		return "", err
+	_, writePath, err := resolveConfigPaths(cmd, confFile)
+	return writePath, err
+}
+
+// resolvedConfigKey keys the config resolution on a command's context.
+type resolvedConfigKey struct{}
+
+// resolvedConfig is the pair of gup.json paths a command run works with: the one
+// it reads and the one it writes.
+type resolvedConfig struct {
+	// confFile is the --file value the pair was resolved from, so a caller asking
+	// about a different one is never answered from this.
+	confFile string
+	read     string
+	write    string
+}
+
+// resolveConfigPaths returns the gup.json the command reads and the one it
+// writes, resolving them at most once per command run.
+//
+// Resolving consults the filesystem: with no --file, whether ./gup.json exists
+// at that moment decides both which config is read and where the write lands.
+// Answering that question twice is a race the lock cannot cover. A command that
+// starts with no config anywhere locks the user-level path; if another process
+// creates ./gup.json while it works, a second resolution would send the write to
+// ./gup.json instead - a file this command holds no lock on, and another process
+// may be writing. So the answer is settled before the lock is taken and
+// remembered on the command's context, and the command body reads the same
+// answer the lock was taken for.
+func resolveConfigPaths(cmd *cobra.Command, confFile string) (read, write string, err error) {
+	if cached := cachedConfigPaths(cmd, confFile); cached != nil {
+		return cached.read, cached.write, nil
 	}
-	return configstate.ResolveWritePath(confFile, readPath), nil
+	read, err = config.ResolveImportFilePath(confFile)
+	if err != nil {
+		return "", "", err
+	}
+	write = configstate.ResolveWritePath(confFile, read)
+	rememberConfigPaths(cmd, &resolvedConfig{confFile: confFile, read: read, write: write})
+	return read, write, nil
+}
+
+// cachedConfigPaths returns the resolution already made for this command, or nil
+// when there is none to reuse.
+func cachedConfigPaths(cmd *cobra.Command, confFile string) *resolvedConfig {
+	if cmd == nil {
+		return nil
+	}
+	ctx := cmd.Context()
+	if ctx == nil {
+		return nil
+	}
+	cached, ok := ctx.Value(resolvedConfigKey{}).(*resolvedConfig)
+	if !ok || cached.confFile != confFile {
+		return nil
+	}
+	return cached
+}
+
+// rememberConfigPaths stores a resolution for the rest of the command run. A
+// command invoked directly, without cobra having given it a context, simply
+// resolves again: the memo is an anti-race measure, not a cache for speed.
+func rememberConfigPaths(cmd *cobra.Command, resolved *resolvedConfig) {
+	if cmd == nil {
+		return
+	}
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd.SetContext(context.WithValue(ctx, resolvedConfigKey{}, resolved))
 }
 
 // updateLockTargets locks both resources `gup update` writes: the $GOBIN it
@@ -233,7 +314,7 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{lockfile.PathForFile(config.ResolveExportFilePath(explicit))}, nil
+	return configFileLock(config.ResolveExportFilePath(explicit))
 }
 
 // migrateLockTargets locks AFTER_PATH, the directory `gup migrate` installs
@@ -249,6 +330,15 @@ func migrateLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 	if dryRun || len(args) < migrateMinArgs {
 		// Too few arguments is a usage error the command reports itself with a
 		// better message than a lock failure would give.
+		return nil, nil
+	}
+	// Locking AFTER_PATH creates it when it does not exist yet, which must not
+	// happen for a migration that is going to be rejected: `gup migrate /nope
+	// /tmp/new` would leave /tmp/new behind after failing. A BEFORE_PATH that is
+	// not a directory is exactly that case, and runMigrate reports it with a
+	// better message than any lock error could. Nothing is written in that case,
+	// so nothing needs guarding.
+	if !fileutil.IsDir(args[0]) {
 		return nil, nil
 	}
 	return dirLockTarget(args[1]), nil
