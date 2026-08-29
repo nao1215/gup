@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Install gup with go install, Homebrew, winget, mise, nix, aqua, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
+description: Install gup with go install, Homebrew, winget, mise, nix, aqua, the AUR, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
 ---
 
 gup runs on Linux, macOS, and Windows. It shells out to `go`, so a Go toolchain
@@ -16,6 +16,16 @@ Building from source needs Go 1.25 or newer. On an older Go, take a prebuilt
 binary or a package below.
 
 ## Package managers
+
+gup is in homebrew-core, so Homebrew needs no tap:
+
+```shell
+brew install gup
+```
+
+The GoReleaser-built formula in `nao1215/tap` remains published as an
+alternative. It installs the prebuilt release binary rather than building from
+source:
 
 ```shell
 brew install nao1215/tap/gup
@@ -37,6 +47,16 @@ gup is in the [aqua](https://aquaproj.github.io/) standard registry:
 
 ```shell
 aqua g -i nao1215/gup
+```
+
+On Arch Linux, two community-maintained AUR packages exist:
+[`gup`](https://aur.archlinux.org/packages/gup) builds from source and
+[`gup-bin`](https://aur.archlinux.org/packages/gup-bin) installs the release
+binary.
+
+```shell
+paru -S gup      # or: yay -S gup
+paru -S gup-bin  # prebuilt binary
 ```
 
 ## Prebuilt packages and binaries

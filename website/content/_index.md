@@ -57,5 +57,11 @@ from any directory and keep alongside your dotfiles.
 go install github.com/nao1215/gup@latest
 ```
 
-Homebrew, winget, mise, nix, aqua, and prebuilt packages are on the
+Homebrew, winget, mise, nix, aqua, the AUR, and prebuilt packages are on the
 [install page](/install/).
+
+## Integrations
+
+[Topgrade](https://github.com/topgrade-rs/topgrade) updates the Go binaries
+under `$GOBIN` by running `gup update` when gup is installed. Nothing extra is
+needed on the gup side; how the step behaves is documented by Topgrade.

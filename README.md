@@ -22,7 +22,7 @@ Documentation: **https://nao1215.github.io/gup/**
 - Windows
 
 ## How to install
-gup is already available via `winget`, `mise`, `nix`, and `aqua` in addition to `go install` and Homebrew.
+gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
 
 ### Use "go install"
 If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
@@ -32,6 +32,11 @@ go install github.com/nao1215/gup@latest
 Building from source needs Go 1.25 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
 
 ### Use homebrew
+gup is in homebrew-core, so no tap is required:
+```shell
+brew install gup
+```
+The GoReleaser-built formula in `nao1215/tap` is still published as an alternative. It installs the prebuilt release binary instead of building from source:
 ```shell
 brew install nao1215/tap/gup
 ```
@@ -55,6 +60,13 @@ nix profile install nixpkgs#gogup
 gup is registered in the [aqua](https://aquaproj.github.io/) standard registry. Add it to your `aqua.yaml`:
 ```shell
 aqua g -i nao1215/gup
+```
+
+### Use the AUR (Arch Linux)
+Two community-maintained packages are available: [`gup`](https://aur.archlinux.org/packages/gup) builds from source, [`gup-bin`](https://aur.archlinux.org/packages/gup-bin) installs the release binary.
+```shell
+paru -S gup      # or: yay -S gup
+paru -S gup-bin  # prebuilt binary
 ```
 
 ### Install from Package or Binary
@@ -429,6 +441,9 @@ Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#
 | `NO_COLOR` support | Yes | Yes | — |
 
 *Update time: 9 binaries each with a newer version available; gup updates in parallel, the others sequentially. AMD Ryzen AI Max+ 395 / go 1.26.4, median of 5 runs with a warm module cache; times depend on build time and CPU.*
+
+## Integrations
+[Topgrade](https://github.com/topgrade-rs/topgrade) updates the Go binaries under `$GOBIN` by running `gup update` when gup is installed. Nothing extra is needed on the gup side; how the step behaves is documented by Topgrade.
 
 ## FAQ
 
