@@ -81,6 +81,22 @@ const (
 	// every other file gup writes.
 	lockFileMode fs.FileMode = 0600
 
+	// pidTrustMultiple bounds how long a live local PID is taken as proof that
+	// the lock is still held, expressed in multiples of the staleness bound.
+	//
+	// The PID check has to be bounded or it becomes unfalsifiable. A gup killed
+	// with SIGKILL leaves its PID in the lock file, and once the operating system
+	// recycles that number onto an unrelated process - which macOS does within
+	// tens of thousands of spawns, and a container with a small pid_max does in
+	// hours - processAlive answers "yes" forever. The lock would then never be
+	// reclaimed by anything, and gup would keep telling the user it reclaims
+	// abandoned locks by itself while doing no such thing.
+	//
+	// An hour is chosen to be far longer than any pause the heartbeat is expected
+	// to survive (a suspended process, a throttled container, a laptop asleep for
+	// a while) and far shorter than "forever".
+	pidTrustMultiple = 60
+
 	// dirLockName is the lock file guarding a binary directory. The leading dot
 	// keeps it out of gup's own $GOBIN listing, which skips dot-prefixed entries
 	// (see goutil.BinaryPathList), so the lock cannot be mistaken for a tool.
@@ -118,6 +134,10 @@ func waitTimeout() time.Duration { return durationFromEnv(envWait, defaultWait) 
 func heartbeatInterval() time.Duration { return durationFromEnv(envHeartbeat, defaultHeartbeat) }
 
 func staleAfter() time.Duration { return durationFromEnv(envStale, defaultStaleAfter) }
+
+// pidTrustWindow is how long a lock file may go untouched before its recorded
+// PID stops being believed, however alive that PID looks.
+func pidTrustWindow() time.Duration { return pidTrustMultiple * staleAfter() }
 
 // normalizePath resolves a lock path to a cleaned absolute one.
 //
@@ -527,12 +547,17 @@ func newNonce() (string, error) {
 // inspect reads the lock file and decides whether the lock may be taken over.
 //
 // The order matters, and is the opposite of what it might look like it could be.
-// When the file was written by a live process ON THIS HOST, that is a definitive
-// answer and nothing else is consulted - however long ago the process last
-// touched the file. A `gup update` suspended with Ctrl-Z, a laptop resumed from
-// sleep, or a container throttled for a minute all stop the heartbeat without
-// stopping the process, and treating those as abandoned would hand the lock to a
-// second gup while the first is still working.
+// When the file was written by a live process ON THIS HOST, that answer wins
+// over the heartbeat: a `gup update` suspended with Ctrl-Z, a laptop resumed
+// from sleep, or a container throttled for a minute all stop the heartbeat
+// without stopping the process, and treating those as abandoned would hand the
+// lock to a second gup while the first is still working.
+//
+// That trust is bounded, though (pidTrustMultiple). A PID outlives the process
+// that owned it: once the operating system recycles the number, an unbounded
+// check would answer "still held" forever and no gup would ever reclaim the
+// file. Past the window the heartbeat decides again, so a lock is always
+// reclaimable in the end - which is what the busy message promises the user.
 //
 // The heartbeat age is the fallback for everything the PID check cannot answer:
 // a lock file from another machine on a shared home directory, one whose owner
@@ -545,16 +570,18 @@ func inspect(path string) (owner Owner, stale bool) {
 		return Owner{}, true
 	}
 
+	age := nowFunc().Sub(info.ModTime())
 	owner, readErr := readOwner(path)
-	if readErr == nil && owner.PID > 0 && ownedByThisHost(owner) {
+	if readErr == nil && owner.PID > 0 && ownedByThisHost(owner) && age <= pidTrustWindow() {
 		return owner, !processAlive(owner.PID)
 	}
 
-	// Not attributable to a live local process: fall back to the heartbeat. A
+	// Not attributable to a live local process - another host, an unreadable
+	// record, or a PID too old to still believe - so the heartbeat decides. A
 	// file that is still being touched is held by someone; one that is not has
 	// been abandoned. A freshly created file whose owner record has not been
 	// written yet lands here too, and is correctly treated as held.
-	if nowFunc().Sub(info.ModTime()) > staleAfter() {
+	if age > staleAfter() {
 		return owner, true
 	}
 	return owner, false

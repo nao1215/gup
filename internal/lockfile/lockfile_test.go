@@ -304,12 +304,13 @@ func TestAcquire_reportsALockHeldByAnotherLiveProcess(t *testing.T) {
 	}
 }
 
-// TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs is the rule an
-// earlier version had backwards. The heartbeat is a fallback for owners whose
-// liveness cannot be checked, not an expiry: a `gup update` suspended with
-// Ctrl-Z, or a laptop resumed from sleep, stops the heartbeat without stopping
-// the process, and stealing there puts two gups in the critical section at once.
-func TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs(t *testing.T) {
+// TestAcquire_keepsALockWhoseLocalOwnerIsAliveDespiteAStoppedHeartbeat is the
+// rule an earlier version had backwards. Within the trust window the heartbeat
+// is a fallback for owners whose liveness cannot be checked, not an expiry: a
+// `gup update` suspended with Ctrl-Z, or a laptop resumed from sleep, stops the
+// heartbeat without stopping the process, and stealing there puts two gups in
+// the critical section at once.
+func TestAcquire_keepsALockWhoseLocalOwnerIsAliveDespiteAStoppedHeartbeat(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "gup.lock")
@@ -320,7 +321,9 @@ func TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs(t *testing.T) {
 		Acquired: time.Now(),
 		Nonce:    ownerHolder,
 	})
-	old := time.Now().Add(-100 * defaultStaleAfter)
+	// Far past the staleness bound, but well inside the window in which a
+	// recorded PID is still believed.
+	old := time.Now().Add(-10 * defaultStaleAfter)
 	if err := os.Chtimes(path, old, old); err != nil {
 		t.Fatalf("failed to backdate the lock file: %v", err)
 	}
@@ -328,10 +331,59 @@ func TestAcquire_keepsALockWhoseLocalOwnerIsAliveHoweverOldItIs(t *testing.T) {
 	_, err := Acquire(t.Context(), path, cmdUpdate)
 	var busy *BusyError
 	if !errors.As(err, &busy) {
-		t.Fatalf("Acquire() error = %v, want *BusyError: a live local owner keeps its lock regardless of age", err)
+		t.Fatalf("Acquire() error = %v, want *BusyError: a live local owner keeps its lock across a heartbeat gap", err)
 	}
 	if got := readOwnerForTest(t, path); got.Nonce != ownerHolder {
 		t.Error("the live owner's lock file was taken over")
+	}
+}
+
+// TestAcquire_stopsBelievingAPIDOnceTheLockFileIsAncient is the other side of
+// that rule, and the reason the trust is bounded at all. A PID outlives the
+// process that owned it: after a SIGKILL the operating system eventually
+// recycles the number onto something unrelated, and an unbounded check would
+// answer "still held" forever. The lock would never be reclaimed by anything,
+// while gup kept telling the user it reclaims abandoned locks by itself.
+func TestAcquire_stopsBelievingAPIDOnceTheLockFileIsAncient(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	writeOwner(t, path, Owner{
+		// This process is alive and on this host, standing in for a recycled PID
+		// that now names something other than the gup that recorded it.
+		PID:      os.Getpid(),
+		Host:     hostname(t),
+		Command:  cmdUpdate,
+		Acquired: time.Now(),
+		Nonce:    ownerHolder,
+	})
+	old := time.Now().Add(-2 * pidTrustMultiple * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock file: %v", err)
+	}
+
+	lock, err := Acquire(t.Context(), path, cmdUpdate)
+	if err != nil {
+		t.Fatalf("Acquire() error: %v, want a lock nothing has touched in an age to be reclaimable", err)
+	}
+	t.Cleanup(func() { _ = lock.Release() })
+
+	if got := readOwnerForTest(t, path); got.Nonce == ownerHolder {
+		t.Error("the ancient lock file was not taken over")
+	}
+}
+
+// TestPIDTrustWindow_isAGenerousMultipleOfStaleness pins the relationship rather
+// than the number: the window has to be long enough that an ordinary heartbeat
+// gap never reaches it, and finite so a recycled PID cannot wedge the lock.
+func TestPIDTrustWindow_isAGenerousMultipleOfStaleness(t *testing.T) {
+	t.Parallel()
+
+	if got, want := pidTrustWindow(), pidTrustMultiple*staleAfter(); got != want {
+		t.Errorf("pidTrustWindow() = %v, want %v", got, want)
+	}
+	if pidTrustWindow() <= staleAfter() {
+		t.Error("the PID trust window is not longer than the staleness bound, so the PID check would never apply")
 	}
 }
 
