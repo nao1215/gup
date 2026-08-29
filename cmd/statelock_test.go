@@ -567,3 +567,134 @@ func Test_migrateLockTargets_leavesAnInvalidAfterPathToTheCommand(t *testing.T) 
 		t.Errorf("migrateLockTargets() = %v, want no lock so migrate reports the bad AFTER_PATH itself", got)
 	}
 }
+
+// Test_migrateLockTargets_doesNotCreateAfterPathForAnInvalidBeforePath covers
+// the other half of that rule, and a side effect worth avoiding: resolving the
+// lock CREATES AFTER_PATH, and it ran before migrate validated anything. A
+// migration that cannot run - a BEFORE_PATH that does not exist - would fail and
+// still leave a new directory behind on the user's disk.
+func Test_migrateLockTargets_doesNotCreateAfterPathForAnInvalidBeforePath(t *testing.T) {
+	dir := t.TempDir()
+	missingBefore := filepath.Join(dir, "no-such-gobin")
+	after := filepath.Join(dir, "new-gobin")
+
+	got, err := migrateLockTargets(findSubcommand(t, testCmdMigrate), []string{missingBefore, after})
+	if err != nil {
+		t.Fatalf("migrateLockTargets() error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("migrateLockTargets() = %v, want no lock so migrate reports the bad BEFORE_PATH itself", got)
+	}
+	if _, err := os.Stat(after); !os.IsNotExist(err) {
+		t.Errorf("AFTER_PATH was created for a migration that cannot run: %v", err)
+	}
+}
+
+// Test_configFileLockTargets_locksTheFileASymlinkPointsAt covers the config that
+// a dotfile manager (stow, chezmoi, yadm) linked into place. Writing follows the
+// link and rewrites its target, so a lock beside the link would guard a file
+// nobody writes: `--file link/gup.json` and `--file real/gup.json` would take
+// two different locks on one file and never contend.
+func Test_configFileLockTargets_locksTheFileASymlinkPointsAt(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink creation needs privileges on Windows; the rule is POSIX-specific here")
+	}
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real", "gup.json")
+	if err := os.MkdirAll(filepath.Dir(real), 0o750); err != nil {
+		t.Fatalf("failed to create the target directory: %v", err)
+	}
+	if err := os.WriteFile(real, []byte(`{"schema_version":1,"packages":[]}`), 0o600); err != nil {
+		t.Fatalf("failed to write the config: %v", err)
+	}
+	link := filepath.Join(dir, "link-gup.json")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("failed to link the config: %v", err)
+	}
+
+	cmd := findSubcommand(t, testCmdPin)
+	if err := cmd.Flags().Set("file", link); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	got, err := configFileLockTargets(cmd, nil)
+	if err != nil {
+		t.Fatalf("configFileLockTargets() error: %v", err)
+	}
+	if want := []string{lockfile.PathForFile(real)}; !slices.Equal(got, want) {
+		t.Errorf("configFileLockTargets() = %v, want %v (the file the write lands on)", got, want)
+	}
+}
+
+// Test_resolveConfigPaths_answersOncePerCommand is the anti-race rule. Where the
+// write lands depends on what exists on disk when the question is asked, so
+// asking twice can produce two answers: the lock is taken for the first and the
+// write goes to the second. Here another process creates ./gup.json between the
+// two questions, which is exactly the case that would move an unlocked write.
+func Test_resolveConfigPaths_answersOncePerCommand(t *testing.T) {
+	configHome := t.TempDir()
+	originalConfigHome := xdg.ConfigHome
+	xdg.ConfigHome = configHome
+	t.Cleanup(func() { xdg.ConfigHome = originalConfigHome })
+	t.Chdir(t.TempDir())
+
+	cmd := newLockTestCommand(&bytes.Buffer{})
+	read, write, err := resolveConfigPaths(cmd, "")
+	if err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+	if want := filepath.Join(configHome, "gup", "gup.json"); write != want {
+		t.Fatalf("write path = %q, want the user-level config %q", write, want)
+	}
+
+	// Another gup, started in this directory, creates the local config.
+	if err := os.WriteFile("gup.json", []byte(`{"schema_version":1,"packages":[]}`), 0o600); err != nil {
+		t.Fatalf("failed to write ./gup.json: %v", err)
+	}
+
+	gotRead, gotWrite, err := resolveConfigPaths(cmd, "")
+	if err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+	if gotRead != read || gotWrite != write {
+		t.Errorf("resolveConfigPaths() = (%q, %q) the second time, want the answer the lock was taken for (%q, %q)",
+			gotRead, gotWrite, read, write)
+	}
+}
+
+// Test_resolveConfigPaths_isPerFileValue covers the memo's key: a different
+// --file is a different question, and answering it from the previous answer
+// would lock one file and write another.
+func Test_resolveConfigPaths_isPerFileValue(t *testing.T) {
+	t.Chdir(t.TempDir())
+	cmd := newLockTestCommand(&bytes.Buffer{})
+	if _, _, err := resolveConfigPaths(cmd, ""); err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+
+	explicit := filepath.Join(t.TempDir(), "other-gup.json")
+	_, write, err := resolveConfigPaths(cmd, explicit)
+	if err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+	if write != explicit {
+		t.Errorf("write path = %q, want %q", write, explicit)
+	}
+}
+
+// Test_resolveConfigPaths_withoutACommandContext covers a command whose Run is
+// invoked directly, with no context for cobra to have filled: the resolution
+// still has to work, it simply cannot be remembered.
+func Test_resolveConfigPaths_withoutACommandContext(t *testing.T) {
+	t.Chdir(t.TempDir())
+	explicit := filepath.Join(t.TempDir(), "explicit-gup.json")
+
+	for _, cmd := range []*cobra.Command{nil, {Use: testCmdGup}} {
+		_, write, err := resolveConfigPaths(cmd, explicit)
+		if err != nil {
+			t.Fatalf("resolveConfigPaths() error: %v", err)
+		}
+		if write != explicit {
+			t.Errorf("write path = %q, want %q", write, explicit)
+		}
+	}
+}
