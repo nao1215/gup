@@ -852,7 +852,7 @@ func (l *Lock) releaseFile() error {
 //
 // So the lock is held until the process is gone, and nothing gets to shorten
 // that. gup's long-running commands already cancel their work on a signal (see
-// cmd's signal-cancelling context): the run unwinds, the command returns, and
+// cmd's signal-canceling context): the run unwinds, the command returns, and
 // the deferred Release removes the file - in that order, which is the order that
 // is safe. A command that has no such handler is killed outright by the default
 // disposition, and its lock file is reclaimed by the next gup the moment it

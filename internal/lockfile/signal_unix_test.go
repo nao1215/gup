@@ -32,7 +32,7 @@ func TestSignal_leavesTheLockHeld(t *testing.T) { //nolint:paralleltest // sends
 	}
 	t.Cleanup(func() { _ = lock.Release() })
 
-	// Stands in for the signal-cancelling context gup's commands install: the
+	// Stands in for the signal-canceling context gup's commands install: the
 	// work is what reacts to a signal, not the lock.
 	received := make(chan os.Signal, 1)
 	signal.Notify(received, syscall.SIGINT)
