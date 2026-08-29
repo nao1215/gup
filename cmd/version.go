@@ -7,7 +7,7 @@ import (
 
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:               "version",
+		Use:               cmdNameVersion,
 		Short:             "Show " + cmdinfo.Name + " command version information",
 		Example:           "  gup version",
 		Args:              cobra.NoArgs,

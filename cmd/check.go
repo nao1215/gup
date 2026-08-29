@@ -16,7 +16,7 @@ import (
 
 func newCheckCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "check",
+		Use:   cmdNameCheck,
 		Short: "Check the latest version of the binary installed by 'go install'",
 		Example: `  gup check
   gup check --quiet`,

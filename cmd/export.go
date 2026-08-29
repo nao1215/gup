@@ -24,7 +24,10 @@ apply it with 'gup import'.`,
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(export(printerFor(cmd), cmd, args))
+			p := printerFor(cmd)
+			OsExit(withStateLock(p, cmd, args, cmdNameExport, func() int {
+				return export(p, cmd, args)
+			}))
 		},
 	}
 	cmd.Flags().BoolP("output", "o", false, "print command path information at STDOUT")

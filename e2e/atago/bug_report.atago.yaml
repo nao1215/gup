@@ -15,15 +15,20 @@ scenarios:
       XDG_CONFIG_HOME: "${workdir}/home/.config"
       GOBIN: "${workdir}/gobin"
       GOPATH: "${workdir}/gopath"
-      # An empty PATH for the gup child process: its exec("xdg-open") lookup fails,
+      # An empty PATH for the gup child process: its browser-launcher lookup
+      # (xdg-open on Linux, open on macOS, rundll32.exe on Windows) fails,
       # openBrowser() returns false, and the STDOUT fallback fires. atago resolves
-      # the 'gup'/'mkdir' commands via the launcher environment, so overriding the
-      # child PATH here does not stop the scenario from running the built binary.
+      # the 'gup' command via the launcher environment, so overriding the child
+      # PATH here does not stop the scenario from running the built binary.
       PATH: "${workdir}/emptybin"
     steps:
-      - run:
-          shell: true
-          command: mkdir -p ${workdir}/emptybin
+      # A fixture rather than `mkdir -p`: writing a file creates its parent
+      # directory on every OS, while `mkdir -p` is a POSIX shell invocation the
+      # Windows leg has no shell for. gup skips dot-prefixed entries, so the
+      # placeholder is invisible to any directory scan.
+      - fixture:
+          file: emptybin/.keep
+          content: "placeholder so the directory exists"
       - run:
           command: gup bug-report
       - assert:

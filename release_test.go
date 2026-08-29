@@ -2,10 +2,23 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
+)
+
+// workflowDir holds the GitHub Actions workflows the tests below inspect.
+const workflowDir = ".github/workflows"
+
+// The GitHub-hosted runner labels the cross-platform jobs are asserted against.
+const (
+	runnerMacOS   = "macos-latest"
+	runnerWindows = "windows-latest"
+	runnerUbuntu  = "ubuntu-latest"
 )
 
 // These tests guard the release pipeline configuration so the supply-chain and
@@ -186,4 +199,360 @@ func keys(m map[string]bool) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// Test_workflows_pinActionsToCommitSHA asserts that every third-party action in
+// every workflow is pinned to a full 40-character commit SHA with the version it
+// tracks in a trailing comment. A mutable tag (`@v3`) hands whoever can move that
+// tag the ability to run arbitrary code in this repository's CI - including the
+// release job, which holds the tokens that publish to Homebrew, winget, and the
+// Scoop bucket. Most workflows were already pinned; website.yml was not, and
+// nothing made that visible. This test is what keeps a newly added step from
+// re-opening the hole.
+func Test_workflows_pinActionsToCommitSHA(t *testing.T) {
+	t.Parallel()
+
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", workflowDir, err)
+	}
+
+	// A full commit SHA followed by a "# vX.Y.Z" comment naming the version it
+	// pins, so a reader can tell what the opaque hash actually is.
+	pinned := regexp.MustCompile(`^[^@\s]+@[0-9a-f]{40}\s+#\s*\S`)
+
+	for _, entry := range entries {
+		// GitHub Actions accepts both extensions, so a .yaml workflow must not be
+		// able to slip past the pinning guardrail by spelling its suffix
+		// differently.
+		if entry.IsDir() || !isWorkflowFile(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(workflowDir, entry.Name())
+		raw, err := os.ReadFile(path) //nolint:gosec // path is an in-repo workflow file
+		if err != nil {
+			t.Errorf("failed to read %s: %v", path, err)
+			continue
+		}
+		for i, line := range strings.Split(string(raw), "\n") {
+			trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "- "))
+			if !strings.HasPrefix(trimmed, "uses:") {
+				continue
+			}
+			ref := strings.TrimSpace(strings.TrimPrefix(trimmed, "uses:"))
+			// A local composite action (./.github/actions/...) has no upstream
+			// owner to pin against; it is this repository's own content.
+			if strings.HasPrefix(ref, "./") {
+				continue
+			}
+			if !pinned.MatchString(ref) {
+				t.Errorf("%s:%d pins an action by tag or branch, not by commit SHA with a version comment: %q",
+					path, i+1, ref)
+			}
+		}
+	}
+}
+
+// Test_workflows_haveGovulncheck asserts the vulnerability scan exists and stays
+// wired to pull requests, main, and a schedule. The scheduled leg is the point:
+// the advisory database changes without gup changing, so a scan that only ran on
+// pull requests would report a clean repository right up until someone happened
+// to open one.
+func Test_workflows_haveGovulncheck(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "govulncheck.yml"))
+
+	// yaml.v3 follows the YAML 1.2 core schema, so the `on:` key stays the string
+	// "on" rather than being folded into the boolean true the way YAML 1.1 did.
+	triggers, ok := doc["on"].(map[string]any)
+	if !ok {
+		t.Fatal("govulncheck workflow has no trigger block")
+	}
+	for _, want := range []string{"pull_request", "push", "schedule", "workflow_dispatch"} {
+		if _, ok := triggers[want]; !ok {
+			t.Errorf("govulncheck workflow is missing the %q trigger", want)
+		}
+	}
+
+	perms, ok := doc["permissions"].(map[string]any)
+	if !ok {
+		t.Fatal("govulncheck workflow is missing a permissions block")
+	}
+	if perms["contents"] != "read" {
+		t.Errorf("govulncheck workflow should run with 'contents: read', got %v", perms["contents"])
+	}
+	if len(perms) != 1 {
+		t.Errorf("govulncheck workflow grants more than read access to the checkout: %v", perms)
+	}
+}
+
+// Test_goreleaser_explicitArchitectures asserts the build matrix is stated, not
+// inherited. GoReleaser's default goarch list includes 386, so leaving the key
+// out published a 32-bit artifact gup never claimed to support, never smoke
+// tested, and never documented. The OS and arch sets here are what README.md,
+// website/content/install.md, and scripts/smoke_artifacts.sh are all written
+// against.
+func Test_goreleaser_explicitArchitectures(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, ".goreleaser.yml")
+
+	builds, ok := doc["builds"].([]any)
+	if !ok || len(builds) == 0 {
+		t.Fatal("builds section is missing in .goreleaser.yml")
+	}
+	build, ok := builds[0].(map[string]any)
+	if !ok {
+		t.Fatal("builds[0] is not a mapping in .goreleaser.yml")
+	}
+
+	for key, want := range map[string][]string{
+		"goos":   {"linux", "windows", "darwin"},
+		"goarch": {"amd64", "arm64"},
+	} {
+		got := stringSlice(build[key])
+		if len(got) == 0 {
+			t.Errorf("builds[0].%s is not declared; GoReleaser would fall back to its defaults", key)
+			continue
+		}
+		if len(got) != len(want) {
+			t.Errorf("builds[0].%s = %v, want exactly %v", key, got, want)
+			continue
+		}
+		for _, w := range want {
+			if !slices.Contains(got, w) {
+				t.Errorf("builds[0].%s = %v, missing %q", key, got, w)
+			}
+		}
+	}
+}
+
+// Test_goreleaser_scoopBucket asserts the Scoop manifest is published into this
+// repository's own bucket/ directory. Pointing it at a separate repository would
+// need a cross-repository token the release workflow does not have, so the
+// release would fail at publish time - after the GitHub Release already exists.
+func Test_goreleaser_scoopBucket(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, ".goreleaser.yml")
+
+	scoops, ok := doc["scoops"].([]any)
+	if !ok || len(scoops) == 0 {
+		t.Fatal("scoops section is missing in .goreleaser.yml (no Scoop manifest is published)")
+	}
+	scoop, ok := scoops[0].(map[string]any)
+	if !ok {
+		t.Fatal("scoops[0] is not a mapping in .goreleaser.yml")
+	}
+	if scoop["directory"] != "bucket" {
+		t.Errorf("scoops[0].directory = %v, want \"bucket\" (the in-repo Scoop bucket)", scoop["directory"])
+	}
+	repo, ok := scoop["repository"].(map[string]any)
+	if !ok {
+		t.Fatal("scoops[0].repository is missing in .goreleaser.yml")
+	}
+	if repo["owner"] != "nao1215" || repo["name"] != "gup" {
+		t.Errorf("scoops[0].repository = %v/%v, want nao1215/gup so the built-in GITHUB_TOKEN can publish it",
+			repo["owner"], repo["name"])
+	}
+	if _, ok := repo["token"]; ok {
+		t.Error("scoops[0].repository declares a token; publishing into this same repository needs only the workflow's GITHUB_TOKEN")
+	}
+	// The bucket has to be a real directory in the repository, or `scoop bucket
+	// add` clones something Scoop cannot read.
+	if _, err := os.Stat("bucket/README.md"); err != nil {
+		t.Errorf("bucket/README.md is missing: %v", err)
+	}
+}
+
+// stringSlice converts a YAML sequence of scalars into []string.
+func stringSlice(v any) []string {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Test_releaseWorkflow_gatesPublishOnArtifactSmoke asserts the publish job runs
+// only after the artifact smoke tests pass, on all three operating systems. A
+// broken artifact cannot be taken back once a tag is published, and the smoke
+// job is only a gate if `needs` says so - a smoke job that merely runs in
+// parallel with the release lets the release win the race.
+func Test_releaseWorkflow_gatesPublishOnArtifactSmoke(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no jobs block")
+	}
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'release' job")
+	}
+
+	needs := stringSlice(release["needs"])
+	if single, ok := release["needs"].(string); ok {
+		needs = []string{single}
+	}
+	for _, want := range []string{"smoke", "smoke-cross"} {
+		if _, ok := jobs[want]; !ok {
+			t.Errorf("release workflow has no %q job", want)
+		}
+		if !slices.Contains(needs, want) {
+			t.Errorf("the release job does not depend on %q (needs = %v); publishing could proceed past a failed smoke test",
+				want, needs)
+		}
+	}
+
+	// The cross-OS leg is the point of splitting the job: running the Windows and
+	// macOS binaries is the one thing the Ubuntu leg cannot do.
+	crossJob, ok := jobs["smoke-cross"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'smoke-cross' job")
+	}
+	matrix := jobMatrixOS(t, crossJob)
+	for _, want := range []string{runnerMacOS, runnerWindows} {
+		if !slices.Contains(matrix, want) {
+			t.Errorf("smoke-cross does not run on %s; its matrix is %v", want, matrix)
+		}
+	}
+}
+
+// Test_releaseSmokeWorkflow_coversEveryOS asserts the pre-release smoke workflow
+// exercises the artifacts on all three operating systems, so a packaging
+// regression is caught on the pull request that introduces it rather than at
+// tag time.
+func Test_releaseSmokeWorkflow_coversEveryOS(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release-smoke.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no jobs block")
+	}
+	build, ok := jobs["build"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no 'build' job")
+	}
+	if build["runs-on"] != runnerUbuntu {
+		t.Errorf("the build job runs on %v, want %s", build["runs-on"], runnerUbuntu)
+	}
+
+	verify, ok := jobs["verify"].(map[string]any)
+	if !ok {
+		t.Fatal("release-smoke workflow has no 'verify' job")
+	}
+	matrix := jobMatrixOS(t, verify)
+	for _, want := range []string{runnerMacOS, runnerWindows} {
+		if !slices.Contains(matrix, want) {
+			t.Errorf("the verify job does not run on %s; its matrix is %v", want, matrix)
+		}
+	}
+}
+
+// jobMatrixOS returns the strategy.matrix.os entries of a job, after checking
+// that the job's runs-on actually resolves from that matrix.
+//
+// Declaring macOS and Windows in a matrix proves nothing on its own: a job whose
+// runs-on is hard-coded to ubuntu-latest runs every leg on Ubuntu while the
+// matrix still lists three names, and the leg that was supposed to execute a
+// Windows binary quietly does not. The binding is the part that matters.
+func jobMatrixOS(t *testing.T, job map[string]any) []string {
+	t.Helper()
+	strategy, ok := job["strategy"].(map[string]any)
+	if !ok {
+		t.Fatal("job has no strategy block")
+	}
+	matrix, ok := strategy["matrix"].(map[string]any)
+	if !ok {
+		t.Fatal("job strategy has no matrix")
+	}
+
+	runsOn, _ := job["runs-on"].(string)
+	if !strings.Contains(runsOn, "matrix.os") {
+		t.Errorf("runs-on is %q, want it to resolve from matrix.os; otherwise every matrix leg runs on the same runner", runsOn)
+	}
+	return stringSlice(matrix["os"])
+}
+
+// isWorkflowFile reports whether name is a GitHub Actions workflow. Both
+// extensions are accepted by GitHub, so both are inspected here.
+func isWorkflowFile(name string) bool {
+	ext := filepath.Ext(name)
+	return ext == ".yml" || ext == ".yaml"
+}
+
+// Test_e2eWorkflow_runsOnEveryOS asserts the end-to-end suite is not quietly
+// Linux-only again. gup ships on three operating systems and behaves differently
+// on each -- the .exe suffix, the config directory, PowerShell completion -- so a
+// suite that drives the real binary on one of them is testing a third of what it
+// claims to.
+func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "e2e.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("e2e workflow has no jobs block")
+	}
+	job, ok := jobs["e2e"].(map[string]any)
+	if !ok {
+		t.Fatal("e2e workflow has no 'e2e' job")
+	}
+
+	// The matrix is a fromJSON expression so pull requests get a shorter list
+	// than pushes; asserting on the raw expression is what keeps that check
+	// honest without evaluating GitHub's expression language here.
+	strategy, ok := job["strategy"].(map[string]any)
+	if !ok {
+		t.Fatal("the e2e job has no strategy block")
+	}
+	matrix, ok := strategy["matrix"].(map[string]any)
+	if !ok {
+		t.Fatal("the e2e job strategy has no matrix")
+	}
+	if runsOn, _ := job["runs-on"].(string); !strings.Contains(runsOn, "matrix.os") {
+		t.Errorf("the e2e job's runs-on is %q, want it to resolve from matrix.os", runsOn)
+	}
+	// A plain list, not an expression: the matrix must not be able to shrink for
+	// pull requests, because a leg that runs only after merge reports a break
+	// when it is already on main.
+	osList := stringSlice(matrix["os"])
+	for _, want := range []string{runnerUbuntu, runnerWindows, runnerMacOS} {
+		if !slices.Contains(osList, want) {
+			t.Errorf("the e2e matrix never runs on %s; os = %v", want, osList)
+		}
+	}
+
+	// A hung scenario must fail the job rather than occupy a runner for six
+	// hours, which is the default when no timeout is set.
+	if _, ok := job["timeout-minutes"]; !ok {
+		t.Error("the e2e job has no timeout-minutes; a hung scenario would run until GitHub's six-hour cap")
+	}
+
+	// The bootstrap has to be the Go runner: a bash one would make the Windows
+	// leg depend on Git for Windows rather than on gup.
+	steps, ok := job["steps"].([]any)
+	if !ok {
+		t.Fatal("the e2e job has no steps")
+	}
+	ranRunner := false
+	for _, s := range steps {
+		step, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		if run, ok := step["run"].(string); ok && strings.Contains(run, "go run ./e2e/runner") {
+			ranRunner = true
+		}
+	}
+	if !ranRunner {
+		t.Error("the e2e job does not run 'go run ./e2e/runner'")
+	}
 }

@@ -11,9 +11,12 @@ import (
 // shellBash is the bash shell name used for completion arguments.
 const shellBash = "bash"
 
-// isWindows reports whether gup is running on Windows. It is a package
-// variable so tests can exercise the Windows-specific --install path on any OS.
-var isWindows = completion.IsWindows //nolint:gochecknoglobals // test seam
+// deployCompletion installs the completion files for the current platform. It is
+// a package variable so a test can drive the command's failure handling without
+// depending on which shells the host actually has. Which shells get installed is
+// the completion package's decision (bash/fish/zsh on POSIX, PowerShell on
+// Windows), and is tested there.
+var deployCompletion = completion.DeployShellCompletionFileIfNeeded //nolint:gochecknoglobals // test seam
 
 func newCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -21,7 +24,12 @@ func newCompletionCmd() *cobra.Command {
 		Short: "Generate shell completions (bash, fish, zsh, powershell) for gup",
 		Long: `Generate shell completions (bash, fish, zsh, powershell) for the gup command.
 With a shell name as argument, output completion for the shell to standard output.
-Use --install to write bash/fish/zsh completion files to the user shell config paths.`,
+
+Use --install to set completion up for the shells of the current platform:
+bash, fish and zsh on Linux and macOS, PowerShell on Windows. The PowerShell
+install writes the completion script next to your profile and adds a single
+dot-source line to the profile inside a marked block, so re-running it never
+duplicates the entry and never disturbs the rest of your profile.`,
 		Example: `  gup completion bash
   gup completion --install`,
 		Args:      cobra.MatchAll(cobra.MaximumNArgs(1), cobra.OnlyValidArgs),
@@ -36,10 +44,7 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 				if len(args) != 0 {
 					return errors.New("--install cannot be used with shell argument")
 				}
-				if isWindows() {
-					return errors.New("--install is not supported on Windows; run 'gup completion powershell' to output PowerShell completion to stdout")
-				}
-				return completion.DeployShellCompletionFileIfNeeded(rootCmd)
+				return deployCompletion(rootCmd)
 			}
 			if len(args) == 0 {
 				return argsGuidance(
@@ -65,6 +70,6 @@ Use --install to write bash/fish/zsh completion files to the user shell config p
 			}
 		},
 	}
-	cmd.Flags().Bool("install", false, "install bash/fish/zsh completion files to the user shell config paths")
+	cmd.Flags().Bool("install", false, "install completion for this platform's shells (bash/fish/zsh, or PowerShell on Windows)")
 	return cmd
 }

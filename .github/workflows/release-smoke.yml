@@ -1,8 +1,14 @@
 name: Release Smoke
 
 # Build the GoReleaser artifacts in snapshot mode (no publishing) and smoke-test
-# them on every PR and push to main, so packaging/archive regressions are caught
-# before a release is ever tagged.
+# them on every PR and push to main, so packaging, archive and manifest
+# regressions are caught before a release is ever tagged.
+#
+# The artifacts are built once on Ubuntu and then handed to per-OS jobs. Building
+# them is cross-compilation, so one runner can produce all six archives; RUNNING
+# them is not, so the macOS and Windows binaries are executed on macOS and
+# Windows runners. Without those legs, "the release works" would rest on Ubuntu
+# having unpacked a file it cannot start.
 
 on:
   workflow_dispatch:
@@ -15,9 +21,10 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
-    name: GoReleaser artifact smoke test
+  build:
+    name: Build artifacts and smoke-test on Linux
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -25,10 +32,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Release artifacts are built with Go 1.27 (latest patch), not go.mod's
+      # minimum, so the smoke job exercises exactly the toolchain release.yml
+      # publishes with.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: "go.mod"
+          go-version: "1.27"
+          check-latest: true
           cache: false
+
+      # Without rpm the .rpm check degrades to a magic-number test, which is not
+      # what the release promises: the package's file tree is what a dnf user
+      # gets. It is one apt package, so the full inspection runs instead.
+      - name: Install rpm so the .rpm file tree can be inspected
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
 
       - name: Build release artifacts (snapshot, no publish)
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
@@ -38,3 +55,62 @@ jobs:
 
       - name: Smoke-test artifacts
         run: ./scripts/smoke_artifacts.sh dist
+
+      # Only what the per-OS jobs need: the archives and the manifests, not the
+      # unpacked binaries GoReleaser also leaves in dist/.
+      - name: Upload artifacts for the per-OS smoke jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-snapshot
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+            dist/scoop/**
+            dist/winget/**
+
+  verify:
+    name: Smoke-test artifacts on ${{ matrix.os }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # go version -m reads the GOOS/GOARCH recorded inside each binary, which is
+      # how the archives this runner cannot execute are still verified.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist-snapshot
+          path: dist
+
+      # macOS is POSIX, so it runs the same script Ubuntu does; it executes the
+      # darwin archive for its own architecture and skips the Linux package
+      # inspection, which the Linux job already did.
+      - name: Smoke-test the macOS artifacts
+        if: runner.os == 'macOS'
+        run: ./scripts/smoke_artifacts.sh dist
+
+      # Windows deliberately does not run the bash script. A Windows check that
+      # only passes because the runner image ships Git Bash is testing the image,
+      # not gup, so the Windows leg is PowerShell end to end.
+      - name: Smoke-test the Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/verify_artifact.ps1 -DistDir dist

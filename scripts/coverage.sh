@@ -30,7 +30,7 @@ go test -count=1 -cover -covermode=atomic -coverpkg=./... ./... \
 #    `go build -cover` gup) and GOCOVERDIR exported. atago passes GOCOVERDIR
 #    through to every spec command, so each gup child writes its own covdata.
 echo ">> e2e coverage -> $COV/e2e"
-COVER=1 GOCOVERDIR="$COV/e2e" "$REPO_ROOT/e2e/run.sh"
+COVER=1 GOCOVERDIR="$COV/e2e" go run ./e2e/runner
 
 # 3. Merge the raw covdata and render the combined text profile + reports.
 echo ">> merging unit + e2e covdata -> cover.out"

@@ -13,7 +13,7 @@ import (
 
 func newBugReportCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:               "bug-report",
+		Use:               cmdNameBugReport,
 		Short:             "Submit a bug report at GitHub",
 		Long:              "bug-report opens the default browser to start a bug report pre-filled with your gup version and OS.",
 		Example:           "  gup bug-report",

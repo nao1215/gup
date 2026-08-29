@@ -26,7 +26,23 @@ make coverage-tree
 
 ![treemap](./doc/img/cover-tree.svg)
 
-### 4. Run the end-to-end tests (optional but recommended for CLI changes)
+### 4. Check for known vulnerabilities
+`govulncheck` scans gup against the official Go vulnerability database and
+reports only advisories that are actually reachable from gup's code. It answers a
+different question from the `gosec` linter golangci-lint already runs (insecure
+code gup writes), so both are kept.
+
+```shell
+go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+govulncheck ./...
+```
+
+CI runs the same pinned version against every supported Go version on pull
+requests, on pushes to main, and daily
+(`.github/workflows/govulncheck.yml`) — the schedule is what catches an advisory
+published against a dependency gup already ships.
+
+### 5. Run the end-to-end tests (optional but recommended for CLI changes)
 gup has an offline end-to-end suite that exercises the real `gup` binary and the
 real `go` toolchain against a self-contained module proxy, all inside a throwaway
 temp tree. It never touches your real `$HOME`, `~/.config/gup`, or `$GOBIN`, and
@@ -35,25 +51,39 @@ needs no network access. The tests are plain-YAML specs run by
 
 The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 `gup remove` prompt, and golden-output snapshots), so an older atago will fail to
-parse those specs. CI pins the same version via setup-atago.
+parse those specs. CI pins v0.21.0 via setup-atago.
 
 ```shell
-# Install atago once (v0.3.4 or newer)
-go install github.com/nao1215/atago@latest
+# Install atago once, at the version CI pins, so local runs and CI agree
+go install github.com/nao1215/atago@v0.21.0
 
-# Run the whole offline suite
+# Run the specs classified for this operating system
 make e2e
 
+# Run one spec, or pass any atago flag through
+go run ./e2e/runner --filter update
+
 # Refresh golden snapshots after an intentional output change
-atago run --update-snapshots e2e/atago
+go run ./e2e/runner --update-snapshots
 ```
 
-The harness lives under `e2e/`: `e2e/run.sh` builds gup, starts the offline
-module proxy (`e2e/testproxy`), and runs the atago specs in `e2e/atago/`. The
-same `make e2e` command runs in CI (`.github/workflows/e2e.yml`), where atago
-is installed by [setup-atago](https://github.com/nao1215/setup-atago).
+The harness lives under `e2e/`. `e2e/runner` builds gup, starts the offline
+module proxy (`e2e/testproxy`), warms a shared module cache, and runs the atago
+specs in `e2e/atago/`. It is a Go program rather than a shell script because the
+suite runs on Windows too, where a bash bootstrap would make the leg depend on
+Git for Windows being installed. `e2e/run.sh` still works; it now just calls the
+runner.
 
-### 5. Manage developer tools with Go tool declarations
+`e2e/os_matrix.tsv` classifies every spec by operating system. A spec that does
+not run everywhere must say why, and `TestOSMatrix_classifiesEverySpec` fails
+when a spec is added without a decision — that is what keeps the macOS and
+Windows legs from quietly shrinking into an unstated subset. When you add a spec,
+add its row.
+
+CI (`.github/workflows/e2e.yml`) runs Linux, macOS and Windows on every pull
+request, and again on a daily schedule.
+
+### 6. Manage developer tools with Go tool declarations
 gup manages helper tools via `go.mod` `tool` entries.
 Use the command below to add or update tool dependencies:
 

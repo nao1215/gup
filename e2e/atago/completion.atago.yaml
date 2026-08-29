@@ -74,7 +74,13 @@ scenarios:
               - "requires a shell name"
               - "--install"
 
+  # --install targets the shells the platform actually has, so the scenario is
+  # split by OS rather than reduced to whatever the two have in common: bash,
+  # fish and zsh on Linux and macOS; PowerShell on Windows, which has none of
+  # those completion directories and reads its completer from the profile.
   - name: --install writes shell completion files under the user config paths
+    skip:
+      os: windows
     env: *iso
     steps:
       - run:
@@ -95,6 +101,66 @@ scenarios:
           file:
             path: home/.zsh/completion/_gup
             exists: true
+
+  - name: --install wires PowerShell completion into the profile (windows)
+    only:
+      os: windows
+    env:
+      <<: *iso
+      # PROFILE is what PowerShell itself names the profile with, and gup honors
+      # it when exported. Pointing it into the workdir keeps the scenario from
+      # touching the runner's own Documents folder.
+      PROFILE: "${workdir}/home/Microsoft.PowerShell_profile.ps1"
+    steps:
+      - run:
+          command: gup completion --install
+      - assert:
+          exit_code: 0
+      # The completer is written beside the profile...
+      - assert:
+          file:
+            path: home/gup.completion.ps1
+            contains: "Register-ArgumentCompleter"
+      # ...and the profile sources it from inside gup's marked block.
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains:
+              - "# setting for gup command (auto generate)"
+              - "gup.completion.ps1"
+              - "# end of setting for gup command"
+
+  - name: --install is idempotent and does not duplicate the profile block (windows)
+    only:
+      os: windows
+    env:
+      <<: *iso
+      PROFILE: "${workdir}/home/Microsoft.PowerShell_profile.ps1"
+    steps:
+      - run:
+          command: gup completion --install
+      - run:
+          command: gup completion --install
+      - assert:
+          exit_code: 0
+      # Two installs, one block. Asserting the marker merely EXISTS would pass
+      # with two blocks appended, which is the exact regression the marker
+      # exists to prevent, so the occurrence count is what is checked.
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains: "# setting for gup command (auto generate)"
+            count: 1
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains: "# end of setting for gup command"
+            count: 1
+      - assert:
+          file:
+            path: home/Microsoft.PowerShell_profile.ps1
+            contains: "gup.completion.ps1"
+            count: 2
 
   - name: --install rejects a shell argument
     env: *iso

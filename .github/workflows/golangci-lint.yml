@@ -19,6 +19,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # The linter's toolchain is bounded by the linter, not by gup's policy. A
+      # released golangci-lint binary embeds the go/types of the Go it was built
+      # with, and type-checking a NEWER standard library makes it panic with
+      # "file requires newer Go version go1.27 (application built with go1.26)"
+      # -- so pointing this job at the Go 1.27 release toolchain took the linter
+      # out entirely. It stays on the module minimum; the newer toolchains are
+      # covered by unit_test.yml, which compiles and runs the code rather than
+      # analyzing it.
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:

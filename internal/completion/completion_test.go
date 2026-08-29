@@ -34,7 +34,7 @@ func TestHasSameBashCompletionContent_DifferentButContains(t *testing.T) {
 }
 
 func testCompletionCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "gup"}
+	cmd := &cobra.Command{Use: testAppName}
 	cmd.PersistentFlags().Bool("verbose", false, "verbose output")
 
 	updateCmd := &cobra.Command{

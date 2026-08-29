@@ -7,9 +7,17 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  # Pinned toolchains: the Go versions gup promises to keep working on. Every
+  # supported minor gets its own leg on all three OSes, so dropping support for
+  # one is a deliberate edit here rather than an accident. Keep this list in sync
+  # with the "Supported Go versions" section of README.md and
+  # website/content/install.md.
   unit_test:
-    name: Unit test (linux)
+    name: Unit test (${{ matrix.os }}, Go ${{ matrix.go }})
 
     strategy:
       matrix:
@@ -18,11 +26,12 @@ jobs:
           - "windows-latest"
           - "macos-latest"
         go:
-          - "1"
-          - "1.26"
           - "1.25"
+          - "1.26"
+          - "1.27"
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,6 +42,35 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
 
-      - name: Run tests with race detector (Linux only)
+      - name: Run tests with race detector
         run: go test -race ./...
 
+  # Latest Go: a separate, explicitly named job rather than a "1" entry hidden in
+  # the matrix above, so a failure says whether gup broke on a version it
+  # supports today or on the toolchain that is about to become one. check-latest
+  # forces the newest released patch instead of whatever the runner image caches.
+  unit_test_latest_go:
+    name: Unit test (${{ matrix.os }}, latest Go)
+
+    strategy:
+      matrix:
+        os:
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "stable"
+          check-latest: true
+
+      - name: Run tests with race detector
+        run: go test -race ./...

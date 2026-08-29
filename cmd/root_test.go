@@ -867,7 +867,7 @@ func TestExecute_NoAssetsForReadOnlyCommands(t *testing.T) {
 		args []string
 	}{
 		{name: testCmdVersion, args: []string{testCmdGup, testCmdVersion}},
-		{name: "help", args: []string{testCmdGup, "help"}},
+		{name: testCmdHelp, args: []string{testCmdGup, testCmdHelp}},
 		{name: "completion bash", args: []string{testCmdGup, testCmdCompletion, testShellBash}},
 	}
 	for _, tt := range tests {
@@ -933,51 +933,55 @@ func TestExecute_AssetsDeployedForNotifyCommand(t *testing.T) {
 	}
 }
 
+// TestExecute_Completion drives 'gup completion --install' through the process
+// entrypoint and checks that the files a user would then have actually exist.
+// The set differs by platform because the platforms offer different shells:
+// bash, fish and zsh on Linux and macOS, PowerShell on Windows, where none of
+// those completion directories exist and the completer is dot-sourced from the
+// profile instead.
 func TestExecute_Completion(t *testing.T) {
 	setupXDGBase(t)
+	home := os.Getenv("HOME")
+
+	// The Windows install resolves its profile from PROFILE (or USERPROFILE),
+	// not from HOME, so both are redirected into the test's temp tree. Without
+	// this the test would write a completer and a profile block into the real
+	// user's Documents folder on any Windows machine that runs it.
+	profile := filepath.Join(home, "Microsoft.PowerShell_profile.ps1")
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("PROFILE", profile)
 
 	t.Run("generate completion file", func(t *testing.T) {
 		os.Args = []string{testCmdGup, testCmdCompletion, testFlagInstall}
-		err := Execute()
-		if runtime.GOOS == goosWindows {
-			// --install is explicitly unsupported on Windows.
-			if err == nil {
-				t.Error("completion --install should return an error on Windows")
-			}
-		} else if err != nil {
-			t.Error(err)
+		if err := Execute(); err != nil {
+			t.Fatal(err)
 		}
 
-		bash := filepath.Join(os.Getenv("HOME"), ".local", "share", "bash-completion", "completions", cmdinfo.Name)
-		if runtime.GOOS == goosWindows {
-			if fileutil.IsFile(bash) {
-				t.Errorf("generate %s, however shell completion file is not generated on Windows", bash)
-			}
-		} else {
-			if !fileutil.IsFile(bash) {
-				t.Errorf("failed to generate %s", bash)
-			}
+		posixFiles := []string{
+			filepath.Join(home, ".local", "share", "bash-completion", "completions", cmdinfo.Name),
+			filepath.Join(home, ".config", testShellFish, "completions", cmdinfo.Name+".fish"),
+			filepath.Join(home, ".zsh", testCmdCompletion, "_"+cmdinfo.Name),
+		}
+		windowsFiles := []string{
+			profile,
+			filepath.Join(home, "gup.completion.ps1"),
 		}
 
-		fish := filepath.Join(os.Getenv("HOME"), ".config", testShellFish, "completions", cmdinfo.Name+".fish")
+		want, unwanted := posixFiles, windowsFiles
 		if runtime.GOOS == goosWindows {
-			if fileutil.IsFile(fish) {
-				t.Errorf("generate %s, however shell completion file is not generated on Windows", fish)
-			}
-		} else {
-			if !fileutil.IsFile(fish) {
-				t.Errorf("failed to generate %s", fish)
+			want, unwanted = windowsFiles, posixFiles
+		}
+		for _, path := range want {
+			if !fileutil.IsFile(path) {
+				t.Errorf("completion --install did not generate %s", path)
 			}
 		}
-
-		zsh := filepath.Join(os.Getenv("HOME"), ".zsh", testCmdCompletion, "_"+cmdinfo.Name)
-		if runtime.GOOS == goosWindows {
-			if fileutil.IsFile(zsh) {
-				t.Errorf("generate %s, however shell completion file is not generated on Windows", zsh)
-			}
-		} else {
-			if !fileutil.IsFile(zsh) {
-				t.Errorf("failed to generate  %s", zsh)
+		// The other platform's layout must stay untouched: installing bash
+		// completion on Windows, or a PowerShell profile on Linux, would be
+		// writing into a shell the user does not have.
+		for _, path := range unwanted {
+			if fileutil.IsFile(path) {
+				t.Errorf("completion --install generated %s, which does not belong on %s", path, runtime.GOOS)
 			}
 		}
 	})

@@ -1,0 +1,69 @@
+name: govulncheck
+
+# Vulnerability scanning against the official Go vulnerability database
+# (https://vuln.go.dev), which golangci-lint cannot do: gosec (enabled in
+# .golangci.yml) is a pattern-based scanner for insecure code gup itself writes,
+# while govulncheck answers a different question entirely - whether a known CVE
+# in the Go standard library or in a module gup depends on is reachable from
+# gup's own call graph. Neither replaces the other, and the split is why this is
+# a separate workflow rather than another golangci-lint linter.
+#
+# The database is updated continuously, so a scan that passed at merge time can
+# fail tomorrow without a single line of gup changing. That is what the schedule
+# is for: the pull_request/push legs catch a newly introduced dependency, and the
+# daily leg catches a newly published advisory against the dependencies already
+# in go.sum.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 04:00 UTC daily. Advisories are published continuously; a scheduled scan is
+    # the only leg that can notice one that lands between pull requests.
+    - cron: "0 4 * * *"
+
+# Reading the checkout is all the scan needs. govulncheck fetches the advisory
+# database over plain HTTPS and writes nothing back to the repository.
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      # Every Go version gup supports is scanned: a standard-library advisory is
+      # fixed in a specific patch of a specific minor, so a vulnerability that is
+      # already fixed in Go 1.27 can still be live for someone building gup with
+      # the Go 1.25 it says it supports. Keep this list in sync with
+      # unit_test.yml and the "Supported Go versions" section of README.md.
+      fail-fast: false
+      matrix:
+        go:
+          - "1.25"
+          - "1.26"
+          - "1.27"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+          check-latest: true
+
+      # Pinned so a scanner release cannot change this job's verdict on its own.
+      # The advisory database is intentionally NOT pinned - scanning against a
+      # frozen copy of the vulnerability data would defeat the point.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+
+      - name: Scan for known vulnerabilities
+        run: govulncheck ./...

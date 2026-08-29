@@ -1,24 +1,17 @@
-//nolint:paralleltest // tests that stub the package-level isWindows seam must not run in parallel
+//nolint:paralleltest // tests that set process-wide environment variables must not run in parallel
 package cmd
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
-)
 
-// stubIsWindows overrides the isWindows seam for the duration of a test.
-func stubIsWindows(t *testing.T, v bool) {
-	t.Helper()
-	org := isWindows
-	isWindows = func() bool { return v }
-	t.Cleanup(func() {
-		isWindows = org
-	})
-}
+	"github.com/spf13/cobra"
+)
 
 func TestCompletion_NoArgsRequiresExplicitMode(t *testing.T) {
 	t.Parallel()
@@ -54,8 +47,11 @@ func TestCompletion_InstallWithShellArg(t *testing.T) {
 }
 
 func TestCompletion_Install(t *testing.T) {
-	stubIsWindows(t, false)
-	t.Setenv("HOME", t.TempDir())
+	// HOME drives the POSIX install and PROFILE the Windows one, so the same test
+	// exercises whichever platform it runs on without pretending to be the other.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PROFILE", filepath.Join(home, "Microsoft.PowerShell_profile.ps1"))
 
 	cmd := newCompletionCmd()
 	cmd.SetArgs([]string{testFlagInstall})
@@ -71,7 +67,6 @@ func TestCompletion_InstallUnsetHOME(t *testing.T) {
 	if runtime.GOOS == goosWindows {
 		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
 	}
-	stubIsWindows(t, false)
 	t.Setenv("HOME", "")
 
 	// Run from an isolated temp working directory so we can detect stray writes.
@@ -100,7 +95,6 @@ func TestCompletion_InstallWriteErrorFails(t *testing.T) {
 	if runtime.GOOS == goosWindows {
 		t.Skip("completion --install is a no-op on Windows (file install is unsupported)")
 	}
-	stubIsWindows(t, false)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -117,29 +111,29 @@ func TestCompletion_InstallWriteErrorFails(t *testing.T) {
 	}
 }
 
-func TestCompletion_InstallWindowsReturnsError(t *testing.T) {
-	stubIsWindows(t, true)
+// TestCompletion_InstallReportsAFailure covers the command's own error handling:
+// whatever the platform's install decides, a failure has to reach the user as a
+// non-zero exit rather than being swallowed.
+func TestCompletion_InstallReportsAFailure(t *testing.T) {
+	original := deployCompletion
+	deployCompletion = func(*cobra.Command) error { return errors.New("boom") }
+	t.Cleanup(func() { deployCompletion = original })
 
 	cmd := newCompletionCmd()
 	cmd.SetArgs([]string{testFlagInstall})
 	err := cmd.Execute()
 	if err == nil {
-		t.Fatal("completion --install should return an error on Windows")
+		t.Fatal("completion --install should surface the install failure")
 	}
-	if !strings.Contains(err.Error(), "Windows") {
-		t.Errorf("error should explain Windows is unsupported, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "powershell") {
-		t.Errorf("error should point to 'gup completion powershell', got: %v", err)
+	if !strings.Contains(err.Error(), "boom") {
+		t.Errorf("error should carry the install failure, got: %v", err)
 	}
 }
 
-func TestCompletion_PowerShellStdoutWorksOnWindows(t *testing.T) {
-	stubIsWindows(t, true)
-
+func TestCompletion_PowerShellStdoutWorks(t *testing.T) {
 	cmd := newCompletionCmd()
 	cmd.SetArgs([]string{testShellPowershell})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("completion powershell stdout generation should work on Windows: %v", err)
+		t.Fatalf("completion powershell stdout generation should work: %v", err)
 	}
 }

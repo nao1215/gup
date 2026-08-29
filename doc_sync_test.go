@@ -199,10 +199,18 @@ func Test_englishReadme_hasCanonicalInstallCommands(t *testing.T) {
 		"brew install gup",
 		"brew install nao1215/tap/gup",
 		"winget install --id nao1215.gup",
+		"scoop bucket add nao1215 https://github.com/nao1215/gup",
+		"scoop install nao1215/gup",
 		"mise use -g gup@latest",
 		"nix profile install nixpkgs#gogup",
 		"aqua g -i nao1215/gup",
 		"paru -S gup-bin",
+		// The prebuilt Linux packages: the artifact names must stay byte-for-byte
+		// what .goreleaser.yml's archive name_template produces, or the documented
+		// command fails on a real download.
+		"sudo dpkg -i gup_1.8.1_linux_amd64.deb",
+		"sudo rpm -Uvh gup_1.8.1_linux_amd64.rpm",
+		"sudo apk add --allow-untrusted gup_1.8.1_linux_amd64.apk",
 	}
 	// obsoleteCommands are install lines gup has moved away from. Checking that
 	// the canonical form is PRESENT does not catch a superseded line left sitting
@@ -227,6 +235,60 @@ func Test_englishReadme_hasCanonicalInstallCommands(t *testing.T) {
 	for _, command := range obsoleteCommands {
 		if strings.Contains(content, command) {
 			t.Errorf("%s still documents the retired install command %q", readmePath, command)
+		}
+	}
+}
+
+// Test_websiteInstallPage_matchesReadme asserts that the documentation website's
+// install page and README.md agree. They are written separately - one is the
+// repository's front page, the other is a Hugo page - so a new distribution
+// channel or a changed support policy is easy to add to one and forget in the
+// other. Keying off the same copy-pasteable commands and the same version
+// numbers makes the drift fail here instead of confusing a reader who followed
+// whichever page a search engine handed them.
+func Test_websiteInstallPage_matchesReadme(t *testing.T) {
+	t.Parallel()
+
+	const websiteInstallPath = "website/content/install.md"
+	raw, err := os.ReadFile(websiteInstallPath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", websiteInstallPath, err)
+	}
+	website := string(raw)
+
+	raw, err = os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", readmePath, err)
+	}
+	readme := string(raw)
+
+	// sharedMarkers must appear in BOTH documents: the install one-liners for
+	// every distribution channel, and the facts that go stale together (the
+	// supported Go minors, the toolchain the release binaries are built with, and
+	// the macOS floor that toolchain imposes).
+	sharedMarkers := []string{
+		"go install github.com/nao1215/gup@latest",
+		"brew install gup",
+		"brew install nao1215/tap/gup",
+		"winget install --id nao1215.gup",
+		"scoop bucket add nao1215 https://github.com/nao1215/gup",
+		"scoop install nao1215/gup",
+		"mise use -g gup@latest",
+		"nix profile install nixpkgs#gogup",
+		"aqua g -i nao1215/gup",
+		"gup_1.8.1_linux_amd64.deb",
+		"gup_1.8.1_linux_amd64.rpm",
+		"gup_1.8.1_linux_amd64.apk",
+		"Go 1.25, 1.26, and 1.27",   // the supported-minor list
+		"latest Go 1.27 patch",      // the toolchain release binaries are built with
+		"macOS 13 Ventura or newer", // the macOS floor Go 1.27 imposes
+	}
+	for _, marker := range sharedMarkers {
+		if !strings.Contains(readme, marker) {
+			t.Errorf("%s is missing %q, which %s documents", readmePath, marker, websiteInstallPath)
+		}
+		if !strings.Contains(website, marker) {
+			t.Errorf("%s is missing %q, which %s documents", websiteInstallPath, marker, readmePath)
 		}
 	}
 }

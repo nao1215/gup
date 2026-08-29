@@ -18,11 +18,23 @@ Documentation: **https://nao1215.github.io/gup/**
 ## Supported OS (unit testing with GitHub Actions)
 
 - Linux
-- Mac
+- Mac (macOS 13 Ventura or newer, the range Go 1.27 supports)
 - Windows
 
+### Supported Go versions
+Unit tests run on Go 1.25, 1.26, and 1.27 across Linux, macOS, and Windows, and a
+separate job tracks the latest Go release so a toolchain that is not yet a
+supported minor cannot break gup unnoticed. `go.mod` declares Go 1.25 as the
+minimum, so building from source needs Go 1.25 or newer.
+
+The prebuilt release binaries are built with the latest Go 1.27 patch release:
+installing a package or archive gives you the current Go runtime even if you
+never install Go yourself. Because Go 1.27 dropped support for macOS 12 and
+earlier, the macOS release binaries require macOS 13 Ventura or newer; on an
+older macOS, build gup from source with a Go version that still supports it.
+
 ## How to install
-gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
+gup is packaged in homebrew-core, the winget community repository, its own Scoop bucket, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
 
 ### Use "go install"
 If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
@@ -45,6 +57,16 @@ brew install nao1215/tap/gup
 ```shell
 winget install --id nao1215.gup
 ```
+
+### Use Scoop (Windows)
+[Scoop](https://scoop.sh/) installs gup from this repository's own bucket:
+```shell
+scoop bucket add nao1215 https://github.com/nao1215/gup
+scoop install nao1215/gup
+```
+The bucket manifest lives in [`bucket/`](./bucket) and is regenerated on every
+release, so the Windows `amd64`/`arm64` archive URLs and their SHA-256 hashes
+always match the artifacts on the release page.
 
 ### Use mise-en-place
 ```shell
@@ -70,7 +92,20 @@ paru -S gup-bin  # prebuilt binary
 ```
 
 ### Install from Package or Binary
-[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats. gup command uses the go command internally, so the golang installation is required.
+[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats for `amd64` and `arm64`, plus `.tar.gz` archives for Linux/macOS and `.zip` archives for Windows. gup command uses the go command internally, so the golang installation is required.
+
+Download the package that matches your distribution and architecture, then:
+```shell
+# Debian, Ubuntu
+$ sudo dpkg -i gup_1.8.1_linux_amd64.deb
+
+# Fedora, RHEL, openSUSE
+$ sudo rpm -Uvh gup_1.8.1_linux_amd64.rpm
+
+# Alpine Linux
+$ sudo apk add --allow-untrusted gup_1.8.1_linux_amd64.apk
+```
+Replace `1.8.1` with the release you downloaded and `amd64` with `arm64` where applicable. The packages also install the bash, fish, and zsh completion files.
 
 ## Verifying release integrity
 Every release ships supply-chain metadata so you can verify what you download:
@@ -389,8 +424,7 @@ Generate /usr/share/man/man1/gup.1.gz
 
 ### Generate shell completion file (for bash, zsh, fish, PowerShell)
 `completion` prints completion scripts to STDOUT when you pass a shell name.
-To install completion files into your user environment for bash/fish/zsh, use `--install`.
-For PowerShell, redirect the output to a `.ps1` file and source it from your profile.
+`--install` sets completion up for you instead, for the shells of the platform you are on.
 
 ```shell
 $ gup completion bash > gup.bash
@@ -402,8 +436,47 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-`--install` writes to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written. Re-running `--install` is idempotent and does not duplicate the zsh init snippet in `.zshrc`.
+On Linux and macOS, `--install` writes bash, fish, and zsh completion to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written.
 
+On Windows, the same command sets up PowerShell — no redirecting and no hand-editing:
+
+```powershell
+PS> gup completion --install
+PS> . $PROFILE   # or open a new PowerShell window
+```
+
+It writes `gup.completion.ps1` next to your PowerShell profile and adds one guarded dot-source line to the profile itself, inside a block marked `# setting for gup command (auto generate)`. Everything else in your profile is left exactly as it was, the profile (and its parent directory) is created if it does not exist yet, and the write is atomic. gup installs into the profile `$PROFILE` names when that variable is exported, and otherwise into **every** profile that already exists under `Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell` (Windows PowerShell 5.1) — the two shells read different profiles and are commonly installed side by side, so wiring up only one would leave the other with no completion after a command that reported success. If neither exists, the PowerShell 7 profile is created. Those paths resolve under `USERPROFILE`, falling back to `HOME`; with neither set it fails fast with a message naming both rather than guessing.
+
+Re-running `--install` is idempotent on every platform: it does not duplicate the zsh init snippet in `.zshrc` or the gup block in your PowerShell profile.
+
+### Running two gup commands at once
+The commands that change state take a lock on each resource they write, so a second one refuses to start rather than interleaving with the first.
+
+| Command | What it locks |
+|:--|:--|
+| `update` | `$GOBIN` and the `gup.json` it may write |
+| `import` | `$GOBIN` |
+| `remove` | `$GOBIN` |
+| `migrate` | `AFTER_PATH` |
+| `export`, `pin`, `unpin` | the `gup.json` they write |
+
+The lock files are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it.)
+
+```shell
+$ gup update
+```
+The second one exits non-zero after reporting who is in the way:
+
+> another gup process is already running (pid 40321 on carbon, running "gup update",
+> since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
+> gup.json, so wait for it to finish and run this command again. If that process is
+> gone, gup reclaims /home/you/go/bin/.gup.lock by itself
+
+Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup writes `gup.json` by atomic rename, so a reader always sees a complete file and has nothing to wait for.
+
+A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock however long it has been suspended, so pausing an update with Ctrl-Z never lets a second gup in. Ctrl-C releases the lock right away.
+
+### Desktop notification
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
 ```shell

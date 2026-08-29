@@ -30,7 +30,10 @@ If you want to specify multiple binaries at once, separate them with space.
 			"gup remove --force air"),
 		ValidArgsFunction: completePathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {
-			OsExit(remove(printerFor(cmd), cmd, args))
+			p := printerFor(cmd)
+			OsExit(withStateLock(p, cmd, args, cmdNameRemove, func() int {
+				return remove(p, cmd, args)
+			}))
 		},
 	}
 	cmd.Flags().BoolP("force", "f", false, "forcibly remove the file")

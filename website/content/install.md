@@ -1,10 +1,21 @@
 ---
 title: Install
-description: Install gup with go install, Homebrew, winget, mise, nix, aqua, the AUR, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
+description: Install gup with go install, Homebrew, winget, Scoop, mise, nix, aqua, the AUR, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
 ---
 
 gup runs on Linux, macOS, and Windows. It shells out to `go`, so a Go toolchain
 has to be on `PATH` whichever way you install gup itself.
+
+## Supported Go versions
+
+Unit tests run on Go 1.25, 1.26, and 1.27 across Linux, macOS, and Windows, with
+a separate job tracking the latest Go release. `go.mod` declares Go 1.25 as the
+minimum, so building from source needs Go 1.25 or newer.
+
+The prebuilt release binaries are built with the latest Go 1.27 patch release.
+Go 1.27 dropped support for macOS 12 and earlier, so the macOS release binaries
+require macOS 13 Ventura or newer; on an older macOS, build from source with a Go
+version that still supports it.
 
 ## go install
 
@@ -35,6 +46,14 @@ brew install nao1215/tap/gup
 winget install --id nao1215.gup
 ```
 
+On Windows, [Scoop](https://scoop.sh/) installs gup from the repository's own
+bucket:
+
+```shell
+scoop bucket add nao1215 https://github.com/nao1215/gup
+scoop install nao1215/gup
+```
+
 ```shell
 mise use -g gup@latest
 ```
@@ -62,7 +81,19 @@ paru -S gup-bin  # prebuilt binary
 ## Prebuilt packages and binaries
 
 [The release page](https://github.com/nao1215/gup/releases) carries `.deb`,
-`.rpm`, and `.apk` packages plus archives for every supported platform.
+`.rpm`, and `.apk` packages plus `.tar.gz` (Linux, macOS) and `.zip` (Windows)
+archives. Every artifact is built for `amd64` and `arm64`.
+
+Download the one matching your distribution and architecture, then:
+
+```shell
+sudo dpkg -i gup_1.8.1_linux_amd64.deb                 # Debian, Ubuntu
+sudo rpm -Uvh gup_1.8.1_linux_amd64.rpm                # Fedora, RHEL, openSUSE
+sudo apk add --allow-untrusted gup_1.8.1_linux_amd64.apk  # Alpine Linux
+```
+
+Substitute the release you downloaded for `1.8.1`, and `arm64` for `amd64` where
+applicable. The packages also install the bash, fish, and zsh completion files.
 
 ## Verify what you downloaded
 
@@ -88,9 +119,28 @@ gh attestation verify gup_1.0.0_linux_amd64.tar.gz --repo nao1215/gup
 gup completion --install
 ```
 
-That writes bash, fish, and zsh completion into the paths your shell already
-reads. For PowerShell, redirect a `.ps1` and source it from your profile. See
-[Completion and man pages](/cookbook/#completion-and-man-pages).
+On Linux and macOS that writes bash, fish, and zsh completion into the paths your
+shell already reads.
+
+On Windows the same command sets up PowerShell:
+
+```powershell
+gup completion --install
+. $PROFILE   # or open a new PowerShell window
+```
+
+It writes `gup.completion.ps1` beside your PowerShell profile and adds one
+guarded dot-source line to the profile, inside a block marked
+`# setting for gup command (auto generate)`. The rest of your profile is left
+untouched, the profile is created if it does not exist, and re-running the
+command never duplicates the entry. gup uses `$PROFILE` when it is exported, and
+otherwise wires up every profile that already exists under
+`Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell`
+(Windows PowerShell 5.1), creating the PowerShell 7 one when neither does. Those
+paths resolve under `USERPROFILE`, falling back to `HOME`; with neither set the
+command fails with a message naming both rather than guessing.
+
+See [Completion and man pages](/cookbook/#completion-and-man-pages).
 
 ## If `gup` runs `git pull --rebase`
 

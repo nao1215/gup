@@ -1,0 +1,330 @@
+# Exercises gup's advisory lock against real gup processes. Everything else
+# about the lock is unit-tested, but mutual exclusion is a property BETWEEN
+# processes: a lock that works perfectly in one process and not across two looks
+# identical from the inside. These scenarios drive the built binary, and two of
+# them start a second gup that genuinely holds a lock while the first one waits.
+#
+# How the holder works, since it is not obvious: `gup update` locks two
+# resources, the $GOBIN it installs into and the gup.json it may write, and
+# takes them in sorted path order. The scenarios name the directories so that
+# $GOBIN sorts first (aaa-gobin, zzz-config), and plant a lock on the CONFIG
+# file that a live remote host appears to hold. The holder therefore takes the
+# $GOBIN lock, blocks on the config lock for its whole wait, and spends that time
+# holding a real lock taken by a real gup - with no sleep, no fake toolchain, and
+# no dependence on how long an install takes.
+#
+# GUP_LOCK_WAIT shortens the acquisition timeout so the probes fail in
+# milliseconds instead of the shipped three seconds. GUP_LOCK_STALE_AFTER is left
+# at its default wherever a planted lock must look held, because shortening it
+# would make the plant expire mid-scenario.
+#
+# Run with: make e2e
+version: "1"
+
+suite:
+  name: gup concurrency lock (offline)
+
+scenarios:
+  - name: with nothing holding the lock a mutating command runs normally
+    env: &holder_env
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/zzz-config"
+      GOBIN: "${workdir}/aaa-gobin"
+      GOPATH: "${workdir}/gopath"
+      # Long enough that the holder is still blocked while the probes run.
+      GUP_LOCK_WAIT: "20s"
+    steps:
+      # gup locks a directory only once it exists, so $GOBIN is materialized
+      # first. gup skips dot-prefixed entries, so the placeholder is invisible.
+      - fixture: &empty_gobin
+          file: aaa-gobin/.keep
+          content: "placeholder so $GOBIN exists"
+      # The lock the holder will block on: a live lock from a machine whose PIDs
+      # mean nothing here, which is exactly the case the heartbeat rule covers.
+      - fixture: &held_config_lock
+          file: zzz-config/gup/gup.json.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"update","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup remove no-such-tool
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      # The control case for the scenario below. With nothing holding the $GOBIN
+      # lock, this fails on the missing binary rather than on the lock -- without
+      # it, "the second process was refused" could pass for the wrong reason.
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "no such file or directory"
+            not_contains: "another gup process is already running"
+
+  - name: two gup processes cannot hold the same $GOBIN lock
+    env: *holder_env
+    services:
+      - name: holder
+        command: gup update
+        env: *holder_env
+        ready:
+          # The holder has taken the $GOBIN lock once this file exists; it is
+          # then blocked on the config lock for the rest of its wait.
+          file: aaa-gobin/.gup.lock
+          timeout: 10s
+    steps:
+      - fixture: *empty_gobin
+      - fixture: *held_config_lock
+      - run:
+          command: gup remove no-such-tool
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+      # The lock does not block what it has no reason to block: reading is safe
+      # against an atomic write, so `list` must not queue behind an update.
+      - run:
+          command: gup list
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      - assert:
+          exit_code: 0
+      # A dry run changes nothing, so it locks nothing.
+      - run:
+          command: gup update --dry-run
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      - assert:
+          exit_code: 0
+      # ...and neither does an export that only prints.
+      - run:
+          command: gup export --output
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      - assert:
+          exit_code: 0
+
+  - name: a lock left by a killed gup is reclaimed by the next one
+    # SIGKILL runs no cleanup, so the holder's lock file outlives it. The next
+    # gup must notice the owning process is gone and take it over at once - if it
+    # waited for the staleness bound instead, one interrupted update would block
+    # the tool for a minute.
+    # Skipped on Windows: atago delivers POSIX signals to a process group, which
+    # Windows has no equivalent for. The same reclaim is unit-tested natively
+    # there (TestAcquire_takesOverALockWhoseOwnerIsGone runs on Windows CI).
+    skip:
+      os: windows
+    env: *holder_env
+    services:
+      - name: holder
+        command: gup update
+        env: *holder_env
+        ready:
+          file: aaa-gobin/.gup.lock
+          timeout: 10s
+    steps:
+      - fixture: *empty_gobin
+      - fixture: *held_config_lock
+      - signal:
+          service: holder
+          signal: KILL
+          wait:
+            timeout: 10s
+      - assert:
+          file:
+            path: aaa-gobin/.gup.lock
+            exists: true
+      - run:
+          command: gup remove no-such-tool
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      # It reached the command instead of the lock: the leftover file was
+      # reclaimed rather than waited on.
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "no such file or directory"
+            not_contains: "another gup process is already running"
+
+  - name: interrupting gup releases its lock immediately
+    # gup's subcommands exit through os.Exit, so without a signal handler a
+    # Ctrl-C would leave the lock file behind and the next command would wait it
+    # out. The file must be gone before the process is.
+    # Skipped on Windows: atago delivers POSIX signals to a process group, which
+    # Windows has no equivalent for.
+    skip:
+      os: windows
+    env: *holder_env
+    services:
+      - name: holder
+        command: gup update
+        env: *holder_env
+        ready:
+          file: aaa-gobin/.gup.lock
+          timeout: 10s
+    steps:
+      - fixture: *empty_gobin
+      - fixture: *held_config_lock
+      - signal:
+          service: holder
+          signal: INT
+          wait:
+            timeout: 10s
+      - assert:
+          file:
+            path: aaa-gobin/.gup.lock
+            exists: false
+      - run:
+          command: gup remove no-such-tool
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+      - assert:
+          exit_code: 1
+          stderr:
+            not_contains: "another gup process is already running"
+
+  - name: processes sharing a $GOBIN contend even from different config homes
+    # $GOBIN and XDG_CONFIG_HOME move independently: a per-project configuration
+    # directory still shares one $GOBIN with every other project. A lock derived
+    # from the configuration directory would not serialize these two at all.
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/config-a"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+      GUP_LOCK_WAIT: "200ms"
+    steps:
+      - fixture:
+          file: gobin/.gup.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"update","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup remove no-such-tool
+          env:
+            <<: *iso
+            # A completely different configuration directory, same $GOBIN.
+            XDG_CONFIG_HOME: "${workdir}/config-b"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+
+  - name: processes writing the same --file contend even from different config homes
+    # The lock follows the file the command actually writes, so two processes
+    # pointed at one shared gup.json serialize regardless of where their own
+    # configuration lives.
+    env: *iso
+    steps:
+      - fixture:
+          file: shared/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - fixture:
+          file: shared/gup.json.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"pin","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup pin somebinary v1.0.0 --file ${workdir}/shared/gup.json
+          env:
+            <<: *iso
+            XDG_CONFIG_HOME: "${workdir}/config-b"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+
+  - name: a corrupt lock file blocks while fresh and is reclaimed once abandoned
+    # A lock file truncated by a crash cannot be attributed to anyone. While
+    # something is still touching it that is a live writer; once nothing is, it
+    # is rubbish that must not wedge the tool forever.
+    env: *iso
+    steps:
+      - fixture:
+          file: gobin/.gup.lock
+          content: "{this is not json"
+      - run:
+          command: gup remove no-such-tool
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+      # The same file, no longer being touched: gup takes it over.
+      - fixture:
+          file: gobin/.gup.lock
+          content: "{this is not json"
+          mtime: "2020-01-01T00:00:00Z"
+      - run:
+          command: gup remove no-such-tool
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "no such file or directory"
+            not_contains: "another gup process is already running"
+
+  - name: an abandoned lock that cannot be removed fails fast instead of spinning
+    # The one combination where taking a lock over fails every time. An earlier
+    # version returned to the top of its loop without consulting the deadline or
+    # the context, which turned this into a tight loop no timeout could end.
+    # Skipped on Windows: POSIX directory modes are what deny the rename here,
+    # and Windows expresses permissions differently. The stopping guarantee is
+    # unit-tested per platform.
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - fixture:
+          file: gobin/.gup.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"update","acquired":"2020-01-01T00:00:00Z","nonce":"abandoned"}
+          mtime: "2020-01-01T00:00:00Z"
+      - run:
+          shell: true
+          command: chmod 500 ${workdir}/gobin
+      - run:
+          command: gup remove no-such-tool
+          env: *iso
+      # The point of the scenario is in the duration bound: the command must
+      # RETURN. A spin would keep the CPU busy until atago killed the step, so
+      # the wall-clock bound is what distinguishes "reported a problem" from
+      # "never came back".
+      - assert:
+          exit_code: 1
+          duration:
+            lt: "10s"
+          stderr:
+            contains:
+              - "could not be removed"
+              - "Delete it by hand"
+      - run:
+          shell: true
+          command: chmod 700 ${workdir}/gobin
+
+  - name: the lock file is not mistaken for an installed binary
+    # The $GOBIN lock lives in $GOBIN. gup skips dot-prefixed entries, so it must
+    # never appear in a listing - a lock that shows up as a tool would invite a
+    # user to remove it.
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+          env: *iso
+      - fixture:
+          file: gobin/.gup.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"update","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup list
+          env: *iso
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: uptodate
+            not_contains: "gup.lock"

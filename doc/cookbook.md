@@ -366,11 +366,17 @@ process exits non-zero so CI notices.
 
 ## Completion and man pages
 
-Install completion for the shell you are in:
+Install completion for the shells of the platform you are on — bash, fish and zsh
+on Linux and macOS, PowerShell on Windows:
 
 ```shell
 gup completion --install
 ```
+
+On Windows that writes `gup.completion.ps1` beside your PowerShell profile and
+adds one guarded dot-source line to the profile, inside a marked block, so
+nothing else in the profile changes and re-running never duplicates the entry.
+Reload with `. $PROFILE` or open a new window.
 
 Or print it and place it yourself:
 

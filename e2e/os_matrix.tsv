@@ -1,0 +1,37 @@
+# Operating-system classification for gup's atago end-to-end specs.
+#
+# gup's unit tests run on Linux, macOS and Windows, and the E2E suite used to run
+# on Linux alone. This file is what keeps the macOS and Windows legs from being an
+# unstated subset that quietly shrinks: every spec file is classified, every
+# exclusion carries a written reason, and TestOSMatrix_classifiesEverySpec fails
+# when a spec is added without a decision.
+#
+# Column 1  the spec file, relative to e2e/atago.
+# Column 2  the GOOS values it runs on, comma-separated.
+# Column 3  why it does not run on the others. Required unless it runs everywhere.
+#
+# The recurring Windows reason is worth stating once here. `go install` writes
+# "name.exe" into $GOBIN on Windows, and gup takes a package's name straight from
+# that file name, so a spec that asserts a $GOBIN path (file: {path: gobin/x}) or
+# an exact name in output or gup.json is asserting a POSIX-only string. Making
+# those specs run on Windows would mean a second copy of each scenario differing
+# only in a suffix, which is duplication rather than coverage: the behavior under
+# test (update resolution, pinning, migration, removal) has no OS-specific branch,
+# and the .exe normalization those specs would re-cover is already unit-tested in
+# internal/binname and cmd. What DOES branch by OS -- the CLI entrypoint, dynamic
+# completion, completion install, and the failure contracts -- runs on Windows.
+
+bug_report.atago.yaml	linux,darwin,windows
+check.atago.yaml	linux,darwin	Asserts JSON name fields equal the bare binary name; on Windows every $GOBIN entry is name.exe, so each assertion would need a Windows twin.
+cli.atago.yaml	linux,darwin,windows
+completion.atago.yaml	linux,darwin,windows	Runs everywhere; the POSIX --install scenario carries its own skip and a Windows-only scenario covers the PowerShell install.
+cookbook.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix, uses POSIX shell steps, and covers 'gup man', which is not registered on Windows.
+lock.atago.yaml	linux,darwin,windows	Runs everywhere; the scenarios needing POSIX signals or POSIX directory modes carry their own skip and reason inside the spec.
+list_remove.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.
+man.atago.yaml	linux,darwin	'gup man' is deliberately not registered on Windows, which has no man(1); the command under test does not exist there.
+migrate_export_import.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.
+pin.atago.yaml	linux,darwin	Asserts exact binary names in output and in gup.json entries; on Windows those carry the .exe suffix.
+remove_interactive.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix, and drives the confirmation prompt through a PTY.
+snapshot.atago.yaml	linux,darwin	Golden output embeds POSIX path separators, so the same run produces a different, equally correct snapshot on Windows.
+strict.atago.yaml	linux,darwin,windows
+update.atago.yaml	linux,darwin	Asserts $GOBIN file paths without the .exe suffix.
