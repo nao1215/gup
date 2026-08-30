@@ -111,7 +111,15 @@ a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other
 project, and two commands given the same `--file` may come from different config
 directories — a lock kept in the config directory would serialize neither.
 `.gup.lock` is dot-prefixed, so `gup list` never shows it, and `gup remove`
-refuses it by name: it is gup's, not a tool you installed.
+refuses to delete it: it is gup's, not a tool you installed.
+
+A lock is scoped to the *file*, not to the path that names it. Two arguments
+that reach one directory — `gup migrate ~/go/bin ~/bin` where `~/bin` is a
+symlink to `~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive
+filesystems macOS and Windows use — take one lock rather than two, so gup never
+waits for itself. A lock path that is a symlink is refused rather than followed:
+gup truncates its lock file to record who holds it, so writing through a link
+somebody put there would truncate a file that is not gup's.
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
@@ -152,7 +160,11 @@ gup may already have opened is precisely what would let two processes take a loc
 on two different files at one path. Between commands the file holds nothing: it
 is a name for the kernel to hang the next lock on, and it is emptied when the
 lock is dropped, so it never names a process that has already finished. There is
-nothing to do about one, and `gup remove .gup.lock` is refused for that reason.
+nothing to do about one, and `gup remove .gup.lock` is refused for that reason
+— as is any other name reaching the same file: a hard link, a Windows spelling
+with a trailing dot, an 8.3 alias like `GUPLOC~1.LOC`. Deleting it would not
+release the lock, which lives on an open handle; it would free the *name*, and
+the next gup would create a fresh file there and lock that instead.
 
 Nothing wedges. A gup killed with `kill -9`, a machine that lost power
 mid-update, a lock file copied onto a shared home directory from another machine
@@ -165,6 +177,21 @@ still installing binaries and rewriting `gup.json` on its way out. An interrupte
 `gup update` stops its work, unwinds, and releases on the way out; a command
 killed outright never gets that far, and the kernel drops the lock as it reaps
 the process.
+
+### Where the lock does not reach
+
+Two situations are outside what this can promise. The first is a `$GOBIN` or a
+`gup.json` on a network filesystem — NFS, SMB, sshfs. `flock` and `LockFileEx`
+are the kernel's, and what a kernel does with them on a remote mount is up to
+the mount: some map them to a server-side lock, some keep them local to one
+machine, some ignore them. Two gups on one machine are still serialized; two on
+different machines sharing the mount may not be.
+
+The second is deleting a lock file *while* gup runs. It does not stop the
+running command — its lock is on an open handle — but it frees the name, and the
+next gup creates a new file there and locks that instead, leaving two commands
+changing one `$GOBIN`. gup never deletes these files and refuses to let `gup
+remove` do it; nothing else should either.
 
 gup v1.8.1 and earlier take no lock at all. An older gup left on your `PATH` does
 not serialize against a current one, because it does not know there is anything

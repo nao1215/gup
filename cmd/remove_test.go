@@ -708,3 +708,46 @@ func Test_remove_refusesTheLockFileThroughTheRealCLI(t *testing.T) {
 // gupLockWaitEnv shortens the lock's acquisition timeout so a test that is not
 // about waiting does not wait.
 const gupLockWaitEnv = "GUP_LOCK_WAIT"
+
+// Test_removeLoop_refusesAnotherNameForTheLockFile covers the half of the
+// refusal that no amount of string folding reaches.
+//
+// The name checks in removeLoop compare what the user typed against the one name
+// gup keeps for itself. A file has more names than that: a hard link is a second
+// name by construction, Windows answers to an 8.3 alias like GUPLOC~1.LOC, and
+// Win32 strips trailing dots and spaces before the filesystem sees the name at
+// all. So the last question asked before the delete is not "is this name
+// reserved" but "is this file the lock file", which the filesystem answers.
+func Test_removeLoop_refusesAnotherNameForTheLockFile(t *testing.T) {
+	// Pinned so the file this plants carries the suffix removeLoop looks for.
+	t.Setenv("GOEXE", "")
+	gobin := t.TempDir()
+	lock := filepath.Join(gobin, lockfile.DirLockName)
+	if err := os.WriteFile(lock, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	const arg = "innocent"
+	onDisk := arg
+	if GOOS == goosWindows {
+		onDisk += exeSuffix
+	}
+	alias := filepath.Join(gobin, onDisk)
+	if err := os.Link(lock, alias); err != nil {
+		t.Skipf("this filesystem does not support hard links: %v", err)
+	}
+
+	p, buf := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{arg}); got != 1 {
+		t.Errorf("removeLoop(%q) = %d, want 1", arg, got)
+	}
+	if !fileutil.IsFile(lock) {
+		t.Fatal("removeLoop() deleted gup's own lock file through a second name for it")
+	}
+	if !fileutil.IsFile(alias) {
+		t.Error("removeLoop() unlinked a second name for the lock file")
+	}
+	if out := buf.String(); !strings.Contains(out, "gup's own lock file") {
+		t.Errorf("removeLoop() output %q does not explain the refusal", out)
+	}
+}

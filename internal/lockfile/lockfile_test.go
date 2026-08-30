@@ -413,7 +413,13 @@ func TestPathFor(t *testing.T) {
 func TestIsReservedName(t *testing.T) {
 	t.Parallel()
 
-	reserved := []string{".gup.lock", " .gup.lock ", ".GUP.LOCK", ".Gup.Lock"}
+	reserved := []string{
+		".gup.lock", " .gup.lock ", ".GUP.LOCK", ".Gup.Lock",
+		// Win32 strips trailing dots and spaces before the filesystem ever sees
+		// the name, so every one of these opens the file above. Folding them the
+		// same way on every platform keeps the rule one rule.
+		".gup.lock.", ".gup.lock...", ".gup.lock ", ".gup.lock . .", ".GUP.LOCK.",
+	}
 	for _, name := range reserved {
 		if !IsReservedName(name) {
 			t.Errorf("IsReservedName(%q) = false, want true", name)

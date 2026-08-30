@@ -440,6 +440,68 @@ scenarios:
           stderr:
             contains: "another gup process is already running"
 
+  - name: a lock path that is a symlink is refused, and its target is untouched
+    # gup truncates its lock file to record who holds it. With the lock path
+    # replaced by a link, that record used to be written straight THROUGH the
+    # link - emptying whatever it pointed at, and reporting success. The refusal
+    # comes from the open itself (O_NOFOLLOW, FILE_FLAG_OPEN_REPARSE_POINT), not
+    # from a check something could race, and gup leaves the link where it is
+    # rather than replacing it.
+    # Skipped on Windows, where creating a symlink needs privileges a test
+    # runner should not assume.
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - fixture:
+          file: precious.txt
+          content: "the file the lock path points at"
+      - fixture:
+          file: shared/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - fixture:
+          file: shared/gup.json.lock
+          symlink: "${workdir}/precious.txt"
+      - run:
+          command: gup export --file ${workdir}/shared/gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "symbolic link"
+      # The whole point: the file the link names comes out byte for byte intact.
+      - assert:
+          file:
+            path: precious.txt
+            contains: "the file the lock path points at"
+
+  - name: migrate given one directory under two names takes one lock
+    # BEFORE_PATH and AFTER_PATH used to be deduplicated as path STRINGS, so a
+    # symlink pointing one at the other put the same file in the set twice: gup
+    # took the kernel lock, asked the kernel for that same file again on a second
+    # descriptor, waited out its whole timeout, and reported ITSELF as another
+    # gup process. The command could never succeed. Locks are deduplicated by the
+    # identity the filesystem gives the file, so the two names are one lock.
+    # Skipped on Windows, where creating a symlink needs privileges a test
+    # runner should not assume.
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - fixture:
+          file: old-gobin/.keep
+          content: "placeholder so BEFORE_PATH exists"
+      - fixture:
+          file: alias
+          symlink: "${workdir}/old-gobin"
+      - run:
+          command: gup migrate ${workdir}/old-gobin ${workdir}/alias
+          env: *iso
+      - assert:
+          stderr:
+            not_contains: "another gup process is already running"
+
   - name: a migration that cannot run leaves no AFTER_PATH behind
     # Taking the lock CREATES AFTER_PATH, because a destination that does not
     # exist yet is exactly when two migrations are most likely to collide. That

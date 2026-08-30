@@ -77,6 +77,10 @@ var stdinIsTerminal = func() bool { //nolint:gochecknoglobals
 }
 
 func removeLoop(p *print.Printer, gobin string, force bool, target []string) int {
+	// The lock guarding this very $GOBIN. It is held for the whole of this
+	// command (see withStateLock), so it exists, and no name a user types may
+	// resolve to it.
+	lockPath := lockfile.PathForDir(gobin)
 	result := 0
 	for _, v := range target {
 		orig := v
@@ -108,6 +112,18 @@ func removeLoop(p *print.Printer, gobin string, force bool, target []string) int
 		}
 
 		target := filepath.Join(gobin, v)
+		// The name checks above are the readable half of this refusal; this is the
+		// half that is true. A file name reaches a file in ways string folding does
+		// not cover - Windows strips trailing dots and spaces before the filesystem
+		// ever sees the name, NTFS answers to an 8.3 alias like GUPLOC~1.LOC, and a
+		// hard link is a second name for the same file by construction. Asking the
+		// filesystem which file the name means, and comparing that with the lock
+		// file itself, covers every one of them at once.
+		if lockfile.SameFile(target, lockPath) {
+			p.Err(reservedNameError(orig))
+			result = 1
+			continue
+		}
 		if !fileutil.IsFile(target) {
 			p.Err(fmt.Errorf("no such file or directory: %s", target))
 			result = 1
