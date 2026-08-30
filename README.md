@@ -501,7 +501,7 @@ The first is a `$GOBIN` or a `gup.json` on a network filesystem — NFS, SMB, ss
 The second is deleting a lock file *while* gup is running. Doing so does not stop the running command — its lock is on an open handle — but it frees the name, and the next gup creates a new file there and locks that instead, leaving two commands changing one `$GOBIN`. gup never deletes these files itself and refuses to let `gup remove` do it; nothing else should either.
 
 > [!NOTE]
-> gup v1.8.1 and earlier take no lock at all. If you keep an older gup on your `PATH` and run it against the same `$GOBIN` at the same time as a current one, the two are not serialized — the older one does not know there is anything to wait for. Two current gups always are.
+> gup v1.8.1 and earlier take no lock at all. If you keep an older gup on your `PATH` and run it against the same `$GOBIN` at the same time as a current one, the two are not serialized — the older one does not know there is anything to wait for. Two current gups are, on any filesystem that honors the kernel's lock — see "Where the lock does not reach" above for the ones that may not.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.

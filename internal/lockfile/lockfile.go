@@ -550,7 +550,7 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 	for _, target := range targets {
 		if _, duplicate := seen[target.id]; duplicate {
 			// A second name for a file already in the set - and not necessarily a
-			// neighbouring one, which is why this is a set rather than a comparison
+			// neighboring one, which is why this is a set rather than a comparison
 			// with the previous entry. Its descriptor is closed here rather than
 			// carried, so nothing later can try to lock it.
 			target.close()

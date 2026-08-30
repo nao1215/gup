@@ -819,7 +819,7 @@ func symlinkOrSkipCmd(t *testing.T, target, link string) {
 }
 
 // Test_withStateLock_refusesAConfigLockThatIsASymlink drives the whole command
-// through the case the lock had no defence against: a lock path replaced with a
+// through the case the lock had no defense against: a lock path replaced with a
 // link to something else.
 //
 // gup truncates its lock file to record who holds it. With `gup.json.lock`

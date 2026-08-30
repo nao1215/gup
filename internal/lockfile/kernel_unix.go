@@ -12,7 +12,7 @@ import (
 // openLockFile opens the lock file at path, creating it when it is not there
 // yet, and returns it together with the identity the filesystem gives it.
 //
-// The open is O_NOFOLLOW, and that is the whole of the symlink defence. gup
+// The open is O_NOFOLLOW, and that is the whole of the symlink defense. gup
 // truncates the lock file to write the owner record into it, so a lock path
 // somebody replaced with a link - `gup.json.lock -> ~/.ssh/authorized_keys` -
 // would be a way to empty an arbitrary file that gup has permission to write.

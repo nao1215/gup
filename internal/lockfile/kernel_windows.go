@@ -32,7 +32,7 @@ func lockRange() *windows.Overlapped {
 // openLockFile opens the lock file at path, creating it when it is not there
 // yet, and returns it together with the identity the filesystem gives it.
 //
-// FILE_FLAG_OPEN_REPARSE_POINT is the whole of the symlink defence, and it is
+// FILE_FLAG_OPEN_REPARSE_POINT is the whole of the symlink defense, and it is
 // the reason this goes through CreateFile rather than os.OpenFile. gup truncates
 // the lock file to write the owner record into it, so a lock path somebody
 // replaced with a symlink or a junction - `gup.json.lock` pointing at a file in
@@ -82,6 +82,18 @@ func openLockFile(path string) (*os.File, fileID, error) {
 		return nil, fileID{}, err
 	}
 
+	// What kind of handle this is has to be settled BEFORE anything asks for file
+	// metadata: GetFileInformationByHandle is documented for files on disk, and a
+	// character device or a pipe at the lock path would make it fail with an error
+	// about the call rather than about the path. This is the counterpart of the
+	// Unix side reading the file kind off the descriptor, and it is settled on the
+	// handle for the same reason - it answers about the thing gup has open.
+	kind, err := windows.GetFileType(handle)
+	if err != nil || kind != windows.FILE_TYPE_DISK {
+		_ = windows.CloseHandle(handle)
+		return nil, fileID{}, errLockPathIsNotRegular
+	}
+
 	var info windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {
 		_ = windows.CloseHandle(handle)
@@ -94,13 +106,6 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
 		_ = windows.CloseHandle(handle)
 		return nil, fileID{}, errLockPathIsDirectory
-	}
-	if info.FileAttributes&windows.FILE_ATTRIBUTE_DEVICE != 0 {
-		// A device is not a lock file, and truncating one is not a thing to find
-		// out by trying. This is the counterpart of the FIFO and device refusal
-		// the Unix side gets from reading the file kind off the descriptor.
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, errLockPathIsNotRegular
 	}
 	return os.NewFile(uintptr(handle), path), fileID{
 		device: uint64(info.VolumeSerialNumber),
