@@ -1388,12 +1388,12 @@ func rollbackAgainstAReclaimedFirstLock(t *testing.T) error {
 	return err
 }
 
-// TestRestoreByRecreating covers restore's fallback for filesystems with no hard
+// TestRestoreByClaiming covers restore's fallback for filesystems with no hard
 // links, which the test machine almost certainly has - so the fallback is driven
 // directly. It must follow the same rule as the Link path, and be atomic about
 // it: the path is filled by the operation that claims it, never by a check
 // followed by a write.
-func TestRestoreByRecreating(t *testing.T) {
+func TestRestoreByClaiming(t *testing.T) {
 	t.Parallel()
 
 	t.Run("restores into a free path, modification time and all", func(t *testing.T) {
@@ -1408,7 +1408,7 @@ func TestRestoreByRecreating(t *testing.T) {
 		}
 		content := readAll(t, aside)
 
-		restoreByRecreating(aside, path)
+		restoreByClaiming(aside, path)
 
 		if got := readAll(t, path); got != content {
 			t.Errorf("the restored lock file reads %q, want %q", got, content)
@@ -1434,11 +1434,25 @@ func TestRestoreByRecreating(t *testing.T) {
 		aside := filepath.Join(dir, "gup.lock.stale-1-1")
 		writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
 		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
+		before, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("failed to stat the successor's lock: %v", err)
+		}
 
-		restoreByRecreating(aside, path)
+		restoreByClaiming(aside, path)
 
 		if got := readOwnerForTest(t, path); got.Nonce != successorNonce {
 			t.Errorf("the lock at the path is %q, want the newcomer's %q", got.Nonce, successorNonce)
+		}
+		// The old fallback wrote the detached file's content and then wound the
+		// modification time back, both by name. Landing that on a successor's lock
+		// backdates a live lock into staleness, so a third process reclaims it.
+		after, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("the successor's lock is gone: %v", err)
+		}
+		if !after.ModTime().Equal(before.ModTime()) {
+			t.Errorf("the successor's lock was re-timed from %v to %v", before.ModTime(), after.ModTime())
 		}
 		if _, err := os.Stat(aside); !os.IsNotExist(err) {
 			t.Errorf("the detached file was left behind: %v", err)
@@ -1450,10 +1464,221 @@ func TestRestoreByRecreating(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "gup.lock")
 
-		restoreByRecreating(filepath.Join(dir, "not-there"), path)
+		restoreByClaiming(filepath.Join(dir, "not-there"), path)
 
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Errorf("a lock file was created out of nothing: %v", err)
 		}
 	})
+}
+
+// TestDiscardOwnUnwritten covers the cleanup that runs when the owner record
+// could not be written into a lock file this process had already created.
+//
+// The dangerous case is the second one. A write that fails can take longer than
+// the staleness bound - a device that stalls before reporting an error is
+// exactly how that happens - and by the time it returns, a waiter may have
+// judged the anonymous file abandoned, removed it, and created its own lock at
+// the same name. Removing that path by name deletes a lock another gup is
+// actively working under, and the process after it walks straight in.
+func TestDiscardOwnUnwritten(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes the anonymous file it created", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "gup.lock")
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("failed to plant the anonymous lock file: %v", err)
+		}
+
+		discardOwnUnwritten(path, "mine")
+
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("the half-created lock file was left behind: %v", err)
+		}
+	})
+
+	t.Run("removes a file that carries its own nonce", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "gup.lock")
+		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: "mine"})
+
+		discardOwnUnwritten(path, "mine")
+
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("the lock file this process created was left behind: %v", err)
+		}
+	})
+
+	t.Run("leaves a successor's lock exactly where it is", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "gup.lock")
+		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
+		content := readAll(t, path)
+		before, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("failed to stat the successor's lock: %v", err)
+		}
+
+		discardOwnUnwritten(path, "mine")
+
+		if got := readAll(t, path); got != content {
+			t.Errorf("the successor's lock reads %q, want %q", got, content)
+		}
+		after, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("the successor's lock was deleted: %v", err)
+		}
+		if !after.ModTime().Equal(before.ModTime()) {
+			t.Errorf("the successor's lock was re-timed from %v to %v", before.ModTime(), after.ModTime())
+		}
+		if leftovers := asideFiles(t, filepath.Dir(path)); len(leftovers) != 0 {
+			t.Errorf("detached files were left lying around: %v", leftovers)
+		}
+	})
+}
+
+// TestCreateLockFile_doesNotDeleteALockTakenWhileItsOwnRecordWasBeingWritten
+// drives the same race through createLockFile itself rather than through the
+// cleanup in isolation, so the two stay wired together.
+//
+// The take-over is staged from inside the failing write, which is what makes
+// this deterministic: the stand-in reclaims the anonymous file and installs a
+// successor's lock at exactly the moment the real race would, then reports the
+// write error that sends createLockFile into its cleanup. No sleeping, and no
+// dependence on which of two goroutines happens to run first.
+func TestCreateLockFile_doesNotDeleteALockTakenWhileItsOwnRecordWasBeingWritten(t *testing.T) { //nolint:paralleltest // swaps a package-level test seam
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	successor := Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce}
+
+	original := writeOwnerRecord
+	t.Cleanup(func() { writeOwnerRecord = original })
+	writeOwnerRecord = func(file *os.File, _ []byte) error {
+		// Windows refuses to unlink a file this process still has open, so the
+		// handle goes first. createLockFile closes it again on its way out, which
+		// costs nothing: the second close reports a closed file into an error path
+		// that already has the write failure staged below.
+		if err := file.Close(); err != nil {
+			t.Errorf("failed to release the handle before the take-over: %v", err)
+		}
+		// Another gup judged the anonymous file abandoned and took the name over.
+		if err := os.Remove(path); err != nil {
+			t.Errorf("failed to stand in for the take-over: %v", err)
+		}
+		writeOwner(t, path, successor)
+		return errors.New("the device reported a write error")
+	}
+
+	lock, err := createLockFile(path, cmdUpdate)
+	if err == nil {
+		t.Fatalf("createLockFile() succeeded despite a failed write; lock = %v", lock)
+	}
+	if got := readOwnerForTest(t, path); got.Nonce != successorNonce {
+		t.Fatalf("the lock at the path is %q, want the successor's %q", got.Nonce, successorNonce)
+	}
+	if leftovers := asideFiles(t, filepath.Dir(path)); len(leftovers) != 0 {
+		t.Errorf("detached files were left lying around: %v", leftovers)
+	}
+}
+
+// TestCreateLockFile_cleansUpAfterAFailedWrite is the other half: with nobody
+// else involved, the file this process created must not be left behind, or the
+// next gup waits out the staleness bound on rubbish.
+func TestCreateLockFile_cleansUpAfterAFailedWrite(t *testing.T) { //nolint:paralleltest // swaps a package-level test seam
+	path := filepath.Join(t.TempDir(), "gup.lock")
+
+	original := writeOwnerRecord
+	t.Cleanup(func() { writeOwnerRecord = original })
+	writeOwnerRecord = func(*os.File, []byte) error { return errors.New("the device reported a write error") }
+
+	if lock, err := createLockFile(path, cmdUpdate); err == nil {
+		t.Fatalf("createLockFile() succeeded despite a failed write; lock = %v", lock)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the half-created lock file was left behind: %v", err)
+	}
+	if leftovers := asideFiles(t, filepath.Dir(path)); len(leftovers) != 0 {
+		t.Errorf("detached files were left lying around: %v", leftovers)
+	}
+}
+
+// TestRestoreByClaiming_neverLeavesASuccessorsLockWearingAnotherOwnersTimestamp
+// drives the one window the fallback has: a lock created at the path after the
+// name was claimed and before the detached file is renamed onto it.
+//
+// The invariant is that the file left at the path is consistent - whichever of
+// the two locks survives, it wears its OWN modification time. The fallback this
+// replaced could not hold that: it wrote the detached file's bytes through a
+// descriptor whose name had already been taken over, and then wound the path's
+// modification time back to the detached file's, leaving a successor's lock
+// backdated into staleness for every waiter to reclaim while its owner worked.
+func TestRestoreByClaiming_neverLeavesASuccessorsLockWearingAnotherOwnersTimestamp(t *testing.T) { //nolint:paralleltest // swaps a package-level test seam
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.lock")
+	aside := filepath.Join(dir, "gup.lock.stale-1-1")
+	writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+	old := time.Now().Add(-30 * time.Second).Truncate(time.Second)
+	if err := os.Chtimes(aside, old, old); err != nil {
+		t.Fatalf("failed to backdate the detached file: %v", err)
+	}
+
+	successorMod := time.Now().Truncate(time.Second)
+	original := restoreRaceHook
+	t.Cleanup(func() { restoreRaceHook = original })
+	restoreRaceHook = func() {
+		// Another gup takes the claimed name over: it removes the empty claim and
+		// puts its own lock there, exactly as a reclaim would.
+		if err := os.Remove(path); err != nil {
+			t.Errorf("failed to stand in for the take-over: %v", err)
+		}
+		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
+		if err := os.Chtimes(path, successorMod, successorMod); err != nil {
+			t.Errorf("failed to time the successor's lock: %v", err)
+		}
+	}
+
+	restoreByClaiming(aside, path)
+
+	got := readOwnerForTest(t, path)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("no lock file was left at the path: %v", err)
+	}
+	switch got.Nonce {
+	case ownerHolder:
+		if !info.ModTime().Equal(old) {
+			t.Errorf("the restored lock reads %q but is timed %v, want %v", got.Nonce, info.ModTime(), old)
+		}
+	case successorNonce:
+		if !info.ModTime().Equal(successorMod) {
+			t.Errorf("the successor's lock was re-timed to %v, want its own %v", info.ModTime(), successorMod)
+		}
+	default:
+		t.Errorf("the lock at the path belongs to nobody: %+v", got)
+	}
+	if leftovers := asideFiles(t, dir); len(leftovers) != 0 {
+		t.Errorf("detached files were left lying around: %v", leftovers)
+	}
+}
+
+// asideFiles lists the detached lock files left in dir. Every path that gets
+// renamed aside has to end up either back at its name or removed; one left
+// behind is a lock file nobody will ever reclaim, because no owner recognizes
+// the name.
+func asideFiles(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("failed to list %s: %v", dir, err)
+	}
+	var out []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.Contains(name, ".stale-") || strings.Contains(name, ".release-") ||
+			strings.Contains(name, ".unwritten-") {
+			out = append(out, name)
+		}
+	}
+	return out
 }
