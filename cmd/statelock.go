@@ -49,7 +49,7 @@ var commandLockPolicy = map[string]lockTargets{ //nolint:gochecknoglobals // the
 	cmdNameExport:     exportLockTargets,
 	cmdNameRemove:     binDirLockTargets,
 	cmdNameMigrate:    migrateLockTargets,
-	cmdNamePin:        configFileLockTargets,
+	cmdNamePin:        pinLockTargets,
 	cmdNameUnpin:      configFileLockTargets,
 	cmdNameCheck:      nil,
 	cmdNameList:       nil,
@@ -277,11 +277,11 @@ func updateLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	writePath, err := resolveConfigWritePath(cmd)
+	confLock, err := configFileLockTargets(cmd, nil)
 	if err != nil {
 		return nil, err
 	}
-	return append(dirLockTarget(gobin), lockfile.PathForFile(writePath)), nil
+	return append(dirLockTarget(gobin), confLock...), nil
 }
 
 // importLockTargets locks the $GOBIN `gup import` installs into. It reads
@@ -298,10 +298,16 @@ func importLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	return binDirLockTargets(cmd, nil)
 }
 
-// exportLockTargets locks the gup.json `gup export` writes. With --output it
-// prints to standard output and touches no file, so it locks nothing: making a
-// read-only operation queue behind an update would be a regression in a command
-// people pipe into other tools.
+// exportLockTargets locks the gup.json `gup export` writes and the $GOBIN it
+// describes. The $GOBIN lock is not there because export writes to it - it does
+// not - but because the file it writes is a snapshot of it: a `gup remove`
+// deleting a binary halfway through the walk yields a gup.json listing a tool
+// that is no longer installed, and a later `gup import` reinstalls it.
+//
+// With --output it prints to standard output and touches no file, so it locks
+// nothing: making a command people pipe into other tools queue behind an update
+// would be a regression, and the worst a torn read can do there is print a line
+// the user can see.
 func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	output, err := getFlagBool(cmd, "output")
 	if err != nil {
@@ -314,7 +320,41 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return configFileLock(config.ResolveExportFilePath(explicit))
+	confLock, err := configFileLock(config.ResolveExportFilePath(explicit))
+	if err != nil {
+		return nil, err
+	}
+	return append(installedBinDirLockTarget(), confLock...), nil
+}
+
+// pinLockTargets locks the gup.json `gup pin` rewrites and the $GOBIN it
+// resolves the pin target against, for the reason export locks it: pinning a
+// binary a concurrent `gup remove` is deleting writes a pin for a tool that is
+// not installed. `gup unpin` needs no such lock - it names an entry in gup.json
+// and never looks at $GOBIN.
+func pinLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
+	confLock, err := configFileLockTargets(cmd, args)
+	if err != nil {
+		return nil, err
+	}
+	return append(installedBinDirLockTarget(), confLock...), nil
+}
+
+// installedBinDirLockTarget returns the lock guarding the $GOBIN a command
+// READS, and nothing when it cannot be resolved or does not exist yet.
+//
+// It deliberately does not create the directory the way dirLockTarget does. That
+// creation exists for the commands that install into $GOBIN, where two first
+// runs would otherwise collide in a directory neither had locked; a command that
+// only reads $GOBIN has nothing to collide over, and creating a directory as a
+// side effect of `gup export` would be a surprise. A $GOBIN that is not there
+// holds no binaries either, so there is nothing to keep still.
+func installedBinDirLockTarget() []string {
+	gobin, err := goutil.GoBin()
+	if err != nil || !fileutil.IsDir(gobin) {
+		return nil
+	}
+	return []string{lockfile.PathForDir(gobin)}
 }
 
 // migrateLockTargets locks AFTER_PATH, the directory `gup migrate` installs

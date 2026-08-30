@@ -490,3 +490,55 @@ func TestWriteConfigFile_backupSwapPath(t *testing.T) {
 		t.Fatalf("config not written through backup swap: %s", data)
 	}
 }
+
+// Test_writeConfigFile_replacesAReadOnlyConfigInPlace covers the destination the
+// backup swap was written for. A read-only gup.json must still be rewritten -
+// and rewritten by an atomic replace, because the swap moves the old file away
+// first, and gup's unlocked readers (check, list, import) would read that moment
+// as "no config".
+func Test_writeConfigFile_replacesAReadOnlyConfigInPlace(t *testing.T) { //nolint:paralleltest // mutates package-level renameFunc
+	origRename := renameFunc
+	t.Cleanup(func() { renameFunc = origRename })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":1,"packages":[]}`), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+
+	// POSIX lets a rename replace a read-only file, so the refusal Windows gives
+	// is simulated here: the first attempt fails, and the retry after the
+	// read-only bit is cleared must be the one that succeeds.
+	firstAttempt := true
+	renameFunc = func(oldpath, newpath string) error {
+		if firstAttempt {
+			firstAttempt = false
+			return &os.LinkError{Op: "rename", Old: oldpath, New: newpath, Err: os.ErrPermission}
+		}
+		return origRename(oldpath, newpath)
+	}
+
+	if err := writeConfigFile(path, []goutil.Package{{Name: testBinDummy, ImportPath: "example.com/dummy"}}); err != nil {
+		t.Fatalf("writeConfigFile() error = %v", err)
+	}
+
+	// No swap happened, so nothing was ever moved out of the way: the backup the
+	// swap would have created is not there, and neither is a temp file.
+	assertNoTempFiles(t, dir, filepath.Base(path))
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("the config file is gone: %v", err)
+	}
+	// The read-only intent survives the write rather than being silently dropped.
+	if info.Mode().Perm()&0o200 != 0 {
+		t.Errorf("gup.json is now mode %v, want the read-only mode it had", info.Mode().Perm())
+	}
+	raw, err := os.ReadFile(path) //nolint:gosec // a path this test just created
+	if err != nil {
+		t.Fatalf("failed to read the config file: %v", err)
+	}
+	if !strings.Contains(string(raw), "example.com/dummy") {
+		t.Errorf("gup.json = %q, want the newly written package", raw)
+	}
+}

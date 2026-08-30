@@ -458,7 +458,8 @@ The commands that change state take a lock on each resource they write, so a sec
 | `import` | `$GOBIN` |
 | `remove` | `$GOBIN` |
 | `migrate` | `AFTER_PATH` |
-| `export`, `pin`, `unpin` | the `gup.json` they write |
+| `export`, `pin` | `$GOBIN` and the `gup.json` they write |
+| `unpin` | the `gup.json` it writes |
 
 The lock files are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it.)
 
@@ -472,7 +473,9 @@ The second one exits non-zero after reporting who is in the way:
 > gup.json, so wait for it to finish and run this command again. If that process is
 > gone, gup reclaims /home/you/go/bin/.gup.lock by itself
 
-Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup writes `gup.json` by atomic rename, so a reader always sees a complete file and has nothing to wait for.
+`export` and `pin` lock `$GOBIN` although they never write to it: what they write is a description of it, so a `gup remove` deleting a binary halfway through would leave a `gup.json` naming a tool that is no longer installed. `unpin` names an entry in `gup.json` and never looks at `$GOBIN`, so it does not wait behind one.
+
+Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup replaces `gup.json` with an atomic rename, so a reader always sees a complete file and has nothing to wait for. That holds for a read-only `gup.json` too: the read-only bit is cleared for the length of the rename and put back, rather than moving the old file aside and leaving the path briefly empty.
 
 A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock while it is suspended, so pausing an update with Ctrl-Z does not let a second gup in — up to about an hour, after which the heartbeat decides again. That bound is deliberate: a PID outlives the process that owned it, and once the operating system recycles the number, an unbounded check would report a long-dead gup as still running forever.
 

@@ -75,17 +75,72 @@ func writeConfigFile(path string, pkgs []goutil.Package) (err error) {
 	return nil
 }
 
+// renameWithReplace puts the freshly written file in place of the old one.
+//
+// The plain rename is what everything else in gup relies on: it replaces the
+// destination atomically on every platform gup targets (Go asks Windows for
+// FILE_RENAME_REPLACE_IF_EXISTS), so a reader holding no lock sees either the
+// whole previous file or the whole next one, and never the gap between them.
+//
+// The fallbacks below exist because a destination can refuse to be replaced.
+// They are ordered by how much of that guarantee they keep: clearing a read-only
+// destination and replacing it atomically keeps all of it, and the backup swap -
+// which moves the old file away before putting the new one in its place, leaving
+// the path empty in between - is the last resort it has always been.
 func renameWithReplace(src, dst string) error {
-	if err := renameFunc(src, dst); err != nil {
-		// Windows cannot overwrite an existing file with os.Rename.
-		// Retry via destination backup swap when the destination likely exists.
-		if !shouldRetryRenameWithReplace(err, dst) {
-			return err
-		}
-		return renameWithBackupSwap(src, dst)
+	err := renameFunc(src, dst)
+	if err == nil {
+		return nil
 	}
-	return nil
+	// Asked before the platform gate below, because a read-only destination is a
+	// property of the file rather than of the operating system, and clearing it
+	// keeps the replace atomic where the swap could not.
+	if replaceErr := replaceReadOnlyDestination(src, dst); replaceErr == nil {
+		return nil
+	}
+	if !shouldRetryRenameWithReplace(err, dst) {
+		return err
+	}
+	return renameWithBackupSwap(src, dst)
 }
+
+// replaceReadOnlyDestination retries the atomic replace with the destination's
+// read-only bit cleared, and puts that bit back on the file that replaces it.
+//
+// This is the case the backup swap was written for. On Windows a read-only
+// destination makes the replace fail with a permission error, and a swap makes
+// the write succeed at the cost of a moment where gup.json does not exist -
+// which the unlocked readers (`gup check`, `gup list`, `gup import`) would read
+// as "no config". Clearing the bit for the length of one rename costs nothing
+// and keeps the file continuously present.
+func replaceReadOnlyDestination(src, dst string) error {
+	info, err := os.Stat(dst)
+	if err != nil {
+		return err
+	}
+	const ownerWrite = 0o200
+	if info.Mode().Perm()&ownerWrite != 0 {
+		// Not a read-only destination, so this is not what stopped the replace.
+		return errNotReadOnlyDestination
+	}
+	if err := os.Chmod(dst, info.Mode()|ownerWrite); err != nil {
+		return err
+	}
+	if err := renameFunc(src, dst); err != nil {
+		// Put the destination back as it was found: the write failed, so nothing
+		// about the file the user has should have changed.
+		_ = os.Chmod(dst, info.Mode())
+		return err
+	}
+	// The new file inherits the temp file's mode, so the destination's read-only
+	// intent is restored onto it rather than silently dropped.
+	return os.Chmod(dst, info.Mode())
+}
+
+// errNotReadOnlyDestination reports that the replace failed for some reason
+// other than a destination that cannot be written, so clearing permissions is
+// not the retry to make.
+var errNotReadOnlyDestination = errors.New("the destination is not read-only")
 
 func renameWithBackupSwap(src, dst string) error {
 	backupPath, err := prepareBackupPath(dst)
