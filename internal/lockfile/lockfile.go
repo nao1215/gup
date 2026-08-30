@@ -30,12 +30,15 @@
 // reclaimed when its heartbeat has stopped long enough.
 //
 // Every step that could act on the WRONG file - taking a lock over, refreshing
-// it, releasing it - is made to act on a file it holds rather than on a path it
-// looked at a moment ago. Taking over and releasing rename the file aside first,
-// because only one process can rename a given file, and then check what they
-// took; the heartbeat verifies and refreshes through a single descriptor. A path
-// checked and then acted on is two operations on what may be two different
-// files, which is how a lock ends up refreshing, or deleting, its successor's.
+// it, releasing it, cleaning up after an acquisition that could not finish
+// writing itself - is made to act on a file it holds rather than on a path it
+// looked at a moment ago. All three of the removing ones rename the file aside
+// first, because only one process can rename a given file, and then check what
+// they took; the heartbeat verifies and refreshes through a single descriptor;
+// putting a detached file back moves it rather than copying it, so no content
+// and no timestamp is ever written to a published name. A path checked and then
+// acted on is two operations on what may be two different files, which is how a
+// lock ends up refreshing, or deleting, its successor's.
 package lockfile
 
 import (
