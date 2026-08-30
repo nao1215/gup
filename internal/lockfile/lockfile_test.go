@@ -1553,7 +1553,14 @@ func TestCreateLockFile_doesNotDeleteALockTakenWhileItsOwnRecordWasBeingWritten(
 
 	original := writeOwnerRecord
 	t.Cleanup(func() { writeOwnerRecord = original })
-	writeOwnerRecord = func(_ *os.File, _ []byte) error {
+	writeOwnerRecord = func(file *os.File, _ []byte) error {
+		// Windows refuses to unlink a file this process still has open, so the
+		// handle goes first. createLockFile closes it again on its way out, which
+		// costs nothing: the second close reports a closed file into an error path
+		// that already has the write failure staged below.
+		if err := file.Close(); err != nil {
+			t.Errorf("failed to release the handle before the take-over: %v", err)
+		}
 		// Another gup judged the anonymous file abandoned and took the name over.
 		if err := os.Remove(path); err != nil {
 			t.Errorf("failed to stand in for the take-over: %v", err)
