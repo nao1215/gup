@@ -379,7 +379,7 @@ scenarios:
           stderr:
             contains: "another gup process is already running"
       # update writes the config through the same link, and used to lock the
-      # link's own neighbour instead of the file: a pin on the real path and an
+      # link's own neighbor instead of the file: a pin on the real path and an
       # update on the link would both have been let through.
       - run:
           command: gup update --file ${workdir}/link/gup.json
