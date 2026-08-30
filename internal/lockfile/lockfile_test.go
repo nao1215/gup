@@ -1219,3 +1219,183 @@ func TestRelease_reportsALockFileItCannotRemove(t *testing.T) { //nolint:paralle
 		t.Errorf("Release() error = %v, want it to name the file that is still there", err)
 	}
 }
+
+// TestRestore_doesNotDisplaceALockTakenWhileTheFileWasAside is the rule that
+// keeps putting a file back from being the same bug as taking it. A file is
+// detached before it can be identified, and a process that acquires the path in
+// that window holds a real lock: overwriting it would leave that process working
+// with no lock and no way to find out, next to whoever holds the restored one.
+func TestRestore_doesNotDisplaceALockTakenWhileTheFileWasAside(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.lock")
+	aside := filepath.Join(dir, "gup.lock.stale-1-1")
+	writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+	newcomer := Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce}
+	writeOwner(t, path, newcomer)
+
+	restore(aside, path)
+
+	if got := readOwnerForTest(t, path); got.Nonce != newcomer.Nonce {
+		t.Errorf("the lock at the path is now %q, want the newcomer's %q", got.Nonce, newcomer.Nonce)
+	}
+	if _, err := os.Stat(aside); !os.IsNotExist(err) {
+		t.Errorf("the detached file was left lying around under a name no owner recognizes: %v", err)
+	}
+}
+
+// TestRestore_putsTheFileBackWhenThePathIsFree is the other half: with nothing
+// at the path, the owner whose file was detached must get it back, content and
+// modification time intact, or a lock that was only being examined would have
+// been destroyed by examining it.
+func TestRestore_putsTheFileBackWhenThePathIsFree(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "gup.lock")
+	writeOwner(t, path, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat the lock file: %v", err)
+	}
+	content := readAll(t, path)
+
+	aside, err := detach(path, "stale")
+	if err != nil || aside == "" {
+		t.Fatalf("detach() = %q, %v", aside, err)
+	}
+	restore(aside, path)
+
+	if got := readAll(t, path); got != content {
+		t.Errorf("the restored lock file reads %q, want %q", got, content)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("the lock file was not put back: %v", err)
+	}
+	// The modification time is what a waiter judges staleness from, so restoring
+	// must not look like a heartbeat.
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Errorf("restore moved the modification time from %v to %v", before.ModTime(), after.ModTime())
+	}
+}
+
+// TestReclaim_leavesALockChangedJustBeforeTheTakeOverAlone covers the look taken
+// immediately before the file is moved. Without it a lock whose owner refreshed
+// it after the verdict is detached first and identified second, so its owner is
+// briefly missing from its own path even though the file goes back.
+func TestReclaim_leavesALockChangedJustBeforeTheTakeOverAlone(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "gup.lock")
+	writeOwner(t, path, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+	old := time.Now().Add(-2 * defaultStaleAfter)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatalf("failed to backdate the lock: %v", err)
+	}
+	_, observed, _ := inspect(path)
+
+	// The owner's heartbeat runs: same bytes, newer modification time.
+	now := time.Now()
+	if err := os.Chtimes(path, now, now); err != nil {
+		t.Fatalf("failed to refresh the lock: %v", err)
+	}
+
+	if err := reclaim(path, observed); !errors.Is(err, errLockChanged) {
+		t.Errorf("reclaim() error = %v, want errLockChanged", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("the refreshed lock file is gone: %v", err)
+	}
+	if !info.ModTime().Equal(now.Truncate(0)) && info.ModTime().Before(old.Add(time.Second)) {
+		t.Errorf("the lock file's modification time is %v, want the refreshed one", info.ModTime())
+	}
+}
+
+// TestAcquireAll_reportsARollbackFailureAlongsideTheAcquisitionFailure covers
+// the error that used to be dropped. When a later lock cannot be taken, the ones
+// already held are handed back - and a hand-back that failed leaves a resource
+// held by nobody, which the next command waits on. Reporting only the
+// acquisition failure hides the one thing the user would have to clean up.
+func TestAcquireAll_reportsARollbackFailureAlongsideTheAcquisitionFailure(t *testing.T) {
+	t.Setenv(envWait, "2s")
+
+	dir := t.TempDir()
+	// Sorted order decides acquisition order: "a" is taken first, "b" is the one
+	// that cannot be taken, and the rollback of "a" is what this asserts on.
+	first := filepath.Join(dir, "a.lock")
+	second := filepath.Join(dir, "b.lock")
+	writeOwner(t, second, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
+
+	// Stand in for another gup reclaiming the first lock while this process is
+	// still waiting for the second: the file at that path stops being ours, so
+	// handing it back has to report the overlap instead of deleting a stranger's
+	// lock. The wait above is long enough that this always lands first.
+	taken := make(chan struct{})
+	go func() {
+		defer close(taken)
+		for range 400 {
+			if _, err := os.Stat(first); err == nil {
+				writeOwner(t, first, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+
+	_, err := AcquireAll(t.Context(), cmdUpdate, first, second)
+	<-taken
+	if err == nil {
+		t.Fatal("AcquireAll() succeeded against a lock held by a live process")
+	}
+	var busy *BusyError
+	if !errors.As(err, &busy) {
+		t.Errorf("AcquireAll() error = %v, want it to report the lock that is held", err)
+	}
+	var takenOver *TakenOverError
+	if !errors.As(err, &takenOver) {
+		t.Errorf("AcquireAll() error = %v, want it to also report the lock it could not hand back", err)
+	}
+}
+
+// TestRestoreByRename covers restore's fallback for filesystems with no hard
+// links, which the test machine almost certainly has - so the fallback is driven
+// directly. It must follow the same rule as the Link path: back into an empty
+// path, never over a lock somebody else took.
+func TestRestoreByRename(t *testing.T) {
+	t.Parallel()
+
+	t.Run("restores into a free path", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "gup.lock")
+		aside := filepath.Join(dir, "gup.lock.stale-1-1")
+		writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+
+		restoreByRename(aside, path)
+
+		if got := readOwnerForTest(t, path); got.Nonce != ownerHolder {
+			t.Errorf("the lock at the path is %q, want the restored owner's %q", got.Nonce, ownerHolder)
+		}
+	})
+
+	t.Run("leaves an occupied path alone", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "gup.lock")
+		aside := filepath.Join(dir, "gup.lock.stale-1-1")
+		writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
+
+		restoreByRename(aside, path)
+
+		if got := readOwnerForTest(t, path); got.Nonce != successorNonce {
+			t.Errorf("the lock at the path is %q, want the newcomer's %q", got.Nonce, successorNonce)
+		}
+		if _, err := os.Stat(aside); !os.IsNotExist(err) {
+			t.Errorf("the detached file was left behind: %v", err)
+		}
+	})
+}

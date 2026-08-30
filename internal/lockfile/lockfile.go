@@ -388,8 +388,10 @@ func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLoc
 	for _, path := range ordered {
 		lock, err := Acquire(ctx, path, command)
 		if err != nil {
-			_ = held.Release()
-			return nil, err
+			// A rollback that could not remove a lock file matters as much as the
+			// acquisition that failed: it leaves a resource held by nobody, which the
+			// next command waits on. Reporting only the first error hides that.
+			return nil, errors.Join(err, held.Release())
 		}
 		held.locks = append(held.locks, lock)
 	}
@@ -494,6 +496,13 @@ func reclaim(path string, observed state) error {
 		// over and nothing to prove; the caller simply tries to create it again.
 		return nil
 	}
+	// Look again immediately before moving anything. This does not make the pair
+	// atomic - nothing portable does - but it keeps a lock that has visibly
+	// changed since the verdict from being detached at all, which is what leaves
+	// its owner briefly without a file to be found at its path.
+	if !observed.matches(path) {
+		return errLockChanged
+	}
 	aside, err := detach(path, "stale")
 	if err != nil || aside == "" {
 		return err
@@ -523,15 +532,48 @@ func detach(path, reason string) (string, error) {
 }
 
 // restore puts a detached lock file back after it turns out not to have been the
-// caller's to take.
+// caller's to take - but never over a lock somebody else has taken in the
+// meantime.
 //
-// It renames unconditionally, and that is deliberate. Reaching here means a file
-// belonging to a live owner was briefly detached, and putting it back is what
-// keeps that owner's lock. A third process that created its own lock at the path
-// inside that window loses it - but it finds out, because every operation it
-// goes on to perform checks the nonce and reports a take-over, whereas the owner
-// whose file was dropped would carry on with no lock and no idea.
+// Renaming it back unconditionally would be a second bug of the same shape as
+// the one detaching prevents: a process that acquired the path while the file
+// was aside would lose its lock without being told, and go on working next to
+// whoever holds the restored one. So the file goes back only into an empty
+// path, and os.Link is what asks that question atomically - it fails rather than
+// replacing, which os.Rename does silently on both Unix and Windows.
+//
+// Link is not available on every filesystem (FAT, some network shares), so a
+// checked rename stands in where it is refused for that reason. The check is not
+// atomic, which is the honest cost of the fallback; it is still bounded by a
+// window orders of magnitude smaller than the one it replaces.
+//
+// When the path is occupied the detached file is discarded. Its owner is left
+// without a lock, which is bad, but it is the outcome that at least leaves ONE
+// process holding the resource rather than two believing they do - and the
+// owner learns of it, because everything it does next checks the nonce.
 func restore(aside, path string) {
+	switch err := os.Link(aside, path); {
+	case err == nil:
+		_ = os.Remove(aside)
+		return
+	case errors.Is(err, fs.ErrExist):
+		// Somebody holds the path now. Their lock stands.
+		_ = os.Remove(aside)
+		return
+	}
+	restoreByRename(aside, path)
+}
+
+// restoreByRename is restore's fallback for a filesystem that refuses hard
+// links. It asks whether the path is free and then renames into it, which is two
+// operations rather than one - the honest cost of not having Link. The window it
+// leaves is still orders of magnitude smaller than renaming without asking.
+func restoreByRename(aside, path string) {
+	if _, err := os.Lstat(path); err == nil {
+		// Occupied: the same rule as above, the newcomer's lock stands.
+		_ = os.Remove(aside)
+		return
+	}
 	if err := os.Rename(aside, path); err != nil {
 		// Nothing further can be done: the file cannot go back and must not be
 		// left lying around under a name no owner will ever recognize.
@@ -819,6 +861,15 @@ func (l *Lock) Release() error {
 // error: the postcondition "this process no longer holds the lock" is satisfied
 // either way.
 func (l *Lock) releaseFile() error {
+	// Look before moving. A lock that has already been taken over must not be
+	// detached even briefly: its new owner would find nothing at its path for as
+	// long as it takes to put the file back.
+	switch owner, err := readOwner(l.path); {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil || owner.Nonce != l.nonce:
+		return &TakenOverError{Path: l.path}
+	}
 	aside, err := detach(l.path, "release")
 	if err != nil {
 		return fmt.Errorf("can not remove the gup lock file %s: %w", l.path, err)
