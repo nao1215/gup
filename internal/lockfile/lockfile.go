@@ -207,11 +207,14 @@ func foldFileName(name string) string {
 // and lock that instead, leaving two commands rewriting one $GOBIN each
 // believing it had the directory to itself.
 //
-// Neither path is followed through a final symbolic link, so a link that POINTS
-// at the lock file is not the lock file: deleting the link leaves the lock where
-// it is, and refusing it would be refusing something harmless. A path that
-// cannot be stat'ed is not the same file as anything, because a file that is not
-// there is not the one being protected.
+// Both paths are stat'ed without following a final symbolic link, so a link that
+// POINTS at the lock file is normally not the lock file: deleting the link
+// leaves the lock where it is, and refusing it would refuse something harmless.
+// Where a platform cannot tell a link's own identity from its target's, such a
+// link is refused as well - an over-refusal of a deletion that could not have
+// hurt anything, which is the safe direction to be wrong in. A path that cannot
+// be stat'ed is not the same file as anything, because a file that is not there
+// is not the one being protected.
 func SameFile(a, b string) bool {
 	first, err := os.Lstat(a)
 	if err != nil {
@@ -226,12 +229,11 @@ func SameFile(a, b string) bool {
 
 // normalizePath resolves a lock path to a cleaned absolute one.
 //
-// Every entry point normalizes through here, and they must all agree: the
-// in-process registry is keyed by the result, so if one caller keyed "x.lock"
-// and another "./x.lock" they would take two different in-process slots for one
-// file, and the second acquisition would wait out the whole timeout against
-// itself. Failing is better than falling back to the relative path, because a
-// key that is ambiguous is a lock that does not lock.
+// Every entry point normalizes through here. What the result is used for is the
+// mkdir, the open, the order a set is acquired in, and every message naming the
+// lock - not the identity of the lock itself, which comes from the open file.
+// Failing is better than falling back to the relative path: a lock file the
+// working directory can move out from under is not a lock.
 func normalizePath(path string) (string, error) {
 	abs, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
