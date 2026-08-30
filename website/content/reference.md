@@ -115,10 +115,17 @@ Two `gup update` runs at once would both install and then both write
 `gup remove` deleting a binary a concurrent `gup update` is reinstalling is the
 same collision with a worse result.
 
+`export` and `pin` lock `$GOBIN` although they never write to it: what they
+write describes it, so a `gup remove` deleting a binary halfway through would
+record a tool that is no longer installed. `unpin` only names an entry in
+`gup.json`, so it does not wait behind one.
+
 Nothing that changes no state is blocked. `--dry-run` runs and `export --output`
 take no lock, and neither do the read-only commands (`list`, `check`, `version`,
-`completion`, `man`, `bug-report`): gup writes `gup.json` by atomic rename, so a
-reader sees either the previous complete file or the next one.
+`completion`, `man`, `bug-report`): gup replaces `gup.json` with an atomic
+rename, so a reader sees either the previous complete file or the next one -
+including when the destination is read-only, which is replaced in place rather
+than moved aside.
 
 A lock left behind by a killed gup does not wedge the tool. The lock file
 records the owning process, so one whose process is gone is reclaimed at once. A
