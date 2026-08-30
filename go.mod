@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/mattn/go-colorable v0.1.15
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/sys v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -32,7 +33,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 )
 
