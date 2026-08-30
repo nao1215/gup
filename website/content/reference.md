@@ -96,7 +96,8 @@ second one refuses to start instead of interleaving:
 | `import` | `$GOBIN` |
 | `remove` | `$GOBIN` |
 | `migrate` | `AFTER_PATH` |
-| `export`, `pin`, `unpin` | the `gup.json` they write |
+| `export`, `pin` | `$GOBIN` and the `gup.json` they write |
+| `unpin` | the `gup.json` it writes |
 
 The lock files sit next to what they guard: `$GOBIN/.gup.lock` and
 `<gup.json>.lock`. `$GOBIN` and your config directory move independently, so a

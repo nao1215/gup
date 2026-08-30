@@ -569,8 +569,11 @@ func restore(aside, path string) {
 // operations rather than one - the honest cost of not having Link. The window it
 // leaves is still orders of magnitude smaller than renaming without asking.
 func restoreByRename(aside, path string) {
-	if _, err := os.Lstat(path); err == nil {
-		// Occupied: the same rule as above, the newcomer's lock stands.
+	// Only a definite "nothing is there" allows the rename. Any other answer -
+	// occupied, or a directory that will not say - leaves the file where it is,
+	// because renaming on an answer this did not get would overwrite whatever it
+	// could not see, which is the whole thing this function exists to avoid.
+	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
 		_ = os.Remove(aside)
 		return
 	}
