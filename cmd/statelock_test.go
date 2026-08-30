@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/nao1215/gup/internal/fileutil"
@@ -804,5 +805,111 @@ func Test_resolveConfigPaths_followsTheSymlinkOnce(t *testing.T) {
 	// config the command never locked into the one it did.
 	if again.readTarget != real {
 		t.Errorf("readTarget = %q after the link moved, want the locked file %q", again.readTarget, real)
+	}
+}
+
+// symlinkOrSkipCmd links link to target, skipping when the platform will not let
+// an unprivileged process create one. A machine that cannot create the attack
+// cannot be attacked that way either.
+func symlinkOrSkipCmd(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("this platform will not let this process create a symlink: %v", err)
+	}
+}
+
+// Test_withStateLock_refusesAConfigLockThatIsASymlink drives the whole command
+// through the case the lock had no defense against: a lock path replaced with a
+// link to something else.
+//
+// gup truncates its lock file to record who holds it. With `gup.json.lock`
+// pointing at any file gup can write, that record used to be written straight
+// through the link - emptying the file, and reporting success while doing it.
+// The command must fail instead, and the file the link names must come out of it
+// byte for byte unchanged.
+func Test_withStateLock_refusesAConfigLockThatIsASymlink(t *testing.T) {
+	setupXDGBase(t)
+	t.Setenv("GOBIN", t.TempDir())
+	t.Setenv(gupLockWaitEnv, "200ms")
+
+	dir := t.TempDir()
+	victim := filepath.Join(dir, "precious.txt")
+	const content = "the file the lock path points at"
+	if err := os.WriteFile(victim, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	confFile := filepath.Join(dir, "gup.json")
+	symlinkOrSkipCmd(t, victim, lockfile.PathForFile(confFile))
+
+	code := 0
+	originalExit := OsExit
+	OsExit = func(c int) { code = c }
+	t.Cleanup(func() { OsExit = originalExit })
+
+	out, err := runRootWithBuffer([]string{testCmdGup, "export", "--file", confFile})
+	if err != nil {
+		t.Fatalf("gup export returned %v, want the command's own status", err)
+	}
+	if code != 1 {
+		t.Errorf("gup export with a symlinked lock path exited %d, want 1", code)
+	}
+	if !strings.Contains(out, "symbolic link") {
+		t.Errorf("gup export output %q does not say why the lock path was refused", out)
+	}
+
+	got, err := os.ReadFile(victim) //nolint:gosec // a path this test created
+	if err != nil {
+		t.Fatalf("the file the lock path points at could not be read back: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("the file the lock path points at now holds %q, want %q untouched", got, content)
+	}
+}
+
+// Test_migrateLockTargets_takesOneLockForOneDirectoryNamedTwice covers `gup
+// migrate BEFORE AFTER` where the two arguments reach one directory through a
+// symlink.
+//
+// migrate locks both, so the set used to contain the same file under two names.
+// gup took the kernel lock on the first, asked the kernel for the same file
+// again on a second descriptor, waited out the whole timeout and then reported
+// itself as another gup process - a command with no way to succeed, naming a
+// process that does not exist.
+func Test_migrateLockTargets_takesOneLockForOneDirectoryNamedTwice(t *testing.T) {
+	t.Setenv(gupLockWaitEnv, "500ms")
+
+	root := t.TempDir()
+	before := filepath.Join(root, "before")
+	if err := os.MkdirAll(before, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	after := filepath.Join(root, "after")
+	symlinkOrSkipCmd(t, before, after)
+
+	cmd := newLockTestCommand(new(bytes.Buffer))
+	cmd.Flags().Bool("dry-run", false, "")
+	paths, err := migrateLockTargets(cmd, []string{before, after})
+	if err != nil {
+		t.Fatalf("migrateLockTargets() = %v, want success", err)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("migrateLockTargets() = %v, want both directories named", paths)
+	}
+
+	start := time.Now()
+	held, err := lockfile.AcquireAll(t.Context(), testCmdMigrate, paths...)
+	if err != nil {
+		t.Fatalf("AcquireAll(%v) = %v, want success: migrate waited on itself", paths, err)
+	}
+	defer func() {
+		if err := held.Release(); err != nil {
+			t.Errorf("Release() = %v, want nil", err)
+		}
+	}()
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("AcquireAll() took %v: the two names for one directory contended", elapsed)
+	}
+	if got := held.Paths(); len(got) != 1 {
+		t.Errorf("Paths() = %v, want one lock for one directory", got)
 	}
 }

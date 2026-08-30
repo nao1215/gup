@@ -40,6 +40,32 @@
 //     authority at all: it is a name for the kernel to hang a lock on, and an
 //     empty one when nobody holds it.
 //
+// # A lock is identified by the file, not by the path that names it
+//
+// Two things follow from a lock being a kernel object on an open file, and both
+// are about names being a poor way to talk about files.
+//
+// The first is that the path has to be opened WITHOUT following a symbolic link
+// at its final component, because gup truncates the lock file to write the owner
+// record into it. A lock path replaced with a link - `gup.json.lock` pointing at
+// something in the user's home directory - would otherwise be a way to empty an
+// arbitrary file gup has permission to write. Looking before opening does not
+// fix it, because whoever can plant the link can plant it in the window between
+// the look and the open; the refusal has to happen inside the open itself, which
+// is O_NOFOLLOW on Unix and FILE_FLAG_OPEN_REPARSE_POINT on Windows (see
+// openLockFile). A lock path that IS a link is refused rather than resolved: gup
+// created these files, so a link in their place is somebody else's doing.
+//
+// The second is that one file has many names. A symlinked directory, a relative
+// path, and a $GOBIN spelled with different capitalization on macOS or Windows
+// all reach the same lock file, and a set of locks deduplicated by STRING would
+// leave the same file in it twice - whereupon gup takes the kernel lock, asks
+// for it again on a second descriptor, and reports itself as "another gup
+// process". So a lock is keyed on the identity the filesystem gives the open
+// file (st_dev/st_ino on Unix, the volume serial and file index on Windows),
+// never on the path: AcquireAll opens every path first and deduplicates on that
+// identity, and the in-process registry is keyed on it too.
+//
 // One consequence is worth naming, because it is invisible in the API: a lock
 // this process holds is kept reachable by the package itself (see heldLocks).
 // The descriptor carrying the kernel lock is inside the Lock, and an os.File
@@ -52,6 +78,26 @@
 // waiting for; a waiter that cannot read that record loses nothing but detail in
 // an error message, because the verdict came from the kernel before the file was
 // ever read.
+//
+// # What this does not cover
+//
+// Two situations are outside what a lock like this can promise. Both are better
+// named here than discovered.
+//
+// The first is a resource on a network filesystem - NFS, SMB, sshfs. flock and
+// LockFileEx belong to the kernel, and what a kernel does with them on a remote
+// mount is the mount's business: some map them to a lock the server enforces,
+// some keep them local to one machine, some ignore them. Two gups on ONE machine
+// are still serialized, because the kernel arbitrating them is the same one.
+// Two on different machines sharing the mount may not be, and gup cannot tell
+// which kind of mount it is on.
+//
+// The second is anything deleting a lock file while a gup holds it. The delete
+// does not take the lock away - it lives on an open descriptor - but it frees
+// the NAME, and the next gup creates a new file there and locks that instead,
+// leaving two commands changing one resource. gup never deletes these files
+// itself, and `gup remove` refuses to (see SameFile); a user with an `rm` and a
+// reason is outside what any advisory lock can defend against.
 package lockfile
 
 import (
@@ -127,20 +173,67 @@ func waitTimeout() time.Duration {
 // same as "you cannot name it".
 //
 // The comparison ignores case because macOS and Windows do: on a case-insensitive
-// filesystem `.GUP.LOCK` opens the same file. Rejecting it on Linux too costs
-// nothing - no one installs a tool by that name.
+// filesystem `.GUP.LOCK` opens the same file. Trailing dots and spaces are
+// stripped for the same reason: Win32 strips them before the name reaches the
+// filesystem, so `.gup.lock.` and `.gup.lock ` open the very file this refuses.
+// Both foldings are applied on every platform - no one installs a tool by any of
+// those names, and a rule that means different things per operating system is a
+// rule that gets tested on one of them.
+//
+// This is the readable half of the refusal, not the load-bearing one. A name can
+// reach a file in ways no amount of string folding covers - an 8.3 short name on
+// NTFS, a hard link, a spelling a future Windows normalizes some other way - so
+// `gup remove` also compares the file it is about to delete with the lock file
+// itself (see SameFile). This gives that refusal its explanation; SameFile makes
+// it true.
 func IsReservedName(name string) bool {
-	return strings.EqualFold(strings.TrimSpace(name), DirLockName)
+	return strings.EqualFold(foldFileName(name), DirLockName)
+}
+
+// foldFileName reduces a file name the way the filesystem will before it decides
+// which file the name means: surrounding whitespace goes, and so do trailing
+// dots and spaces, which Win32 discards.
+func foldFileName(name string) string {
+	return strings.TrimRight(strings.TrimSpace(name), ". \t")
+}
+
+// SameFile reports whether two paths name one file on disk.
+//
+// It is what makes `gup remove` refuse to delete the lock guarding the $GOBIN it
+// is deleting from, whatever the user typed: a name normalization gup does not
+// know about, an 8.3 short name, a hard link. Removing that file would not
+// release the kernel lock - the lock is on an open descriptor, not on a name -
+// but it would free the NAME, and the next gup would create a fresh file there
+// and lock that instead, leaving two commands rewriting one $GOBIN each
+// believing it had the directory to itself.
+//
+// Both paths are stat'ed without following a final symbolic link, so a link that
+// POINTS at the lock file is normally not the lock file: deleting the link
+// leaves the lock where it is, and refusing it would refuse something harmless.
+// Where a platform cannot tell a link's own identity from its target's, such a
+// link is refused as well - an over-refusal of a deletion that could not have
+// hurt anything, which is the safe direction to be wrong in. A path that cannot
+// be stat'ed is not the same file as anything, because a file that is not there
+// is not the one being protected.
+func SameFile(a, b string) bool {
+	first, err := os.Lstat(a)
+	if err != nil {
+		return false
+	}
+	second, err := os.Lstat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(first, second)
 }
 
 // normalizePath resolves a lock path to a cleaned absolute one.
 //
-// Every entry point normalizes through here, and they must all agree: the
-// in-process registry is keyed by the result, so if one caller keyed "x.lock"
-// and another "./x.lock" they would take two different in-process slots for one
-// file, and the second acquisition would wait out the whole timeout against
-// itself. Failing is better than falling back to the relative path, because a
-// key that is ambiguous is a lock that does not lock.
+// Every entry point normalizes through here. What the result is used for is the
+// mkdir, the open, the order a set is acquired in, and every message naming the
+// lock - not the identity of the lock itself, which comes from the open file.
+// Failing is better than falling back to the relative path: a lock file the
+// working directory can move out from under is not a lock.
 func normalizePath(path string) (string, error) {
 	abs, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
@@ -248,34 +341,111 @@ func (l *Lock) Path() string { return l.path }
 // not enough on its own to release the lock - the caller's Release, or the
 // process ending, is what does that.
 func Acquire(ctx context.Context, path, command string) (*Lock, error) {
-	path, err := normalizePath(path)
+	// Before anything touches the filesystem: a command that was already canceled
+	// must leave no lock file behind for a resource it never went near.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	target, err := openTarget(path)
 	if err != nil {
 		return nil, err
 	}
-	if fileutil.IsDir(path) {
-		return nil, fmt.Errorf("lock path %s is a directory, not a file", path)
+	lock, err := target.acquire(ctx, command)
+	if err != nil {
+		target.close()
+		return nil, err
+	}
+	return lock, nil
+}
+
+// fileID is the identity a filesystem gives a file, as opposed to the many paths
+// that may reach it. It is what this package keys locks on: two spellings of one
+// file - through a symlinked directory, a relative path, a differently
+// capitalized $GOBIN - produce one fileID, and a lock is one per file.
+type fileID struct {
+	// device is the volume the file lives on: st_dev on Unix, the volume serial
+	// number on Windows.
+	device uint64
+	// index is the file's number within that volume: the inode on Unix, and on
+	// Windows the file index, which the API hands over as two 32-bit halves.
+	index uint64
+}
+
+// The reasons a lock path cannot be used, kept as values so a caller can tell
+// them apart and Acquire can wrap them all into one "can not open" message.
+var (
+	// errLockPathIsSymlink refuses to write through a link. gup created its lock
+	// files, so a link where one should be is somebody else's doing, and
+	// truncating whatever it points at is exactly what must not happen.
+	errLockPathIsSymlink = errors.New(
+		"the lock path is a symbolic link, and gup will not write through one:" +
+			" delete it, or point gup at a directory it owns")
+	// errLockPathIsDirectory names the mistake of locking a directory itself
+	// rather than the lock file inside it.
+	errLockPathIsDirectory = errors.New("the lock path is a directory, not a file")
+	// errLockPathIsNotRegular covers the rest: a FIFO, a socket, a device.
+	errLockPathIsNotRegular = errors.New("the lock path is not a regular file")
+)
+
+// lockTarget is a lock file that has been opened but not yet locked. It carries
+// the identity the open reported, because what decides whether two targets are
+// one lock - the deduplication in openTargets, the in-process registry - is the
+// file, not the path that found it.
+type lockTarget struct {
+	path string
+	file *os.File
+	id   fileID
+}
+
+// openTarget resolves path, makes sure its directory exists, and opens the lock
+// file without following a symbolic link at the final component.
+func openTarget(path string) (*lockTarget, error) {
+	normalized, err := normalizePath(path)
+	if err != nil {
+		return nil, err
 	}
 	//nolint:gosec // G703: the path names the resource being guarded, which is
 	// exactly what a caller must be able to choose; normalizePath has cleaned it.
-	if err := os.MkdirAll(filepath.Dir(path), fileutil.FileModeCreatingDir); err != nil {
+	if err := os.MkdirAll(filepath.Dir(normalized), fileutil.FileModeCreatingDir); err != nil {
 		return nil, fmt.Errorf("can not create directory for the gup lock file: %w", err)
 	}
+	file, id, err := openLockFile(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("can not open the gup lock file %s: %w", normalized, err)
+	}
+	return &lockTarget{path: normalized, file: file, id: id}, nil
+}
 
-	// Serialize within this process first. The kernel lock is per descriptor, so
-	// two goroutines in one process racing on it would make one of them report
-	// "another gup process is already running" about itself, which is both wrong
-	// and untestable.
-	freeInProcess, err := acquireInProcess(ctx, path)
+// close gives back a lock file that will not be locked after all. A target whose
+// descriptor has been handed to a Lock closes nothing, so releasing that Lock
+// stays the only thing that drops the lock.
+func (t *lockTarget) close() {
+	if t == nil || t.file == nil {
+		return
+	}
+	_ = t.file.Close()
+	t.file = nil
+}
+
+// acquire turns an opened target into a held Lock, taking the in-process slot
+// first and the kernel lock second.
+//
+// The order matters. The kernel lock is per descriptor, so two goroutines in one
+// process racing on it would make one of them report "another gup process is
+// already running" about itself, which is both wrong and untestable.
+func (t *lockTarget) acquire(ctx context.Context, command string) (*Lock, error) {
+	freeInProcess, err := acquireInProcess(ctx, t.id, t.path)
 	if err != nil {
 		return nil, err
 	}
-
-	lock, err := acquireOnDisk(ctx, path, command)
-	if err != nil {
+	if err := t.waitForKernelLock(ctx, command); err != nil {
 		freeInProcess()
 		return nil, err
 	}
-	lock.freeInProcess = freeInProcess
+	lock := &Lock{path: t.path, file: t.file, freeInProcess: freeInProcess}
+	// The descriptor now belongs to the Lock: closing the target must not touch
+	// it, or the rollback of a later acquisition would release this one.
+	t.file = nil
 	rememberHeldLock(lock)
 	return lock, nil
 }
@@ -299,31 +469,51 @@ func (m *MultiLock) Paths() []string {
 
 // AcquireAll takes every lock in paths and returns them as one unit.
 //
-// The paths are deduplicated and sorted before anything is taken, which is what
-// makes deadlock impossible: two processes asking for the same set in different
-// orders still acquire it in the same order. If any lock cannot be taken, the
-// ones already held are released before returning, so a failed acquisition never
-// leaves a partial hold behind. An empty path list is not an error - a command
-// that writes nothing needs no lock, and expressing that as "no resources" keeps
-// the decision with the command instead of duplicating it here.
+// Two rules keep a set of locks from deadlocking, and they are separate rules.
+//
+// The set is DEDUPLICATED by the identity of the files, because deduplicating
+// path strings is not enough. `gup migrate before after` where `after` is a
+// symlink to `before`, or two spellings of one $GOBIN differing only in case on
+// macOS and Windows, name one file twice - whereupon gup takes the kernel lock,
+// asks the kernel for the same file again on a second descriptor, waits out the
+// whole timeout and reports ITSELF as another gup process. That command has no
+// way to succeed, and the only thing that can tell the two names apart is the
+// identity the filesystem gives the open file.
+//
+// The set is then ORDERED by path, so two processes asking for the same
+// resources take them in the same order rather than each holding what the other
+// is waiting for. Ordering by identity would make that agreement hold even when
+// the two spelled the paths differently, at the cost of an order nothing can
+// predict; ordering by path keeps it predictable, and the case it gives up is
+// bounded by the acquisition timeout - two processes that reach one pair of
+// resources through differently-sorting names both fail with a busy error and
+// succeed on a retry, rather than hanging.
+//
+// If any lock cannot be taken, the ones already held are released before
+// returning, so a failed acquisition never leaves a partial hold behind. An
+// empty path list is not an error - a command that writes nothing needs no lock,
+// and expressing that as "no resources" keeps the decision with the command
+// instead of duplicating it here.
 func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLock, error) {
-	// Normalize BEFORE sorting and deduplicating, or two spellings of one path
-	// survive as two entries and the second acquisition waits out the timeout
-	// against the first - a deadlock with a stopwatch on it.
-	ordered := make([]string, 0, len(paths))
-	for _, path := range paths {
-		normalized, err := normalizePath(path)
-		if err != nil {
-			return nil, err
-		}
-		ordered = append(ordered, normalized)
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	slices.Sort(ordered)
-	ordered = slices.Compact(ordered)
+	targets, err := openTargets(paths)
+	if err != nil {
+		return nil, err
+	}
+	// Whatever happens below, no descriptor is left open for a lock nobody holds:
+	// a target that became a Lock has already given its descriptor away, so this
+	// closes only the ones that did not.
+	defer func() {
+		for _, target := range targets {
+			target.close()
+		}
+	}()
 
 	held := &MultiLock{}
-	for _, path := range ordered {
-		lock, err := Acquire(ctx, path, command)
+	for _, target := range targets {
+		lock, err := target.acquire(ctx, command)
 		if err != nil {
 			// A rollback that could not release a lock matters as much as the
 			// acquisition that failed. Reporting only the first error hides that.
@@ -332,6 +522,44 @@ func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLoc
 		held.locks = append(held.locks, lock)
 	}
 	return held, nil
+}
+
+// openTargets opens every path, then reduces them to the distinct FILES they
+// name, in the order those files will be locked in.
+//
+// The opening has to come first, because the identity that distinguishes two
+// paths is only knowable from an open descriptor. Opening a lock file is
+// harmless on its own - it creates an empty file at a path gup owns and takes no
+// lock - so doing it for a set that may not be acquirable costs nothing.
+func openTargets(paths []string) ([]*lockTarget, error) {
+	targets := make([]*lockTarget, 0, len(paths))
+	for _, path := range paths {
+		target, err := openTarget(path)
+		if err != nil {
+			for _, opened := range targets {
+				opened.close()
+			}
+			return nil, err
+		}
+		targets = append(targets, target)
+	}
+
+	slices.SortFunc(targets, func(a, b *lockTarget) int { return strings.Compare(a.path, b.path) })
+	distinct := make([]*lockTarget, 0, len(targets))
+	seen := make(map[fileID]struct{}, len(targets))
+	for _, target := range targets {
+		if _, duplicate := seen[target.id]; duplicate {
+			// A second name for a file already in the set - and not necessarily a
+			// neighboring one, which is why this is a set rather than a comparison
+			// with the previous entry. Its descriptor is closed here rather than
+			// carried, so nothing later can try to lock it.
+			target.close()
+			continue
+		}
+		seen[target.id] = struct{}{}
+		distinct = append(distinct, target)
+	}
+	return distinct, nil
 }
 
 // Release returns every held lock, in reverse acquisition order, and reports
@@ -347,50 +575,45 @@ func (m *MultiLock) Release() error {
 	return errors.Join(errs...)
 }
 
-// acquireOnDisk is the cross-process half of Acquire: open the lock file and ask
-// the kernel for it, retrying until the deadline passes.
+// waitForKernelLock is the cross-process half of an acquisition: ask the kernel
+// for the lock on the descriptor already open, retrying until the deadline
+// passes.
 //
 // Every iteration checks the context and the deadline before it can loop again,
 // so neither a permanently held lock nor a cancellation can leave this spinning.
 // The wait is a poll rather than a blocking lock request on purpose: a blocking
 // request waits in the kernel, where neither the deadline nor ctx could reach it.
-func acquireOnDisk(ctx context.Context, path, command string) (*Lock, error) {
+//
+// The descriptor is opened once, before the wait, and kept across retries. That
+// is not only cheaper: reopening would mean the file gup ends up locking need
+// not be the file it identified, ordered and deduplicated the set by.
+func (t *lockTarget) waitForKernelLock(ctx context.Context, command string) error {
 	deadline := time.Now().Add(waitTimeout())
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
 
-		//nolint:gosec // G304: path is gup's own lock file, derived from the resource
-		// being protected rather than from user input.
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, lockFileMode)
+		locked, err := tryLockFile(t.file)
 		if err != nil {
-			return nil, fmt.Errorf("can not open the gup lock file %s: %w", path, err)
-		}
-
-		locked, err := tryLockFile(file)
-		if err != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("can not lock %s: %w", path, err)
+			return fmt.Errorf("can not lock %s: %w", t.path, err)
 		}
 		if locked {
 			// The lock is held from here on. Nothing below can lose it, and a
 			// failure to describe the holder is not a reason to give it up.
-			writeOwner(file, command)
-			return &Lock{path: path, file: file}, nil
+			writeOwner(t.file, command)
+			return nil
 		}
 
 		// Someone else holds it. The record is read only to name them; an
 		// unreadable one leaves the message thinner, never the verdict wrong.
-		owner := readOwner(file)
-		_ = file.Close()
-
+		owner := readOwner(t.file)
 		if !time.Now().Before(deadline) {
-			return nil, &BusyError{Path: path, Owner: owner}
+			return &BusyError{Path: t.path, Owner: owner}
 		}
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		case <-time.After(retryInterval):
 		}
 	}
@@ -553,22 +776,28 @@ func forgetHeldLock(lock *Lock) {
 // The kernel lock alone would report a second acquisition in this process as a
 // foreign conflict, since it is taken per descriptor and cannot say whose
 // descriptor the other one is.
+//
+// It is keyed on the FILE rather than on the path, so two goroutines that
+// reached one lock file by different names - a symlinked directory, a relative
+// path - queue behind each other instead of racing on the kernel lock and
+// reporting this process as another one.
 var inProcessLocks = struct { //nolint:gochecknoglobals // process-wide by definition
 	mu   sync.Mutex
-	held map[string]chan struct{}
-}{held: map[string]chan struct{}{}}
+	held map[fileID]chan struct{}
+}{held: map[fileID]chan struct{}{}}
 
-// acquireInProcess claims path's in-process slot and returns the function that
-// hands it back. The wait is bounded by the same timeout the cross-process wait
-// uses: an unbounded wait here would turn a caller that forgot to release into a
-// hang with no diagnosis, which is worse than a clear timeout.
-func acquireInProcess(ctx context.Context, path string) (func(), error) {
+// acquireInProcess claims the in-process slot for a lock file and returns the
+// function that hands it back. path is carried only for the message. The wait is
+// bounded by the same timeout the cross-process wait uses: an unbounded wait here
+// would turn a caller that forgot to release into a hang with no diagnosis,
+// which is worse than a clear timeout.
+func acquireInProcess(ctx context.Context, id fileID, path string) (func(), error) {
 	timeout := time.NewTimer(waitTimeout())
 	defer timeout.Stop()
 
 	for {
 		inProcessLocks.mu.Lock()
-		if released, held := inProcessLocks.held[path]; held {
+		if released, held := inProcessLocks.held[id]; held {
 			inProcessLocks.mu.Unlock()
 			select {
 			case <-released:
@@ -580,14 +809,14 @@ func acquireInProcess(ctx context.Context, path string) (func(), error) {
 			}
 		}
 		released := make(chan struct{})
-		inProcessLocks.held[path] = released
+		inProcessLocks.held[id] = released
 		inProcessLocks.mu.Unlock()
 
 		var once sync.Once
 		return func() {
 			once.Do(func() {
 				inProcessLocks.mu.Lock()
-				delete(inProcessLocks.held, path)
+				delete(inProcessLocks.held, id)
 				inProcessLocks.mu.Unlock()
 				close(released)
 			})
