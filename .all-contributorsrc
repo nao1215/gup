@@ -221,7 +221,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/4507647?v=4",
       "profile": "https://onee3.org",
       "contributions": [
-        "ideas"
+        "ideas",
+        "platform"
       ]
     },
     {
@@ -284,7 +285,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/29627898?v=4",
       "profile": "https://github.com/phanirithvij",
       "contributions": [
-        "bug"
+        "bug",
+        "platform"
       ]
     },
     {
@@ -303,6 +305,33 @@
       "profile": "https://github.com/hpsbranco",
       "contributions": [
         "code"
+      ]
+    },
+    {
+      "login": "Dominiquini",
+      "name": "Rafael Baboni Dominiquini",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1180808?v=4",
+      "profile": "https://rafaeldominiquini.ddns.net/",
+      "contributions": [
+        "platform"
+      ]
+    },
+    {
+      "login": "branchv",
+      "name": "Branch Vincent",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19800529?v=4",
+      "profile": "https://github.com/branchv",
+      "contributions": [
+        "platform"
+      ]
+    },
+    {
+      "login": "Okeanos",
+      "name": "Nikolas Grottendieck",
+      "avatar_url": "https://avatars.githubusercontent.com/u/887496?v=4",
+      "profile": "https://nikolasgrottendieck.com/",
+      "contributions": [
+        "platform"
       ]
     }
   ],
