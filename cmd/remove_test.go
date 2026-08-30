@@ -650,17 +650,23 @@ func Test_removeLoop_refusesTheLockFileOnWindowsSpellings(t *testing.T) {
 // one name gup keeps for itself is reserved; a tool that happens to start with a
 // dot is still the user's to remove.
 func Test_removeLoop_stillRemovesOtherDotFiles(t *testing.T) {
-	t.Parallel()
-
+	// Pinned so the file this plants carries the same suffix removeLoop will look
+	// for: on Windows an argument without one gets $GOEXE appended.
+	t.Setenv("GOEXE", "")
 	gobin := t.TempDir()
-	other := filepath.Join(gobin, ".gup.lock.bak")
+	const arg = ".gup.lock.bak"
+	onDisk := arg
+	if GOOS == goosWindows {
+		onDisk += exeSuffix
+	}
+	other := filepath.Join(gobin, onDisk)
 	if err := os.WriteFile(other, []byte("not the lock"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	p, _ := newTestPrinter()
-	if got := removeLoop(p, gobin, true, []string{".gup.lock.bak"}); got != 0 {
-		t.Errorf("removeLoop() = %d, want 0", got)
+	p, buf := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{arg}); got != 0 {
+		t.Errorf("removeLoop() = %d, want 0; output = %q", got, buf.String())
 	}
 	if fileutil.IsFile(other) {
 		t.Error("removeLoop() refused a file that is not gup's lock")
@@ -682,7 +688,7 @@ func Test_remove_refusesTheLockFileThroughTheRealCLI(t *testing.T) {
 	OsExit = func(c int) { code = c }
 	t.Cleanup(func() { OsExit = originalExit })
 
-	out, err := runRootWithBuffer([]string{"gup", "remove", "--force", lockfile.DirLockName})
+	out, err := runRootWithBuffer([]string{testCmdGup, "remove", "--force", lockfile.DirLockName})
 	if err != nil {
 		t.Fatalf("gup remove returned %v, want the command's own status", err)
 	}
