@@ -586,12 +586,12 @@ func TestAcquire_honorsContextCancellationWhileWaiting(t *testing.T) {
 		t.Fatalf("Acquire() error = %v, want context.Canceled", err)
 	}
 	if elapsed := time.Since(start); elapsed > 30*time.Second {
-		t.Errorf("Acquire() returned after %v, want it to stop when the context was cancelled", elapsed)
+		t.Errorf("Acquire() returned after %v, want it to stop when the context was canceled", elapsed)
 	}
 }
 
 // TestAcquire_honorsAnAlreadyCancelledContext covers the same thing before the
-// first attempt, so a cancelled command creates no lock file at all.
+// first attempt, so a canceled command creates no lock file at all.
 func TestAcquire_honorsAnAlreadyCancelledContext(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	path := filepath.Join(t.TempDir(), ".gup.lock")
@@ -602,7 +602,7 @@ func TestAcquire_honorsAnAlreadyCancelledContext(t *testing.T) { //nolint:parall
 		t.Fatalf("Acquire() error = %v, want context.Canceled", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("a cancelled acquisition left %s behind", path)
+		t.Errorf("a canceled acquisition left %s behind", path)
 	}
 }
 
