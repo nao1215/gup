@@ -109,23 +109,30 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	}, nil
 }
 
-// maxWin32Path is the length past which CreateFile needs the extended-length
-// form. It is one short of MAX_PATH's 260 by the margin the Win32 layer reserves
-// for a file name inside a directory.
+// maxWin32Path is the length at which a path needs the extended-length form.
+// MAX_PATH is 260; the cutoff is 12 lower because that is the limit Win32
+// applies to the directory a file is created in, and it is the same number Go's
+// own os package uses.
 const maxWin32Path = 248
 
-// extendedPath rewrites a long path into the \\?\ form CreateFile accepts,
-// which os.OpenFile does for its callers and CreateFile does not.
+// extendedPath rewrites a long path into the \\?\ form CreateFile accepts.
+// os.OpenFile does this for its callers; CreateFile, which openLockFile has to
+// use instead, does not.
 //
 // It is applied only past the limit, because the prefix also turns OFF the
 // normalization Win32 performs - trailing dots and spaces stop being stripped -
-// and gup's short paths are better served by the ordinary rules.
+// and gup's short paths are better served by the ordinary rules. The path comes
+// from normalizePath, so it is already absolute, cleaned, and backslash-spelled,
+// which is what the prefixed form requires.
 func extendedPath(path string) string {
 	if len(path) < maxWin32Path || strings.HasPrefix(path, `\\?\`) {
 		return path
 	}
-	if strings.HasPrefix(path, `\\`) {
-		return `\\?\UNC\` + path[len(`\\`):]
+	// A UNC path spells its prefix differently: \\server\share becomes
+	// \\?\UNC\server\share. \\.\ names a device, which a lock file never is,
+	// so it is left alone rather than mangled into a UNC path.
+	if unc, found := strings.CutPrefix(path, `\\`); found && !strings.HasPrefix(unc, `.\`) {
+		return `\\?\UNC\` + unc
 	}
 	return `\\?\` + path
 }

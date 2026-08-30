@@ -26,6 +26,7 @@ import (
 // path, for the same reason. A FIFO or a device at the lock path is not a lock
 // file, and answering that question about the thing already open answers it
 // about the thing gup is going to write.
+//
 // O_NONBLOCK is there so the open itself cannot hang: a FIFO or a device at the
 // lock path would otherwise block inside the kernel, where the acquisition
 // timeout cannot reach it, on a path gup is about to reject anyway. It is
