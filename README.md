@@ -1,5 +1,5 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-33-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-36-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
@@ -593,7 +593,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://gabnotes.org"><img src="https://avatars.githubusercontent.com/u/3630554?v=4?s=64" width="64px;" alt="Crocmagnon"/><br /><sub><b>Crocmagnon</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ACrocmagnon" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://reliable.network"><img src="https://avatars.githubusercontent.com/u/1992842?v=4?s=64" width="64px;" alt="Luke Hamburg"/><br /><sub><b>Luke Hamburg</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aluckman212" title="Bug reports">🐛</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://onee3.org"><img src="https://avatars.githubusercontent.com/u/4507647?v=4?s=64" width="64px;" alt="Frederick Zhang"/><br /><sub><b>Frederick Zhang</b></sub></a><br /><a href="#ideas-Frederick888" title="Ideas, Planning, & Feedback">🤔</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://onee3.org"><img src="https://avatars.githubusercontent.com/u/4507647?v=4?s=64" width="64px;" alt="Frederick Zhang"/><br /><sub><b>Frederick Zhang</b></sub></a><br /><a href="#ideas-Frederick888" title="Ideas, Planning, & Feedback">🤔</a> <a href="#platform-Frederick888" title="Packaging/porting to new platform">📦</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/trallnag"><img src="https://avatars.githubusercontent.com/u/24834206?v=4?s=64" width="64px;" alt="Tim Schwenke"/><br /><sub><b>Tim Schwenke</b></sub></a><br /><a href="#ideas-trallnag" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ybrhue"><img src="https://avatars.githubusercontent.com/u/35401453?v=4?s=64" width="64px;" alt="ybrhue"/><br /><sub><b>ybrhue</b></sub></a><br /><a href="#ideas-ybrhue" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://nexiom.net"><img src="https://avatars.githubusercontent.com/u/3214803?v=4?s=64" width="64px;" alt="Samuel D. Leslie"/><br /><sub><b>Samuel D. Leslie</b></sub></a><br /><a href="#ideas-ralish" title="Ideas, Planning, & Feedback">🤔</a></td>
@@ -602,9 +602,14 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://www.craig-wood.com/nick/"><img src="https://avatars.githubusercontent.com/u/536803?v=4?s=64" width="64px;" alt="Nick Craig-Wood"/><br /><sub><b>Nick Craig-Wood</b></sub></a><br /><a href="#ideas-ncw" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://chenrui.dev"><img src="https://avatars.githubusercontent.com/u/1580956?v=4?s=64" width="64px;" alt="Rui Chen"/><br /><sub><b>Rui Chen</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Achenrui333" title="Bug reports">🐛</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/phanirithvij"><img src="https://avatars.githubusercontent.com/u/29627898?v=4?s=64" width="64px;" alt="phanirithvij"/><br /><sub><b>phanirithvij</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aphanirithvij" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/phanirithvij"><img src="https://avatars.githubusercontent.com/u/29627898?v=4?s=64" width="64px;" alt="phanirithvij"/><br /><sub><b>phanirithvij</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Aphanirithvij" title="Bug reports">🐛</a> <a href="#platform-phanirithvij" title="Packaging/porting to new platform">📦</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Darkcast"><img src="https://avatars.githubusercontent.com/u/1676655?v=4?s=64" width="64px;" alt="Darkcast"/><br /><sub><b>Darkcast</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3ADarkcast" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/hpsbranco"><img src="https://avatars.githubusercontent.com/u/3085888?v=4?s=64" width="64px;" alt="HenriqueB"/><br /><sub><b>HenriqueB</b></sub></a><br /><a href="https://github.com/nao1215/gup/commits?author=hpsbranco" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://rafaeldominiquini.ddns.net/"><img src="https://avatars.githubusercontent.com/u/1180808?v=4?s=64" width="64px;" alt="Rafael Baboni Dominiquini"/><br /><sub><b>Rafael Baboni Dominiquini</b></sub></a><br /><a href="#platform-Dominiquini" title="Packaging/porting to new platform">📦</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/branchv"><img src="https://avatars.githubusercontent.com/u/19800529?v=4?s=64" width="64px;" alt="Branch Vincent"/><br /><sub><b>Branch Vincent</b></sub></a><br /><a href="#platform-branchv" title="Packaging/porting to new platform">📦</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://nikolasgrottendieck.com/"><img src="https://avatars.githubusercontent.com/u/887496?v=4?s=64" width="64px;" alt="Nikolas Grottendieck"/><br /><sub><b>Nikolas Grottendieck</b></sub></a><br /><a href="#platform-Okeanos" title="Packaging/porting to new platform">📦</a></td>
     </tr>
   </tbody>
 </table>
