@@ -95,7 +95,7 @@ second one refuses to start instead of interleaving:
 | `update` | `$GOBIN` and the `gup.json` it may write |
 | `import` | `$GOBIN` |
 | `remove` | `$GOBIN` |
-| `migrate` | `AFTER_PATH` |
+| `migrate` | `BEFORE_PATH` and `AFTER_PATH` |
 | `export`, `pin` | `$GOBIN` and the `gup.json` they write |
 | `unpin` | the `gup.json` it writes |
 
@@ -116,10 +116,18 @@ Two `gup update` runs at once would both install and then both write
 `gup remove` deleting a binary a concurrent `gup update` is reinstalling is the
 same collision with a worse result.
 
-`export` and `pin` lock `$GOBIN` although they never write to it: what they
-write describes it, so a `gup remove` deleting a binary halfway through would
-record a tool that is no longer installed. `unpin` only names an entry in
-`gup.json`, so it does not wait behind one.
+`export`, `pin` and `migrate` lock directories they never write to, because
+what they write is derived from what they read there: export describes `$GOBIN`,
+pin resolves its target against it, and migrate reinstalls the versions it read
+in `BEFORE_PATH`. A `gup remove` deleting a binary halfway through leaves a
+result describing a tool set that never existed. `unpin` only names an entry in
+`gup.json`, so it does not wait behind one. A `$GOBIN` that does not exist yet
+is created so that it can be locked — whether it exists is precisely what a
+concurrent `gup import` changes.
+
+`gup completion --install` and `gup man` write files and take no lock: both
+write atomically, and two runs of either produce byte-identical content, so a
+lock would only add a `.zshrc.lock` to your home directory.
 
 Nothing that changes no state is blocked. `--dry-run` runs and `export --output`
 take no lock, and neither do the read-only commands (`list`, `check`, `version`,

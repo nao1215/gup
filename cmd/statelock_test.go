@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/adrg/xdg"
+	"github.com/nao1215/gup/internal/fileutil"
 	"github.com/nao1215/gup/internal/lockfile"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
@@ -327,6 +328,7 @@ func Test_lockTargets(t *testing.T) {
 	gobin := t.TempDir()
 	configHome := t.TempDir()
 	after := t.TempDir()
+	migrateBefore := t.TempDir()
 	explicit := filepath.Join(t.TempDir(), "shared-gup.json")
 
 	t.Setenv("GOBIN", gobin)
@@ -391,10 +393,11 @@ func Test_lockTargets(t *testing.T) {
 			want: []string{lockfile.PathForDir(gobin)},
 		},
 		{
-			// migrate writes into AFTER_PATH, which is neither $GOBIN nor gup.json.
+			// migrate writes into AFTER_PATH and reads BEFORE_PATH, neither of which
+			// is necessarily $GOBIN or gup.json.
 			name: testCmdMigrate,
-			args: []string{t.TempDir(), after},
-			want: []string{lockfile.PathForDir(after)},
+			args: []string{migrateBefore, after},
+			want: []string{lockfile.PathForDir(migrateBefore), lockfile.PathForDir(after)},
 		},
 		{
 			name:  testCmdMigrate + " --dry-run",
@@ -643,12 +646,12 @@ func Test_resolveConfigPaths_answersOncePerCommand(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	cmd := newLockTestCommand(&bytes.Buffer{})
-	read, write, err := resolveConfigPaths(cmd, "")
+	first, err := resolveConfigPaths(cmd, "")
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if want := filepath.Join(configHome, "gup", "gup.json"); write != want {
-		t.Fatalf("write path = %q, want the user-level config %q", write, want)
+	if want := filepath.Join(configHome, "gup", "gup.json"); first.write != want {
+		t.Fatalf("write path = %q, want the user-level config %q", first.write, want)
 	}
 
 	// Another gup, started in this directory, creates the local config.
@@ -656,13 +659,13 @@ func Test_resolveConfigPaths_answersOncePerCommand(t *testing.T) {
 		t.Fatalf("failed to write ./gup.json: %v", err)
 	}
 
-	gotRead, gotWrite, err := resolveConfigPaths(cmd, "")
+	again, err := resolveConfigPaths(cmd, "")
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if gotRead != read || gotWrite != write {
-		t.Errorf("resolveConfigPaths() = (%q, %q) the second time, want the answer the lock was taken for (%q, %q)",
-			gotRead, gotWrite, read, write)
+	if again.read != first.read || again.write != first.write || again.target != first.target {
+		t.Errorf("resolveConfigPaths() = %+v the second time, want the answer the lock was taken for %+v",
+			again, first)
 	}
 }
 
@@ -672,17 +675,17 @@ func Test_resolveConfigPaths_answersOncePerCommand(t *testing.T) {
 func Test_resolveConfigPaths_isPerFileValue(t *testing.T) {
 	t.Chdir(t.TempDir())
 	cmd := newLockTestCommand(&bytes.Buffer{})
-	if _, _, err := resolveConfigPaths(cmd, ""); err != nil {
+	if _, err := resolveConfigPaths(cmd, ""); err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
 
 	explicit := filepath.Join(t.TempDir(), "other-gup.json")
-	_, write, err := resolveConfigPaths(cmd, explicit)
+	resolved, err := resolveConfigPaths(cmd, explicit)
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if write != explicit {
-		t.Errorf("write path = %q, want %q", write, explicit)
+	if resolved.write != explicit {
+		t.Errorf("write path = %q, want %q", resolved.write, explicit)
 	}
 }
 
@@ -694,12 +697,12 @@ func Test_resolveConfigPaths_withoutACommandContext(t *testing.T) {
 	explicit := filepath.Join(t.TempDir(), "explicit-gup.json")
 
 	for _, cmd := range []*cobra.Command{nil, {Use: testCmdGup}} {
-		_, write, err := resolveConfigPaths(cmd, explicit)
+		resolved, err := resolveConfigPaths(cmd, explicit)
 		if err != nil {
 			t.Fatalf("resolveConfigPaths() error: %v", err)
 		}
-		if write != explicit {
-			t.Errorf("write path = %q, want %q", write, explicit)
+		if resolved.write != explicit {
+			t.Errorf("write path = %q, want %q", resolved.write, explicit)
 		}
 	}
 }
@@ -740,19 +743,71 @@ func Test_updateLockTargets_locksTheFileASymlinkPointsAt(t *testing.T) {
 	}
 }
 
-// Test_installedBinDirLockTarget_doesNotCreateTheDirectory covers the difference
-// between locking a directory a command WRITES and one it only reads. The
-// writers create it, because two first runs would otherwise install into a
-// directory neither had locked; a reader has nothing to collide over, and
-// `gup export` creating $GOBIN as a side effect would be a surprise.
-func Test_installedBinDirLockTarget_doesNotCreateTheDirectory(t *testing.T) {
+// Test_installedBinDirLockTarget_locksA$GOBINThatDoesNotExistYet is the case
+// that makes skipping the lock unsafe. Whether $GOBIN exists is exactly what
+// another gup can change: an import creates it and fills it while an export is
+// walking it, and an export that took no lock because the directory was missing
+// writes what it found over a gup.json that described a complete tool set.
+func Test_installedBinDirLockTarget_locksAGobinThatDoesNotExistYet(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no-such-gobin")
 	t.Setenv("GOBIN", missing)
 
-	if got := installedBinDirLockTarget(); got != nil {
-		t.Errorf("installedBinDirLockTarget() = %v, want no lock for a $GOBIN that does not exist", got)
+	got := installedBinDirLockTarget()
+	if want := []string{lockfile.PathForDir(missing)}; !slices.Equal(got, want) {
+		t.Fatalf("installedBinDirLockTarget() = %v, want %v", got, want)
 	}
-	if _, err := os.Stat(missing); !os.IsNotExist(err) {
-		t.Errorf("$GOBIN was created by a command that only reads it: %v", err)
+	if !fileutil.IsDir(missing) {
+		t.Error("$GOBIN was not created, so the lock would guard a directory another gup can still create")
+	}
+}
+
+// Test_resolveConfigPaths_followsTheSymlinkOnce covers the write target, which
+// is the thing the lock is taken on. Following the link at lock time and again
+// at write time asks the filesystem the same question twice, and a link
+// repointed in between sends the write to a file the command holds no lock on -
+// so the answer is settled once and carried.
+func Test_resolveConfigPaths_followsTheSymlinkOnce(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink creation needs privileges on Windows; the rule is POSIX-specific here")
+	}
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real-gup.json")
+	if err := os.WriteFile(real, []byte(`{"schema_version":1,"packages":[]}`), 0o600); err != nil {
+		t.Fatalf("failed to write the config: %v", err)
+	}
+	link := filepath.Join(dir, "link-gup.json")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("failed to link the config: %v", err)
+	}
+
+	cmd := newLockTestCommand(&bytes.Buffer{})
+	resolved, err := resolveConfigPaths(cmd, link)
+	if err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+	if resolved.target != real {
+		t.Fatalf("target = %q, want the file the write lands on %q", resolved.target, real)
+	}
+	// The path the user typed is what messages name, so it is kept as given.
+	if resolved.write != link {
+		t.Errorf("write = %q, want the path as it was given %q", resolved.write, link)
+	}
+
+	// The link is repointed the way a dotfile manager would, mid-command. The
+	// answer the lock was taken for must not move with it.
+	elsewhere := filepath.Join(dir, "elsewhere-gup.json")
+	if err := os.Remove(link); err != nil {
+		t.Fatalf("failed to remove the link: %v", err)
+	}
+	if err := os.Symlink(elsewhere, link); err != nil {
+		t.Fatalf("failed to repoint the link: %v", err)
+	}
+
+	again, err := resolveConfigPaths(cmd, link)
+	if err != nil {
+		t.Fatalf("resolveConfigPaths() error: %v", err)
+	}
+	if again.target != real {
+		t.Errorf("target = %q after the link moved, want the locked file %q", again.target, real)
 	}
 }

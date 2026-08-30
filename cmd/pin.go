@@ -147,12 +147,12 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 	}
 
 	// The same resolution the state lock was taken from: see resolveConfigPaths.
-	confReadPath, writePath, err := resolveConfigPaths(cmd, confFile)
+	confPaths, err := resolveConfigPaths(cmd, confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
-	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
+	confPkgs, err := configstate.ReadFileIfExists(confPaths.read)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -164,7 +164,7 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	if err := writeConfigFile(writePath, merged); err != nil {
+	if err := writeConfigFile(confPaths.target, merged); err != nil {
 		p.Err(err)
 		return 1
 	}
@@ -192,12 +192,12 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 	}
 
 	// The same resolution the state lock was taken from: see resolveConfigPaths.
-	confReadPath, writePath, err := resolveConfigPaths(cmd, confFile)
+	confPaths, err := resolveConfigPaths(cmd, confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
-	confPkgs, err := configstate.ReadFileIfExists(confReadPath)
+	confPkgs, err := configstate.ReadFileIfExists(confPaths.read)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -209,7 +209,7 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	if err := writeConfigFile(writePath, merged); err != nil {
+	if err := writeConfigFile(confPaths.target, merged); err != nil {
 		p.Err(err)
 		return 1
 	}

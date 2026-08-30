@@ -38,11 +38,22 @@ type lockTargets func(cmd *cobra.Command, args []string) ([]string, error)
 // command that is not listed here, and a test walks the registered commands to
 // make sure the list has not fallen behind.
 //
-// The read-only entries are a decision, not an omission. Every write gup
-// performs lands through an atomic rename, so a reader sees either the previous
-// complete gup.json or the next one, never a partial file; making readers block
-// would trade a race that cannot happen for a `gup list` that hangs behind a
-// long `gup update`.
+// The nil entries are a decision, not an omission. Every write gup performs
+// lands through an atomic rename, so a reader sees either the previous complete
+// gup.json or the next one, never a partial file; making readers block would
+// trade a race that cannot happen for a `gup list` that hangs behind a long
+// `gup update`.
+//
+// Two of those nil entries do write files, which is worth saying out loud rather
+// than leaving to be discovered: `completion --install` rewrites shell profiles
+// and completion files, and `man` writes man pages. They are unlocked on the
+// merits, not by oversight. Both write through the same atomic replace gup.json
+// gets, so no reader sees a partial file; both are deterministic, so two
+// concurrent runs write byte-identical content and a lost update loses nothing;
+// and the resources are the user's own dotfiles, where the cost of a lock is a
+// .zshrc.lock left in their home directory whenever one is interrupted. The
+// writer a lock could not exclude anyway - the user's editor - is the one that
+// would actually lose work.
 var commandLockPolicy = map[string]lockTargets{ //nolint:gochecknoglobals // the policy table itself
 	cmdNameUpdate:     updateLockTargets,
 	cmdNameImport:     importLockTargets,
@@ -158,51 +169,42 @@ func dirLockTarget(dir string) []string {
 // two processes writing one shared config contend even when their configuration
 // directories differ.
 func configFileLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
-	writePath, err := resolveConfigWritePath(cmd)
+	confFile, err := getFlagString(cmd, "file")
 	if err != nil {
 		return nil, err
 	}
-	return configFileLock(writePath)
-}
-
-// configFileLock returns the lock guarding the gup.json a command writes.
-//
-// It follows a symlink to the file the write actually lands on, because that is
-// what the write does: writeConfigFile resolves the link and rewrites its
-// target, so that a dotfile manager's link survives the update. A lock placed
-// beside the LINK would leave `--file link/gup.json` and
-// `--file real/gup.json` taking two different locks on one file, which is the
-// case a lock scoped to the resource exists to catch.
-func configFileLock(writePath string) ([]string, error) {
-	resolved, err := fileutil.ResolveSymlinkTarget(writePath)
+	resolved, err := resolveConfigPaths(cmd, confFile)
 	if err != nil {
-		return nil, fmt.Errorf("can not resolve config path %s: %w", writePath, err)
+		return nil, err
 	}
-	return []string{lockfile.PathForFile(resolved)}, nil
-}
-
-// resolveConfigWritePath returns where the command writes gup.json, using the
-// one resolution the command is allowed to make (see resolveConfigPaths).
-func resolveConfigWritePath(cmd *cobra.Command) (string, error) {
-	confFile, err := getFlagString(cmd, "file")
-	if err != nil {
-		return "", err
-	}
-	_, writePath, err := resolveConfigPaths(cmd, confFile)
-	return writePath, err
+	return []string{lockfile.PathForFile(resolved.target)}, nil
 }
 
 // resolvedConfigKey keys the config resolution on a command's context.
 type resolvedConfigKey struct{}
 
-// resolvedConfig is the pair of gup.json paths a command run works with: the one
-// it reads and the one it writes.
+// resolvedConfig is the set of gup.json paths a command run works with.
 type resolvedConfig struct {
-	// confFile is the --file value the pair was resolved from, so a caller asking
+	// rule names the resolution that produced these, because export resolves a
+	// path by different rules than the commands that also read the file.
+	rule string
+	// confFile is the --file value they were resolved from, so a caller asking
 	// about a different one is never answered from this.
 	confFile string
-	read     string
-	write    string
+	// read is the file the command reads its current state from, and write the
+	// path it was asked to write, as the user spelled it - which is what messages
+	// name, so a user sees the path they typed.
+	read  string
+	write string
+	// target is write with symlinks resolved: the file the write actually lands
+	// on, and therefore the only thing worth locking.
+	//
+	// It is carried rather than recomputed for the same reason the pair above is:
+	// resolving a link twice is asking the filesystem a question twice, and a link
+	// repointed between the lock and the write would send the write to a file the
+	// command holds no lock on. writeConfigFile is handed this path, so its own
+	// resolution has nothing left to follow.
+	target string
 }
 
 // resolveConfigPaths returns the gup.json the command reads and the one it
@@ -217,22 +219,50 @@ type resolvedConfig struct {
 // may be writing. So the answer is settled before the lock is taken and
 // remembered on the command's context, and the command body reads the same
 // answer the lock was taken for.
-func resolveConfigPaths(cmd *cobra.Command, confFile string) (read, write string, err error) {
-	if cached := cachedConfigPaths(cmd, confFile); cached != nil {
-		return cached.read, cached.write, nil
+func resolveConfigPaths(cmd *cobra.Command, confFile string) (*resolvedConfig, error) {
+	if cached := cachedConfigPaths(cmd, ruleImport, confFile); cached != nil {
+		return cached, nil
 	}
-	read, err = config.ResolveImportFilePath(confFile)
+	read, err := config.ResolveImportFilePath(confFile)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	write = configstate.ResolveWritePath(confFile, read)
-	rememberConfigPaths(cmd, &resolvedConfig{confFile: confFile, read: read, write: write})
-	return read, write, nil
+	write := configstate.ResolveWritePath(confFile, read)
+	return newResolvedConfig(cmd, ruleImport, confFile, read, write)
+}
+
+// resolveExportPath is the same for `gup export`, which resolves where it writes
+// by its own rule - an explicit --file, else the user-level config - and reads
+// its saved channels back from that same file.
+func resolveExportPath(cmd *cobra.Command, confFile string) (*resolvedConfig, error) {
+	if cached := cachedConfigPaths(cmd, ruleExport, confFile); cached != nil {
+		return cached, nil
+	}
+	write := config.ResolveExportFilePath(confFile)
+	return newResolvedConfig(cmd, ruleExport, confFile, write, write)
+}
+
+// The resolution rules a resolvedConfig can come from.
+const (
+	ruleImport = "import"
+	ruleExport = "export"
+)
+
+// newResolvedConfig follows the write path to the file it lands on and remembers
+// the result for the rest of the command run.
+func newResolvedConfig(cmd *cobra.Command, rule, confFile, read, write string) (*resolvedConfig, error) {
+	target, err := fileutil.ResolveSymlinkTarget(write)
+	if err != nil {
+		return nil, fmt.Errorf("can not resolve config path %s: %w", write, err)
+	}
+	resolved := &resolvedConfig{rule: rule, confFile: confFile, read: read, write: write, target: target}
+	rememberConfigPaths(cmd, resolved)
+	return resolved, nil
 }
 
 // cachedConfigPaths returns the resolution already made for this command, or nil
 // when there is none to reuse.
-func cachedConfigPaths(cmd *cobra.Command, confFile string) *resolvedConfig {
+func cachedConfigPaths(cmd *cobra.Command, rule, confFile string) *resolvedConfig {
 	if cmd == nil {
 		return nil
 	}
@@ -241,7 +271,7 @@ func cachedConfigPaths(cmd *cobra.Command, confFile string) *resolvedConfig {
 		return nil
 	}
 	cached, ok := ctx.Value(resolvedConfigKey{}).(*resolvedConfig)
-	if !ok || cached.confFile != confFile {
+	if !ok || cached.rule != rule || cached.confFile != confFile {
 		return nil
 	}
 	return cached
@@ -320,11 +350,11 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	confLock, err := configFileLock(config.ResolveExportFilePath(explicit))
+	resolved, err := resolveExportPath(cmd, explicit)
 	if err != nil {
 		return nil, err
 	}
-	return append(installedBinDirLockTarget(), confLock...), nil
+	return append(installedBinDirLockTarget(), lockfile.PathForFile(resolved.target)), nil
 }
 
 // pinLockTargets locks the gup.json `gup pin` rewrites and the $GOBIN it
@@ -341,27 +371,41 @@ func pinLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 }
 
 // installedBinDirLockTarget returns the lock guarding the $GOBIN a command
-// READS, and nothing when it cannot be resolved or does not exist yet.
+// READS, creating the directory when it is not there yet.
 //
-// It deliberately does not create the directory the way dirLockTarget does. That
-// creation exists for the commands that install into $GOBIN, where two first
-// runs would otherwise collide in a directory neither had locked; a command that
-// only reads $GOBIN has nothing to collide over, and creating a directory as a
-// side effect of `gup export` would be a surprise. A $GOBIN that is not there
-// holds no binaries either, so there is nothing to keep still.
+// Skipping the lock for a $GOBIN that does not exist looks safe - nothing is
+// installed, so there is nothing to read - and is not. Whether it exists is
+// precisely what another gup can change: an `import` racing an `export` creates
+// $GOBIN and fills it, and the export, holding no lock because the directory was
+// missing when it looked, reads a directory mid-install and writes what it found
+// over a gup.json that described a complete tool set. An empty environment is a
+// normal first run for export, which writes an empty configuration rather than
+// failing, so that overwrite is silent.
+//
+// The directory is therefore created and locked, as it is for the commands that
+// install into it. That leaves an empty $GOBIN behind on a machine that had
+// none, which is the same thing `gup update` and `gup remove` already do, and a
+// far smaller surprise than a gup.json rewritten from a half-populated read.
 func installedBinDirLockTarget() []string {
 	gobin, err := goutil.GoBin()
-	if err != nil || !fileutil.IsDir(gobin) {
+	if err != nil {
 		return nil
 	}
-	return []string{lockfile.PathForDir(gobin)}
+	return dirLockTarget(gobin)
 }
 
-// migrateLockTargets locks AFTER_PATH, the directory `gup migrate` installs
-// into. That is deliberately NOT $GOBIN: migrate takes both directories as
-// arguments and may touch neither the current $GOBIN nor gup.json, so locking
-// $GOBIN would guard a resource it does not write while leaving the one it does
-// unprotected.
+// migrateLockTargets locks both directories `gup migrate` depends on: AFTER_PATH,
+// which it installs into, and BEFORE_PATH, which it reads the versions out of.
+// Neither is necessarily $GOBIN - migrate takes both as arguments and may touch
+// neither the current $GOBIN nor gup.json - so locking $GOBIN instead would
+// guard a resource it does not use and leave both of these unprotected.
+//
+// BEFORE_PATH is locked for the reason export locks $GOBIN: what migrate writes
+// into AFTER_PATH is derived from what it read there, so a `gup remove` (or
+// another migration installing into it) changing it mid-scan produces a
+// migration of a tool set that never existed. Deadlock is not a concern even
+// when two migrations name the directories the other way round, because the
+// locks are taken in sorted order rather than the order they are given in.
 func migrateLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 	dryRun, err := getFlagBool(cmd, "dry-run")
 	if err != nil {
@@ -381,5 +425,14 @@ func migrateLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 	if !fileutil.IsDir(args[0]) {
 		return nil, nil
 	}
-	return dirLockTarget(args[1]), nil
+	after := dirLockTarget(args[1])
+	if after == nil {
+		// AFTER_PATH cannot be a directory (a regular file sits there, or its
+		// parent refuses the mkdir). The command reports that better than any lock
+		// error would, and it writes nothing, so neither directory needs guarding.
+		return nil, nil
+	}
+	// BEFORE_PATH exists - the check above made sure - so this locks it without
+	// creating anything.
+	return append(dirLockTarget(args[0]), after...), nil
 }
