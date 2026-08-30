@@ -1319,45 +1319,73 @@ func TestReclaim_leavesALockChangedJustBeforeTheTakeOverAlone(t *testing.T) {
 // already held are handed back - and a hand-back that failed leaves a resource
 // held by nobody, which the next command waits on. Reporting only the
 // acquisition failure hides the one thing the user would have to clean up.
+//
+// The situation has to be staged against a running acquisition: the first lock
+// is taken, something reclaims it while the second is still being waited for,
+// and the hand-back then finds a stranger's file at its path. A stand-in that
+// overwrites the file can land too early - inside the window where the
+// acquisition is still proving the file it created is its own, which correctly
+// fails the acquisition instead - so the attempt is repeated until it lands
+// where it was aimed, rather than asserted on whichever way it fell.
 func TestAcquireAll_reportsARollbackFailureAlongsideTheAcquisitionFailure(t *testing.T) {
-	t.Setenv(envWait, "2s")
+	t.Setenv(envWait, "500ms")
+
+	for attempt := range 5 {
+		err := rollbackAgainstAReclaimedFirstLock(t)
+		var busy *BusyError
+		if errors.As(err, &busy) && strings.HasSuffix(busy.Path, "a.lock") {
+			// The overwrite landed while the first lock was still being taken, so
+			// this run never reached the hand-back. Aim again.
+			t.Logf("attempt %d overwrote the first lock before it was held; retrying", attempt+1)
+			continue
+		}
+		if !errors.As(err, &busy) {
+			t.Fatalf("AcquireAll() error = %v, want it to report the lock that is held", err)
+		}
+		var takenOver *TakenOverError
+		if !errors.As(err, &takenOver) {
+			t.Fatalf("AcquireAll() error = %v, want it to also report the lock it could not hand back", err)
+		}
+		return
+	}
+	t.Skip("the reclaim never landed between the acquisition and the hand-back")
+}
+
+// rollbackAgainstAReclaimedFirstLock runs one attempt at the situation above and
+// returns what AcquireAll reported.
+func rollbackAgainstAReclaimedFirstLock(t *testing.T) error {
+	t.Helper()
 
 	dir := t.TempDir()
-	// Sorted order decides acquisition order: "a" is taken first, "b" is the one
-	// that cannot be taken, and the rollback of "a" is what this asserts on.
+	// Sorted order decides acquisition order: "a" is taken first, "b" cannot be
+	// taken, and the hand-back of "a" is what this is about.
 	first := filepath.Join(dir, "a.lock")
 	second := filepath.Join(dir, "b.lock")
 	writeOwner(t, second, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdUpdate, Nonce: ownerHolder})
 
-	// Stand in for another gup reclaiming the first lock while this process is
+	// Stands in for another gup reclaiming the first lock while this process is
 	// still waiting for the second: the file at that path stops being ours, so
-	// handing it back has to report the overlap instead of deleting a stranger's
-	// lock. The wait above is long enough that this always lands first.
-	taken := make(chan struct{})
+	// handing it back reports the overlap instead of deleting a stranger's lock.
+	done := make(chan struct{})
 	go func() {
-		defer close(taken)
-		for range 400 {
-			if _, err := os.Stat(first); err == nil {
+		defer close(done)
+		for range 200 {
+			if owner, err := readOwner(first); err == nil && owner.Nonce != "" {
+				// Let the acquisition finish proving the file is its own.
+				time.Sleep(100 * time.Millisecond)
 				writeOwner(t, first, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
 				return
 			}
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(time.Millisecond)
 		}
 	}()
 
 	_, err := AcquireAll(t.Context(), cmdUpdate, first, second)
-	<-taken
+	<-done
 	if err == nil {
 		t.Fatal("AcquireAll() succeeded against a lock held by a live process")
 	}
-	var busy *BusyError
-	if !errors.As(err, &busy) {
-		t.Errorf("AcquireAll() error = %v, want it to report the lock that is held", err)
-	}
-	var takenOver *TakenOverError
-	if !errors.As(err, &takenOver) {
-		t.Errorf("AcquireAll() error = %v, want it to also report the lock it could not hand back", err)
-	}
+	return err
 }
 
 // TestRestoreByRename covers restore's fallback for filesystems with no hard
