@@ -45,7 +45,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	if _, err := lockfile.Acquire(context.Background(), *lockPath, *command); err != nil {
+	lock, err := lockfile.Acquire(context.Background(), *lockPath, *command)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "lockholder: can not take %s: %v\n", *lockPath, err)
 		os.Exit(1)
 	}
@@ -53,6 +54,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "lockholder: can not announce readiness: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Fprintf(os.Stderr, "lockholder: holding %s\n", lock.Path())
 
 	// Held until the runner kills it. A blocking channel receive would be tidier
 	// and is not usable: the Go runtime calls a program with nothing left to do a

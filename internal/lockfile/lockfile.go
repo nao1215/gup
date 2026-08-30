@@ -40,6 +40,13 @@
 //     authority at all: it is a name for the kernel to hang a lock on, and an
 //     empty one when nobody holds it.
 //
+// One consequence is worth naming, because it is invisible in the API: a lock
+// this process holds is kept reachable by the package itself (see heldLocks).
+// The descriptor carrying the kernel lock is inside the Lock, and an os.File
+// closes itself from a finalizer once nothing refers to it, so a caller that
+// took a lock and dropped the value would otherwise have it released by the
+// garbage collector while it was still working.
+//
 // What gup writes INTO the lock file is a courtesy, not a mechanism. The holder
 // records its PID, host and subcommand so a waiting process can say who it is
 // waiting for; a waiter that cannot read that record loses nothing but detail in
@@ -269,6 +276,7 @@ func Acquire(ctx context.Context, path, command string) (*Lock, error) {
 		return nil, err
 	}
 	lock.freeInProcess = freeInProcess
+	rememberHeldLock(lock)
 	return lock, nil
 }
 
@@ -459,6 +467,7 @@ func (l *Lock) Release() error {
 		if l.freeInProcess != nil {
 			l.freeInProcess()
 		}
+		forgetHeldLock(l)
 	})
 	return l.releaseErr
 }
@@ -505,6 +514,40 @@ func (l *Lock) releaseFile() error {
 // deferred Release drops the lock - in that order, which is the order that is
 // safe. A command killed outright never returns at all, and the kernel drops its
 // lock as it reaps the process. Neither path can leave two gups running.
+
+// heldLocks keeps every lock this process holds reachable for as long as it
+// holds it.
+//
+// This is not bookkeeping; it is what makes the lock survive a caller that
+// forgets about it. The kernel lock lives on the descriptor inside a Lock, and
+// os.File closes itself from a finalizer once it becomes unreachable - so a
+// caller that acquires a lock and drops the value would have the lock released
+// on its behalf at the next garbage collection, silently, while it carried on
+// working. That is the one outcome this package exists to prevent, and it must
+// not depend on every caller holding the value carefully: a long-running holder
+// that never intends to release is exactly the shape of code that drops it.
+//
+// The entry goes when Release does, so a released lock is collectable again. One
+// that is never released stays reachable for the life of the process, which is
+// precisely how long it is held.
+var heldLocks = struct { //nolint:gochecknoglobals // process-wide by definition
+	mu    sync.Mutex
+	locks map[*Lock]struct{}
+}{locks: map[*Lock]struct{}{}}
+
+// rememberHeldLock keeps lock reachable until it is released.
+func rememberHeldLock(lock *Lock) {
+	heldLocks.mu.Lock()
+	defer heldLocks.mu.Unlock()
+	heldLocks.locks[lock] = struct{}{}
+}
+
+// forgetHeldLock lets a released lock be collected.
+func forgetHeldLock(lock *Lock) {
+	heldLocks.mu.Lock()
+	defer heldLocks.mu.Unlock()
+	delete(heldLocks.locks, lock)
+}
 
 // inProcessLocks serializes acquisitions of the same path inside one process.
 // The kernel lock alone would report a second acquisition in this process as a

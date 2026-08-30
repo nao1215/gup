@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,8 +49,11 @@ const (
 	// envHelperRounds is how many times a contending child takes the lock.
 	envHelperRounds = "GUP_LOCKFILE_TEST_ROUNDS"
 
-	roleHold    = "hold"
-	roleContend = "contend"
+	roleHold = "hold"
+	// roleHoldDropped holds the lock the way a careless caller would: it throws
+	// the Lock away and forces a garbage collection.
+	roleHoldDropped = "hold-dropped"
+	roleContend     = "contend"
 )
 
 // TestMain turns this test binary into the helper process the cross-process
@@ -64,7 +68,9 @@ const (
 func TestMain(m *testing.M) {
 	switch os.Getenv(envHelperRole) {
 	case roleHold:
-		os.Exit(runHoldHelper())
+		os.Exit(runHoldHelper(false))
+	case roleHoldDropped:
+		os.Exit(runHoldHelper(true))
 	case roleContend:
 		os.Exit(runContendHelper())
 	}
@@ -74,21 +80,35 @@ func TestMain(m *testing.M) {
 // runHoldHelper takes the lock, announces it, and holds it until the parent
 // kills the process. It never releases: the tests that use it are about what
 // happens when a holder dies without cleaning up.
-func runHoldHelper() int {
-	if _, err := Acquire(context.Background(), os.Getenv(envHelperLock), cmdUpdate); err != nil {
+//
+// When drop is set it throws the Lock away and forces a garbage collection
+// first, which is the mistake a long-running holder makes most easily. The
+// kernel lock lives on a descriptor inside the Lock, and os.File closes itself
+// from a finalizer once it is unreachable, so a package that did not keep its
+// held locks reachable would quietly stop holding this one - with the helper
+// still running and still announcing that it has it.
+func runHoldHelper(drop bool) int {
+	lock, err := Acquire(context.Background(), os.Getenv(envHelperLock), cmdUpdate)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "helper could not acquire: %v\n", err)
 		return 1
 	}
-	//nolint:gosec // G703: the path comes from the parent test process, not a user.
-	if err := os.WriteFile(os.Getenv(envHelperReady), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
+	if drop {
+		lock = nil
+		runtime.GC()
+		runtime.GC()
+	}
+	if err := os.WriteFile(os.Getenv(envHelperReady), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil { //nolint:gosec // G703: the path comes from the parent test process, not a user.
 		fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err)
 		return 1
 	}
+
 	// Held until the parent kills it, which is the point. A blocking receive would
 	// be tidier and is not usable: the runtime would call it a deadlock, kill the
 	// process, and hand the lock straight back to the test that is asserting it
 	// cannot have it.
 	time.Sleep(10 * time.Minute)
+	runtime.KeepAlive(lock)
 	return 0
 }
 
@@ -146,11 +166,17 @@ func bumpCounter(path string) error {
 // until it is killed, returning once the child actually has it.
 func startHolder(t *testing.T, path string) *exec.Cmd {
 	t.Helper()
+	return startHolderAs(t, path, roleHold)
+}
+
+// startHolderAs is startHolder with the holder's role chosen by the caller.
+func startHolderAs(t *testing.T, path, role string) *exec.Cmd {
+	t.Helper()
 
 	ready := filepath.Join(t.TempDir(), "ready")
 	cmd := exec.CommandContext(t.Context(), os.Args[0]) //nolint:gosec // this test binary, re-executed
 	cmd.Env = append(os.Environ(),
-		envHelperRole+"="+roleHold,
+		envHelperRole+"="+role,
 		envHelperLock+"="+path,
 		envHelperReady+"="+ready,
 	)
@@ -954,5 +980,31 @@ func TestReadOwner(t *testing.T) {
 				t.Errorf("readOwner().PID = %d, want %d", got, tt.wantPID)
 			}
 		})
+	}
+}
+
+// TestAcquire_keepsHoldingALockTheCallerDropped is the regression test for a
+// hazard the package's own helpers walked into.
+//
+// The kernel lock lives on a descriptor inside the returned Lock, and os.File
+// closes itself from a finalizer once it becomes unreachable. So a caller that
+// takes a lock and then drops the value - a long-running holder that never
+// means to release it - would have the lock released for it at the next garbage
+// collection, with nothing anywhere reporting that it had happened. Holding a
+// lock has to survive the caller forgetting about it, because "held until you
+// release it or the process ends" is the whole contract.
+func TestAcquire_keepsHoldingALockTheCallerDropped(t *testing.T) { //nolint:paralleltest // sets the wait timeout
+	shortWait(t)
+	path := filepath.Join(t.TempDir(), ".gup.lock")
+	startHolderAs(t, path, roleHoldDropped)
+
+	lock, err := Acquire(t.Context(), path, "remove")
+	if err == nil {
+		_ = lock.Release()
+		t.Fatal("Acquire() succeeded: the holder's lock was collected out from under it")
+	}
+	var busy *BusyError
+	if !errors.As(err, &busy) {
+		t.Fatalf("Acquire() error = %v, want *BusyError", err)
 	}
 }
