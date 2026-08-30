@@ -152,7 +152,7 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		p.Err(err)
 		return 1
 	}
-	confPkgs, err := configstate.ReadFileIfExists(confPaths.read)
+	confPkgs, err := configstate.ReadFileIfExists(confPaths.readTarget)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -164,7 +164,7 @@ func runPin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	if err := writeConfigFile(confPaths.target, merged); err != nil {
+	if err := writeConfigFile(confPaths.writeTarget, merged); err != nil {
 		p.Err(err)
 		return 1
 	}
@@ -197,7 +197,7 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		p.Err(err)
 		return 1
 	}
-	confPkgs, err := configstate.ReadFileIfExists(confPaths.read)
+	confPkgs, err := configstate.ReadFileIfExists(confPaths.readTarget)
 	if err != nil {
 		p.Err(err)
 		return 1
@@ -209,7 +209,7 @@ func runUnpin(p *print.Printer, cmd *cobra.Command, args []string) int {
 		return 0
 	}
 
-	if err := writeConfigFile(confPaths.target, merged); err != nil {
+	if err := writeConfigFile(confPaths.writeTarget, merged); err != nil {
 		p.Err(err)
 		return 1
 	}

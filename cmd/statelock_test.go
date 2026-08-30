@@ -663,7 +663,7 @@ func Test_resolveConfigPaths_answersOncePerCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if again.read != first.read || again.write != first.write || again.target != first.target {
+	if again.read != first.read || again.write != first.write || again.writeTarget != first.writeTarget {
 		t.Errorf("resolveConfigPaths() = %+v the second time, want the answer the lock was taken for %+v",
 			again, first)
 	}
@@ -785,8 +785,11 @@ func Test_resolveConfigPaths_followsTheSymlinkOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if resolved.target != real {
-		t.Fatalf("target = %q, want the file the write lands on %q", resolved.target, real)
+	if resolved.writeTarget != real {
+		t.Fatalf("writeTarget = %q, want the file the write lands on %q", resolved.writeTarget, real)
+	}
+	if resolved.readTarget != real {
+		t.Fatalf("readTarget = %q, want the file the command reads %q", resolved.readTarget, real)
 	}
 	// The path the user typed is what messages name, so it is kept as given.
 	if resolved.write != link {
@@ -807,7 +810,12 @@ func Test_resolveConfigPaths_followsTheSymlinkOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveConfigPaths() error: %v", err)
 	}
-	if again.target != real {
-		t.Errorf("target = %q after the link moved, want the locked file %q", again.target, real)
+	if again.writeTarget != real {
+		t.Errorf("writeTarget = %q after the link moved, want the locked file %q", again.writeTarget, real)
+	}
+	// The read is pinned to the same file, or a repointed link would merge a
+	// config the command never locked into the one it did.
+	if again.readTarget != real {
+		t.Errorf("readTarget = %q after the link moved, want the locked file %q", again.readTarget, real)
 	}
 }

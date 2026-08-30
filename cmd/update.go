@@ -185,7 +185,7 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 		p.Err(err)
 		return 1
 	}
-	confReadPath := confPaths.read
+	confReadPath := confPaths.readTarget
 
 	// A malformed or unreadable config must fail fast instead of silently
 	// falling back to @latest, which would update from the wrong channel and
@@ -212,7 +212,7 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
 		// The write goes to the file the lock was taken on, following the symlink
 		// exactly once: resolving it again here could land somewhere else.
-		if err := writeConfigFile(confPaths.target, merged); err != nil {
+		if err := writeConfigFile(confPaths.writeTarget, merged); err != nil {
 			p.Warn("failed to write " + confPaths.write + ": " + err.Error())
 		}
 	}

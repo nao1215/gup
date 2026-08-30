@@ -177,7 +177,7 @@ func configFileLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{lockfile.PathForFile(resolved.target)}, nil
+	return []string{lockfile.PathForFile(resolved.writeTarget)}, nil
 }
 
 // resolvedConfigKey keys the config resolution on a command's context.
@@ -196,15 +196,22 @@ type resolvedConfig struct {
 	// name, so a user sees the path they typed.
 	read  string
 	write string
-	// target is write with symlinks resolved: the file the write actually lands
-	// on, and therefore the only thing worth locking.
+	// readTarget and writeTarget are those two with symlinks resolved: the files
+	// the command actually reads and actually writes, and therefore the only
+	// things worth locking or handing to an opener.
 	//
-	// It is carried rather than recomputed for the same reason the pair above is:
-	// resolving a link twice is asking the filesystem a question twice, and a link
-	// repointed between the lock and the write would send the write to a file the
-	// command holds no lock on. writeConfigFile is handed this path, so its own
-	// resolution has nothing left to follow.
-	target string
+	// They are carried rather than recomputed for the same reason the pair above
+	// is. Resolving a link twice is asking the filesystem a question twice, and a
+	// dotfile manager repointing the link between the two answers is enough to
+	// send the write to a file the command holds no lock on - or, just as bad, to
+	// merge the contents of a file it never locked into the one it did.
+	//
+	// The two resolve to the same file in every resolution these rules can
+	// produce: an explicit --file is both, and auto-detection picks one path for
+	// both. They are kept apart because the rules say so, not because a case is
+	// known where they diverge.
+	readTarget  string
+	writeTarget string
 }
 
 // resolveConfigPaths returns the gup.json the command reads and the one it
@@ -251,11 +258,19 @@ const (
 // newResolvedConfig follows the write path to the file it lands on and remembers
 // the result for the rest of the command run.
 func newResolvedConfig(cmd *cobra.Command, rule, confFile, read, write string) (*resolvedConfig, error) {
-	target, err := fileutil.ResolveSymlinkTarget(write)
+	readTarget, err := fileutil.ResolveSymlinkTarget(read)
+	if err != nil {
+		return nil, fmt.Errorf("can not resolve config path %s: %w", read, err)
+	}
+	writeTarget, err := fileutil.ResolveSymlinkTarget(write)
 	if err != nil {
 		return nil, fmt.Errorf("can not resolve config path %s: %w", write, err)
 	}
-	resolved := &resolvedConfig{rule: rule, confFile: confFile, read: read, write: write, target: target}
+	resolved := &resolvedConfig{
+		rule: rule, confFile: confFile,
+		read: read, write: write,
+		readTarget: readTarget, writeTarget: writeTarget,
+	}
 	rememberConfigPaths(cmd, resolved)
 	return resolved, nil
 }
@@ -354,7 +369,7 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(installedBinDirLockTarget(), lockfile.PathForFile(resolved.target)), nil
+	return append(installedBinDirLockTarget(), lockfile.PathForFile(resolved.writeTarget)), nil
 }
 
 // pinLockTargets locks the gup.json `gup pin` rewrites and the $GOBIN it
