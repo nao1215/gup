@@ -1,3 +1,14 @@
+## Unreleased
+
+### Features
+
+* The commands that change state — `update`, `import`, `export`, `remove`, `migrate`, `pin`, `unpin` — now take a lock on every resource the operation involves, so a second gup refuses to start rather than interleaving with the first and losing one of the two results. That includes resources a command only reads when what it writes is derived from them: `export` and `pin` lock the `$GOBIN` they describe, and `migrate` locks `BEFORE_PATH` as well as `AFTER_PATH`, because a `gup remove` running halfway through the scan would otherwise produce a result describing a tool set that never existed. Locks are scoped to the resource (a `$GOBIN`, a `gup.json`) rather than to the config directory, so processes started from different config directories still serialize over a shared `$GOBIN` or a shared `--file`. Read-only commands and `--dry-run` runs take no lock and never wait.
+* The lock is the operating system's own — `flock` on Linux and macOS, `LockFileEx` on Windows — held on a file gup keeps open for as long as it holds the resource. It is therefore released by the kernel the moment the holding process ends, however it ends: a gup killed with `kill -9`, a machine that lost power mid-update, or a lock file copied from another machine blocks nothing, and there is never a stale lock for anyone to delete by hand. `gup` leaves the empty `.gup.lock` / `gup.json.lock` file in place between runs on purpose — deleting a file another gup may already have opened is what would let two processes lock two different files at one path.
+
+### Bug Fixes
+
+* `gup remove .gup.lock --force` no longer deletes gup's own lock file. `.gup.lock` is now a reserved name that `gup remove` refuses on every platform. Removing it did not free the running command's lock — that lives on an open descriptor — but it freed the *name*, so the next gup created its own file there and locked that instead, and two commands rewrote one `$GOBIN` each believing it had exclusive access.
+
 ## [v1.8.1](https://github.com/nao1215/gup/compare/v1.8.0...v1.8.1) (2026-08-15)
 
 ### Features

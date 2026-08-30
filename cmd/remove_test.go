@@ -11,6 +11,7 @@ import (
 	"testing/quick"
 
 	"github.com/nao1215/gup/internal/fileutil"
+	"github.com/nao1215/gup/internal/lockfile"
 	"github.com/spf13/cobra"
 )
 
@@ -576,3 +577,134 @@ func TestRemoveLoop_removeFailure(t *testing.T) {
 		t.Error("removeLoop() expected an error message")
 	}
 }
+
+// Test_removeLoop_refusesTheLockFile is the regression test for `gup remove
+// .gup.lock --force`.
+//
+// The lock guarding $GOBIN lives in $GOBIN, and `gup remove` deletes files from
+// $GOBIN by name, so the name had to be reserved rather than merely hidden. The
+// consequence of not reserving it is not a lost file: the kernel lock lives on
+// an open descriptor and survives the unlink, so the command running the removal
+// keeps working, while the NEXT gup finds the name free, creates its own file
+// there and locks that instead - two commands rewriting one $GOBIN, each
+// certain it has it to itself.
+func Test_removeLoop_refusesTheLockFile(t *testing.T) {
+	t.Parallel()
+
+	gobin := t.TempDir()
+	lock := filepath.Join(gobin, lockfile.DirLockName)
+	if err := os.WriteFile(lock, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Spellings that reach the same file: as typed, padded, and (on the
+	// case-insensitive filesystems macOS and Windows use) upper-cased.
+	for _, name := range []string{lockfile.DirLockName, "  " + lockfile.DirLockName + "  ", ".GUP.LOCK"} {
+		p, buf := newTestPrinter()
+		if got := removeLoop(p, gobin, true, []string{name}); got != 1 {
+			t.Errorf("removeLoop(%q) = %d, want 1", name, got)
+		}
+		if !fileutil.IsFile(lock) {
+			t.Fatalf("removeLoop(%q) deleted gup's own lock file", name)
+		}
+		if out := buf.String(); !strings.Contains(out, "gup's own lock file") {
+			t.Errorf("removeLoop(%q) output %q does not explain the refusal", name, out)
+		}
+	}
+}
+
+// Test_removeLoop_refusesTheLockFileOnWindowsSpellings covers the same refusal
+// through the Windows path, where the argument gets $GOEXE appended before it is
+// looked up. A check placed only after that step would let `.gup.lock` through
+// as `.gup.lock.exe`; one placed only before it would miss a $GOEXE that
+// composes the reserved name.
+func Test_removeLoop_refusesTheLockFileOnWindowsSpellings(t *testing.T) {
+	original := GOOS
+	GOOS = goosWindows
+	t.Cleanup(func() { GOOS = original })
+
+	gobin := t.TempDir()
+	lock := filepath.Join(gobin, lockfile.DirLockName)
+	if err := os.WriteFile(lock, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("GOEXE", dotExe)
+	p, _ := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{lockfile.DirLockName}); got != 1 {
+		t.Errorf("removeLoop() = %d, want 1", got)
+	}
+
+	// A $GOEXE that turns an innocuous argument INTO the reserved name.
+	t.Setenv("GOEXE", ".lock")
+	p, _ = newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{".gup"}); got != 1 {
+		t.Errorf("removeLoop() = %d, want 1", got)
+	}
+	if !fileutil.IsFile(lock) {
+		t.Fatal("removeLoop() deleted gup's own lock file")
+	}
+}
+
+// Test_removeLoop_stillRemovesOtherDotFiles keeps the refusal narrow. Only the
+// one name gup keeps for itself is reserved; a tool that happens to start with a
+// dot is still the user's to remove.
+func Test_removeLoop_stillRemovesOtherDotFiles(t *testing.T) {
+	// Pinned so the file this plants carries the same suffix removeLoop will look
+	// for: on Windows an argument without one gets $GOEXE appended.
+	t.Setenv("GOEXE", "")
+	gobin := t.TempDir()
+	const arg = ".gup.lock.bak"
+	onDisk := arg
+	if GOOS == goosWindows {
+		onDisk += exeSuffix
+	}
+	other := filepath.Join(gobin, onDisk)
+	if err := os.WriteFile(other, []byte("not the lock"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	p, buf := newTestPrinter()
+	if got := removeLoop(p, gobin, true, []string{arg}); got != 0 {
+		t.Errorf("removeLoop() = %d, want 0; output = %q", got, buf.String())
+	}
+	if fileutil.IsFile(other) {
+		t.Error("removeLoop() refused a file that is not gup's lock")
+	}
+}
+
+// Test_remove_refusesTheLockFileThroughTheRealCLI drives the whole command -
+// argument parsing, the state lock the command itself takes, and the removal
+// loop - because the bug was only reachable that way: the lock `gup remove`
+// holds while it runs is the very file the argument names.
+func Test_remove_refusesTheLockFileThroughTheRealCLI(t *testing.T) {
+	setupXDGBase(t)
+	gobin := t.TempDir()
+	t.Setenv("GOBIN", gobin)
+	t.Setenv(gupLockWaitEnv, "200ms")
+
+	code := 0
+	originalExit := OsExit
+	OsExit = func(c int) { code = c }
+	t.Cleanup(func() { OsExit = originalExit })
+
+	out, err := runRootWithBuffer([]string{testCmdGup, "remove", "--force", lockfile.DirLockName})
+	if err != nil {
+		t.Fatalf("gup remove returned %v, want the command's own status", err)
+	}
+	if code != 1 {
+		t.Errorf("gup remove --force %s exited %d, want 1", lockfile.DirLockName, code)
+	}
+	if !strings.Contains(out, "gup's own lock file") {
+		t.Errorf("gup remove output %q does not explain the refusal", out)
+	}
+	// The command took that lock while it ran, so the file is there - and still
+	// there, which is the whole point.
+	if !fileutil.IsFile(filepath.Join(gobin, lockfile.DirLockName)) {
+		t.Error("gup remove deleted the lock file it was holding")
+	}
+}
+
+// gupLockWaitEnv shortens the lock's acquisition timeout so a test that is not
+// about waiting does not wait.
+const gupLockWaitEnv = "GUP_LOCK_WAIT"

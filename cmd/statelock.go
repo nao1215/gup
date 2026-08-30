@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
@@ -81,7 +80,7 @@ var commandLockPolicy = map[string]lockTargets{ //nolint:gochecknoglobals // the
 // projects, and two commands given the same `--file` may be started from
 // different configuration directories entirely. A single config-directory lock
 // would serialize neither of those.
-func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name string, run func() int) (exitCode int) {
+func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name string, run func() int) int {
 	targets, ok := commandLockPolicy[name]
 	if !ok {
 		// Reaching this means a subcommand was added without deciding whether it
@@ -116,31 +115,14 @@ func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name str
 		return 1
 	}
 	defer func() {
-		releaseErr := lock.Release()
-		if releaseErr == nil {
-			return
-		}
-		p.Err(releaseErr)
-
-		// A lock file that could not be REMOVED does not invalidate the work that
-		// was just done, so it is reported without changing the exit status: the
-		// next gup run reclaims the file through the staleness check either way.
-		//
-		// A lock that was TAKEN OVER is a different statement about a different
-		// thing. It says another gup held this resource while this command was
-		// changing it, so the two runs overlapped and whatever this one wrote may
-		// have been written over - which is the exact outcome the lock exists to
-		// prevent. Reporting that on stderr and exiting 0 would let a CI job, a
-		// provisioning script, or a `gup update && ...` chain treat a lost update
-		// as a successful one; the message would be there in the log, and nothing
-		// would ever read it. So the status is failed.
-		//
-		// It only ever REPLACES success. A subcommand that already failed has its
-		// own status, and that status says more about what went wrong than this
-		// one would.
-		var takenOver *lockfile.TakenOverError
-		if errors.As(releaseErr, &takenOver) && exitCode == 0 {
-			exitCode = 1
+		// Releasing is dropping a kernel lock and closing a descriptor, so the only
+		// way it fails is a filesystem problem on the way out. The work is already
+		// done and correct - nothing overlapped it, because the lock was held for
+		// every moment of it - so the failure is reported without changing the exit
+		// status, and the next command takes the same lock file as if nothing had
+		// happened.
+		if releaseErr := lock.Release(); releaseErr != nil {
+			p.Err(releaseErr)
 		}
 	}()
 	return run()

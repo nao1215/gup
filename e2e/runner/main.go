@@ -1,11 +1,11 @@
 // Command runner bootstraps gup's offline end-to-end suite and hands the specs
 // to atago.
 //
-// It builds gup and the test module proxy, starts that proxy, warms a shared
-// module cache, points every toolchain variable at a throwaway temp tree, and
-// runs the atago specs classified for this operating system. The developer's
-// real $HOME, ~/.config/gup and $GOBIN are never touched, and no network access
-// is required.
+// It builds gup, the test module proxy and the lock holder, starts that proxy,
+// warms a shared module cache, points every toolchain variable at a throwaway
+// temp tree, and runs the atago specs classified for this operating system. The
+// developer's real $HOME, ~/.config/gup and $GOBIN are never touched, and no
+// network access is required.
 //
 // The test DEFINITIONS are the atago YAML under e2e/atago; this program is only
 // the environment bootstrap. It is Go rather than the shell script it replaces
@@ -229,7 +229,8 @@ func countSpecs(e2eDir string) int {
 	return len(specs)
 }
 
-// buildBinaries compiles gup and the offline module proxy into binDir.
+// buildBinaries compiles gup, the offline module proxy and the lock holder into
+// binDir.
 //
 // COVER=1 builds a coverage-instrumented gup so `make coverage` can collect the
 // real CLI's runtime coverage: atago passes the environment (including
@@ -246,12 +247,19 @@ func buildBinaries(repoRoot, binDir string) error {
 		"-ldflags", "-X github.com/nao1215/gup/internal/cmdinfo.Version=v0.0.0-e2e",
 		"-o", filepath.Join(binDir, exeName("gup")), ".")
 
-	fmt.Println("e2e: building gup and the test proxy...")
+	fmt.Println("e2e: building gup, the test proxy and the lock holder...")
 	if err := goRun(repoRoot, gupArgs...); err != nil {
 		return fmt.Errorf("can not build gup: %w", err)
 	}
 	if err := goRun(repoRoot, "build", "-o", filepath.Join(binDir, exeName("testproxy")), "./e2e/testproxy"); err != nil {
 		return fmt.Errorf("can not build the test proxy: %w", err)
+	}
+	// The lock holder is what lets a spec stage contention. gup's lock is the
+	// operating system's, so a lock file planted by a fixture holds nothing and
+	// gup rightly walks past it; something has to be a live process holding the
+	// real lock, and this is it.
+	if err := goRun(repoRoot, "build", "-o", filepath.Join(binDir, exeName("lockholder")), "./e2e/lockholder"); err != nil {
+		return fmt.Errorf("can not build the lock holder: %w", err)
 	}
 	return nil
 }

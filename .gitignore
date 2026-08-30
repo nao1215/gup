@@ -30,3 +30,10 @@ cmd/testdata/gobin_tmp
 /website/public/
 /website/resources/
 /website/.hugo_build.lock
+
+# gup's own state locks. They are never deleted -- unlinking a lock file another
+# gup may already have opened is what would let two processes lock two different
+# files at one path -- so a test that points $GOBIN at a directory in the tree
+# leaves an empty one behind.
+.gup.lock
+gup.json.lock

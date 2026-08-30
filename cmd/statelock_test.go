@@ -76,10 +76,25 @@ func Test_withStateLock_runsAndReleases(t *testing.T) {
 	if !heldDuringRun {
 		t.Error("the subcommand ran without every declared resource being locked")
 	}
+	// The lock is the kernel's, so releasing it drops the lock and leaves the
+	// file: deleting a file another process may already have opened is what would
+	// let two gups hold two locks at one path. What must be gone is the record
+	// naming the holder, and what must be true is that the next command gets it.
 	for _, path := range []string{first, second} {
-		if fileExists(t, path) {
-			t.Errorf("%s was not released after the subcommand returned", path)
+		if !fileExists(t, path) {
+			t.Errorf("%s was deleted on release, which would let the next process lock a different file at the same path", path)
+			continue
 		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("failed to stat %s: %v", path, err)
+		}
+		if info.Size() != 0 {
+			t.Errorf("%s still names a holder after release (%d bytes)", path, info.Size())
+		}
+	}
+	if again := withStateLock(print.New(buf, buf), newLockTestCommand(buf), nil, testCmdUpdate, func() int { return 0 }); again != 0 {
+		t.Errorf("a second withStateLock() = %d, want 0: the released locks were not available again", again)
 	}
 	if buf.Len() != 0 {
 		t.Errorf("withStateLock() wrote %q on the success path, want nothing", buf.String())
@@ -145,106 +160,6 @@ func Test_withStateLock_refusesWhenAnotherProcessHoldsTheLock(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("withStateLock() error output %q does not mention %q", buf.String(), want)
 		}
-	}
-}
-
-// Test_withStateLock_failsWhenTheLockWasTakenOverMidRun covers the overlap the
-// lock exists to prevent, reported after the fact. Another gup held the same
-// resource while this command was changing it, so what this run wrote may
-// already have been written over - and a status of 0 would let a CI job or a
-// `gup update && ...` chain treat that lost update as a success, with the only
-// evidence sitting unread in a log.
-func Test_withStateLock_failsWhenTheLockWasTakenOverMidRun(t *testing.T) {
-	lockPath := filepath.Join(t.TempDir(), "gup.lock")
-	stubLockTargets(t, testCmdUpdate, lockPath)
-
-	buf := new(bytes.Buffer)
-	cmd := newLockTestCommand(buf)
-
-	got := withStateLock(print.New(buf, buf), cmd, nil, testCmdUpdate, func() int {
-		// Replace the lock with another process's: releasing must then report the
-		// overlap rather than delete a lock it no longer owns.
-		if err := os.WriteFile(lockPath, []byte(`{"pid":1,"nonce":"someone-else"}`), 0o600); err != nil {
-			t.Fatalf("failed to replace the lock file: %v", err)
-		}
-		return 0
-	})
-
-	if got != 1 {
-		t.Errorf("withStateLock() = %d, want 1: the two runs overlapped", got)
-	}
-	if !strings.Contains(buf.String(), "taken over") {
-		t.Errorf("withStateLock() did not report the overlap; output = %q", buf.String())
-	}
-}
-
-// Test_withStateLock_keepsTheSubcommandsOwnFailureStatus is the other half of
-// the rule above: a take-over only ever replaces success. A subcommand that
-// already failed has a status that says more about what went wrong.
-func Test_withStateLock_keepsTheSubcommandsOwnFailureStatus(t *testing.T) {
-	lockPath := filepath.Join(t.TempDir(), "gup.lock")
-	stubLockTargets(t, testCmdUpdate, lockPath)
-
-	buf := new(bytes.Buffer)
-	cmd := newLockTestCommand(buf)
-
-	got := withStateLock(print.New(buf, buf), cmd, nil, testCmdUpdate, func() int {
-		if err := os.WriteFile(lockPath, []byte(`{"pid":1,"nonce":"someone-else"}`), 0o600); err != nil {
-			t.Fatalf("failed to replace the lock file: %v", err)
-		}
-		return 7
-	})
-
-	if got != 7 {
-		t.Errorf("withStateLock() = %d, want the subcommand's own status 7", got)
-	}
-}
-
-// Test_withStateLock_reportsAnUnremovableLockWithoutDiscardingTheResult covers
-// the release failure that is NOT an overlap: the work succeeded and the lock
-// was still this process's, only the file could not be deleted. The next gup
-// reclaims it through the staleness check, so turning that into a failed command
-// would be a lie about what happened.
-func Test_withStateLock_reportsAnUnremovableLockWithoutDiscardingTheResult(t *testing.T) {
-	requireUnprivilegedPOSIX(t)
-
-	dir := t.TempDir()
-	lockPath := filepath.Join(dir, "gup.lock")
-	stubLockTargets(t, testCmdUpdate, lockPath)
-
-	buf := new(bytes.Buffer)
-	cmd := newLockTestCommand(buf)
-
-	got := withStateLock(print.New(buf, buf), cmd, nil, testCmdUpdate, func() int {
-		// A read-only directory keeps the lock file from being renamed aside or
-		// removed, which is the permissions problem this reports.
-		//nolint:gosec // G302: these are directory modes, and denying writes is the point.
-		if err := os.Chmod(dir, 0o500); err != nil {
-			t.Fatalf("failed to seal the directory: %v", err)
-		}
-		//nolint:gosec // G302: restoring the mode so t.TempDir can clean up.
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-		return 0
-	})
-
-	if got != 0 {
-		t.Errorf("withStateLock() = %d, want the subcommand's own status 0", got)
-	}
-	if !strings.Contains(buf.String(), "can not remove the gup lock file") {
-		t.Errorf("withStateLock() did not report the release problem; output = %q", buf.String())
-	}
-}
-
-// requireUnprivilegedPOSIX skips a test that depends on directory permissions
-// actually denying something. Windows does not express them this way, and root
-// bypasses them entirely, so on either the test would pass without testing.
-func requireUnprivilegedPOSIX(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("directory permissions do not deny removal on Windows the way POSIX modes do")
-	}
-	if os.Geteuid() == 0 {
-		t.Skip("running as root, which bypasses the directory permissions this test relies on")
 	}
 }
 
