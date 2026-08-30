@@ -371,8 +371,10 @@ func Test_lockTargets(t *testing.T) {
 			want:  nil,
 		},
 		{
+			// export writes gup.json and its content is a snapshot of $GOBIN, so a
+			// concurrent remove must not delete a binary halfway through the walk.
 			name: testCmdExport,
-			want: []string{lockfile.PathForFile(defaultConfig)},
+			want: []string{lockfile.PathForDir(gobin), lockfile.PathForFile(defaultConfig)},
 		},
 		{
 			name:  testCmdExport + " --output",
@@ -382,7 +384,7 @@ func Test_lockTargets(t *testing.T) {
 		{
 			name:  testCmdExport + " --file",
 			flags: map[string]string{"file": explicit},
-			want:  []string{lockfile.PathForFile(explicit)},
+			want:  []string{lockfile.PathForDir(gobin), lockfile.PathForFile(explicit)},
 		},
 		{
 			name: testCmdRemove,
@@ -401,10 +403,13 @@ func Test_lockTargets(t *testing.T) {
 			want:  nil,
 		},
 		{
+			// pin resolves its target against the installed binaries, so it locks
+			// $GOBIN for the same reason export does.
 			name: testCmdPin,
-			want: []string{lockfile.PathForFile(defaultConfig)},
+			want: []string{lockfile.PathForDir(gobin), lockfile.PathForFile(defaultConfig)},
 		},
 		{
+			// unpin names an entry in gup.json and never looks at $GOBIN.
 			name: testCmdUnpin,
 			want: []string{lockfile.PathForFile(defaultConfig)},
 		},
@@ -696,5 +701,58 @@ func Test_resolveConfigPaths_withoutACommandContext(t *testing.T) {
 		if write != explicit {
 			t.Errorf("write path = %q, want %q", write, explicit)
 		}
+	}
+}
+
+// Test_updateLockTargets_locksTheFileASymlinkPointsAt is the same rule
+// configFileLockTargets follows, applied to the command that was still missing
+// it. `gup update --file link/gup.json` writes through the link, so a lock
+// beside the link would let it run alongside a `gup pin --file real/gup.json`
+// rewriting the very same file.
+func Test_updateLockTargets_locksTheFileASymlinkPointsAt(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("symlink creation needs privileges on Windows; the rule is POSIX-specific here")
+	}
+	gobin := t.TempDir()
+	t.Setenv("GOBIN", gobin)
+
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real-gup.json")
+	if err := os.WriteFile(real, []byte(`{"schema_version":1,"packages":[]}`), 0o600); err != nil {
+		t.Fatalf("failed to write the config: %v", err)
+	}
+	link := filepath.Join(dir, "link-gup.json")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("failed to link the config: %v", err)
+	}
+
+	cmd := findSubcommand(t, testCmdUpdate)
+	if err := cmd.Flags().Set("file", link); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	got, err := updateLockTargets(cmd, nil)
+	if err != nil {
+		t.Fatalf("updateLockTargets() error: %v", err)
+	}
+	want := []string{lockfile.PathForDir(gobin), lockfile.PathForFile(real)}
+	if !slices.Equal(got, want) {
+		t.Errorf("updateLockTargets() = %v, want %v (the file the write lands on)", got, want)
+	}
+}
+
+// Test_installedBinDirLockTarget_doesNotCreateTheDirectory covers the difference
+// between locking a directory a command WRITES and one it only reads. The
+// writers create it, because two first runs would otherwise install into a
+// directory neither had locked; a reader has nothing to collide over, and
+// `gup export` creating $GOBIN as a side effect would be a surprise.
+func Test_installedBinDirLockTarget_doesNotCreateTheDirectory(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no-such-gobin")
+	t.Setenv("GOBIN", missing)
+
+	if got := installedBinDirLockTarget(); got != nil {
+		t.Errorf("installedBinDirLockTarget() = %v, want no lock for a $GOBIN that does not exist", got)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Errorf("$GOBIN was created by a command that only reads it: %v", err)
 	}
 }
