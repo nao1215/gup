@@ -61,13 +61,23 @@ func openLockFile(path string) (*os.File, fileID, error) {
 		0,
 	)
 	if err != nil {
-		// A directory refuses this open with a bare access denial, which says
-		// nothing about why. The path is only consulted to explain a failure that
-		// has already happened, so nothing depends on the answer still being true.
+		// Windows says little about why an open failed: a directory refuses it
+		// with a bare access denial, and a reparse point opened for writing may
+		// too. The path is consulted only to explain a failure that has already
+		// happened - nothing was written, and nothing below depends on the answer
+		// still being true - so the refusal reads the same whether the reparse
+		// point was rejected here or by the attribute check further down.
 		//nolint:gosec // G703: the path is gup's own lock file, already normalized
 		// by normalizePath, and this only explains a failure that has happened.
-		if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
-			return nil, fileID{}, errLockPathIsDirectory
+		if info, statErr := os.Lstat(path); statErr == nil {
+			switch {
+			case info.Mode()&os.ModeSymlink != 0:
+				return nil, fileID{}, errLockPathIsSymlink
+			case info.IsDir():
+				return nil, fileID{}, errLockPathIsDirectory
+			case !info.Mode().IsRegular():
+				return nil, fileID{}, errLockPathIsNotRegular
+			}
 		}
 		return nil, fileID{}, err
 	}
