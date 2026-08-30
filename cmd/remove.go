@@ -10,6 +10,7 @@ import (
 
 	"github.com/nao1215/gup/internal/fileutil"
 	"github.com/nao1215/gup/internal/goutil"
+	"github.com/nao1215/gup/internal/lockfile"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
 )
@@ -80,11 +81,25 @@ func removeLoop(p *print.Printer, gobin string, force bool, target []string) int
 	for _, v := range target {
 		orig := v
 		v = strings.TrimSpace(v)
+		// The lock guarding $GOBIN lives in $GOBIN, and nothing installed it. It is
+		// checked before the Windows suffix is applied and again after, because
+		// $GOEXE is whatever the user set it to and both spellings resolve to the
+		// same file.
+		if lockfile.IsReservedName(v) {
+			p.Err(reservedNameError(orig))
+			result = 1
+			continue
+		}
 		// In Windows, $GOEXE is set to the ".exe" extension.
 		// The user-specified command name (arguments) may not have an extension.
 		execSuffix := normalizeExecSuffix(GOOS, os.Getenv("GOEXE"))
 		if GOOS == goosWindows && !hasSuffixFold(v, execSuffix) {
 			v += execSuffix
+		}
+		if lockfile.IsReservedName(v) {
+			p.Err(reservedNameError(orig))
+			result = 1
+			continue
 		}
 		if !isSafeBinaryName(v) {
 			p.Err(fmt.Errorf("invalid command name: %s", orig))
@@ -128,6 +143,19 @@ func removeLoop(p *print.Printer, gobin string, force bool, target []string) int
 		p.Info("removed " + target)
 	}
 	return result
+}
+
+// reservedNameError explains why a name gup keeps for itself is refused.
+//
+// The refusal is not cosmetic. `gup remove .gup.lock --force` used to delete the
+// lock file of the very command running it: the kernel lock survived, because it
+// lives on an open descriptor rather than on a name, but the next gup found the
+// name free, created its own file there and locked that instead - so two
+// commands rewrote one $GOBIN believing they had it to themselves.
+func reservedNameError(name string) error {
+	return fmt.Errorf("%s is gup's own lock file, not an installed binary: refusing to remove %s."+
+		" gup keeps it in $GOBIN to serialize the commands that change your tools, and it is safe to leave there",
+		lockfile.DirLockName, name)
 }
 
 func normalizeExecSuffix(goos, goExe string) string {
