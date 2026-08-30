@@ -46,12 +46,20 @@ func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
 		p.Err(err)
 		return 1
 	}
-	configPath, err := getFlagString(cmd, "file")
+	explicit, err := getFlagString(cmd, "file")
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
-	configPath = config.ResolveExportFilePath(configPath)
+	// The same resolution the state lock was taken from, symlink and all: see
+	// resolveExportPath. Resolving again here could follow a link that has been
+	// repointed since, sending the write to a file this command holds no lock on.
+	confPaths, err := resolveExportPath(cmd, explicit)
+	if err != nil {
+		p.Err(err)
+		return 1
+	}
+	configPath := confPaths.write
 
 	pkgs, err := pkgselect.PackageInfo(p)
 	if err != nil {
@@ -65,7 +73,7 @@ func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	// (#341). configPath is the resolved destination: the explicit --file when
 	// given, otherwise the canonical user-level config, so the default (no --file)
 	// behavior of reading channels from the canonical config is unchanged.
-	channelSource := configPath
+	channelSource := confPaths.readTarget
 	// A malformed channel-source config must fail fast instead of silently
 	// exporting every package as @latest, which would drop intentionally pinned
 	// channels such as @main from the written gup.json (#369).
@@ -85,7 +93,7 @@ func export(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	if output {
 		err = outputConfig(p, pkgs)
 	} else {
-		err = writeConfigFile(configPath, pkgs)
+		err = writeConfigFile(confPaths.writeTarget, pkgs)
 	}
 	if err != nil {
 		p.Err(err)

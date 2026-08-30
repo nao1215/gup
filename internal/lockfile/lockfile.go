@@ -538,19 +538,22 @@ func detach(path, reason string) (string, error) {
 // Renaming it back unconditionally would be a second bug of the same shape as
 // the one detaching prevents: a process that acquired the path while the file
 // was aside would lose its lock without being told, and go on working next to
-// whoever holds the restored one. So the file goes back only into an empty
-// path, and os.Link is what asks that question atomically - it fails rather than
-// replacing, which os.Rename does silently on both Unix and Windows.
+// whoever holds the restored one. So the file goes back only into an empty path,
+// and both ways of doing that here are atomic about it - neither asks whether
+// the path is free and then acts on the answer, because that pair is exactly the
+// race being closed.
 //
-// Link is not available on every filesystem (FAT, some network shares), so a
-// checked rename stands in where it is refused for that reason. The check is not
-// atomic, which is the honest cost of the fallback; it is still bounded by a
-// window orders of magnitude smaller than the one it replaces.
+// os.Link is tried first because it puts the file back whole: same inode, same
+// content, same modification time, in one operation that fails rather than
+// replacing. Where hard links are unavailable (FAT, some network shares) the
+// file is re-created exclusively instead, which fails the same way for the same
+// reason and restores the modification time afterwards, since that is what a
+// waiter judges staleness from.
 //
 // When the path is occupied the detached file is discarded. Its owner is left
 // without a lock, which is bad, but it is the outcome that at least leaves ONE
-// process holding the resource rather than two believing they do - and the
-// owner learns of it, because everything it does next checks the nonce.
+// process holding the resource rather than two believing they do - and the owner
+// learns of it, because everything it does next checks the nonce.
 func restore(aside, path string) {
 	switch err := os.Link(aside, path); {
 	case err == nil:
@@ -561,27 +564,44 @@ func restore(aside, path string) {
 		_ = os.Remove(aside)
 		return
 	}
-	restoreByRename(aside, path)
+	restoreByRecreating(aside, path)
 }
 
-// restoreByRename is restore's fallback for a filesystem that refuses hard
-// links. It asks whether the path is free and then renames into it, which is two
-// operations rather than one - the honest cost of not having Link. The window it
-// leaves is still orders of magnitude smaller than renaming without asking.
-func restoreByRename(aside, path string) {
-	// Only a definite "nothing is there" allows the rename. Any other answer -
-	// occupied, or a directory that will not say - leaves the file where it is,
-	// because renaming on an answer this did not get would overwrite whatever it
-	// could not see, which is the whole thing this function exists to avoid.
-	if _, err := os.Lstat(path); !errors.Is(err, fs.ErrNotExist) {
-		_ = os.Remove(aside)
+// restoreByRecreating is restore's fallback for a filesystem with no hard links.
+// It re-creates the lock file exclusively and copies the detached one into it,
+// so the question "is the path free" is answered by the operation that fills it
+// rather than by a check somebody can invalidate before the next line runs.
+func restoreByRecreating(aside, path string) {
+	defer func() { _ = os.Remove(aside) }()
+
+	info, err := os.Stat(aside)
+	if err != nil {
 		return
 	}
-	if err := os.Rename(aside, path); err != nil {
-		// Nothing further can be done: the file cannot go back and must not be
-		// left lying around under a name no owner will ever recognize.
-		_ = os.Remove(aside)
+	raw, err := os.ReadFile(filepath.Clean(aside))
+	if err != nil {
+		return
 	}
+
+	//nolint:gosec // G304: the path is gup's own lock file, and O_EXCL is the point of the call.
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, lockFileMode)
+	if err != nil {
+		// Occupied, or unwritable: either way this file does not go back.
+		return
+	}
+	_, writeErr := file.Write(raw)
+	if closeErr := file.Close(); writeErr == nil {
+		writeErr = closeErr
+	}
+	if writeErr != nil {
+		// A half-written lock file names nobody and would be reclaimed as rubbish
+		// once it ages; removing it now is the same outcome, sooner.
+		_ = os.Remove(path)
+		return
+	}
+	// The modification time is what staleness is measured from, so a restored
+	// lock has to carry the one it had rather than looking freshly touched.
+	_ = os.Chtimes(path, info.ModTime(), info.ModTime())
 }
 
 // createLockFile creates path exclusively and writes the owner record into it.

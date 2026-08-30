@@ -1388,24 +1388,42 @@ func rollbackAgainstAReclaimedFirstLock(t *testing.T) error {
 	return err
 }
 
-// TestRestoreByRename covers restore's fallback for filesystems with no hard
+// TestRestoreByRecreating covers restore's fallback for filesystems with no hard
 // links, which the test machine almost certainly has - so the fallback is driven
-// directly. It must follow the same rule as the Link path: back into an empty
-// path, never over a lock somebody else took.
-func TestRestoreByRename(t *testing.T) {
+// directly. It must follow the same rule as the Link path, and be atomic about
+// it: the path is filled by the operation that claims it, never by a check
+// followed by a write.
+func TestRestoreByRecreating(t *testing.T) {
 	t.Parallel()
 
-	t.Run("restores into a free path", func(t *testing.T) {
+	t.Run("restores into a free path, modification time and all", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		path := filepath.Join(dir, "gup.lock")
 		aside := filepath.Join(dir, "gup.lock.stale-1-1")
 		writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
+		old := time.Now().Add(-30 * time.Second).Truncate(time.Second)
+		if err := os.Chtimes(aside, old, old); err != nil {
+			t.Fatalf("failed to backdate the detached file: %v", err)
+		}
+		content := readAll(t, aside)
 
-		restoreByRename(aside, path)
+		restoreByRecreating(aside, path)
 
-		if got := readOwnerForTest(t, path); got.Nonce != ownerHolder {
-			t.Errorf("the lock at the path is %q, want the restored owner's %q", got.Nonce, ownerHolder)
+		if got := readAll(t, path); got != content {
+			t.Errorf("the restored lock file reads %q, want %q", got, content)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("the lock file was not put back: %v", err)
+		}
+		// Staleness is measured from this, so a restored lock must not look
+		// freshly touched - that would hide an owner's death from every waiter.
+		if !info.ModTime().Equal(old) {
+			t.Errorf("the restored lock file's modification time is %v, want %v", info.ModTime(), old)
+		}
+		if _, err := os.Stat(aside); !os.IsNotExist(err) {
+			t.Errorf("the detached file was left behind: %v", err)
 		}
 	})
 
@@ -1417,13 +1435,25 @@ func TestRestoreByRename(t *testing.T) {
 		writeOwner(t, aside, Owner{PID: 1, Host: remoteHost, Command: cmdUpdate, Nonce: ownerHolder})
 		writeOwner(t, path, Owner{PID: os.Getpid(), Host: hostname(t), Command: cmdRemove, Nonce: successorNonce})
 
-		restoreByRename(aside, path)
+		restoreByRecreating(aside, path)
 
 		if got := readOwnerForTest(t, path); got.Nonce != successorNonce {
 			t.Errorf("the lock at the path is %q, want the newcomer's %q", got.Nonce, successorNonce)
 		}
 		if _, err := os.Stat(aside); !os.IsNotExist(err) {
 			t.Errorf("the detached file was left behind: %v", err)
+		}
+	})
+
+	t.Run("discards a detached file it cannot read", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "gup.lock")
+
+		restoreByRecreating(filepath.Join(dir, "not-there"), path)
+
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("a lock file was created out of nothing: %v", err)
 		}
 	})
 }

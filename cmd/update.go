@@ -180,11 +180,12 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 	// resolving again could land on a different file (another process creating
 	// ./gup.json while this update runs) and write it while holding a lock on the
 	// file that was resolved first.
-	confReadPath, confWritePath, err := resolveConfigPaths(cmd, opts.confFile)
+	confPaths, err := resolveConfigPaths(cmd, opts.confFile)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
+	confReadPath := confPaths.readTarget
 
 	// A malformed or unreadable config must fail fast instead of silently
 	// falling back to @latest, which would update from the wrong channel and
@@ -209,8 +210,10 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 
 	if !opts.dryRun && (configstate.ShouldPersistChannels(opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames) || len(renamedPkgs) > 0) {
 		merged := configstate.MergePackages(confPkgs, succeededPkgs, channelMap, renamedPkgs)
-		if err := writeConfigFile(confWritePath, merged); err != nil {
-			p.Warn("failed to write " + confWritePath + ": " + err.Error())
+		// The write goes to the file the lock was taken on, following the symlink
+		// exactly once: resolving it again here could land somewhere else.
+		if err := writeConfigFile(confPaths.writeTarget, merged); err != nil {
+			p.Warn("failed to write " + confPaths.write + ": " + err.Error())
 		}
 	}
 

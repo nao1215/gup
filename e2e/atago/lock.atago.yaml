@@ -408,3 +408,64 @@ scenarios:
           dir:
             path: new-gobin
             exists: false
+
+  - name: migrate contends over the directory it reads, not only the one it writes
+    # What migrate installs into AFTER_PATH is derived from what it read in
+    # BEFORE_PATH, so a gup changing BEFORE_PATH mid-scan produces a migration of
+    # a tool set that never existed. Locking only the destination left the source
+    # open to exactly that.
+    env: *iso
+    steps:
+      - fixture:
+          file: old-gobin/.keep
+          content: "placeholder so BEFORE_PATH exists"
+      - fixture:
+          file: new-gobin/.keep
+          content: "placeholder so AFTER_PATH exists"
+      # A live lock on the SOURCE directory, held by a machine whose PIDs mean
+      # nothing here.
+      - fixture:
+          file: old-gobin/.gup.lock
+          content: |
+            {"pid":424242,"host":"some-other-machine","command":"migrate","acquired":"2026-01-01T00:00:00Z","nonce":"e2e-holder"}
+      - run:
+          command: gup migrate ${workdir}/old-gobin ${workdir}/new-gobin
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+
+  - name: export locks a $GOBIN that does not exist yet by creating it
+    # Whether $GOBIN exists is exactly what another gup can change: an import
+    # creates it and fills it while an export walks it. An export that skipped
+    # the lock because the directory was missing would write what it found -
+    # nothing, or half an install - over a gup.json describing a complete tool
+    # set, and an empty environment is a normal first run for export, so that
+    # overwrite is silent.
+    #
+    # A lock file lives inside the directory it guards, so guarding a $GOBIN that
+    # is not there means creating it. That is the observable part of the rule,
+    # and the reason this scenario watches for a directory rather than for a
+    # refusal: the interleaving itself is a race no spec can stage.
+    env: &fresh
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/config"
+      GOBIN: "${workdir}/unborn-gobin"
+      GOPATH: "${workdir}/gopath"
+      GUP_LOCK_WAIT: "200ms"
+    steps:
+      - run:
+          command: gup export
+          env: *fresh
+      - assert:
+          exit_code: 0
+      - assert:
+          dir:
+            path: unborn-gobin
+            exists: true
+      # And the lock it took is handed back, not left lying in the new directory.
+      - assert:
+          file:
+            path: unborn-gobin/.gup.lock
+            exists: false

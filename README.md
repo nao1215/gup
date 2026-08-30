@@ -457,7 +457,7 @@ The commands that change state take a lock on each resource they write, so a sec
 | `update` | `$GOBIN` and the `gup.json` it may write |
 | `import` | `$GOBIN` |
 | `remove` | `$GOBIN` |
-| `migrate` | `AFTER_PATH` |
+| `migrate` | `BEFORE_PATH` and `AFTER_PATH` |
 | `export`, `pin` | `$GOBIN` and the `gup.json` they write |
 | `unpin` | the `gup.json` it writes |
 
@@ -473,7 +473,11 @@ The second one exits non-zero after reporting who is in the way:
 > gup.json, so wait for it to finish and run this command again. If that process is
 > gone, gup reclaims /home/you/go/bin/.gup.lock by itself
 
-`export` and `pin` lock `$GOBIN` although they never write to it: what they write is a description of it, so a `gup remove` deleting a binary halfway through would leave a `gup.json` naming a tool that is no longer installed. `unpin` names an entry in `gup.json` and never looks at `$GOBIN`, so it does not wait behind one.
+`export`, `pin` and `migrate` lock directories they never write to, because what they write is derived from what they read there: `export`'s whole output is a description of `$GOBIN`, `pin` resolves its target against it, and `migrate` reinstalls into `AFTER_PATH` the versions it read in `BEFORE_PATH`. A `gup remove` deleting a binary halfway through any of those leaves a result describing a tool set that never existed. `unpin` names an entry in `gup.json` and never looks at `$GOBIN`, so it does not wait behind one.
+
+A `$GOBIN` that does not exist yet is created so it can be locked, by the commands that read it as well as those that install into it. Whether it exists is exactly what a concurrent `gup import` changes, and a command that skipped the lock because the directory was missing would be the one command in the set with no protection at all.
+
+Two commands write files and still take no lock: `gup completion --install` and `gup man`. Both write with the same atomic replace `gup.json` gets, and two runs of either produce byte-identical content, so the only thing a lock would add is a `.zshrc.lock` in your home directory. What neither a lock nor anything else can protect is your editor writing `.zshrc` at the same moment.
 
 Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup replaces `gup.json` with an atomic rename, so a reader always sees a complete file and has nothing to wait for. That holds for a read-only `gup.json` too: the read-only bit is cleared for the length of the rename and put back, rather than moving the old file aside and leaving the path briefly empty.
 
