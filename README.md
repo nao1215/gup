@@ -461,7 +461,9 @@ The commands that change state take a lock on each resource they write, so a sec
 | `export`, `pin` | `$GOBIN` and the `gup.json` they write |
 | `unpin` | the `gup.json` it writes |
 
-The lock files are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it.)
+The lock is the operating system's own — `flock` on Linux and macOS, `LockFileEx` on Windows — taken on a file gup keeps open for as long as it holds the resource. That choice is what makes the rest of this section short: a lock the kernel owns is released the moment the process holding it ends, however it ends, so there is no such thing as a stale gup lock and never a file for you to delete.
+
+The files it takes the lock on are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it, and `gup remove` refuses it by name — it is gup's, not a tool you installed.)
 
 ```shell
 $ gup update
@@ -470,8 +472,9 @@ The second one exits non-zero after reporting who is in the way:
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
-> gup.json, so wait for it to finish and run this command again. If that process is
-> gone, gup reclaims /home/you/go/bin/.gup.lock by itself
+> gup.json, so wait for it to finish and run this command again. The lock is held by the
+> operating system, not by /home/you/go/bin/.gup.lock, so it is released the moment that
+> process ends and there is never a file to delete by hand
 
 `export`, `pin` and `migrate` lock directories they never write to, because what they write is derived from what they read there: `export`'s whole output is a description of `$GOBIN`, `pin` resolves its target against it, and `migrate` reinstalls into `AFTER_PATH` the versions it read in `BEFORE_PATH`. A `gup remove` deleting a binary halfway through any of those leaves a result describing a tool set that never existed. `unpin` names an entry in `gup.json` and never looks at `$GOBIN`, so it does not wait behind one.
 
@@ -481,9 +484,15 @@ Two commands write files and still take no lock: `gup completion --install` and 
 
 Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup replaces `gup.json` with an atomic rename, so a reader always sees a complete file and has nothing to wait for. That holds for a read-only `gup.json` too: the read-only bit is cleared for the length of the rename and put back, rather than moving the old file aside and leaving the path briefly empty.
 
-A lock left behind by a killed gup does not wedge the tool. The lock file records the owning process, so one whose process is gone is reclaimed by the next command immediately; a lock gup cannot attribute that way — one written by another machine on a shared home directory, say — is refreshed while its owner works and reclaimed once that stops. A live local owner keeps its lock while it is suspended, so pausing an update with Ctrl-Z does not let a second gup in — up to about an hour, after which the heartbeat decides again. That bound is deliberate: a PID outlives the process that owned it, and once the operating system recycles the number, an unbounded check would report a long-dead gup as still running forever.
+#### The lock files stay behind, and that is fine
+An empty `.gup.lock` in `$GOBIN`, or a `gup.json.lock` beside your config, is not a leftover to clean up. gup never deletes them, because deleting a file another gup may already have opened is precisely what would let two processes take a lock on two different files at one path. Between commands the file holds nothing at all: it is a name for the kernel to hang the next lock on, and it is emptied when the lock is dropped, so it never names a process that has already finished. There is nothing to do about one, and `gup remove .gup.lock` is refused for that reason.
 
-Ctrl-C does not release the lock — the process holding it does, by ending. Deleting the lock file from a signal handler would free it while the command is still installing binaries and rewriting `gup.json` on its way out, so a second gup started in that moment would run alongside the first. Instead an interrupted `gup update` stops its work, unwinds, and removes the lock file itself; a command killed outright leaves the file behind, and the next gup reclaims it as soon as it sees the owning process is gone.
+Nothing wedges. A gup killed with `kill -9`, a machine that lost power mid-update, a lock file copied onto a shared home directory from another machine — none of them block anything, because none of them is holding a lock. If you interrupt a `gup update`, the next one runs immediately.
+
+Ctrl-C does not release the lock — the process holding it does, by ending. Releasing it from a signal handler would free the resource while the command is still installing binaries and rewriting `gup.json` on its way out, so a second gup started in that moment would run alongside the first. An interrupted `gup update` therefore stops its work, unwinds, and releases on the way out; a command killed outright never gets that far, and the kernel drops the lock as it reaps the process. Either way no second gup gets in early, and no cleanup is left for you.
+
+> [!NOTE]
+> gup v1.8.1 and earlier take no lock at all. If you keep an older gup on your `PATH` and run it against the same `$GOBIN` at the same time as a current one, the two are not serialized — the older one does not know there is anything to wait for. Two current gups always are.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
