@@ -546,9 +546,8 @@ func detach(path, reason string) (string, error) {
 // os.Link is tried first because it puts the file back whole: same inode, same
 // content, same modification time, in one operation that fails rather than
 // replacing. Where hard links are unavailable (FAT, some network shares) the
-// file is re-created exclusively instead, which fails the same way for the same
-// reason and restores the modification time afterwards, since that is what a
-// waiter judges staleness from.
+// name is claimed with the same exclusive create an acquisition uses and the
+// detached file is renamed onto that claim.
 //
 // When the path is occupied the detached file is discarded. Its owner is left
 // without a lock, which is bad, but it is the outcome that at least leaves ONE
@@ -564,44 +563,99 @@ func restore(aside, path string) {
 		_ = os.Remove(aside)
 		return
 	}
-	restoreByRecreating(aside, path)
+	restoreByClaiming(aside, path)
 }
 
-// restoreByRecreating is restore's fallback for a filesystem with no hard links.
-// It re-creates the lock file exclusively and copies the detached one into it,
-// so the question "is the path free" is answered by the operation that fills it
-// rather than by a check somebody can invalidate before the next line runs.
-func restoreByRecreating(aside, path string) {
-	defer func() { _ = os.Remove(aside) }()
+// restoreRaceHook runs inside restoreByClaiming, between the claim and the
+// rename. It is nil outside tests, where it stands in for another process
+// arriving in the one window that fallback has left.
+var restoreRaceHook func() //nolint:gochecknoglobals // test seam
 
-	info, err := os.Stat(aside)
-	if err != nil {
-		return
-	}
-	raw, err := os.ReadFile(filepath.Clean(aside))
-	if err != nil {
+// restoreByClaiming is restore's fallback for a filesystem with no hard links.
+//
+// It claims the name with the exclusive create an acquisition uses, then renames
+// the detached file onto that claim. The claim is what decides whether the file
+// goes back - not a question about the path that somebody could invalidate
+// before the next line runs - and the rename is what puts it back, carrying the
+// original content and the original modification time with it because a rename
+// moves the file rather than copying it.
+//
+// That last part is why this does not re-create the file by hand. Copying meant
+// writing bytes and then winding the modification time back, two operations on a
+// name this process had already published as a lock file; a take-over landing
+// between them would have its own lock's timestamp dragged into the past, and a
+// third process would then reclaim a lock that is very much alive. Nothing here
+// touches the path after the rename, and everything before it happens to a
+// detached file nobody else can see.
+//
+// One window remains, and is worth naming rather than leaving to be found: the
+// rename replaces whatever is at the path, so a lock created between the claim
+// and the rename is overwritten. Nothing separates those two lines - no I/O, no
+// allocation - and getting there requires another process to judge the claim
+// abandoned, which takes the whole staleness bound on a file that is
+// microseconds old. If it happened anyway the result is still one lock file
+// holding one complete owner record, and the displaced owner finds out: its
+// heartbeat and its release both check the nonce. What the old copy could leave
+// instead - a successor's content wearing a predecessor's timestamp - is a live
+// lock that reads as abandoned to everyone.
+func restoreByClaiming(aside, path string) {
+	if _, err := os.Stat(aside); err != nil {
+		// Nothing to put back.
 		return
 	}
 
 	//nolint:gosec // G304: the path is gup's own lock file, and O_EXCL is the point of the call.
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, lockFileMode)
+	claim, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, lockFileMode)
 	if err != nil {
 		// Occupied, or unwritable: either way this file does not go back.
+		_ = os.Remove(aside)
 		return
 	}
-	_, writeErr := file.Write(raw)
-	if closeErr := file.Close(); writeErr == nil {
-		writeErr = closeErr
-	}
-	if writeErr != nil {
-		// A half-written lock file names nobody and would be reclaimed as rubbish
-		// once it ages; removing it now is the same outcome, sooner.
+	if err := claim.Close(); err != nil {
+		_ = os.Remove(aside)
 		_ = os.Remove(path)
 		return
 	}
-	// The modification time is what staleness is measured from, so a restored
-	// lock has to carry the one it had rather than looking freshly touched.
-	_ = os.Chtimes(path, info.ModTime(), info.ModTime())
+	if restoreRaceHook != nil {
+		restoreRaceHook()
+	}
+	if err := os.Rename(aside, path); err != nil {
+		_ = os.Remove(aside)
+		// The claim is an empty lock file naming nobody, and removing it by name is
+		// removing this process's own: it was created moments ago, and the only way
+		// another process can put a different file at that name is by first judging
+		// this one abandoned, which takes the whole staleness bound.
+		_ = os.Remove(path)
+	}
+}
+
+// discardOwnUnwritten removes the lock file this process created but failed to
+// finish writing - and only while it is still that file.
+//
+// The file is detached first and identified afterwards, for the reason a
+// take-over and a release both are: reading a path and then removing it are two
+// operations, and a lock created between them would be removed on the strength
+// of what a different file at the same name said. Removing a successor's lock
+// that way is the one outcome this package exists to prevent, so a successor's
+// file is put back instead.
+//
+// Being attributable to somebody else is the whole of the test. A complete owner
+// record carrying a nonce that is not this one belongs to another acquisition;
+// anything else - an empty file, a truncated one, or one carrying this nonce -
+// is this process's own failed attempt and goes. A successor caught in its own
+// moment of anonymity can lose its empty file here, and that is safe by
+// construction: createLockFile does not return a lock until it has confirmed the
+// file at the path is still the one it created.
+func discardOwnUnwritten(path, nonce string) {
+	aside, err := detach(path, "unwritten")
+	if err != nil || aside == "" {
+		return
+	}
+	if owner, readErr := readOwner(aside); readErr == nil && owner.Nonce != "" && owner.Nonce != nonce {
+		restore(aside, path)
+		return
+	}
+	_ = os.Remove(aside)
 }
 
 // createLockFile creates path exclusively and writes the owner record into it.
@@ -636,16 +690,17 @@ func createLockFile(path, command string) (*Lock, error) {
 	// failed acquisition and clean up rather than holding an unreadable lock.
 	data, err := json.Marshal(owner)
 	if err == nil {
-		_, err = file.Write(append(data, '\n'))
-	}
-	if err == nil {
-		err = file.Sync()
+		err = writeOwnerRecord(file, append(data, '\n'))
 	}
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
-		_ = os.Remove(path)
+		// The file at the path may no longer be the one created above: a write that
+		// takes long enough to fail can outlast the staleness bound, and a waiter
+		// that reclaimed the anonymous file in the meantime has its own lock there
+		// now. Removing the path by name would delete it.
+		discardOwnUnwritten(path, nonce)
 		return nil, fmt.Errorf("can not write the gup lock file %s: %w", path, err)
 	}
 
@@ -660,6 +715,17 @@ func createLockFile(path, command string) (*Lock, error) {
 	}
 
 	return &Lock{path: path, nonce: nonce}, nil
+}
+
+// writeOwnerRecord puts the owner record into a freshly created lock file. It is
+// a variable so a test can fail the write at the exact moment another process
+// takes the path over - the race createLockFile's cleanup has to survive, and
+// one that is otherwise only reachable with a full disk or a failing device.
+var writeOwnerRecord = func(file *os.File, data []byte) error { //nolint:gochecknoglobals // test seam
+	if _, err := file.Write(data); err != nil {
+		return err
+	}
+	return file.Sync()
 }
 
 // ownsFile reports whether the lock file at path carries this nonce.
