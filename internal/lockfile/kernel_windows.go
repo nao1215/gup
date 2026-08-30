@@ -64,6 +64,8 @@ func openLockFile(path string) (*os.File, fileID, error) {
 		// A directory refuses this open with a bare access denial, which says
 		// nothing about why. The path is only consulted to explain a failure that
 		// has already happened, so nothing depends on the answer still being true.
+		//nolint:gosec // G703: the path is gup's own lock file, already normalized
+		// by normalizePath, and this only explains a failure that has happened.
 		if info, statErr := os.Lstat(path); statErr == nil && info.IsDir() {
 			return nil, fileID{}, errLockPathIsDirectory
 		}
@@ -82,6 +84,13 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
 		_ = windows.CloseHandle(handle)
 		return nil, fileID{}, errLockPathIsDirectory
+	}
+	if info.FileAttributes&windows.FILE_ATTRIBUTE_DEVICE != 0 {
+		// A device is not a lock file, and truncating one is not a thing to find
+		// out by trying. This is the counterpart of the FIFO and device refusal
+		// the Unix side gets from reading the file kind off the descriptor.
+		_ = windows.CloseHandle(handle)
+		return nil, fileID{}, errLockPathIsNotRegular
 	}
 	return os.NewFile(uintptr(handle), path), fileID{
 		device: uint64(info.VolumeSerialNumber),

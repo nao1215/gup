@@ -25,6 +25,8 @@ import (
 // folding these spellings, this would say so instead of the refusals below
 // quietly becoming tests of nothing.
 func Test_windowsNameNormalizationReachesTheLockFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	lock := filepath.Join(dir, lockfile.DirLockName)
 	if err := os.WriteFile(lock, []byte("{}"), 0o600); err != nil {
@@ -116,9 +118,10 @@ func shortPathName(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatalf("failed to convert %s: %v", path, err)
 	}
-	buf := make([]uint16, windows.MAX_PATH)
-	n, err := windows.GetShortPathName(long, &buf[0], uint32(len(buf)))
-	if err != nil || n == 0 || n > uint32(len(buf)) {
+	const bufLen = windows.MAX_PATH
+	buf := make([]uint16, bufLen)
+	n, err := windows.GetShortPathName(long, &buf[0], bufLen)
+	if err != nil || n == 0 || n > bufLen {
 		t.Skipf("GetShortPathName(%s) is unavailable here: %v", path, err)
 	}
 	return windows.UTF16ToString(buf[:n])
