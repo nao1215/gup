@@ -1,3 +1,9 @@
+## Unreleased
+
+### Bug Fixes
+
+* The Scoop bucket is gone, and `scoop bucket add nao1215 https://github.com/nao1215/gup` no longer has anything to install. It reached nobody: a bucket hosted in its own repository is not in Scoop's known-bucket list, so `scoop search gup` never found it, and getting to it meant reading gup's README, already using Scoop, and preferring it to winget. Meanwhile Windows users were being served without it — v1.8.1's Windows archives were downloaded 113 times while the bucket held no gup manifest at all, because the first one only shipped with v1.9.1. Against that, it was the only publishing step a release could not finish on its own, and it is what failed v1.9.0 partway through, costing that tag the build provenance it can never be given now. `winget install --id nao1215.gup` and the release archives are unaffected, and anyone who added the bucket can drop it with `scoop bucket rm nao1215`.
+
 ## [v1.9.1](https://github.com/nao1215/gup/compare/v1.9.0...v1.9.1) (2026-08-31)
 
 ### Bug Fixes

@@ -34,7 +34,7 @@ earlier, the macOS release binaries require macOS 13 Ventura or newer; on an
 older macOS, build gup from source with a Go version that still supports it.
 
 ## How to install
-gup is packaged in homebrew-core, the winget community repository, its own Scoop bucket, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
+gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
 
 ### Use "go install"
 If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
@@ -57,16 +57,6 @@ brew install nao1215/tap/gup
 ```shell
 winget install --id nao1215.gup
 ```
-
-### Use Scoop (Windows)
-[Scoop](https://scoop.sh/) installs gup from this repository's own bucket:
-```shell
-scoop bucket add nao1215 https://github.com/nao1215/gup
-scoop install nao1215/gup
-```
-The bucket manifest lives in [`bucket/`](./bucket) and is regenerated on every
-release, so the Windows `amd64`/`arm64` archive URLs and their SHA-256 hashes
-always match the artifacts on the release page.
 
 ### Use mise-en-place
 ```shell

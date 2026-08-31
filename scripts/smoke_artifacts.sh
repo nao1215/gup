@@ -3,9 +3,9 @@
 # smoke_artifacts.sh validates GoReleaser output before it is published.
 #
 # A release is the only gup artifact most users ever run, and it is built by a
-# pipeline nothing else exercises: the archives, the .deb/.rpm/.apk packages, the
-# Scoop manifest and the winget manifest are all generated, and any of them can
-# break without a single Go test failing. This script is the gate that runs
+# pipeline nothing else exercises: the archives, the .deb/.rpm/.apk packages and
+# the winget manifest are all generated, and any of them can break without a
+# single Go test failing. This script is the gate that runs
 # before `goreleaser release` publishes anything.
 #
 # What it checks:
@@ -20,8 +20,6 @@
 #     JSON,
 #   - the .deb installs and the installed gup runs, with its completions on disk,
 #   - the .rpm and .apk carry the same file tree,
-#   - the Scoop manifest's URLs, SHA-256 hashes and binary name match the zips
-#     actually built,
 #   - the winget manifest covers the same two architectures.
 #
 # Anything that cannot be checked on this host is recorded and printed in the
@@ -346,62 +344,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6) Windows package manifests. Both are generated from the same build matrix,
-#    and both point at URLs that do not exist yet at snapshot time -- so what is
-#    verified is the shape: the right architectures, file names that match the
-#    zips actually built, and, for Scoop, hashes that match those zips byte for
-#    byte. A wrong hash there is a manifest that fails on every user's machine
-#    and cannot be fixed without a new release.
+# 6) The winget manifest. It is generated from the same build matrix and points
+#    at URLs that do not exist yet at snapshot time, so what is verified is the
+#    shape: the architectures it covers. A wrong one is a manifest that fails on
+#    every user's machine and cannot be fixed without a new release.
 # ---------------------------------------------------------------------------
-sha256_of() {
-	if command -v sha256sum >/dev/null 2>&1; then
-		sha256sum "$1" | awk '{print $1}'
-	else
-		shasum -a 256 "$1" | awk '{print $1}'
-	fi
-}
-
-scoop_manifest="$DIST/scoop/bucket/gup.json"
-if [ -f "$scoop_manifest" ]; then
-	if command -v jq >/dev/null 2>&1; then
-		jq -e . "$scoop_manifest" >/dev/null || fail "the Scoop manifest is not valid JSON"
-
-		# Scoop names the 64-bit x86 architecture "64bit" and Arm "arm64".
-		for pair in "64bit:amd64" "arm64:arm64"; do
-			key="${pair%%:*}"
-			arch="${pair##*:}"
-			zip="$(artifact_for windows "$arch" zip)"
-
-			url="$(jq -r --arg k "$key" '.architecture[$k].url' "$scoop_manifest")"
-			[ "$url" != "null" ] || fail "the Scoop manifest has no $key architecture"
-			case "$url" in
-			*"$(basename "$zip")") ;;
-			*) fail "the Scoop manifest's $key url ($url) does not point at $(basename "$zip")" ;;
-			esac
-			case "$url" in
-			https://github.com/nao1215/gup/releases/download/*) ;;
-			*) fail "the Scoop manifest's $key url is not a gup release download URL: $url" ;;
-			esac
-
-			hash="$(jq -r --arg k "$key" '.architecture[$k].hash' "$scoop_manifest")"
-			want="$(sha256_of "$zip")"
-			[ "$hash" = "$want" ] ||
-				fail "the Scoop manifest's $key hash ($hash) does not match $(basename "$zip") ($want)"
-
-			bin="$(jq -r --arg k "$key" '.architecture[$k].bin | join(",")' "$scoop_manifest")"
-			[ "$bin" = "gup.exe" ] || fail "the Scoop manifest's $key bin is \"$bin\", want gup.exe"
-		done
-
-		[ "$(jq -r '.homepage' "$scoop_manifest")" = "https://github.com/nao1215/gup" ] ||
-			fail "the Scoop manifest's homepage is not the gup repository"
-		checked "Scoop manifest: valid JSON, amd64/arm64 release URLs, SHA-256 hashes matching the zips, gup.exe as the binary"
-	else
-		skipped "Scoop manifest contents" "jq is not installed"
-	fi
-else
-	fail "no Scoop manifest at $scoop_manifest (the scoops block in .goreleaser.yml did not run)"
-fi
-
 shopt -s nullglob
 winget_installers=("$DIST"/winget/manifests/*/*/*/*/*.installer.yaml)
 shopt -u nullglob

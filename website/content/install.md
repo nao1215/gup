@@ -1,6 +1,6 @@
 ---
 title: Install
-description: Install gup with go install, Homebrew, winget, Scoop, mise, nix, aqua, the AUR, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
+description: Install gup with go install, Homebrew, winget, mise, nix, aqua, the AUR, or a prebuilt .deb/.rpm/.apk package, and verify the release signatures.
 ---
 
 gup runs on Linux, macOS, and Windows. It shells out to `go`, so a Go toolchain
@@ -44,14 +44,6 @@ brew install nao1215/tap/gup
 
 ```shell
 winget install --id nao1215.gup
-```
-
-On Windows, [Scoop](https://scoop.sh/) installs gup from the repository's own
-bucket:
-
-```shell
-scoop bucket add nao1215 https://github.com/nao1215/gup
-scoop install nao1215/gup
 ```
 
 ```shell
