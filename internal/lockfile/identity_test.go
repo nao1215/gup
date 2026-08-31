@@ -83,8 +83,9 @@ func TestAcquire_refusesALockPathThatIsASymlink(t *testing.T) { //nolint:paralle
 }
 
 // TestAcquireAll_refusesALockPathThatIsASymlink covers the same refusal in a
-// set, including the rollback: the lock it did take must be free afterwards, or
-// the next command waits on a resource nobody is using.
+// set. Nothing was held when it happened - every path is opened before any lock
+// is taken - so what the last step asserts is that the descriptors opened for
+// the rest of the set were closed, leaving the other path takeable at once.
 func TestAcquireAll_refusesALockPathThatIsASymlink(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	dir := t.TempDir()
@@ -109,7 +110,7 @@ func TestAcquireAll_refusesALockPathThatIsASymlink(t *testing.T) { //nolint:para
 
 	held, err := AcquireAll(t.Context(), cmdUpdate, plain)
 	if err != nil {
-		t.Fatalf("AcquireAll() after a rolled-back set = %v, want success", err)
+		t.Fatalf("AcquireAll() after a refused set = %v, want success", err)
 	}
 	if err := held.Release(); err != nil {
 		t.Errorf("Release() = %v, want nil", err)
@@ -236,8 +237,9 @@ func TestAcquire_takesALockFileWithOneName(t *testing.T) { //nolint:paralleltest
 }
 
 // TestAcquireAll_refusesALockPathThatIsAHardLink covers the refusal in a set,
-// including the rollback: a set that fails must leave nothing held, or the next
-// command waits on a resource nobody is using.
+// and the same cleanup: the refusal comes out of the open, before any lock is
+// taken, so the other path in the set has to be free straight afterward rather
+// than pinned by a descriptor nobody closed.
 func TestAcquireAll_refusesALockPathThatIsAHardLink(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	dir := t.TempDir()
@@ -266,7 +268,7 @@ func TestAcquireAll_refusesALockPathThatIsAHardLink(t *testing.T) { //nolint:par
 
 	held, err := AcquireAll(t.Context(), cmdUpdate, plain)
 	if err != nil {
-		t.Fatalf("AcquireAll() after a rolled-back set = %v, want success", err)
+		t.Fatalf("AcquireAll() after a refused set = %v, want success", err)
 	}
 	if err := held.Release(); err != nil {
 		t.Errorf("Release() = %v, want nil", err)
