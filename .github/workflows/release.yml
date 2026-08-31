@@ -65,7 +65,6 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
-            dist/scoop/**
             dist/winget/**
 
   smoke-cross:
@@ -137,14 +136,6 @@ jobs:
           # Fork-scoped token so the winget manifests can be pushed to
           # nao1215/winget-pkgs and the pull request opened upstream.
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
-          # The Scoop manifest opens a pull request against this repository's own
-          # protected main, which the built-in GITHUB_TOKEN cannot do usefully:
-          # GitHub starts no workflow runs for events that token causes, so the
-          # required checks would never report and the pull request could never
-          # merge. WINGET_GITHUB_TOKEN is a classic `public_repo` token and can
-          # already write here, so it stands in until this gets a secret of its
-          # own - at which point nothing but the secret has to change.
-          SCOOP_GITHUB_TOKEN: ${{ secrets.SCOOP_GITHUB_TOKEN || secrets.WINGET_GITHUB_TOKEN }}
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

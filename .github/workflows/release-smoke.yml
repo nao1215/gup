@@ -68,7 +68,6 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
-            dist/scoop/**
             dist/winget/**
 
   verify:
