@@ -188,19 +188,40 @@ winget:
 #   scoop bucket add nao1215 https://github.com/nao1215/gup
 #   scoop install nao1215/gup
 #
-# Keeping the bucket here means GoReleaser publishes the manifest with the
-# release workflow's built-in GITHUB_TOKEN - no cross-repository token to
-# provision, and no second repository whose only content is one generated JSON
-# file. The manifest's architecture keys are generated from the `builds.goarch`
-# list above, so the Windows amd64/arm64 zip URLs and their SHA-256 hashes come
-# from the same artifacts the release publishes. Skipped by `--skip=publish`,
-# so snapshot builds stay hermetic.
+# Keeping the bucket here means no second repository whose only content is one
+# generated JSON file. The manifest's architecture keys are generated from the
+# `builds.goarch` list above, so the Windows amd64/arm64 zip URLs and their
+# SHA-256 hashes come from the same artifacts the release publishes. Skipped by
+# `--skip=publish`, so snapshot builds stay hermetic.
+#
+# The manifest arrives as a PULL REQUEST rather than a commit, and both halves of
+# that are forced by this repository rather than chosen. `main` is protected with
+# admin enforcement, so nothing pushes to it directly - v1.9.0's release job got
+# a 409 ("Changes must be made through a pull request") after the release itself
+# had already published, which took the provenance attestation down with it. And
+# the pull request has to come from a personal access token, not the workflow's
+# built-in GITHUB_TOKEN: GitHub deliberately does not start workflow runs for
+# events that token causes, so a pull request it opened would sit with all eight
+# required checks reported as never-run and could not be merged by anyone.
+#
+# SCOOP_GITHUB_TOKEN is that token. The release workflow falls back to
+# WINGET_GITHUB_TOKEN when it is not set, which is a classic token with the
+# `public_repo` scope and therefore already able to write here - so this needs
+# nothing provisioned, while leaving room to narrow it to its own secret later.
 scoops:
   - name: gup
     repository:
       owner: nao1215
       name: gup
-      branch: main
+      branch: "scoop-gup-{{ .Version }}"
+      token: "{{ .Env.SCOOP_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
+        base:
+          owner: nao1215
+          name: gup
+          branch: main
     directory: bucket
     homepage: "https://github.com/nao1215/gup"
     description: 'Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines'
