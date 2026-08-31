@@ -369,11 +369,17 @@ func Test_goreleaser_scoopBucket(t *testing.T) {
 	}
 
 	// Nothing may be pushed to main: it is protected, and the release job is not
-	// exempt from that.
+	// exempt from that. The branch also has to be a new one per release - a fixed
+	// name would have two releases reusing one branch and one pull request, so a
+	// tag cut while the previous manifest is still unmerged rewrites it.
 	branch, _ := repo["branch"].(string)
-	if branch == "" || branch == defaultBranch {
+	switch {
+	case branch == "" || branch == defaultBranch:
 		t.Errorf("scoops[0].repository.branch = %q, want a per-release branch; %q is protected and refuses a direct push",
 			branch, defaultBranch)
+	case !strings.Contains(branch, "{{ .Version }}"):
+		t.Errorf("scoops[0].repository.branch = %q, want it to carry {{ .Version }}; a fixed branch makes two releases share one pull request",
+			branch)
 	}
 
 	pr, ok := repo["pull_request"].(map[string]any)
@@ -391,14 +397,20 @@ func Test_goreleaser_scoopBucket(t *testing.T) {
 	}
 
 	// A pull request the built-in token opened could never be merged, so the
-	// token has to be one this configuration names for itself.
-	token, _ := repo["token"].(string)
-	if !strings.Contains(token, ".Env.") {
-		t.Errorf("scoops[0].repository.token = %q, want a token from the environment; the built-in GITHUB_TOKEN opens a pull request whose required checks never run",
-			token)
+	// token has to be one this configuration names for itself - and the release
+	// workflow has to put that exact name in the GoReleaser step's environment,
+	// or the template renders empty and the pipe fails after the release has
+	// published. The two halves are asserted together because either one alone
+	// passes happily while the other names something else.
+	if token, _ := repo["token"].(string); token != scoopTokenTemplate {
+		t.Errorf("scoops[0].repository.token = %q, want %q; the built-in GITHUB_TOKEN opens a pull request whose required checks never run",
+			token, scoopTokenTemplate)
 	}
-	if !strings.Contains(releaseWorkflowSource(t), scoopTokenEnv) {
-		t.Errorf("the release workflow does not set %s, so the Scoop pull request has no token to open with", scoopTokenEnv)
+	if wiring := goreleaserStepEnv(t)[scoopTokenEnv]; wiring == "" {
+		t.Errorf("the release workflow's GoReleaser step does not set %s, so the Scoop pull request has no token to open with",
+			scoopTokenEnv)
+	} else if !strings.Contains(wiring, "secrets.") {
+		t.Errorf("the release workflow sets %s to %q, which reads no secret", scoopTokenEnv, wiring)
 	}
 
 	// The bucket has to be a real directory in the repository, or `scoop bucket
@@ -412,20 +424,55 @@ func Test_goreleaser_scoopBucket(t *testing.T) {
 const defaultBranch = "main"
 
 // scoopTokenEnv is the environment variable the Scoop pull request is opened
-// with. The release workflow has to set it, or GoReleaser fails while rendering
-// the token template - after the release has published.
-const scoopTokenEnv = "SCOOP_GITHUB_TOKEN" //nolint:gosec // G101: the NAME of a secret, not one
+// with, and scoopTokenTemplate is how .goreleaser.yml has to spell it. The
+// release workflow has to set that exact name, or GoReleaser renders an empty
+// token and the pipe fails after the release has published.
+const (
+	scoopTokenEnv      = "SCOOP_GITHUB_TOKEN" //nolint:gosec // G101: the NAME of a secret, not one
+	scoopTokenTemplate = "{{ .Env." + scoopTokenEnv + " }}"
+)
 
-// releaseWorkflowSource returns the release workflow as text. The token wiring is
-// asserted against the source rather than the parsed document because what it has
-// to contain is an expression GitHub evaluates, not a value YAML can compare.
-func releaseWorkflowSource(t *testing.T) string {
+// goreleaserStepEnv returns the environment of the release workflow's GoReleaser
+// step, which is where every publishing token is wired in.
+func goreleaserStepEnv(t *testing.T) map[string]string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(workflowDir, "release.yml"))
-	if err != nil {
-		t.Fatalf("failed to read the release workflow: %v", err)
+
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release.yml"))
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("the release workflow has no jobs")
 	}
-	return string(raw)
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("the release workflow has no release job")
+	}
+	steps, ok := release["steps"].([]any)
+	if !ok {
+		t.Fatal("the release job has no steps")
+	}
+	for _, raw := range steps {
+		step, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		uses, _ := step["uses"].(string)
+		if !strings.HasPrefix(uses, "goreleaser/goreleaser-action@") {
+			continue
+		}
+		env, ok := step["env"].(map[string]any)
+		if !ok {
+			return nil
+		}
+		out := make(map[string]string, len(env))
+		for name, value := range env {
+			if text, ok := value.(string); ok {
+				out[name] = text
+			}
+		}
+		return out
+	}
+	t.Fatal("the release job does not run goreleaser-action, so nothing publishes")
+	return nil
 }
 
 // stringSlice converts a YAML sequence of scalars into []string.
