@@ -121,6 +121,17 @@ waits for itself. A lock path that is a symlink is refused rather than followed:
 gup truncates its lock file to record who holds it, so writing through a link
 somebody put there would truncate a file that is not gup's.
 
+A lock path that is a *hard* link is refused for the same reason, and it has to
+be caught differently: a hard link is not a link the open can see through — the
+file it lands on is an ordinary file with two equally real names, so
+`gup.json.lock` made a second name for `gup.json` would pass every check a
+symlink fails and get your config truncated. gup therefore refuses a lock file
+that has more than one name, because the ones it creates have exactly one:
+
+> can not open the gup lock file /home/you/.config/gup/gup.json.lock: the lock path is a hard link
+> to another file, and gup will not truncate a file it does not own: delete the lock file while no
+> gup is running, or point gup at a directory it owns
+
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
 > gup.json, so wait for it to finish and run this command again. The lock is held by the

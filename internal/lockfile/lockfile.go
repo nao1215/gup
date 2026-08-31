@@ -56,6 +56,17 @@
 // openLockFile). A lock path that IS a link is refused rather than resolved: gup
 // created these files, so a link in their place is somebody else's doing.
 //
+// A hard link is the same attack without the announcement. `gup.json.lock` made
+// a second name for `gup.json` is not a link as far as an open is concerned: it
+// IS the configuration file, a perfectly ordinary regular file, and O_NOFOLLOW
+// has nothing to refuse. Truncating it for the owner record would empty the
+// user's gup.json and write JSON about a process over it, and the lock would
+// then be held on the configuration file's own inode - which the next atomic
+// rewrite of gup.json leaves behind, so the lock stops naming the resource it
+// guards. What distinguishes the two cases is the link count: a lock file gup
+// created has exactly one name, so a lock path whose file has more than one is
+// refused before anything is written (see openLockFile).
+//
 // The second is that one file has many names. A symlinked directory, a relative
 // path, and a $GOBIN spelled with different capitalization on macOS or Windows
 // all reach the same lock file, and a set of locks deduplicated by STRING would
@@ -380,6 +391,18 @@ var (
 	errLockPathIsSymlink = errors.New(
 		"the lock path is a symbolic link, and gup will not write through one:" +
 			" delete it, or point gup at a directory it owns")
+	// errLockPathIsHardLink refuses a lock file that is a second name for some
+	// other file. A symbolic link announces itself; a hard link does not - the two
+	// names are equally real, and the one gup opens is a perfectly ordinary
+	// regular file. `gup.json.lock` hard-linked onto `gup.json` would therefore
+	// pass every check a symlink fails, and the first thing gup does with a lock
+	// it has taken is truncate it to write the owner record: the configuration
+	// file would be emptied and the owner JSON written over it, by a command that
+	// reported success. The link count is what tells the two apart, because a lock
+	// file gup created has exactly one name.
+	errLockPathIsHardLink = errors.New(
+		"the lock path is a hard link to another file, and gup will not truncate a file it does not own:" +
+			" delete the lock file while no gup is running, or point gup at a directory it owns")
 	// errLockPathIsDirectory names the mistake of locking a directory itself
 	// rather than the lock file inside it.
 	errLockPathIsDirectory = errors.New("the lock path is a directory, not a file")

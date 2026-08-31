@@ -467,6 +467,12 @@ The files it takes the lock on are `$GOBIN/.gup.lock` and `<gup.json>.lock`, nex
 
 A lock is scoped to the *file*, not to the path that names it. Two arguments that reach one directory — `gup migrate ~/go/bin ~/bin` where `~/bin` is a symlink to `~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive filesystems macOS and Windows use — take one lock, not two, so gup never waits for itself. And a lock path that is a symlink is refused rather than followed: gup truncates its lock file to record who holds it, so writing through a link somebody put there would mean truncating a file that is not gup's.
 
+A lock path that is a *hard* link is refused for the same reason, and it has to be caught differently: a hard link is not a link the open can see through — the file it lands on is an ordinary file with two equally real names, so `gup.json.lock` made a second name for `gup.json` would pass every check a symlink fails and get your config truncated. gup therefore refuses a lock file that has more than one name, because the ones it creates have exactly one:
+
+> can not open the gup lock file /home/you/.config/gup/gup.json.lock: the lock path is a hard link
+> to another file, and gup will not truncate a file it does not own: delete the lock file while no
+> gup is running, or point gup at a directory it owns
+
 ```shell
 $ gup update
 ```
