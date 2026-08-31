@@ -1,7 +1,8 @@
-## Unreleased
+## [v1.9.1](https://github.com/nao1215/gup/compare/v1.9.0...v1.9.1) (2026-08-31)
 
 ### Bug Fixes
 
+* v1.9.0's artifacts carry no build provenance, and this release is how that is put right. Nothing about v1.9.0's binaries is in doubt - `checksums.txt` and its cosign signature verify as always, and the SBOMs are attached - but the attestation step never ran, so `gh attestation verify` has nothing to check against for that tag and the release notes' promise of build provenance does not hold for it. Attestation cannot be added to a tag after the fact, so v1.9.1 republishes the same code with it.
 * The release publishes its Scoop manifest again. `bucket/gup.json` was committed straight to `main`, which is protected with admin enforcement, so v1.9.0's release job was refused with "Changes must be made through a pull request" — after the release itself had published, and before the step that attests build provenance, which therefore never ran. The Scoop bucket had been added since the previous tag, so v1.9.0 was the first release to exercise it. The manifest now arrives as a `scoop-gup-<version>` pull request, opened by a personal access token rather than the workflow's own: GitHub starts no workflow runs for events that token causes, so a pull request it opened would have every required check reported as never-run and could not be merged by anyone.
 
 ## [v1.9.0](https://github.com/nao1215/gup/compare/v1.8.1...v1.9.0) (2026-08-31)
