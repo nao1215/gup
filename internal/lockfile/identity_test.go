@@ -187,7 +187,10 @@ func TestAcquire_refusesALockPathThatIsAHardLink(t *testing.T) { //nolint:parall
 	if err := os.WriteFile(config, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write the file the lock path is a second name for: %v", err)
 	}
-	path := PathForFile(config)
+	path, err := PathForFile(config)
+	if err != nil {
+		t.Fatalf("PathForFile() error: %v", err)
+	}
 	hardLinkOrSkip(t, config, path)
 
 	lock, err := Acquire(t.Context(), path, cmdUpdate)
@@ -243,7 +246,10 @@ func TestAcquireAll_refusesALockPathThatIsAHardLink(t *testing.T) { //nolint:par
 	if err := os.WriteFile(config, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed to write the file the lock path is a second name for: %v", err)
 	}
-	linked := PathForFile(config)
+	linked, err := PathForFile(config)
+	if err != nil {
+		t.Fatalf("PathForFile() error: %v", err)
+	}
 	hardLinkOrSkip(t, config, linked)
 	plain := filepath.Join(dir, "aaa-plain.lock")
 

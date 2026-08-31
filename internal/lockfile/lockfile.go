@@ -112,6 +112,7 @@
 package lockfile
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -255,13 +256,69 @@ func normalizePath(path string) (string, error) {
 
 // PathForDir returns the lock file guarding a directory whose contents gup
 // mutates, such as a $GOBIN or a migrate destination.
+//
+// It needs no canonicalization, and that is a property of where it puts the
+// lock rather than an omission. The lock file lives INSIDE the directory it
+// guards, so every name that reaches the directory - a symlinked parent, an 8.3
+// alias, a different capitalization on macOS and Windows - reaches the same
+// .gup.lock inside it. The path strings differ; the file does not, which is the
+// only thing a lock is keyed on.
 func PathForDir(dir string) string { return filepath.Join(dir, DirLockName) }
+
+// lockFileSuffix is what turns the name of a file gup rewrites into the name of
+// the lock guarding it.
+const lockFileSuffix = ".lock"
 
 // PathForFile returns the lock file guarding a single file gup rewrites, such as
 // a gup.json. It sits beside the file so the lock travels with the resource,
 // which is what makes two processes with different configuration directories but
 // the same --file contend for the same lock.
-func PathForFile(file string) string { return file + ".lock" }
+//
+// Unlike PathForDir, this one has to be canonicalized, and the reason is the
+// SIBLING placement it depends on. The lock is a second file in the same
+// directory whose name is built from the resource's own, so the name gup was
+// given decides which file the lock is - and one file answers to many names:
+//
+//   - On Windows, NTFS keeps an 8.3 alias for a long name, so a gup.json also
+//     answers to something like GUP~1.JSO, whose sibling lock would be
+//     GUP~1.JSO.lock rather than gup.json.lock.
+//   - Also on Windows, Win32 strips trailing dots and spaces before the
+//     filesystem ever sees a name, so `--file gup.json.` writes gup.json - while
+//     its sibling lock, gup.json..lock, has no trailing dot to strip and is
+//     therefore a different file from gup.json.lock.
+//   - Everywhere, a hard link makes two equally real names for one file, in two
+//     different directories if you like, and neither is more canonical than the
+//     other.
+//
+// Every one of those splits the lock: two gups writing one file, each holding a
+// lock the other cannot see, which is the exact failure the lock exists to
+// prevent and the one it would fail at silently.
+//
+// The first two are answered by asking the operating system which file the name
+// means and building the lock name from the answer (see canonicalTargetPath).
+// The third has no answer to give - a file with two names has no canonical one -
+// so it is REFUSED rather than guessed at. Continuing unlocked is not on the
+// table: an unprotected write is what this package exists to make impossible,
+// and a command that stops with a reason a user can act on is strictly better
+// than one that quietly runs alongside another.
+//
+// A symbolic link at file is followed first, so a gup.json linked into place by
+// a dotfile manager locks the file the write lands on rather than the link.
+func PathForFile(file string) (string, error) {
+	resolved, err := fileutil.ResolveSymlinkTarget(file)
+	if err != nil {
+		return "", fmt.Errorf("can not resolve the gup lock path for %s: %w", file, err)
+	}
+	normalized, err := normalizePath(resolved)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := canonicalTargetPath(normalized)
+	if err != nil {
+		return "", fmt.Errorf("can not lock %s: %w", normalized, err)
+	}
+	return canonical + lockFileSuffix, nil
+}
 
 // Owner records who holds a lock. The holder writes it into the lock file so a
 // waiting process can name the command it is waiting for.
@@ -408,6 +465,17 @@ var (
 	errLockPathIsDirectory = errors.New("the lock path is a directory, not a file")
 	// errLockPathIsNotRegular covers the rest: a FIFO, a socket, a device.
 	errLockPathIsNotRegular = errors.New("the lock path is not a regular file")
+	// errTargetHasSecondName refuses to derive a lock from the name of a file
+	// that has more than one. PathForFile builds the lock's name out of the
+	// resource's, so a hard-linked gup.json reached by its other name yields a
+	// different lock file: two gups rewriting one configuration, each holding a
+	// lock the other cannot see. Unlike an 8.3 alias or a trailing dot, there is
+	// no canonical name to rewrite this one to - both names are equally real - so
+	// the only honest answers are to refuse or to run unprotected, and running
+	// unprotected is the thing this package exists to prevent.
+	errTargetHasSecondName = errors.New(
+		"the file has a second name (a hard link), so gup can not tell which lock protects it:" +
+			" remove the extra name while no gup is running, or point gup at a file that has only one")
 )
 
 // lockTarget is a lock file that has been opened but not yet locked. It carries
@@ -478,7 +546,10 @@ type MultiLock struct {
 	locks []*Lock
 }
 
-// Paths returns the lock files held, in acquisition order.
+// Paths returns the lock files held, in acquisition order - which is the order
+// of the files' identities, not of the paths (see AcquireAll), and not the order
+// they were passed in. A path that named a file another path in the set had
+// already named is not repeated: one file is one lock.
 func (m *MultiLock) Paths() []string {
 	if m == nil {
 		return nil
@@ -503,14 +574,20 @@ func (m *MultiLock) Paths() []string {
 // way to succeed, and the only thing that can tell the two names apart is the
 // identity the filesystem gives the open file.
 //
-// The set is then ORDERED by path, so two processes asking for the same
-// resources take them in the same order rather than each holding what the other
-// is waiting for. Ordering by identity would make that agreement hold even when
-// the two spelled the paths differently, at the cost of an order nothing can
-// predict; ordering by path keeps it predictable, and the case it gives up is
-// bounded by the acquisition timeout - two processes that reach one pair of
-// resources through differently-sorting names both fail with a busy error and
-// succeed on a retry, rather than hanging.
+// The set is then ORDERED by that same identity, so two processes asking for the
+// same resources take them in the same order rather than each holding what the
+// other is waiting for. Ordering by PATH looks friendlier - the order is
+// readable, and two processes that spell the paths alike agree on it - and it
+// only holds while they do spell them alike. A $GOBIN reached as /home/you/go/bin
+// by one gup and as ~/go/bin through a symlinked home by another, or a gup.json
+// given to one as an 8.3 alias, sort in opposite orders: each takes the resource
+// the other is waiting for, and both sit there until the timeout turns it into a
+// busy error - a refusal with nothing actually contended, on a pair of commands
+// that could both have run. The filesystem's identity is the one name for a
+// resource that every process agrees on however it spelled the path, so it is
+// what the order is built from. The cost is that the order is no longer
+// predictable from the arguments, which nothing outside this package depends on:
+// Paths() reports the order that was used.
 //
 // If any lock cannot be taken, the ones already held are released before
 // returning, so a failed acquisition never leaves a partial hold behind. An
@@ -547,6 +624,29 @@ func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLoc
 	return held, nil
 }
 
+// AcquisitionOrder reports the order AcquireAll would take these paths in, with
+// the duplicates already removed - the same answer, for the same files, in every
+// process that asks.
+//
+// It exists for the end-to-end suite, which has to stage a process holding one
+// PARTICULAR lock out of a set another gup is about to ask for, and cannot know
+// which that is: the order is the filesystem's to decide (see AcquireAll), so
+// the only honest way to ask is to ask this package. Nothing in gup itself calls
+// it - AcquireAll orders its own set - and it takes no lock, so an answer is a
+// statement about the past the moment it is returned.
+func AcquisitionOrder(paths ...string) ([]string, error) {
+	targets, err := openTargets(paths)
+	if err != nil {
+		return nil, err
+	}
+	order := make([]string, 0, len(targets))
+	for _, target := range targets {
+		order = append(order, target.path)
+		target.close()
+	}
+	return order, nil
+}
+
 // openTargets opens every path, then reduces them to the distinct FILES they
 // name, in the order those files will be locked in.
 //
@@ -567,6 +667,9 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 		targets = append(targets, target)
 	}
 
+	// Deduplication runs over the paths in sorted order for one reason: WHICH of
+	// several names for a file survives into the messages then depends on the set
+	// of names rather than on the order a caller happened to pass them in.
 	slices.SortFunc(targets, func(a, b *lockTarget) int { return strings.Compare(a.path, b.path) })
 	distinct := make([]*lockTarget, 0, len(targets))
 	seen := make(map[fileID]struct{}, len(targets))
@@ -582,7 +685,21 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 		seen[target.id] = struct{}{}
 		distinct = append(distinct, target)
 	}
+	// The acquisition order, which every process has to agree on however it spelled
+	// the paths. See AcquireAll for why it is the identity rather than the path.
+	slices.SortFunc(distinct, func(a, b *lockTarget) int { return compareFileID(a.id, b.id) })
 	return distinct, nil
+}
+
+// compareFileID orders two files the way every process ordering the same two
+// files will, whatever names they reached them by. The volume comes first and
+// the number within it second, which is an order with no meaning at all beyond
+// being the same one everywhere - which is the entire requirement.
+func compareFileID(a, b fileID) int {
+	if a.device != b.device {
+		return cmp.Compare(a.device, b.device)
+	}
+	return cmp.Compare(a.index, b.index)
 }
 
 // Release returns every held lock, in reverse acquisition order, and reports

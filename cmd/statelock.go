@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/nao1215/gup/internal/config"
 	"github.com/nao1215/gup/internal/configstate"
@@ -135,7 +136,7 @@ func binDirLockTargets(_ *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dirLockTarget(gobin), nil
+	return dirLockTarget(gobin)
 }
 
 // dirLockTarget returns the lock guarding a directory whose contents a command
@@ -149,22 +150,62 @@ func binDirLockTargets(_ *cobra.Command, _ []string) ([]string, error) {
 // there would leave the first run of every command - the one nobody has tested
 // on their machine yet - as the only unprotected one.
 //
-// What is NOT done here is forcing the issue when the path cannot be a
-// directory. A regular file at the target, or a parent that rejects the mkdir,
-// yields no lock so the command produces its own diagnosis ("AFTER_PATH is not a
-// directory") instead of a lock-file error about the same problem. Nothing is
-// written in that case anyway, because the command is about to fail on it.
-func dirLockTarget(dir string) []string {
+// Three outcomes come out of here, and keeping them apart is the whole job.
+//
+// A lock path is the ordinary one. No lock and no error means the path CANNOT be
+// a directory - a regular file sits there, or one of its parents is a file - and
+// the command about to run says so far better than a lock error would ("$GOBIN
+// is not a directory", "AFTER_PATH is not a directory"). That case is safe to
+// leave unlocked because it writes nothing: the command is going to fail on the
+// same thing a moment later.
+//
+// An error is everything else: a parent that refuses the mkdir, a read-only
+// filesystem, a full disk, a name the filesystem will not take. Those used to
+// return no lock as well, which read as "nothing to guard" and was not - the
+// command ran to completion with no lock at all, because a $GOBIN whose creation
+// was refused for one gup can be created a moment later by another, or exist
+// already for a user whose permissions differ from the directory gup could not
+// make. Being unable to work out what to lock is not the same as having nothing
+// to lock, and the second is the only one that may proceed.
+func dirLockTarget(dir string) ([]string, error) {
 	if !fileutil.IsDir(dir) {
 		if _, err := os.Lstat(dir); err == nil {
 			// The path exists but is not a directory: the command says so better.
-			return nil
+			return nil, nil
 		}
 		if err := os.MkdirAll(dir, binDirPerm); err != nil {
-			return nil
+			if hasNonDirectoryAncestor(dir) {
+				// A file sits somewhere above the target, so this path can never be a
+				// directory. That is the command's diagnosis to give, not the lock's.
+				return nil, nil
+			}
+			return nil, fmt.Errorf("can not prepare the lock for %s: %w", dir, err)
 		}
 	}
-	return []string{lockfile.PathForDir(dir)}
+	return []string{lockfile.PathForDir(dir)}, nil
+}
+
+// hasNonDirectoryAncestor reports whether some existing component of dir is not
+// a directory, which is the one mkdir failure that means "this path can never be
+// a directory" rather than "gup could not create it".
+//
+// It walks the path rather than reading an errno because the errno is not the
+// same everywhere: ENOTDIR on Unix, and on Windows a create through a file
+// component surfaces as ERROR_PATH_NOT_FOUND or ERROR_DIRECTORY depending on
+// where the file sits. Asking the filesystem what is actually there answers the
+// question the same way on every platform.
+func hasNonDirectoryAncestor(dir string) bool {
+	for path := filepath.Clean(dir); ; {
+		info, err := os.Lstat(path)
+		if err == nil {
+			return !info.IsDir()
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return false
+		}
+		path = parent
+	}
 }
 
 // configFileLockTargets locks the gup.json the command rewrites, resolved
@@ -180,7 +221,11 @@ func configFileLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []string{lockfile.PathForFile(resolved.writeTarget)}, nil
+	lockPath, err := lockfile.PathForFile(resolved.writeTarget)
+	if err != nil {
+		return nil, err
+	}
+	return []string{lockPath}, nil
 }
 
 // resolvedConfigKey keys the config resolution on a command's context.
@@ -325,11 +370,15 @@ func updateLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	binLock, err := dirLockTarget(gobin)
+	if err != nil {
+		return nil, err
+	}
 	confLock, err := configFileLockTargets(cmd, nil)
 	if err != nil {
 		return nil, err
 	}
-	return append(dirLockTarget(gobin), confLock...), nil
+	return append(binLock, confLock...), nil
 }
 
 // importLockTargets locks the $GOBIN `gup import` installs into. It reads
@@ -372,7 +421,15 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(installedBinDirLockTarget(), lockfile.PathForFile(resolved.writeTarget)), nil
+	binLock, err := installedBinDirLockTarget()
+	if err != nil {
+		return nil, err
+	}
+	confLock, err := lockfile.PathForFile(resolved.writeTarget)
+	if err != nil {
+		return nil, err
+	}
+	return append(binLock, confLock), nil
 }
 
 // pinLockTargets locks the gup.json `gup pin` rewrites and the $GOBIN it
@@ -381,11 +438,15 @@ func exportLockTargets(cmd *cobra.Command, _ []string) ([]string, error) {
 // not installed. `gup unpin` needs no such lock - it names an entry in gup.json
 // and never looks at $GOBIN.
 func pinLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
+	binLock, err := installedBinDirLockTarget()
+	if err != nil {
+		return nil, err
+	}
 	confLock, err := configFileLockTargets(cmd, args)
 	if err != nil {
 		return nil, err
 	}
-	return append(installedBinDirLockTarget(), confLock...), nil
+	return append(binLock, confLock...), nil
 }
 
 // installedBinDirLockTarget returns the lock guarding the $GOBIN a command
@@ -404,10 +465,14 @@ func pinLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 // install into it. That leaves an empty $GOBIN behind on a machine that had
 // none, which is the same thing `gup update` and `gup remove` already do, and a
 // far smaller surprise than a gup.json rewritten from a half-populated read.
-func installedBinDirLockTarget() []string {
+func installedBinDirLockTarget() ([]string, error) {
 	gobin, err := goutil.GoBin()
 	if err != nil {
-		return nil
+		// Not knowing where $GOBIN is means not knowing what to lock. The command
+		// would fail on the same question a moment later, so reporting it here
+		// costs nothing and keeps the alternative - running unlocked because the
+		// resource could not be named - off the table.
+		return nil, err
 	}
 	return dirLockTarget(gobin)
 }
@@ -443,14 +508,24 @@ func migrateLockTargets(cmd *cobra.Command, args []string) ([]string, error) {
 	if !fileutil.IsDir(args[0]) {
 		return nil, nil
 	}
-	after := dirLockTarget(args[1])
+	after, err := dirLockTarget(args[1])
+	if err != nil {
+		// AFTER_PATH could not be resolved to something lockable at all, which is
+		// not the same as its being unusable: another gup may create or already
+		// have the directory this one could not. Nothing runs without a lock.
+		return nil, err
+	}
 	if after == nil {
-		// AFTER_PATH cannot be a directory (a regular file sits there, or its
-		// parent refuses the mkdir). The command reports that better than any lock
+		// AFTER_PATH cannot be a directory: a regular file sits there, or a file
+		// sits somewhere above it. The command reports that better than any lock
 		// error would, and it writes nothing, so neither directory needs guarding.
 		return nil, nil
 	}
 	// BEFORE_PATH exists - the check above made sure - so this locks it without
 	// creating anything.
-	return append(dirLockTarget(args[0]), after...), nil
+	before, err := dirLockTarget(args[0])
+	if err != nil {
+		return nil, err
+	}
+	return append(before, after...), nil
 }

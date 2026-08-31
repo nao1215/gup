@@ -117,18 +117,44 @@ A lock is scoped to the *file*, not to the path that names it. Two arguments
 that reach one directory — `gup migrate ~/go/bin ~/bin` where `~/bin` is a
 symlink to `~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive
 filesystems macOS and Windows use — take one lock rather than two, so gup never
-waits for itself. A lock path that is a symlink is refused rather than followed:
-gup truncates its lock file to record who holds it, so writing through a link
-somebody put there would truncate a file that is not gup's.
+waits for itself. When a command locks several resources it takes them in the
+order the filesystem's own identities put them in, which is the one order every
+gup agrees on however each of them spelled the paths.
 
-A lock path that is a *hard* link is refused for the same reason, and it has to
-be caught differently: a hard link is not a link the open can see through — the
-file it lands on is an ordinary file with two equally real names, so
-`gup.json.lock` made a second name for `gup.json` would pass every check a
-symlink fails and get your config truncated. gup therefore refuses a lock file
-that has more than one name, because the ones it creates have exactly one:
+The lock guarding a `gup.json` is its neighbour, named after it, so `--file` is
+resolved to the single name the operating system agrees the file has before the
+lock is derived from it. On Windows that matters twice over: NTFS answers to an
+8.3 alias like `GUP~1.JSO` as well as to the long name, and Win32 strips trailing
+dots and spaces, so `--file gup.json.` writes `gup.json`. Both used to produce a
+lock file of their own — `GUP~1.JSO.lock`, `gup.json..lock` — and two gups
+writing one config would each hold a lock the other could not see. A `gup.json`
+reached through a symlink is locked at the file the write lands on, for the same
+reason.
 
-> can not open the gup lock file /home/you/.config/gup/gup.json.lock: the lock path is a hard link
+A *hard* link is the one alias that cannot be resolved this way, because neither
+of two names for one file is more truly its own. gup refuses a `--file` whose
+file has a second name rather than locking it at a name that only sometimes means
+it:
+
+> can not lock /home/you/.config/gup/gup.json: the file has a second name (a hard link), so gup
+> can not tell which lock protects it: remove the extra name while no gup is running, or point
+> gup at a file that has only one
+
+It is also a file gup could not rewrite correctly anyway: the rewrite renames a
+temporary file over `gup.json`, which breaks the link, leaving the other name on
+the contents from before the command ran.
+
+A lock path that is a symlink is refused rather than followed: gup truncates its
+lock file to record who holds it, so writing through a link somebody put there
+would truncate a file that is not gup's. A lock path that is a *hard* link is
+refused for the same reason, and it has to be caught differently: a hard link is
+not a link the open can see through — the file it lands on is an ordinary file
+with two equally real names, so `.gup.lock` made a second name for a binary in
+`$GOBIN` would pass every check a symlink fails and get that file truncated. gup
+therefore refuses a lock file that has more than one name, because the ones it
+creates have exactly one:
+
+> can not open the gup lock file /home/you/go/bin/.gup.lock: the lock path is a hard link
 > to another file, and gup will not truncate a file it does not own: delete the lock file while no
 > gup is running, or point gup at a directory it owns
 
@@ -154,6 +180,14 @@ result describing a tool set that never existed. `unpin` only names an entry in
 `gup.json`, so it does not wait behind one. A `$GOBIN` that does not exist yet
 is created so that it can be locked — whether it exists is precisely what a
 concurrent `gup import` changes.
+
+If gup cannot work out what to lock, it stops instead of running unlocked. A
+directory it could not create — a parent that refuses it, a read-only filesystem,
+a full disk — is not the same as one that can never exist, and the command that
+would have run there is exactly the one another gup may be running at the same
+moment. A path that *cannot* be a directory, such as a regular file where
+`$GOBIN` or `AFTER_PATH` should be, is left to the command, which says so more
+clearly than a lock error could and writes nothing either way.
 
 `gup completion --install` and `gup man` write files and take no lock: both
 write atomically, and two runs of either produce byte-identical content, so a
