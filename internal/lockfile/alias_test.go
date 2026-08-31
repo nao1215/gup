@@ -242,23 +242,27 @@ func runAcquireSetChild(t *testing.T, paths []string, rounds int) error {
 // a cancellation has to perform. A gup interrupted while waiting for the second
 // of two locks must not walk away still holding the first: the next command
 // would wait out its whole timeout against a process that has already given up.
+//
+// Which of the two is "the second" is the filesystem's to decide, so the test
+// asks (see AcquisitionOrder) instead of assuming - naming the paths so that one
+// sorts first would test the old path ordering, not this one.
 func TestAcquireAll_releasesWhatItHeldWhenTheContextIsCanceled(t *testing.T) {
 	// Long enough that the cancellation, not the timeout, is what ends the wait.
 	t.Setenv(envWait, "30s")
 
 	dir := t.TempDir()
-	free := filepath.Join(dir, "aaa-free.lock")
-	taken := filepath.Join(dir, "zzz-taken.lock")
-	startHolder(t, taken)
+	first, last := lockOrder(t, filepath.Join(dir, "a.lock"), filepath.Join(dir, "b.lock"))
+	startHolder(t, last)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	waiting := make(chan error, 1)
 	go func() {
-		_, err := AcquireAll(ctx, cmdUpdate, free, taken)
+		_, err := AcquireAll(ctx, cmdUpdate, last, first)
 		waiting <- err
 	}()
 
-	// The other lock is held for good, so this call can only be waiting.
+	// The lock it needs last is held for good, so this call can only be waiting -
+	// with the first one taken.
 	time.Sleep(200 * time.Millisecond)
 	cancel()
 
@@ -274,32 +278,41 @@ func TestAcquireAll_releasesWhatItHeldWhenTheContextIsCanceled(t *testing.T) {
 		t.Fatal("AcquireAll() ignored the cancellation")
 	}
 
-	// The lock it had already taken is free RIGHT NOW, not after any timeout.
-	shortWait(t)
-	start := time.Now()
-	held, err := AcquireAll(t.Context(), "remove", free)
-	if err != nil {
-		t.Fatalf("the lock a canceled AcquireAll() had taken is still held: %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("re-taking the rolled-back lock took %v, want it to be free immediately", elapsed)
-	}
-	if err := held.Release(); err != nil {
-		t.Errorf("Release() = %v, want nil", err)
-	}
+	assertFreeImmediately(t, first, "a canceled AcquireAll()")
 }
 
-// TestAcquireAll_releasesWhatItHeldWhenALaterLockIsRefused covers the same
-// rollback for the other way an acquisition ends early: a path in the set that
-// cannot be opened at all. Everything taken before it has to be given back, or a
-// command that failed leaves the resource locked until the process exits.
-func TestAcquireAll_releasesWhatItHeldWhenALaterLockIsRefused(t *testing.T) { //nolint:paralleltest // sets the wait timeout
+// TestAcquireAll_releasesWhatItHeldWhenALaterLockIsBusy covers the same rollback
+// for the other way an acquisition ends early: a resource further along in the
+// set that another process is holding. Everything taken before it has to be
+// given back, or a command that failed leaves a resource locked until its
+// process exits - and the next command waits out its whole timeout against
+// nobody.
+func TestAcquireAll_releasesWhatItHeldWhenALaterLockIsBusy(t *testing.T) { //nolint:paralleltest // sets the wait timeout
+	shortWait(t)
+
+	dir := t.TempDir()
+	first, last := lockOrder(t, filepath.Join(dir, "a.lock"), filepath.Join(dir, "b.lock"))
+	startHolder(t, last)
+
+	if _, err := AcquireAll(t.Context(), cmdUpdate, last, first); err == nil {
+		t.Fatal("AcquireAll() succeeded although one lock is held by another process")
+	}
+	assertFreeImmediately(t, first, "a refused AcquireAll()")
+}
+
+// TestAcquireAll_leavesNoDescriptorBehindWhenAPathCanNotBeOpened covers the
+// failure that happens BEFORE any lock is taken: every path in the set is opened
+// first, because the identity that orders and deduplicates them is only knowable
+// from an open descriptor. A path that cannot be opened at all therefore ends
+// the acquisition with nothing held - and the descriptors already opened for the
+// rest of the set have to be closed, or the next attempt on one of those files
+// meets this process's own leftover.
+func TestAcquireAll_leavesNoDescriptorBehindWhenAPathCanNotBeOpened(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 
 	dir := t.TempDir()
 	good := filepath.Join(dir, "good.lock")
-	// A directory can never be a lock file, so opening it is refused - and the
-	// refusal happens while the good lock above may already be held.
+	// A directory can never be a lock file, so opening it is refused.
 	bad := filepath.Join(dir, "a-directory.lock")
 	if err := os.MkdirAll(bad, 0o750); err != nil {
 		t.Fatalf("failed to create the directory: %v", err)
@@ -308,14 +321,35 @@ func TestAcquireAll_releasesWhatItHeldWhenALaterLockIsRefused(t *testing.T) { //
 	if _, err := AcquireAll(t.Context(), cmdUpdate, good, bad); err == nil {
 		t.Fatal("AcquireAll() with an unusable path succeeded, want a refusal")
 	}
+	assertFreeImmediately(t, good, "a failed AcquireAll()")
+}
 
-	start := time.Now()
-	held, err := AcquireAll(t.Context(), "remove", good)
+// lockOrder reports two lock paths in the order AcquireAll will take them, so a
+// test can hold the one that comes second and know the other was taken first.
+func lockOrder(t *testing.T, a, b string) (string, string) {
+	t.Helper()
+	order, err := AcquisitionOrder(a, b)
 	if err != nil {
-		t.Fatalf("the lock the failed AcquireAll() had taken is still held: %v", err)
+		t.Fatalf("AcquisitionOrder() = %v, want the order the two are taken in", err)
+	}
+	if len(order) != 2 {
+		t.Fatalf("AcquisitionOrder() = %v, want two distinct locks", order)
+	}
+	return order[0], order[1]
+}
+
+// assertFreeImmediately takes path and fails if it was not available at once,
+// which is what a rollback that did not happen looks like: the wait runs to the
+// timeout and ends in a busy error naming this very process.
+func assertFreeImmediately(t *testing.T, path, after string) {
+	t.Helper()
+	start := time.Now()
+	held, err := AcquireAll(t.Context(), "remove", path)
+	if err != nil {
+		t.Fatalf("the lock %s had taken is still held: %v", after, err)
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("re-taking the rolled-back lock took %v, want it to be free immediately", elapsed)
+		t.Errorf("re-taking the lock %s rolled back took %v, want it free immediately", after, elapsed)
 	}
 	if err := held.Release(); err != nil {
 		t.Errorf("Release() = %v, want nil", err)

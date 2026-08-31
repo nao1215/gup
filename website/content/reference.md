@@ -121,7 +121,7 @@ waits for itself. When a command locks several resources it takes them in the
 order the filesystem's own identities put them in, which is the one order every
 gup agrees on however each of them spelled the paths.
 
-The lock guarding a `gup.json` is its neighbour, named after it, so `--file` is
+The lock guarding a `gup.json` is its neighbor, named after it, so `--file` is
 resolved to the single name the operating system agrees the file has before the
 lock is derived from it. On Windows that matters twice over: NTFS answers to an
 8.3 alias like `GUP~1.JSO` as well as to the long name, and Win32 strips trailing

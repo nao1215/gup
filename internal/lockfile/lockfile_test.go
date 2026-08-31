@@ -725,11 +725,14 @@ func TestWaitTimeout(t *testing.T) {
 // TestAcquireAll_takesEverythingOrNothing covers the rollback: a set that could
 // not be taken whole must leave nothing held, or the next command waits on a
 // resource nobody is using.
+//
+// The held one has to be the one taken LAST, or the acquisition fails before it
+// has anything to roll back. Which that is comes from AcquisitionOrder rather
+// than from how the paths sort: the order is the filesystem's (see AcquireAll).
 func TestAcquireAll_takesEverythingOrNothing(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	dir := t.TempDir()
-	first := filepath.Join(dir, "a.lock")
-	second := filepath.Join(dir, "b.lock")
+	first, second := lockOrder(t, filepath.Join(dir, "a.lock"), filepath.Join(dir, "b.lock"))
 	startHolder(t, second)
 
 	if _, err := AcquireAll(t.Context(), cmdUpdate, first, second); err == nil {
