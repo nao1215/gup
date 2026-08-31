@@ -1,0 +1,22 @@
+{
+    "version": "1.9.1",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/nao1215/gup/releases/download/v1.9.1/gup_1.9.1_windows_amd64.zip",
+            "bin": [
+                "gup.exe"
+            ],
+            "hash": "9daa4f79ee552142e8d3b32dbd1b01ab2484aecff2c9f99914cb3c5c3d284865"
+        },
+        "arm64": {
+            "url": "https://github.com/nao1215/gup/releases/download/v1.9.1/gup_1.9.1_windows_arm64.zip",
+            "bin": [
+                "gup.exe"
+            ],
+            "hash": "cb88151588d67516be667ae9e1384fe0e756a65957d527511eed4dd8fe16937a"
+        }
+    },
+    "homepage": "https://github.com/nao1215/gup",
+    "license": "Apache-2.0",
+    "description": "Fast manager for Go-installed binaries in $GOBIN: update, export/import, and migrate toolsets across machines"
+}
