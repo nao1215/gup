@@ -16,12 +16,20 @@
 #   lockholder  a small helper (e2e/lockholder) that takes one lock with gup's
 #               own lockfile package and holds it until it is killed. It is what
 #               makes a scenario deterministic.
-#   gup update  a real gup, made to sit still: it locks $GOBIN and gup.json in
-#               sorted path order, so with directories named aaa-gobin and
-#               zzz-config it takes the $GOBIN lock first and then blocks on the
-#               config lock that lockholder is holding. The $GOBIN lock the
-#               probes contend with is thus held by a genuine gup process, with
-#               no sleep and no dependence on how long an install takes.
+#   gup update  a real gup, made to sit still: lockholder -hold last takes the
+#               one of gup's two locks that gup takes SECOND, so the gup acquires
+#               the first one and then blocks. The lock a probe is refused by is
+#               thus held by a genuine gup process, with no sleep and no
+#               dependence on how long an install takes.
+#
+# -hold last is there because the acquisition order is not something a spec can
+# write down. gup takes a set of locks in the order the filesystem's identities
+# put them in, which is the one order every process agrees on however it spelled
+# the paths - and is unpredictable by construction. So the spec names both paths
+# and lets gup's own package say which comes last. Which of the two the gup ends
+# up holding is therefore unknown here, and does not need to be known: a probe
+# asking for the SAME set orders it the same way, so it always reaches the gup's
+# lock first, and the "who holds it" line in the refusal is what says so.
 #
 # One more helper appears, for the scenarios that are about a hostile lock PATH
 # rather than about contention:
@@ -93,37 +101,54 @@ scenarios:
             contains: "no such file or directory"
             not_contains: "another gup process is already running"
 
-  - name: two gup processes cannot hold the same $GOBIN lock
+  - name: two gup processes cannot hold the same lock
     env: *holder_env
     services:
-      # The config lock, held for real, is what keeps the gup below sitting on
-      # the $GOBIN lock instead of finishing.
-      - &config_holder
-        name: config-holder
-        command: lockholder -lock ${workdir}/zzz-config/gup/gup.json.lock -ready ${workdir}/config-holder.ready
+      # Holds whichever of gup's two locks gup takes SECOND, which is what keeps
+      # the gup below sitting on the first one instead of finishing.
+      - &tail_holder
+        name: tail-holder
+        command: >-
+          lockholder -hold last
+          -lock ${workdir}/aaa-gobin/.gup.lock
+          -lock ${workdir}/zzz-config/gup/gup.json.lock
+          -ready ${workdir}/tail-holder.ready -command pin
         env: *holder_env
         ready:
-          file: config-holder.ready
+          file: tail-holder.ready
           timeout: 20s
-      - name: holder
+      - &blocked_gup
+        name: holder
         command: gup update
-        env: *holder_env
-        ready:
-          # The holder has taken the $GOBIN lock once this file exists; it is
-          # then blocked on the config lock for the rest of its wait.
-          file: aaa-gobin/.gup.lock
-          timeout: 20s
+        env:
+          <<: *holder_env
+          # Longer than the probes below need, so the holder is still blocked -
+          # and still holding - for all of them.
+          GUP_LOCK_WAIT: "120s"
     steps:
       - fixture: *empty_gobin
+      # Asking for the same set means ordering it the same way, so this reaches
+      # the lock the holding gup took first, whichever of the two that is. The
+      # retry is for the holder's startup, not for the lock: until the gup is up,
+      # this is refused by lockholder instead, which records itself as `gup pin`.
       - run:
-          command: gup remove no-such-tool
+          command: gup update
           env:
             <<: *holder_env
             GUP_LOCK_WAIT: "200ms"
+          retry:
+            times: 60
+            interval: 250ms
+            until:
+              stderr:
+                contains: 'running "gup update"'
       - assert:
           exit_code: 1
           stderr:
-            contains: "another gup process is already running"
+            contains:
+              - "another gup process is already running"
+              # A real gup, named down to the subcommand it is running.
+              - 'running "gup update"'
             # The message must never send a user to delete the file: the lock is
             # the kernel's, so the file is not what is in their way.
             not_contains: "Delete it by hand"
@@ -167,15 +192,25 @@ scenarios:
       os: windows
     env: *holder_env
     services:
-      - *config_holder
-      - name: holder
-        command: gup update
-        env: *holder_env
-        ready:
-          file: aaa-gobin/.gup.lock
-          timeout: 20s
+      - *tail_holder
+      - *blocked_gup
     steps:
       - fixture: *empty_gobin
+      # First, establish that the gup really is holding a lock: a probe asking
+      # for the same set reaches its lock before lockholder's, so the refusal
+      # names `gup update`. Without this the assertion after the kill could pass
+      # against a gup that never held anything.
+      - run:
+          command: gup update
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+          retry:
+            times: 60
+            interval: 250ms
+            until:
+              stderr:
+                contains: 'running "gup update"'
       - signal:
           service: holder
           signal: KILL
@@ -185,17 +220,20 @@ scenarios:
           file:
             path: aaa-gobin/.gup.lock
             exists: true
+      # The same probe again. The killed gup ran no cleanup, and its lock is
+      # already gone: this now walks past it and stops at lockholder's instead,
+      # which records itself as `gup pin`. The lock the killed process held is
+      # free immediately, with nothing to reclaim and no file to delete.
       - run:
-          command: gup remove no-such-tool
+          command: gup update
           env:
             <<: *holder_env
             GUP_LOCK_WAIT: "200ms"
-      # It reached the command instead of the lock.
       - assert:
           exit_code: 1
           stderr:
-            contains: "no such file or directory"
-            not_contains: "another gup process is already running"
+            contains: 'running "gup pin"'
+            not_contains: 'running "gup update"'
 
   - name: an interrupted gup holds its lock until the process is gone
     # Releasing the lock from a signal handler looks tidy and is not safe: it
@@ -210,15 +248,22 @@ scenarios:
       os: windows
     env: *holder_env
     services:
-      - *config_holder
-      - name: holder
-        command: gup update
-        env: *holder_env
-        ready:
-          file: aaa-gobin/.gup.lock
-          timeout: 20s
+      - *tail_holder
+      - *blocked_gup
     steps:
       - fixture: *empty_gobin
+      # The gup is holding a lock, and says so through the refusal it causes.
+      - run:
+          command: gup update
+          env:
+            <<: *holder_env
+            GUP_LOCK_WAIT: "200ms"
+          retry:
+            times: 60
+            interval: 250ms
+            until:
+              stderr:
+                contains: 'running "gup update"'
       - signal:
           service: holder
           signal: INT
@@ -230,16 +275,19 @@ scenarios:
           file:
             path: aaa-gobin/.gup.lock
             exists: true
+      # The interrupted gup unwound, returned, and released on its way out - so
+      # this reaches lockholder's lock now, not the one the interrupted process
+      # was holding a moment ago.
       - run:
-          command: gup remove no-such-tool
+          command: gup update
           env:
             <<: *holder_env
             GUP_LOCK_WAIT: "200ms"
       - assert:
           exit_code: 1
           stderr:
-            contains: "no such file or directory"
-            not_contains: "another gup process is already running"
+            contains: 'running "gup pin"'
+            not_contains: 'running "gup update"'
 
   - name: gup refuses to remove its own lock file
     # `gup remove .gup.lock --force` used to delete the lock of the command
@@ -484,15 +532,20 @@ scenarios:
             path: precious.txt
             contains: "the file the lock path points at"
 
-  - name: a lock path hard-linked onto gup.json is refused, and gup.json is untouched
+  - name: a lock path hard-linked onto another file is refused, and that file is untouched
     # The symlink refusal's blind spot. A hard link makes gup.json.lock a second
-    # name for gup.json itself, and an open sees nothing wrong: there is no link
-    # in the path for O_NOFOLLOW or FILE_FLAG_OPEN_REPARSE_POINT to object to,
-    # and the file it lands on is an ordinary regular file. gup would then take
-    # the lock on the configuration file's own inode and TRUNCATE it to record
-    # who holds the lock - emptying the user's gup.json and writing owner JSON
-    # over it, with the command reporting success. The link count is what tells
-    # the two apart: a lock file gup created has exactly one name.
+    # name for a file holding real data, and an open sees nothing wrong: there is
+    # no link in the path for O_NOFOLLOW or FILE_FLAG_OPEN_REPARSE_POINT to
+    # object to, and the file it lands on is an ordinary regular file. gup would
+    # then take the lock on that file's own inode and TRUNCATE it to record who
+    # holds the lock - emptying it and writing owner JSON over it, with the
+    # command reporting success. The link count is what tells the two apart: a
+    # lock file gup created has exactly one name.
+    #
+    # The file on the other end is deliberately NOT the gup.json being written.
+    # That case is refused a step earlier now - a config with two names has no
+    # single name to build a lock from, see the scenario below - and this is
+    # about the lock path itself.
     #
     # Runs on every platform. The link is made by e2e/hardlinker (os.Link), which
     # works on NTFS as well as on Linux and macOS, so this needs no skip.
@@ -502,8 +555,11 @@ scenarios:
           file: shared/gup.json
           content: |
             {"schema_version": 1, "packages": []}
+      - fixture:
+          file: shared/precious.txt
+          content: "the file the lock path is a second name for"
       - run:
-          command: hardlinker -target ${workdir}/shared/gup.json -link ${workdir}/shared/gup.json.lock
+          command: hardlinker -target ${workdir}/shared/precious.txt -link ${workdir}/shared/gup.json.lock
           env: *iso
       - assert:
           exit_code: 0
@@ -522,19 +578,25 @@ scenarios:
       # for byte, and no owner record was written into it.
       - assert:
           file:
-            path: shared/gup.json
-            equals: |
-              {"schema_version": 1, "packages": []}
+            path: shared/precious.txt
+            equals: "the file the lock path is a second name for"
       # Said again from the other direction, because "byte for byte" is the claim
       # and these are the bytes that would be there if it were false: the owner
       # record, and anything the export itself would have written.
       - assert:
           file:
-            path: shared/gup.json
+            path: shared/precious.txt
             not_contains:
               - '"pid"'
               - '"acquired"'
               - "gup.test"
+      # The config the command was pointed at is untouched too: it failed on the
+      # lock, so the export never ran.
+      - assert:
+          file:
+            path: shared/gup.json
+            equals: |
+              {"schema_version": 1, "packages": []}
       # And with a lock path that is gup's own file, the same command works and
       # the lock behaves exactly as it does everywhere else: taken, released, and
       # left behind empty.
@@ -557,6 +619,101 @@ scenarios:
           file:
             path: clean/gup.json.lock
             size: 0
+
+  - name: a gup.json that has a second name is refused rather than locked at one of them
+    # The alias no canonicalization can resolve. The lock guarding a gup.json is
+    # its SIBLING, named after it, so the name gup was given decides which file
+    # the lock is - and two hard links to one config are two equally real names,
+    # in two different directories if you like. `--file a/gup.json` and
+    # `--file b/gup.json` would therefore take two different locks and never
+    # contend: two gups rewriting one file, both reporting success, one result
+    # lost with nothing to see afterwards.
+    #
+    # There is no canonical name to prefer, so gup refuses. Running unlocked is
+    # the one answer that is not on the table, and it is also a file gup could
+    # not write correctly anyway: the rewrite renames a temporary file over
+    # gup.json, which breaks the link, leaving the other name on the contents
+    # from before the command ran.
+    env: *iso
+    steps:
+      - fixture:
+          file: shared/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - run:
+          command: hardlinker -target ${workdir}/shared/gup.json -link ${workdir}/shared/also-gup.json
+          env: *iso
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup pin somebinary v1.0.0 --file ${workdir}/shared/gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "hard link"
+              # The file that could not be locked is named, so a user knows what
+              # to look at.
+              - "gup.json"
+      # Refused before anything was written, through either name.
+      - assert:
+          file:
+            path: shared/gup.json
+            equals: |
+              {"schema_version": 1, "packages": []}
+      - assert:
+          file:
+            path: shared/also-gup.json
+            equals: |
+              {"schema_version": 1, "packages": []}
+      # The other name is refused the same way: neither is the one true name.
+      - run:
+          command: gup pin somebinary v1.0.0 --file ${workdir}/shared/also-gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "hard link"
+
+  - name: a --file spelled with a trailing dot contends with the config it writes (windows)
+    # Win32 strips trailing dots and spaces before the filesystem ever sees a
+    # name, so `--file gup.json.` writes gup.json. The lock built by appending
+    # ".lock" to the name as typed, though, was gup.json..lock - which ends in
+    # "lock" and has nothing to strip, so it was a genuinely different file from
+    # gup.json.lock. Two gups writing one configuration, each holding a lock the
+    # other could not see.
+    #
+    # Windows only, because this is Win32's normalization: on Linux and macOS
+    # `gup.json.` is simply a different file, and locking it separately is right.
+    only:
+      os: windows
+    env: *iso
+    services:
+      - name: dotted-holder
+        command: lockholder -lock ${workdir}/shared/gup.json.lock -ready ${workdir}/dotted-holder.ready -command pin
+        env: *iso
+        ready:
+          file: dotted-holder.ready
+          timeout: 20s
+    steps:
+      - fixture:
+          file: shared/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - run:
+          command: gup pin somebinary v1.0.0 --file ${workdir}/shared/gup.json.
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "another gup process is already running"
+      # And the split lock is really gone: no second lock file was created
+      # beside the one the holder has.
+      - assert:
+          file:
+            path: shared/gup.json..lock
+            exists: false
 
   - name: a $GOBIN lock hard-linked onto another file is refused, and that file is untouched
     # The same attack against the directory lock. .gup.lock lives inside $GOBIN,

@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,12 +49,20 @@ const (
 	envHelperCounter = "GUP_LOCKFILE_TEST_COUNTER"
 	// envHelperRounds is how many times a contending child takes the lock.
 	envHelperRounds = "GUP_LOCKFILE_TEST_ROUNDS"
+	// envHelperSet is the list of lock files a roleAcquireSet child takes
+	// together, separated by the platform's list separator.
+	envHelperSet = "GUP_LOCKFILE_TEST_SET"
 
 	roleHold = "hold"
 	// roleHoldDropped holds the lock the way a careless caller would: it throws
 	// the Lock away and forces a garbage collection.
 	roleHoldDropped = "hold-dropped"
 	roleContend     = "contend"
+	// roleAcquireSet takes a whole SET of locks at once, repeatedly. It is what
+	// makes the acquisition ORDER testable: two children taking one pair of
+	// resources by differently-sorting names deadlock unless they agree on which
+	// to take first, and one process can never show that about two.
+	roleAcquireSet = "acquire-set"
 )
 
 // TestMain turns this test binary into the helper process the cross-process
@@ -73,6 +82,8 @@ func TestMain(m *testing.M) {
 		os.Exit(runHoldHelper(true))
 	case roleContend:
 		os.Exit(runContendHelper())
+	case roleAcquireSet:
+		os.Exit(runAcquireSetHelper())
 	}
 	os.Exit(m.Run())
 }
@@ -139,6 +150,38 @@ func runContendHelper() int {
 		}
 		if err := lock.Release(); err != nil {
 			fmt.Fprintf(os.Stderr, "helper could not release: %v\n", err)
+			return 1
+		}
+	}
+	return 0
+}
+
+// runAcquireSetHelper takes a whole set of locks, gives it straight back, and
+// does it again, so two children doing the same to one pair of resources spend
+// as much time as possible overlapping.
+//
+// It announces readiness before the first round rather than after, because what
+// the parent waits for here is a running process, not a held lock: the point is
+// that both are trying at once.
+func runAcquireSetHelper() int {
+	rounds, err := strconv.Atoi(os.Getenv(envHelperRounds))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "helper got an unusable round count: %v\n", err)
+		return 1
+	}
+	paths := filepath.SplitList(os.Getenv(envHelperSet))
+	if err := os.WriteFile(os.Getenv(envHelperReady), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil { //nolint:gosec // G703: the path comes from the parent test process, not a user.
+		fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err)
+		return 1
+	}
+	for range rounds {
+		held, err := AcquireAll(context.Background(), cmdUpdate, paths...)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "helper could not acquire %v: %v\n", paths, err)
+			return 1
+		}
+		if err := held.Release(); err != nil {
+			fmt.Fprintf(os.Stderr, "helper could not release %v: %v\n", paths, err)
 			return 1
 		}
 	}
@@ -402,8 +445,20 @@ func TestPathFor(t *testing.T) {
 	if !strings.HasPrefix(filepath.Base(PathForDir("bin")), ".") {
 		t.Error("the directory lock is not dot-prefixed, so it would show up as an installed binary")
 	}
-	if got, want := PathForFile(filepath.Join("cfg", "gup.json")), filepath.Join("cfg", "gup.json")+".lock"; got != want {
-		t.Errorf("PathForFile() = %q, want %q", got, want)
+	// The file lock is derived from the name the operating system agrees the file
+	// has, so it comes back absolute even when the caller spelled it relatively -
+	// two processes in different working directories must not derive two locks for
+	// one file.
+	config := filepath.Join(t.TempDir(), "gup.json")
+	got, err := PathForFile(config)
+	if err != nil {
+		t.Fatalf("PathForFile() error: %v", err)
+	}
+	if want := filepath.Base(config) + ".lock"; filepath.Base(got) != want {
+		t.Errorf("PathForFile() = %q, want a %q beside the file", got, want)
+	}
+	if dir := filepath.Dir(got); !strings.EqualFold(filepath.Base(dir), filepath.Base(filepath.Dir(config))) {
+		t.Errorf("PathForFile() = %q, want the lock in the file's own directory %q", got, filepath.Dir(config))
 	}
 }
 
@@ -670,11 +725,14 @@ func TestWaitTimeout(t *testing.T) {
 // TestAcquireAll_takesEverythingOrNothing covers the rollback: a set that could
 // not be taken whole must leave nothing held, or the next command waits on a
 // resource nobody is using.
+//
+// The held one has to be the one taken LAST, or the acquisition fails before it
+// has anything to roll back. Which that is comes from AcquisitionOrder rather
+// than from how the paths sort: the order is the filesystem's (see AcquireAll).
 func TestAcquireAll_takesEverythingOrNothing(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	dir := t.TempDir()
-	first := filepath.Join(dir, "a.lock")
-	second := filepath.Join(dir, "b.lock")
+	first, second := lockOrder(t, filepath.Join(dir, "a.lock"), filepath.Join(dir, "b.lock"))
 	startHolder(t, second)
 
 	if _, err := AcquireAll(t.Context(), cmdUpdate, first, second); err == nil {
@@ -691,28 +749,50 @@ func TestAcquireAll_takesEverythingOrNothing(t *testing.T) { //nolint:parallelte
 }
 
 // TestAcquireAll_ordersAndDeduplicates covers the two properties that make
-// deadlock impossible: the same set is always taken in the same order, however
-// it is spelled and however it is ordered by the caller.
+// deadlock impossible: one file is one lock, and the same set is always taken in
+// the same order however the caller ordered it.
+//
+// The order itself is deliberately not asserted against a literal. It is the
+// order of the files' identities, which the filesystem hands out and nothing can
+// predict - and predicting it is not what makes the lock safe. Two processes
+// AGREEING on it is, so that is what this asserts: the same set, given in two
+// different orders, comes back in one.
 func TestAcquireAll_ordersAndDeduplicates(t *testing.T) { //nolint:paralleltest // sets the wait timeout
 	shortWait(t)
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a.lock")
 	b := filepath.Join(dir, "b.lock")
 
-	held, err := AcquireAll(t.Context(), cmdUpdate, b, a, b)
-	if err != nil {
-		t.Fatalf("AcquireAll() = %v, want success", err)
+	first := acquireAllPaths(t, b, a, b)
+	if len(first) != 2 {
+		t.Fatalf("Paths() = %v, want the two distinct files (b was named twice)", first)
 	}
-	defer func() {
-		if err := held.Release(); err != nil {
-			t.Errorf("Release() = %v, want nil", err)
-		}
-	}()
+	sorted := append([]string(nil), first...)
+	slices.Sort(sorted)
+	if want := []string{a, b}; !slicesEqual(sorted, want) {
+		t.Errorf("locked %v, want exactly %v", sorted, want)
+	}
 
-	want := []string{a, b}
-	if got := held.Paths(); !slicesEqual(got, want) {
-		t.Errorf("Paths() = %v, want %v", got, want)
+	second := acquireAllPaths(t, a, b)
+	if !slicesEqual(first, second) {
+		t.Errorf("the same set was taken as %v and then as %v; two processes ordering it differently deadlock",
+			first, second)
 	}
+}
+
+// acquireAllPaths takes a set of locks, reports the order they were taken in,
+// and gives them back.
+func acquireAllPaths(t *testing.T, paths ...string) []string {
+	t.Helper()
+	held, err := AcquireAll(t.Context(), cmdUpdate, paths...)
+	if err != nil {
+		t.Fatalf("AcquireAll(%v) = %v, want success", paths, err)
+	}
+	order := held.Paths()
+	if err := held.Release(); err != nil {
+		t.Errorf("Release() = %v, want nil", err)
+	}
+	return order
 }
 
 // TestAcquireAll_withNoPathsIsANoOp covers a command that changes nothing: it

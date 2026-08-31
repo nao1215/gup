@@ -337,7 +337,7 @@ func Test_lockTargets(t *testing.T) {
 	}{
 		{
 			name: testCmdUpdate,
-			want: []string{lockfile.PathForDir(gobin), lockfile.PathForFile(defaultConfig)},
+			want: []string{lockfile.PathForDir(gobin), fileLock(t, defaultConfig)},
 		},
 		{
 			name:  testCmdUpdate + " --dry-run",
@@ -349,7 +349,7 @@ func Test_lockTargets(t *testing.T) {
 			// config from different XDG_CONFIG_HOME values would not contend.
 			name:  testCmdUpdate + " --file",
 			flags: map[string]string{"file": explicit},
-			want:  []string{lockfile.PathForDir(gobin), lockfile.PathForFile(explicit)},
+			want:  []string{lockfile.PathForDir(gobin), fileLock(t, explicit)},
 		},
 		{
 			name: testCmdImport,
@@ -364,7 +364,7 @@ func Test_lockTargets(t *testing.T) {
 			// export writes gup.json and its content is a snapshot of $GOBIN, so a
 			// concurrent remove must not delete a binary halfway through the walk.
 			name: testCmdExport,
-			want: []string{lockfile.PathForDir(gobin), lockfile.PathForFile(defaultConfig)},
+			want: []string{lockfile.PathForDir(gobin), fileLock(t, defaultConfig)},
 		},
 		{
 			name:  testCmdExport + " --output",
@@ -374,7 +374,7 @@ func Test_lockTargets(t *testing.T) {
 		{
 			name:  testCmdExport + " --file",
 			flags: map[string]string{"file": explicit},
-			want:  []string{lockfile.PathForDir(gobin), lockfile.PathForFile(explicit)},
+			want:  []string{lockfile.PathForDir(gobin), fileLock(t, explicit)},
 		},
 		{
 			name: testCmdRemove,
@@ -397,12 +397,12 @@ func Test_lockTargets(t *testing.T) {
 			// pin resolves its target against the installed binaries, so it locks
 			// $GOBIN for the same reason export does.
 			name: testCmdPin,
-			want: []string{lockfile.PathForDir(gobin), lockfile.PathForFile(defaultConfig)},
+			want: []string{lockfile.PathForDir(gobin), fileLock(t, defaultConfig)},
 		},
 		{
 			// unpin names an entry in gup.json and never looks at $GOBIN.
 			name: testCmdUnpin,
-			want: []string{lockfile.PathForFile(defaultConfig)},
+			want: []string{fileLock(t, defaultConfig)},
 		},
 	}
 
@@ -479,6 +479,19 @@ func findSubcommand(t *testing.T, name string) *cobra.Command {
 	return nil
 }
 
+// fileLock is lockfile.PathForFile for a test that knows the path is lockable.
+// The lock a file gets is derived from the one name the operating system agrees
+// the file has, which can fail (a file with a second name has no such name), so
+// the tests that only want the expected path say so here once.
+func fileLock(t *testing.T, path string) string {
+	t.Helper()
+	lock, err := lockfile.PathForFile(path)
+	if err != nil {
+		t.Fatalf("lockfile.PathForFile(%q) error: %v", path, err)
+	}
+	return lock
+}
+
 // Test_dirLockTarget_onlyLocksAnExistingDirectory covers why the lock does not
 // create the directory it guards. Creating it would take the resource into
 // existence before the command has looked at it: a path that is really a regular
@@ -492,10 +505,21 @@ func Test_dirLockTarget_onlyLocksAnExistingDirectory(t *testing.T) {
 		t.Fatalf("failed to write the file: %v", err)
 	}
 
-	if got := dirLockTarget(dir); len(got) != 1 || got[0] != lockfile.PathForDir(dir) {
+	got, err := dirLockTarget(dir)
+	if err != nil {
+		t.Fatalf("dirLockTarget(existing directory) error: %v", err)
+	}
+	if len(got) != 1 || got[0] != lockfile.PathForDir(dir) {
 		t.Errorf("dirLockTarget(existing directory) = %v, want the directory's lock", got)
 	}
-	if got := dirLockTarget(regular); got != nil {
+	// A regular file at the target is INPUT the command diagnoses better than the
+	// lock can, so it yields no lock and no error - and nothing is written there,
+	// because the command is about to fail on it.
+	got, err = dirLockTarget(regular)
+	if err != nil {
+		t.Fatalf("dirLockTarget(regular file) error: %v, want the command to report the problem itself", err)
+	}
+	if got != nil {
 		t.Errorf("dirLockTarget(regular file) = %v, want no lock so the command reports the problem itself", got)
 	}
 }
@@ -507,13 +531,16 @@ func Test_dirLockTarget_onlyLocksAnExistingDirectory(t *testing.T) {
 func Test_dirLockTarget_locksATargetThatDoesNotExistYet(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "not-created-yet")
 
-	got := dirLockTarget(target)
+	got, err := dirLockTarget(target)
+	if err != nil {
+		t.Fatalf("dirLockTarget(missing directory) error: %v", err)
+	}
 	if len(got) != 1 || got[0] != lockfile.PathForDir(target) {
 		t.Fatalf("dirLockTarget(missing directory) = %v, want it created and locked", got)
 	}
-	info, err := os.Stat(target)
-	if err != nil {
-		t.Fatalf("the directory was not created: %v", err)
+	info, statErr := os.Stat(target)
+	if statErr != nil {
+		t.Fatalf("the directory was not created: %v", statErr)
 	}
 	if !info.IsDir() {
 		t.Fatalf("%s was created but is not a directory", target)
@@ -529,18 +556,23 @@ func Test_dirLockTarget_locksATargetThatDoesNotExistYet(t *testing.T) {
 	}
 }
 
-// Test_dirLockTarget_leavesAnUncreatableTargetToTheCommand covers a parent that
-// rejects the mkdir: no lock, so the command reports the real problem instead of
-// a lock-file error about the same one.
-func Test_dirLockTarget_leavesAnUncreatableTargetToTheCommand(t *testing.T) {
+// Test_dirLockTarget_leavesAPathUnderAFileToTheCommand covers a target with a
+// regular file somewhere above it: that path can never be a directory, whoever
+// asks, so it is the command's own diagnosis to give and no lock is needed - the
+// command writes nothing.
+func Test_dirLockTarget_leavesAPathUnderAFileToTheCommand(t *testing.T) {
 	dir := t.TempDir()
 	blocker := filepath.Join(dir, "a-file")
 	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
 		t.Fatalf("failed to write the file: %v", err)
 	}
 
-	if got := dirLockTarget(filepath.Join(blocker, "under-a-file")); got != nil {
-		t.Errorf("dirLockTarget(uncreatable path) = %v, want no lock", got)
+	got, err := dirLockTarget(filepath.Join(blocker, "under-a-file"))
+	if err != nil {
+		t.Fatalf("dirLockTarget(path under a file) error: %v, want the command to report it", err)
+	}
+	if got != nil {
+		t.Errorf("dirLockTarget(path under a file) = %v, want no lock", got)
 	}
 }
 
@@ -616,7 +648,7 @@ func Test_configFileLockTargets_locksTheFileASymlinkPointsAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("configFileLockTargets() error: %v", err)
 	}
-	if want := []string{lockfile.PathForFile(real)}; !slices.Equal(got, want) {
+	if want := []string{fileLock(t, real)}; !slices.Equal(got, want) {
 		t.Errorf("configFileLockTargets() = %v, want %v (the file the write lands on)", got, want)
 	}
 }
@@ -725,7 +757,7 @@ func Test_updateLockTargets_locksTheFileASymlinkPointsAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("updateLockTargets() error: %v", err)
 	}
-	want := []string{lockfile.PathForDir(gobin), lockfile.PathForFile(real)}
+	want := []string{lockfile.PathForDir(gobin), fileLock(t, real)}
 	if !slices.Equal(got, want) {
 		t.Errorf("updateLockTargets() = %v, want %v (the file the write lands on)", got, want)
 	}
@@ -740,7 +772,10 @@ func Test_installedBinDirLockTarget_locksAGobinThatDoesNotExistYet(t *testing.T)
 	missing := filepath.Join(t.TempDir(), "no-such-gobin")
 	t.Setenv("GOBIN", missing)
 
-	got := installedBinDirLockTarget()
+	got, err := installedBinDirLockTarget()
+	if err != nil {
+		t.Fatalf("installedBinDirLockTarget() error: %v", err)
+	}
 	if want := []string{lockfile.PathForDir(missing)}; !slices.Equal(got, want) {
 		t.Fatalf("installedBinDirLockTarget() = %v, want %v", got, want)
 	}
@@ -839,7 +874,7 @@ func Test_withStateLock_refusesAConfigLockThatIsASymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	confFile := filepath.Join(dir, "gup.json")
-	symlinkOrSkipCmd(t, victim, lockfile.PathForFile(confFile))
+	symlinkOrSkipCmd(t, victim, fileLock(t, confFile))
 
 	code := 0
 	originalExit := OsExit
@@ -911,5 +946,143 @@ func Test_migrateLockTargets_takesOneLockForOneDirectoryNamedTwice(t *testing.T)
 	}
 	if got := held.Paths(); len(got) != 1 {
 		t.Errorf("Paths() = %v, want one lock for one directory", got)
+	}
+}
+
+// Test_dirLockTarget_failsClosedWhenTheDirectoryCanNotBeCreated is the fail-
+// closed rule, and the difference it draws is the whole point of the change.
+//
+// A path that CANNOT be a directory - a file sits there, or above it - is input
+// the command diagnoses better than the lock can, and it writes nothing, so it
+// yields no lock and no error. A path gup merely could not create is a different
+// thing entirely: a parent that refuses this process's mkdir says nothing about
+// whether the directory will exist a moment from now, or already exists for
+// another gup whose permissions differ. Returning "no lock" there used to let
+// the command run to completion with nothing guarding it at all.
+func Test_dirLockTarget_failsClosedWhenTheDirectoryCanNotBeCreated(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("a directory's mode does not stop a create on Windows, where permissions come from ACLs")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("running as root, which no permission bit refuses")
+	}
+
+	parent := filepath.Join(t.TempDir(), "read-only")
+	if err := os.Mkdir(parent, 0o500); err != nil {
+		t.Fatalf("failed to create the read-only parent: %v", err)
+	}
+	// Restored so the test framework can remove the tree it created.
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) //nolint:gosec // G302: a directory this test made unwritable on purpose
+
+	got, err := dirLockTarget(filepath.Join(parent, "gobin"))
+	if err == nil {
+		t.Fatalf("dirLockTarget(uncreatable directory) = %v, want an error rather than an unlocked run", got)
+	}
+	if got != nil {
+		t.Errorf("dirLockTarget() = %v alongside its error, want no lock", got)
+	}
+}
+
+// Test_withStateLock_doesNotRunTheCommandWhenTheLockCanNotBeResolved is the same
+// rule seen from where it matters. A command whose resources cannot be worked
+// out must not run: an unlocked `gup update` is exactly what the lock exists to
+// prevent, and it would report success while doing it.
+func Test_withStateLock_doesNotRunTheCommandWhenTheLockCanNotBeResolved(t *testing.T) {
+	if runtime.GOOS == goosWindows {
+		t.Skip("a directory's mode does not stop a create on Windows, where permissions come from ACLs")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("running as root, which no permission bit refuses")
+	}
+
+	parent := filepath.Join(t.TempDir(), "read-only")
+	if err := os.Mkdir(parent, 0o500); err != nil {
+		t.Fatalf("failed to create the read-only parent: %v", err)
+	}
+	// Restored so the test framework can remove the tree it created.
+	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) //nolint:gosec // G302: a directory this test made unwritable on purpose
+	t.Setenv("GOBIN", filepath.Join(parent, "gobin"))
+
+	buf := new(bytes.Buffer)
+	ran := false
+	code := withStateLock(print.New(buf, buf), newLockTestCommand(buf), nil, testCmdRemove, func() int {
+		ran = true
+		return 0
+	})
+
+	if ran {
+		t.Error("the command ran although gup could not work out what to lock")
+	}
+	if code != 1 {
+		t.Errorf("withStateLock() = %d, want 1", code)
+	}
+	if !strings.Contains(buf.String(), "lock") {
+		t.Errorf("withStateLock() reported %q, want it to say the lock could not be prepared", buf.String())
+	}
+}
+
+// Test_withStateLock_stillLeavesOrdinaryBadInputToTheCommand is the other half:
+// fail-closed must not swallow the messages users actually read. A $GOBIN that
+// is a regular file is input, not a filesystem failure, so the command runs and
+// produces its own diagnosis.
+func Test_withStateLock_stillLeavesOrdinaryBadInputToTheCommand(t *testing.T) {
+	regular := filepath.Join(t.TempDir(), "gobin-is-a-file")
+	if err := os.WriteFile(regular, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("failed to write the file: %v", err)
+	}
+	t.Setenv("GOBIN", regular)
+
+	buf := new(bytes.Buffer)
+	ran := false
+	code := withStateLock(print.New(buf, buf), newLockTestCommand(buf), nil, testCmdRemove, func() int {
+		ran = true
+		return 3
+	})
+
+	if !ran {
+		t.Error("the command did not run, so the user gets a lock error instead of the real problem")
+	}
+	if code != 3 {
+		t.Errorf("withStateLock() = %d, want the command's own status 3", code)
+	}
+}
+
+// Test_configFileLockTargets_refusesAConfigThatHasASecondName covers the alias
+// no canonicalization can resolve. A gup.json with two hard-linked names has no
+// name that is more truly its own, so the sibling lock built from one name is a
+// different file from the one built from the other: two gups rewriting one
+// configuration, each holding a lock the other cannot see. gup refuses instead,
+// and the command does not run.
+func Test_configFileLockTargets_refusesAConfigThatHasASecondName(t *testing.T) {
+	dir := t.TempDir()
+	config := filepath.Join(dir, "gup.json")
+	const content = `{"schema_version":1,"packages":[]}`
+	if err := os.WriteFile(config, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write the config: %v", err)
+	}
+	if err := os.Link(config, filepath.Join(dir, "also-gup.json")); err != nil {
+		t.Skipf("this filesystem does not support hard links: %v", err)
+	}
+
+	cmd := findSubcommand(t, testCmdUnpin)
+	if err := cmd.Flags().Set("file", config); err != nil {
+		t.Fatalf("failed to set --file: %v", err)
+	}
+	got, err := configFileLockTargets(cmd, nil)
+	if err == nil {
+		t.Fatalf("configFileLockTargets() = %v, want a refusal for a config with two names", got)
+	}
+	if !strings.Contains(err.Error(), "hard link") {
+		t.Errorf("configFileLockTargets() error = %v, want it to say the file has a second name", err)
+	}
+
+	// And the config is exactly as it was: a refusal that had already written
+	// something would be no better than the split lock it replaces.
+	after, err := os.ReadFile(config) //nolint:gosec // a path this test created
+	if err != nil {
+		t.Fatalf("the config could not be read back: %v", err)
+	}
+	if string(after) != content {
+		t.Errorf("the config now holds %q, want %q untouched", after, content)
 	}
 }
