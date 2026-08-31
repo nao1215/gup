@@ -112,9 +112,7 @@
 package lockfile
 
 import (
-	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -144,11 +142,6 @@ const (
 	// invoking user's PID and command line, so it is owner-readable only, like
 	// every other file gup writes.
 	lockFileMode fs.FileMode = 0600
-
-	// DirLockName is the lock file guarding a binary directory. The leading dot
-	// keeps it out of gup's own $GOBIN listing, which skips dot-prefixed entries
-	// (see goutil.BinaryPathList), so the lock cannot be mistaken for a tool.
-	DirLockName = ".gup.lock"
 )
 
 // envWait names the environment variable that overrides the wait timeout. It
@@ -171,217 +164,6 @@ func waitTimeout() time.Duration {
 		return defaultWait
 	}
 	return d
-}
-
-// IsReservedName reports whether name is a file gup keeps in a directory it
-// manages, rather than something a user installed there.
-//
-// $GOBIN holds the lock guarding $GOBIN, and `gup remove` deletes files from
-// $GOBIN by name. Without this, `gup remove .gup.lock --force` deletes the lock
-// of the very command running it: the kernel lock survives (it lives on the open
-// descriptor, not on the name), but the next gup creates a fresh file at the
-// free name and locks that instead, and the two run side by side. The name is
-// reserved rather than merely hidden, because "you cannot see it" is not the
-// same as "you cannot name it".
-//
-// The comparison ignores case because macOS and Windows do: on a case-insensitive
-// filesystem `.GUP.LOCK` opens the same file. Trailing dots and spaces are
-// stripped for the same reason: Win32 strips them before the name reaches the
-// filesystem, so `.gup.lock.` and `.gup.lock ` open the very file this refuses.
-// Both foldings are applied on every platform - no one installs a tool by any of
-// those names, and a rule that means different things per operating system is a
-// rule that gets tested on one of them.
-//
-// This is the readable half of the refusal, not the load-bearing one. A name can
-// reach a file in ways no amount of string folding covers - an 8.3 short name on
-// NTFS, a hard link, a spelling a future Windows normalizes some other way - so
-// `gup remove` also compares the file it is about to delete with the lock file
-// itself (see SameFile). This gives that refusal its explanation; SameFile makes
-// it true.
-func IsReservedName(name string) bool {
-	return strings.EqualFold(foldFileName(name), DirLockName)
-}
-
-// foldFileName reduces a file name the way the filesystem will before it decides
-// which file the name means: surrounding whitespace goes, and so do trailing
-// dots and spaces, which Win32 discards.
-func foldFileName(name string) string {
-	return strings.TrimRight(strings.TrimSpace(name), ". \t")
-}
-
-// SameFile reports whether two paths name one file on disk.
-//
-// It is what makes `gup remove` refuse to delete the lock guarding the $GOBIN it
-// is deleting from, whatever the user typed: a name normalization gup does not
-// know about, an 8.3 short name, a hard link. Removing that file would not
-// release the kernel lock - the lock is on an open descriptor, not on a name -
-// but it would free the NAME, and the next gup would create a fresh file there
-// and lock that instead, leaving two commands rewriting one $GOBIN each
-// believing it had the directory to itself.
-//
-// Both paths are stat'ed without following a final symbolic link, so a link that
-// POINTS at the lock file is normally not the lock file: deleting the link
-// leaves the lock where it is, and refusing it would refuse something harmless.
-// Where a platform cannot tell a link's own identity from its target's, such a
-// link is refused as well - an over-refusal of a deletion that could not have
-// hurt anything, which is the safe direction to be wrong in. A path that cannot
-// be stat'ed is not the same file as anything, because a file that is not there
-// is not the one being protected.
-func SameFile(a, b string) bool {
-	first, err := os.Lstat(a)
-	if err != nil {
-		return false
-	}
-	second, err := os.Lstat(b)
-	if err != nil {
-		return false
-	}
-	return os.SameFile(first, second)
-}
-
-// normalizePath resolves a lock path to a cleaned absolute one.
-//
-// Every entry point normalizes through here. What the result is used for is the
-// mkdir, the open, the order a set is acquired in, and every message naming the
-// lock - not the identity of the lock itself, which comes from the open file.
-// Failing is better than falling back to the relative path: a lock file the
-// working directory can move out from under is not a lock.
-func normalizePath(path string) (string, error) {
-	abs, err := filepath.Abs(filepath.Clean(path))
-	if err != nil {
-		return "", fmt.Errorf("can not resolve the gup lock path %s: %w", path, err)
-	}
-	return abs, nil
-}
-
-// PathForDir returns the lock file guarding a directory whose contents gup
-// mutates, such as a $GOBIN or a migrate destination.
-//
-// It needs no canonicalization, and that is a property of where it puts the
-// lock rather than an omission. The lock file lives INSIDE the directory it
-// guards, so every name that reaches the directory - a symlinked parent, an 8.3
-// alias, a different capitalization on macOS and Windows - reaches the same
-// .gup.lock inside it. The path strings differ; the file does not, which is the
-// only thing a lock is keyed on.
-func PathForDir(dir string) string { return filepath.Join(dir, DirLockName) }
-
-// lockFileSuffix is what turns the name of a file gup rewrites into the name of
-// the lock guarding it.
-const lockFileSuffix = ".lock"
-
-// PathForFile returns the lock file guarding a single file gup rewrites, such as
-// a gup.json. It sits beside the file so the lock travels with the resource,
-// which is what makes two processes with different configuration directories but
-// the same --file contend for the same lock.
-//
-// Unlike PathForDir, this one has to be canonicalized, and the reason is the
-// SIBLING placement it depends on. The lock is a second file in the same
-// directory whose name is built from the resource's own, so the name gup was
-// given decides which file the lock is - and one file answers to many names:
-//
-//   - On Windows, NTFS keeps an 8.3 alias for a long name, so a gup.json also
-//     answers to something like GUP~1.JSO, whose sibling lock would be
-//     GUP~1.JSO.lock rather than gup.json.lock.
-//   - Also on Windows, Win32 strips trailing dots and spaces before the
-//     filesystem ever sees a name, so `--file gup.json.` writes gup.json - while
-//     its sibling lock, gup.json..lock, has no trailing dot to strip and is
-//     therefore a different file from gup.json.lock.
-//   - Everywhere, a hard link makes two equally real names for one file, in two
-//     different directories if you like, and neither is more canonical than the
-//     other.
-//
-// Every one of those splits the lock: two gups writing one file, each holding a
-// lock the other cannot see, which is the exact failure the lock exists to
-// prevent and the one it would fail at silently.
-//
-// The first two are answered by asking the operating system which file the name
-// means and building the lock name from the answer (see canonicalTargetPath).
-// The third has no answer to give - a file with two names has no canonical one -
-// so it is REFUSED rather than guessed at. Continuing unlocked is not on the
-// table: an unprotected write is what this package exists to make impossible,
-// and a command that stops with a reason a user can act on is strictly better
-// than one that quietly runs alongside another.
-//
-// A symbolic link at file is followed first, so a gup.json linked into place by
-// a dotfile manager locks the file the write lands on rather than the link.
-func PathForFile(file string) (string, error) {
-	resolved, err := fileutil.ResolveSymlinkTarget(file)
-	if err != nil {
-		return "", fmt.Errorf("can not resolve the gup lock path for %s: %w", file, err)
-	}
-	normalized, err := normalizePath(resolved)
-	if err != nil {
-		return "", err
-	}
-	canonical, err := canonicalTargetPath(normalized)
-	if err != nil {
-		return "", fmt.Errorf("can not lock %s: %w", normalized, err)
-	}
-	return canonical + lockFileSuffix, nil
-}
-
-// Owner records who holds a lock. The holder writes it into the lock file so a
-// waiting process can name the command it is waiting for.
-//
-// It is descriptive only. Nothing about acquiring, holding or releasing a lock
-// consults it, and a record that is missing, truncated or written by a version
-// of gup that spelled it differently costs nothing but detail in one error
-// message.
-type Owner struct {
-	// PID is the operating-system process ID of the holder.
-	PID int `json:"pid"`
-	// Host is the machine the holder runs on, so a lock file on a shared home
-	// directory says which machine the process it names lives on.
-	Host string `json:"host"`
-	// Command is the gup subcommand that took the lock ("update", "import", ...),
-	// so the error message can say what is running rather than only that
-	// something is.
-	Command string `json:"command"`
-	// Acquired is when the lock was taken, in RFC 3339.
-	Acquired time.Time `json:"acquired"`
-}
-
-// BusyError reports that another gup process holds the lock. It is a distinct
-// type so a caller can tell "someone else is running" apart from "the lock file
-// could not be opened", which need different responses from a user.
-type BusyError struct {
-	// Path is the lock file that could not be acquired.
-	Path string
-	// Owner is what the lock file said. A record that could not be read leaves
-	// this zero, and the message degrades to naming only the path - the refusal
-	// itself came from the kernel, not from the file.
-	Owner Owner
-}
-
-// Error renders the message a user sees when two gup commands overlap. It names
-// the other process concretely, because the alternative - "resource temporarily
-// unavailable" - tells a user nothing about what to do.
-//
-// It deliberately does NOT suggest deleting the lock file, and says why in one
-// clause: the lock is the operating system's, so it is already gone if the
-// process is, and deleting the file while that process still runs buys the user
-// exactly the concurrent run the lock exists to prevent.
-func (e *BusyError) Error() string {
-	var b strings.Builder
-	b.WriteString("another gup process is already running")
-	if e.Owner.PID > 0 {
-		fmt.Fprintf(&b, " (pid %d", e.Owner.PID)
-		if e.Owner.Host != "" {
-			fmt.Fprintf(&b, " on %s", e.Owner.Host)
-		}
-		if e.Owner.Command != "" {
-			fmt.Fprintf(&b, ", running %q", "gup "+e.Owner.Command)
-		}
-		if !e.Owner.Acquired.IsZero() {
-			fmt.Fprintf(&b, ", since %s", e.Owner.Acquired.Format(time.RFC3339))
-		}
-		b.WriteString(")")
-	}
-	b.WriteString(". gup serializes commands that change your $GOBIN or gup.json," +
-		" so wait for it to finish and run this command again")
-	fmt.Fprintf(&b, ". The lock is held by the operating system, not by %s,"+
-		" so it is released the moment that process ends and there is never a file to delete by hand", e.Path)
-	return b.String()
 }
 
 // Lock is an acquired lock. Release returns it; it is safe to call Release more
@@ -425,58 +207,6 @@ func Acquire(ctx context.Context, path, command string) (*Lock, error) {
 	}
 	return lock, nil
 }
-
-// fileID is the identity a filesystem gives a file, as opposed to the many paths
-// that may reach it. It is what this package keys locks on: two spellings of one
-// file - through a symlinked directory, a relative path, a differently
-// capitalized $GOBIN - produce one fileID, and a lock is one per file.
-type fileID struct {
-	// device is the volume the file lives on: st_dev on Unix, the volume serial
-	// number on Windows.
-	device uint64
-	// index is the file's number within that volume: the inode on Unix, and on
-	// Windows the file index, which the API hands over as two 32-bit halves.
-	index uint64
-}
-
-// The reasons a lock path cannot be used, kept as values so a caller can tell
-// them apart and Acquire can wrap them all into one "can not open" message.
-var (
-	// errLockPathIsSymlink refuses to write through a link. gup created its lock
-	// files, so a link where one should be is somebody else's doing, and
-	// truncating whatever it points at is exactly what must not happen.
-	errLockPathIsSymlink = errors.New(
-		"the lock path is a symbolic link, and gup will not write through one:" +
-			" delete it, or point gup at a directory it owns")
-	// errLockPathIsHardLink refuses a lock file that is a second name for some
-	// other file. A symbolic link announces itself; a hard link does not - the two
-	// names are equally real, and the one gup opens is a perfectly ordinary
-	// regular file. `gup.json.lock` hard-linked onto `gup.json` would therefore
-	// pass every check a symlink fails, and the first thing gup does with a lock
-	// it has taken is truncate it to write the owner record: the configuration
-	// file would be emptied and the owner JSON written over it, by a command that
-	// reported success. The link count is what tells the two apart, because a lock
-	// file gup created has exactly one name.
-	errLockPathIsHardLink = errors.New(
-		"the lock path is a hard link to another file, and gup will not truncate a file it does not own:" +
-			" delete the lock file while no gup is running, or point gup at a directory it owns")
-	// errLockPathIsDirectory names the mistake of locking a directory itself
-	// rather than the lock file inside it.
-	errLockPathIsDirectory = errors.New("the lock path is a directory, not a file")
-	// errLockPathIsNotRegular covers the rest: a FIFO, a socket, a device.
-	errLockPathIsNotRegular = errors.New("the lock path is not a regular file")
-	// errTargetHasSecondName refuses to derive a lock from the name of a file
-	// that has more than one. PathForFile builds the lock's name out of the
-	// resource's, so a hard-linked gup.json reached by its other name yields a
-	// different lock file: two gups rewriting one configuration, each holding a
-	// lock the other cannot see. Unlike an 8.3 alias or a trailing dot, there is
-	// no canonical name to rewrite this one to - both names are equally real - so
-	// the only honest answers are to refuse or to run unprotected, and running
-	// unprotected is the thing this package exists to prevent.
-	errTargetHasSecondName = errors.New(
-		"the file has a second name (a hard link), so gup can not tell which lock protects it:" +
-			" remove the extra name while no gup is running, or point gup at a file that has only one")
-)
 
 // lockTarget is a lock file that has been opened but not yet locked. It carries
 // the identity the open reported, because what decides whether two targets are
@@ -691,17 +421,6 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 	return distinct, nil
 }
 
-// compareFileID orders two files the way every process ordering the same two
-// files will, whatever names they reached them by. The volume comes first and
-// the number within it second, which is an order with no meaning at all beyond
-// being the same one everywhere - which is the entire requirement.
-func compareFileID(a, b fileID) int {
-	if a.device != b.device {
-		return cmp.Compare(a.device, b.device)
-	}
-	return cmp.Compare(a.index, b.index)
-}
-
 // Release returns every held lock, in reverse acquisition order, and reports
 // every problem rather than the first.
 func (m *MultiLock) Release() error {
@@ -758,58 +477,6 @@ func (t *lockTarget) waitForKernelLock(ctx context.Context, command string) erro
 		}
 	}
 }
-
-// writeOwner records the holder in the lock file it has just taken.
-//
-// Every failure is ignored, and that is the point: the lock is already held by
-// the kernel, so refusing to proceed because a descriptive record could not be
-// written would turn a cosmetic problem into a failed command. The worst outcome
-// is a waiter that reports the path without naming the process.
-//
-// The file is truncated first because it may still carry a previous holder's
-// longer record, and a half-overwritten one would parse as neither.
-func writeOwner(file *os.File, command string) {
-	host, err := os.Hostname()
-	if err != nil {
-		host = ""
-	}
-	data, err := json.Marshal(Owner{
-		PID:      os.Getpid(),
-		Host:     host,
-		Command:  command,
-		Acquired: time.Now(),
-	})
-	if err != nil {
-		return
-	}
-	if err := file.Truncate(0); err != nil {
-		return
-	}
-	_, _ = file.WriteAt(append(data, '\n'), 0)
-}
-
-// readOwner parses the holder's record out of an open lock file. A file that is
-// empty, truncated or written by some other version of gup yields the zero
-// Owner, which the message renders as "another gup process is already running"
-// with no parenthesis.
-func readOwner(file *os.File) Owner {
-	raw := make([]byte, ownerRecordLimit)
-	n, err := file.ReadAt(raw, 0)
-	if n == 0 && err != nil {
-		return Owner{}
-	}
-	var owner Owner
-	if json.Unmarshal(raw[:n], &owner) != nil {
-		return Owner{}
-	}
-	return owner
-}
-
-// ownerRecordLimit bounds the read above. The record is a fixed set of short
-// fields, so anything longer is not one - and reading a bounded amount means a
-// lock file somebody filled with garbage costs a fixed read rather than its own
-// size in memory.
-const ownerRecordLimit = 4096
 
 // Release drops the kernel lock and closes the descriptor holding it. Calling it
 // twice is safe and returns the first call's result, so a defer plus an early
@@ -877,89 +544,3 @@ func (l *Lock) releaseFile() error {
 // deferred Release drops the lock - in that order, which is the order that is
 // safe. A command killed outright never returns at all, and the kernel drops its
 // lock as it reaps the process. Neither path can leave two gups running.
-
-// heldLocks keeps every lock this process holds reachable for as long as it
-// holds it.
-//
-// This is not bookkeeping; it is what makes the lock survive a caller that
-// forgets about it. The kernel lock lives on the descriptor inside a Lock, and
-// os.File closes itself from a finalizer once it becomes unreachable - so a
-// caller that acquires a lock and drops the value would have the lock released
-// on its behalf at the next garbage collection, silently, while it carried on
-// working. That is the one outcome this package exists to prevent, and it must
-// not depend on every caller holding the value carefully: a long-running holder
-// that never intends to release is exactly the shape of code that drops it.
-//
-// The entry goes when Release does, so a released lock is collectable again. One
-// that is never released stays reachable for the life of the process, which is
-// precisely how long it is held.
-var heldLocks = struct { //nolint:gochecknoglobals // process-wide by definition
-	mu    sync.Mutex
-	locks map[*Lock]struct{}
-}{locks: map[*Lock]struct{}{}}
-
-// rememberHeldLock keeps lock reachable until it is released.
-func rememberHeldLock(lock *Lock) {
-	heldLocks.mu.Lock()
-	defer heldLocks.mu.Unlock()
-	heldLocks.locks[lock] = struct{}{}
-}
-
-// forgetHeldLock lets a released lock be collected.
-func forgetHeldLock(lock *Lock) {
-	heldLocks.mu.Lock()
-	defer heldLocks.mu.Unlock()
-	delete(heldLocks.locks, lock)
-}
-
-// inProcessLocks serializes acquisitions of the same path inside one process.
-// The kernel lock alone would report a second acquisition in this process as a
-// foreign conflict, since it is taken per descriptor and cannot say whose
-// descriptor the other one is.
-//
-// It is keyed on the FILE rather than on the path, so two goroutines that
-// reached one lock file by different names - a symlinked directory, a relative
-// path - queue behind each other instead of racing on the kernel lock and
-// reporting this process as another one.
-var inProcessLocks = struct { //nolint:gochecknoglobals // process-wide by definition
-	mu   sync.Mutex
-	held map[fileID]chan struct{}
-}{held: map[fileID]chan struct{}{}}
-
-// acquireInProcess claims the in-process slot for a lock file and returns the
-// function that hands it back. path is carried only for the message. The wait is
-// bounded by the same timeout the cross-process wait uses: an unbounded wait here
-// would turn a caller that forgot to release into a hang with no diagnosis,
-// which is worse than a clear timeout.
-func acquireInProcess(ctx context.Context, id fileID, path string) (func(), error) {
-	timeout := time.NewTimer(waitTimeout())
-	defer timeout.Stop()
-
-	for {
-		inProcessLocks.mu.Lock()
-		if released, held := inProcessLocks.held[id]; held {
-			inProcessLocks.mu.Unlock()
-			select {
-			case <-released:
-				continue
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-timeout.C:
-				return nil, fmt.Errorf("timed out waiting for another operation in this gup process to release %s", path)
-			}
-		}
-		released := make(chan struct{})
-		inProcessLocks.held[id] = released
-		inProcessLocks.mu.Unlock()
-
-		var once sync.Once
-		return func() {
-			once.Do(func() {
-				inProcessLocks.mu.Lock()
-				delete(inProcessLocks.held, id)
-				inProcessLocks.mu.Unlock()
-				close(released)
-			})
-		}, nil
-	}
-}
