@@ -43,6 +43,11 @@ func lockRange() *windows.Overlapped {
 // to whatever it names, so the check below runs against the thing gup has, and
 // nothing has been written to anything by the time it fails.
 //
+// A hard link needs a different answer, because it is not a reparse point at
+// all: `gup.json.lock` linked onto `gup.json` opens as the ordinary file it is.
+// The link count reported alongside the file's identity is what refuses it, for
+// the reasons in errLockPathIsHardLink.
+//
 // The share mode admits every other opener. A lock file no second gup can open
 // would report a sharing violation instead of the "another gup is running"
 // message, which is the one thing the file is there to make possible.
@@ -106,6 +111,18 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
 		_ = windows.CloseHandle(handle)
 		return nil, fileID{}, errLockPathIsDirectory
+	}
+	// A file with more than one name is not a lock file gup made. NTFS has hard
+	// links, and one pointed at a gup.json gives that file a second name ending in
+	// .lock which no reparse-point check can object to: the handle is to an
+	// ordinary file, and truncating it for the owner record would empty the user's
+	// configuration. The link count comes from the same GetFileInformationByHandle
+	// call as the identity, so it describes the handle gup holds rather than a
+	// path that could have changed underneath it. A count of zero is not a second
+	// name - a volume that does not track link counts reports it.
+	if info.NumberOfLinks > 1 {
+		_ = windows.CloseHandle(handle)
+		return nil, fileID{}, errLockPathIsHardLink
 	}
 	return os.NewFile(uintptr(handle), path), fileID{
 		device: uint64(info.VolumeSerialNumber),

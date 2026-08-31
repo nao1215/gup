@@ -1,11 +1,11 @@
 // Command runner bootstraps gup's offline end-to-end suite and hands the specs
 // to atago.
 //
-// It builds gup, the test module proxy and the lock holder, starts that proxy,
-// warms a shared module cache, points every toolchain variable at a throwaway
-// temp tree, and runs the atago specs classified for this operating system. The
-// developer's real $HOME, ~/.config/gup and $GOBIN are never touched, and no
-// network access is required.
+// It builds gup, the test module proxy, the lock holder and the hard linker,
+// starts that proxy, warms a shared module cache, points every toolchain
+// variable at a throwaway temp tree, and runs the atago specs classified for
+// this operating system. The developer's real $HOME, ~/.config/gup and $GOBIN
+// are never touched, and no network access is required.
 //
 // The test DEFINITIONS are the atago YAML under e2e/atago; this program is only
 // the environment bootstrap. It is Go rather than the shell script it replaces
@@ -229,8 +229,8 @@ func countSpecs(e2eDir string) int {
 	return len(specs)
 }
 
-// buildBinaries compiles gup, the offline module proxy and the lock holder into
-// binDir.
+// buildBinaries compiles gup, the offline module proxy, the lock holder and the
+// hard linker into binDir.
 //
 // COVER=1 builds a coverage-instrumented gup so `make coverage` can collect the
 // real CLI's runtime coverage: atago passes the environment (including
@@ -247,7 +247,7 @@ func buildBinaries(repoRoot, binDir string) error {
 		"-ldflags", "-X github.com/nao1215/gup/internal/cmdinfo.Version=v0.0.0-e2e",
 		"-o", filepath.Join(binDir, exeName("gup")), ".")
 
-	fmt.Println("e2e: building gup, the test proxy and the lock holder...")
+	fmt.Println("e2e: building gup, the test proxy, the lock holder and the hard linker...")
 	if err := goRun(repoRoot, gupArgs...); err != nil {
 		return fmt.Errorf("can not build gup: %w", err)
 	}
@@ -260,6 +260,13 @@ func buildBinaries(repoRoot, binDir string) error {
 	// real lock, and this is it.
 	if err := goRun(repoRoot, "build", "-o", filepath.Join(binDir, exeName("lockholder")), "./e2e/lockholder"); err != nil {
 		return fmt.Errorf("can not build the lock holder: %w", err)
+	}
+	// The hard linker stages the other thing a spec cannot declare: a lock path
+	// that is a second name for a file holding real data. atago's fixtures write
+	// files and symlinks, and a hard link is neither - it is os.Link, which is
+	// also the only spelling of it that works on Linux, macOS and Windows alike.
+	if err := goRun(repoRoot, "build", "-o", filepath.Join(binDir, exeName("hardlinker")), "./e2e/hardlinker"); err != nil {
+		return fmt.Errorf("can not build the hard linker: %w", err)
 	}
 	return nil
 }

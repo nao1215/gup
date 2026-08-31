@@ -57,6 +57,21 @@ func openLockFile(path string) (*os.File, fileID, error) {
 			}
 			return nil, fileID{}, errLockPathIsNotRegular
 		}
+		// A regular file with more than one name is not a lock file gup made. It is
+		// somebody else's file that a hard link has given a second name ending in
+		// .lock, and the first thing an acquisition does is truncate it. O_NOFOLLOW
+		// cannot see this - there is no link in the path, and the two names are
+		// equally real - so the link count is what answers it. Asking st_nlink on
+		// the DESCRIPTOR, like the file kind above, answers about the file gup is
+		// about to write rather than about whatever the path meant a moment ago.
+		//
+		// A count of zero is not a second name: a filesystem that does not track
+		// link counts reports it, and so does a file already unlinked, which is
+		// nobody's data.
+		if widen(stat.Nlink) > 1 {
+			_ = unix.Close(fd)
+			return nil, fileID{}, errLockPathIsHardLink
+		}
 		if err := unix.SetNonblock(fd, false); err != nil {
 			_ = unix.Close(fd)
 			return nil, fileID{}, err
@@ -70,9 +85,11 @@ func openLockFile(path string) (*os.File, fileID, error) {
 //
 // It is generic because the supported platforms do not agree on how to spell
 // them: st_dev is uint64 on Linux and int32 on macOS, and a plain conversion
-// would be redundant on one and required on the other. These are identities
-// rather than quantities, so widening never loses anything that mattered.
-func widen[T ~int32 | ~uint32 | ~int64 | ~uint64](value T) uint64 {
+// would be redundant on one and required on the other. st_nlink, which the same
+// widening carries, is uint16 on macOS and uint64 on Linux for the same reason.
+// These are identities and counts rather than signed quantities, so widening
+// never loses anything that mattered.
+func widen[T ~uint16 | ~int32 | ~uint32 | ~int64 | ~uint64](value T) uint64 {
 	return uint64(value)
 }
 

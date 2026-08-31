@@ -23,6 +23,14 @@
 #               probes contend with is thus held by a genuine gup process, with
 #               no sleep and no dependence on how long an install takes.
 #
+# One more helper appears, for the scenarios that are about a hostile lock PATH
+# rather than about contention:
+#
+#   hardlinker  gives an existing file a second name (e2e/hardlinker, os.Link).
+#               A fixture can declare a symlink and cannot declare a hard link,
+#               because a hard link is not a property of the new name - the file
+#               simply has two, and only its link count says so.
+#
 # GUP_LOCK_WAIT shortens the acquisition timeout so the probes fail in
 # milliseconds instead of the shipped three seconds.
 #
@@ -475,6 +483,116 @@ scenarios:
           file:
             path: precious.txt
             contains: "the file the lock path points at"
+
+  - name: a lock path hard-linked onto gup.json is refused, and gup.json is untouched
+    # The symlink refusal's blind spot. A hard link makes gup.json.lock a second
+    # name for gup.json itself, and an open sees nothing wrong: there is no link
+    # in the path for O_NOFOLLOW or FILE_FLAG_OPEN_REPARSE_POINT to object to,
+    # and the file it lands on is an ordinary regular file. gup would then take
+    # the lock on the configuration file's own inode and TRUNCATE it to record
+    # who holds the lock - emptying the user's gup.json and writing owner JSON
+    # over it, with the command reporting success. The link count is what tells
+    # the two apart: a lock file gup created has exactly one name.
+    #
+    # Runs on every platform. The link is made by e2e/hardlinker (os.Link), which
+    # works on NTFS as well as on Linux and macOS, so this needs no skip.
+    env: *iso
+    steps:
+      - fixture:
+          file: shared/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - run:
+          command: hardlinker -target ${workdir}/shared/gup.json -link ${workdir}/shared/gup.json.lock
+          env: *iso
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup export --file ${workdir}/shared/gup.json
+          env: *iso
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "hard link"
+              # The path that could not be taken is named, so a user knows which
+              # file to look at.
+              - "gup.json.lock"
+      # The whole point: the file on the other end of the link comes back byte
+      # for byte, and no owner record was written into it.
+      - assert:
+          file:
+            path: shared/gup.json
+            equals: |
+              {"schema_version": 1, "packages": []}
+      # Said again from the other direction, because "byte for byte" is the claim
+      # and these are the bytes that would be there if it were false: the owner
+      # record, and anything the export itself would have written.
+      - assert:
+          file:
+            path: shared/gup.json
+            not_contains:
+              - '"pid"'
+              - '"acquired"'
+              - "gup.test"
+      # And with a lock path that is gup's own file, the same command works and
+      # the lock behaves exactly as it does everywhere else: taken, released, and
+      # left behind empty.
+      - fixture:
+          file: clean/gup.json
+          content: |
+            {"schema_version": 1, "packages": []}
+      - run:
+          command: gup export --file ${workdir}/clean/gup.json
+          env: *iso
+      - assert:
+          exit_code: 0
+          stderr:
+            not_contains: "hard link"
+      - assert:
+          file:
+            path: clean/gup.json.lock
+            exists: true
+      - assert:
+          file:
+            path: clean/gup.json.lock
+            size: 0
+
+  - name: a $GOBIN lock hard-linked onto another file is refused, and that file is untouched
+    # The same attack against the directory lock. .gup.lock lives inside $GOBIN,
+    # so anything that can write to $GOBIN can give one of the binaries there a
+    # second name reading .gup.lock - and gup truncates the file it locks.
+    env: *iso
+    steps:
+      - fixture:
+          file: gobin/.keep
+          content: "placeholder so $GOBIN exists"
+      - fixture:
+          file: gobin/precious
+          content: "a tool the user installed"
+      - run:
+          command: hardlinker -target ${workdir}/gobin/precious -link ${workdir}/gobin/.gup.lock
+          env: *iso
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup remove --force precious
+          env: *iso
+      # It failed on the lock, not on the removal: the command never ran.
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "hard link"
+              - ".gup.lock"
+      - assert:
+          file:
+            path: gobin/precious
+            equals: "a tool the user installed"
+      - assert:
+          file:
+            path: gobin/precious
+            not_contains: '"pid"'
 
   - name: migrate given one directory under two names takes one lock
     # BEFORE_PATH and AFTER_PATH used to be deduplicated as path STRINGS, so a
