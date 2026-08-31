@@ -132,6 +132,9 @@ that has more than one name, because the ones it creates have exactly one:
 > to another file, and gup will not truncate a file it does not own: delete the lock file while no
 > gup is running, or point gup at a directory it owns
 
+When two gup commands do overlap, the second one exits non-zero after naming the
+process that is in the way:
+
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
 > gup.json, so wait for it to finish and run this command again. The lock is held by the
