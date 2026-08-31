@@ -14,6 +14,12 @@ release's Windows `amd64`/`arm64` archive URLs and their SHA-256 hashes, so it
 cannot be edited by hand without going stale at the next tag. Change
 [`.goreleaser.yml`](../.goreleaser.yml) instead.
 
+It arrives as a pull request, `scoop-gup-<version>`, rather than as a commit:
+`main` is protected, and the release job is not exempt from that. Merging it is
+the last step of a release — until it lands, the bucket still describes the
+previous version, which is the safe direction for a file whose hashes have to
+match the artifacts a user downloads.
+
 Scoop and [winget](https://github.com/microsoft/winget-pkgs) are both published
 from the same release: winget carries the `nao1215.gup` package identifier, this
 bucket carries the `nao1215/gup` Scoop app. Installing through one does not

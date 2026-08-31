@@ -34,7 +34,8 @@ The release workflow then:
 - signs the checksums with cosign (keyless) and attaches an SBOM;
 - attests build provenance via GitHub OIDC;
 - updates the Homebrew tap (`nao1215/homebrew-tap`);
-- pushes the winget manifests to `nao1215/winget-pkgs` and opens the pull request against [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs).
+- pushes the winget manifests to `nao1215/winget-pkgs` and opens the pull request against [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs);
+- opens a `scoop-gup-<version>` pull request on this repository with the updated [Scoop manifest](../bucket/README.md), which is the one step of a release that is finished by hand.
 
 Packaging that needs nothing from us: the [homebrew-core formula](https://formulae.brew.sh/formula/gup) carries `autobump`, so Homebrew opens its own bump pull request from the new tag, and the AUR packages (`gup`, `gup-bin`) plus the nixpkgs `gogup` attribute are maintained by other people on their own schedule.
 
@@ -43,6 +44,7 @@ Packaging that needs nothing from us: the [homebrew-core formula](https://formul
 - `TAP_GITHUB_TOKEN`: a token with write access to `nao1215/homebrew-tap`,
   used to push the updated formula.
 - `WINGET_GITHUB_TOKEN`: a classic token with the `public_repo` scope, used to commit the winget manifests to `nao1215/winget-pkgs` and open the upstream pull request. A fine-grained token does not work here: it can only be scoped to repositories you own, and opening the pull request is a write against microsoft/winget-pkgs. A failure is logged without failing the release, so a rejected or delayed pull request never blocks a version.
+- `SCOOP_GITHUB_TOKEN`: optional. The token that opens the Scoop manifest pull request on this repository; `WINGET_GITHUB_TOKEN` is used when it is unset, and already has the access. It cannot be the workflow's built-in `GITHUB_TOKEN`: GitHub starts no workflow runs for events that token causes, so the pull request would have all eight required checks reported as never-run and could not be merged by anyone. If you narrow it to its own secret, it needs write access to `nao1215/gup` and permission to open pull requests there.
 
 ## The winget pull request
 A **stable** tagged release opens a pull request on microsoft/winget-pkgs; a moderator merges it once their validation pipeline passes, usually within a day. A pre-release tag opens nothing: `skip_upload: auto` skips the winget pipe whenever the tag carries a pre-release suffix, because the community repository takes stable versions only.
@@ -50,6 +52,10 @@ A **stable** tagged release opens a pull request on microsoft/winget-pkgs; a mod
 Until this was wired up a third-party bot submitted gup's manifests on its own schedule, which is why v1.5.1, v1.6.0, and v1.7.0 never reached winget. The bot skips a version that is already present, so publishing from the release simply takes over.
 
 ## After releasing
+- Merge the `scoop-gup-<version>` pull request. It is the only publishing step a
+  human finishes, because `main` is protected and the release job is not exempt.
+  Until it merges, `scoop install nao1215/gup` still installs the previous
+  version.
 - Check the [Releases page](https://github.com/nao1215/gup/releases) for the
   generated notes and artifacts.
 - Verify a downloaded artifact as described in
