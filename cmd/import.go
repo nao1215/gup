@@ -105,8 +105,8 @@ func runImport(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	}
 
 	if len(pkgs) == 0 {
-		p.Err("unable to import package: no package information")
-		return 1
+		p.Info("nothing to import from " + confFile)
+		return 0
 	}
 
 	p.Info("start import based on " + confFile)
