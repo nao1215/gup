@@ -52,11 +52,6 @@ versions recorded in that gup.json.`,
 }
 
 func runImport(p *print.Printer, cmd *cobra.Command, _ []string) int {
-	if err := ensureGoCommandAvailable(); err != nil {
-		p.Err(err)
-		return 1
-	}
-
 	dryRun, err := getFlagBool(cmd, "dry-run")
 	if err != nil {
 		p.Err(err)
@@ -107,6 +102,11 @@ func runImport(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	if len(pkgs) == 0 {
 		p.Info("nothing to import from " + confFile)
 		return 0
+	}
+
+	if err := ensureGoCommandAvailable(); err != nil {
+		p.Err(err)
+		return 1
 	}
 
 	p.Info("start import based on " + confFile)

@@ -42,6 +42,8 @@ func Test_importEmptyExport(t *testing.T) {
 				t.Fatal(err)
 			}
 			buf.Reset()
+			// Importing an empty export must not require the Go toolchain.
+			t.Setenv("PATH", "")
 			if code := runImport(p, cmd, nil); code != 0 {
 				t.Fatalf("import of empty export = %d: %s", code, buf.String())
 			}

@@ -87,8 +87,15 @@ func Test_runImport_flagErrors(t *testing.T) {
 
 func Test_runImport_notUseGoCmd(t *testing.T) {
 	t.Setenv("PATH", "")
+	confPath := filepath.Join(t.TempDir(), "gup.json")
+	if err := os.WriteFile(confPath, []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newImportCmd()
+	if err := cmd.Flags().Set("file", confPath); err != nil {
+		t.Fatal(err)
+	}
 
 	p, buf := newTestPrinter()
 
