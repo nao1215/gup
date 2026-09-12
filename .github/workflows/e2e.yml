@@ -63,10 +63,9 @@ jobs:
       - name: Install atago
         uses: nao1215/setup-atago@e4b6719aea547a68e6c15252222babab7f492a88 # v0.1.1
         with:
-          # v0.21.0 is the version the cross-platform specs were written and
-          # verified against; the per-OS `skip:`/`only:` gates they use are
-          # validated by its loader.
-          version: v0.21.0
+          # The version the cross-platform specs are verified against; the per-OS
+          # `skip:`/`only:` gates they use are validated by its loader.
+          version: v0.22.0
 
       # The runner picks the specs classified for this OS and prints how many of
       # the total it is running, so a shrunken leg is visible in the log rather
