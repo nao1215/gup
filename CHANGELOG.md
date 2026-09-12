@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [v1.9.2](https://github.com/nao1215/gup/compare/v1.9.1...v1.9.2) (2026-09-12)
+
 ### Bug Fixes
 
 * `gup remove <tool> < /dev/null` refuses up front and names `--force`, instead of printing the confirmation prompt and then failing on the EOF that comes straight back. Whether a confirmation may be asked for was decided from stdin's file mode, and `/dev/null` carries the same `ModeDevice|ModeCharDevice` bits a terminal does, so the guard added for a non-TTY stdin never fired for it. The distinction between a terminal and any other character device exists only in the kernel, and gup now asks it. A redirect from a regular file or a pipe was already refused correctly; a device file was the one shape that reached the prompt.
