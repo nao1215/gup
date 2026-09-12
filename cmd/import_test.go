@@ -87,8 +87,15 @@ func Test_runImport_flagErrors(t *testing.T) {
 
 func Test_runImport_notUseGoCmd(t *testing.T) {
 	t.Setenv("PATH", "")
+	confPath := filepath.Join(t.TempDir(), "gup.json")
+	if err := os.WriteFile(confPath, []byte(validImportConf), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := newImportCmd()
+	if err := cmd.Flags().Set("file", confPath); err != nil {
+		t.Fatal(err)
+	}
 
 	p, buf := newTestPrinter()
 
@@ -166,12 +173,12 @@ func Test_runImport_emptyConf(t *testing.T) {
 
 	got := runImport(p, cmd, nil)
 
-	if got != 1 {
-		t.Errorf("runImport() = %v, want 1", got)
+	if got != 0 {
+		t.Errorf("runImport() = %v, want 0", got)
 	}
 
-	if !strings.Contains(buf.String(), "unable to import package") {
-		t.Errorf("expected 'unable to import package' error, got: %s", buf.String())
+	if !strings.Contains(buf.String(), "nothing to import from "+confPath) {
+		t.Errorf("expected empty configuration message, got: %s", buf.String())
 	}
 }
 
@@ -196,9 +203,9 @@ func Test_runImport_jobsClamp(t *testing.T) {
 	// Should not panic with jobs=0 (clamped to 1)
 	got := runImport(p, cmd, nil)
 
-	// Expect exit code 1 because the conf file has no packages
-	if got != 1 {
-		t.Errorf("runImport() = %v, want 1", got)
+	// An empty configuration succeeds without installing anything.
+	if got != 0 {
+		t.Errorf("runImport() = %v, want 0", got)
 	}
 }
 
