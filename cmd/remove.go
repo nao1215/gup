@@ -13,6 +13,7 @@ import (
 	"github.com/nao1215/gup/internal/lockfile"
 	"github.com/nao1215/gup/internal/print"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func newRemoveCmd() *cobra.Command {
@@ -69,11 +70,19 @@ var GOOS = runtime.GOOS //nolint:gochecknoglobals
 // stdinIsTerminal reports whether os.Stdin is connected to a terminal (TTY).
 // It is a package-level variable so that it can be overridden in unit tests.
 var stdinIsTerminal = func() bool { //nolint:gochecknoglobals
-	info, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	return isTerminal(os.Stdin)
+}
+
+// isTerminal reports whether f is a terminal.
+//
+// The answer takes an ioctl rather than a file mode (#422). /dev/null carries
+// the same ModeDevice|ModeCharDevice bits a TTY does, so a mode check treated
+// `gup remove x < /dev/null` as interactive: the command reached the confirmation
+// prompt and then failed on the EOF that came back immediately, instead of
+// refusing up front and naming --force. golang.org/x/term asks the kernel,
+// which is the only place the distinction exists.
+func isTerminal(f *os.File) bool {
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func removeLoop(p *print.Printer, gobin string, force bool, target []string) int {
