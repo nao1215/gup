@@ -60,6 +60,29 @@ scenarios:
             path: gobin/outdated
             exists: true
 
+  - name: refuses to remove without --force when stdin is /dev/null (#422)
+    # A pipe and a device file are different things to the kernel, and gup used
+    # to tell them apart by file mode: /dev/null carries the same
+    # ModeDevice|ModeCharDevice bits a TTY does, so this redirect reached the
+    # confirmation prompt and died on the EOF that came straight back. The
+    # scenario above covers the pipe; this one covers the device.
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          shell: true
+          command: gup remove outdated < /dev/null
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "not a TTY"
+          file:
+            path: gobin/outdated
+            exists: true
+
   - name: list --json annotates an installed binary as installed
     env: *iso
     steps:
