@@ -24,7 +24,7 @@ func Test_importEmptyExport(t *testing.T) {
 			if code := export(p, exportCmd, nil); code != 0 {
 				t.Fatalf("export() = %d: %s", code, buf.String())
 			}
-			before, err := os.ReadFile(confPath)
+			before, err := os.ReadFile(confPath) //nolint:gosec // fixed filename under t.TempDir(), not user-controlled
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +50,7 @@ func Test_importEmptyExport(t *testing.T) {
 			if !strings.Contains(buf.String(), "nothing to import") || !strings.Contains(buf.String(), confPath) {
 				t.Errorf("expected no-work message naming configuration: %s", buf.String())
 			}
-			after, err := os.ReadFile(confPath)
+			after, err := os.ReadFile(confPath) //nolint:gosec // fixed filename under t.TempDir(), not user-controlled
 			if err != nil {
 				t.Fatal(err)
 			}
