@@ -538,7 +538,10 @@ Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#
 *Update time: 9 binaries each with a newer version available; gup updates in parallel, the others sequentially. AMD Ryzen AI Max+ 395 / go 1.26.4, median of 5 runs with a warm module cache; times depend on build time and CPU.*
 
 ## Integrations
-[Topgrade](https://github.com/topgrade-rs/topgrade) updates the Go binaries under `$GOBIN` by running `gup update` when gup is installed. Nothing extra is needed on the gup side; how the step behaves is documented by Topgrade.
+gup runs inside higher-level upgrade tools. Nothing extra is needed on the gup side.
+
+- [Topgrade](https://github.com/topgrade-rs/topgrade) has run `gup update` in its Go step since v10.2.0. Binaries can be skipped with `gup_exclude` (v17.3.0 and later).
+- [Meta Package Manager](https://github.com/kdeldycke/meta-package-manager) lists, checks, removes, and upgrades the binaries gup manages. The support ships in its upcoming v8.0.0.
 
 ## FAQ
 
