@@ -340,7 +340,9 @@ func lockOrder(t *testing.T, a, b string) (string, string) {
 
 // assertFreeImmediately takes path and fails if it was not available at once,
 // which is what a rollback that did not happen looks like: the wait runs to the
-// timeout and ends in a busy error naming this very process.
+// timeout and ends in a busy error naming this very process. The bound is far
+// below the 30s wait a caller may set and far above what a slow runner needs to
+// open a file, so it separates the two without timing the filesystem.
 func assertFreeImmediately(t *testing.T, path, after string) {
 	t.Helper()
 	start := time.Now()
@@ -348,7 +350,7 @@ func assertFreeImmediately(t *testing.T, path, after string) {
 	if err != nil {
 		t.Fatalf("the lock %s had taken is still held: %v", after, err)
 	}
-	if elapsed := time.Since(start); elapsed > time.Second {
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
 		t.Errorf("re-taking the lock %s rolled back took %v, want it free immediately", after, elapsed)
 	}
 	if err := held.Release(); err != nil {

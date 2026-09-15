@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/nao1215/gup/internal/fileutil"
@@ -931,7 +930,9 @@ func Test_migrateLockTargets_takesOneLockForOneDirectoryNamedTwice(t *testing.T)
 		t.Fatalf("migrateLockTargets() = %v, want both directories named", paths)
 	}
 
-	start := time.Now()
+	// A contended set fails with a busy error once GUP_LOCK_WAIT runs out, so
+	// success is the proof that the two names did not wait on each other. A
+	// wall-clock bound adds nothing but a failure on a slow runner.
 	held, err := lockfile.AcquireAll(t.Context(), testCmdMigrate, paths...)
 	if err != nil {
 		t.Fatalf("AcquireAll(%v) = %v, want success: migrate waited on itself", paths, err)
@@ -941,9 +942,6 @@ func Test_migrateLockTargets_takesOneLockForOneDirectoryNamedTwice(t *testing.T)
 			t.Errorf("Release() = %v, want nil", err)
 		}
 	}()
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("AcquireAll() took %v: the two names for one directory contended", elapsed)
-	}
 	if got := held.Paths(); len(got) != 1 {
 		t.Errorf("Paths() = %v, want one lock for one directory", got)
 	}
