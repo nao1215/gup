@@ -20,7 +20,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // symlinkOrSkip links link to target, skipping when the platform refuses to let
@@ -135,7 +134,7 @@ func TestAcquireAll_treatsASymlinkedDirectoryAsOneLock(t *testing.T) { //nolint:
 	alias := filepath.Join(root, "alias")
 	symlinkOrSkip(t, real, alias)
 
-	start := time.Now()
+	// shortWait turns contention into a busy error, so success is the proof.
 	held, err := AcquireAll(t.Context(), "migrate", PathForDir(real), PathForDir(alias))
 	if err != nil {
 		t.Fatalf("AcquireAll() on one directory named twice = %v, want success", err)
@@ -145,9 +144,6 @@ func TestAcquireAll_treatsASymlinkedDirectoryAsOneLock(t *testing.T) { //nolint:
 			t.Errorf("Release() = %v, want nil", err)
 		}
 	}()
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("AcquireAll() took %v: the two names contended against each other", elapsed)
-	}
 	if got := held.Paths(); len(got) != 1 {
 		t.Errorf("Paths() = %v, want one lock for one directory", got)
 	}
