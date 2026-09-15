@@ -22,16 +22,7 @@ Documentation: **https://nao1215.github.io/gup/**
 - Windows
 
 ### Supported Go versions
-Unit tests run on Go 1.25, 1.26, and 1.27 across Linux, macOS, and Windows, and a
-separate job tracks the latest Go release so a toolchain that is not yet a
-supported minor cannot break gup unnoticed. `go.mod` declares Go 1.25 as the
-minimum, so building from source needs Go 1.25 or newer.
-
-The prebuilt release binaries are built with the latest Go 1.27 patch release:
-installing a package or archive gives you the current Go runtime even if you
-never install Go yourself. Because Go 1.27 dropped support for macOS 12 and
-earlier, the macOS release binaries require macOS 13 Ventura or newer; on an
-older macOS, build gup from source with a Go version that still supports it.
+Unit tests run on Go 1.25, 1.26, and 1.27. Building from source needs Go 1.25 or newer. The release binaries are built with the latest Go 1.27 patch release, so on macOS they need macOS 13 Ventura or newer.
 
 ## How to install
 gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
@@ -173,7 +164,7 @@ $ gup pin golangci-lint v1.62.0
 $ gup update
 ```
 
-A pinned tool is installed with the recorded version (`go install <import_path>@<version>`), never `@latest`. `gup update` keeps it at that version and reinstalls it there if the installed version differs; the rest of the tool set still updates as usual. The pin locks the module version, not the Go build, so a pinned tool is still rebuilt at the pinned version when the Go toolchain changes (use `--ignore-go-update` to suppress that, exactly as for unpinned tools). The pin is stored in `gup.json` with `channel: "pinned"`:
+`gup update` keeps a pinned tool at that version while the rest of the tool set updates. The pin is stored in `gup.json`:
 
 ```json
 {
@@ -189,13 +180,11 @@ A pinned tool is installed with the recorded version (`go install <import_path>@
 }
 ```
 
-`gup pin` also accepts the `tool@version` form (`gup pin golangci-lint@v1.62.0`). The tool must already be installed under `$GOBIN`. To allow the tool to update again:
+To allow the tool to update again:
 
 ```shell
 $ gup unpin golangci-lint
 ```
-
-`gup check` reports a pinned tool as `pinned` when it is at the pinned version and built with the current Go toolchain, or `pin-mismatch` (with a `gup update <name>` suggestion) when the installed version differs or a Go-toolchain rebuild is pending; it never compares a pinned tool against `@latest`.
 
 ### List up command name with package path and version under $GOPATH/bin
 list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
@@ -218,8 +207,6 @@ If you want to force the removal, use the --force option.
 $ gup remove --force gal
 removed /home/nao/.go/bin/gal
 ```
-
-In non-interactive execution (when stdin is not a TTY, e.g. CI or a pipe), `gup remove` no longer blocks waiting for confirmation. It fails fast with a clear message; pass `--force` to remove without confirmation.
 
 ### Check if the binary is the latest version
 If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
@@ -281,9 +268,7 @@ $ gup check --json
 ]
 ```
 
-Each element has these fields: `name`, `import_path`, `module_path`, `channel` (`latest`/`main`/`master`/`pinned`), `current_version`, `latest_version` (empty for `list` and for pinned packages), `pinned_version` (present only for `channel: "pinned"`), `current_go_version`, `installed_go_version`, `status`, `error` (omitted when absent), and `hint` (a next-step suggestion, present only when one applies to the error). `status` is `installed` (list), `up-to-date`, `update-available` (check), `updated` (update), `pinned`/`pin-mismatch` (a pinned package at / away from its pinned version), or `error`.
-
-The array is always valid JSON, including partial failures (those packages get `"status": "error"`; error detail also goes to STDERR so STDOUT stays pure JSON). Exit codes are unchanged—`check` reporting `update-available` still exits `0`.
+The fields are listed in the [reference](https://nao1215.github.io/gup/reference/#json-output-fields).
 
 ### Failure diagnostics / next-step hints
 When `update` or `check` fails, gup turns the Go toolchain's cryptic output into a short, actionable next step printed on STDERR right after the error (and exposed as the `hint` field with `--json`):
@@ -295,21 +280,9 @@ go: gup.test/moved/cmd/tool@latest: module gup.test/moved@latest found (v1.1.0),
 gup:HINT : The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.
 ```
 
-Hints cover module renames/major-version moves, relocated commands, `go.mod` `replace` directives, binaries not installed via `go install`, missing branch/tag, unresolvable/private/deleted repositories, permission and network errors, and an out-of-date Go toolchain. gup stays silent when it has nothing reliable to add (e.g. a timeout, whose message already names the remedy).
-
-### Behavior on an empty environment
-An empty global environment (no binaries installed by `go install` yet) is treated as a normal first-run condition, not an error:
-
-- `list`, `check`, and `update` exit `0`, printing a short informational note (or a valid empty `[]` with `--json`).
-- `export` exits `0` and writes an empty `gup.json`.
-
-Naming a binary that is not installed, or excluding every binary, is still a usage error and exits `1`.
-
-A config problem is also still reported even on an empty environment: if the `gup.json` that would be read (an explicit `--file`, or an auto-detected one) is malformed, has an unsupported schema/channel/pin, or is ambiguous (both the user-level config and `./gup.json` exist with no `--file`), `check`, `update`, and `list --json` fail fast and exit `1` instead of silently ignoring it.
-
 ### Export／Import subcommand
 Use export/import when you want to install the same Go binaries across multiple systems.
-`gup.json` stores each tool's import path, the recorded binary `version`, and its update `channel` (`latest` / `main` / `master` / `pinned`). For `channel: "pinned"`, `version` is the exact target version the tool is held at; for the other channels it is the version that was recorded at export time. `import` installs the exact version written in the file, and a pinned package stays pinned after import.
+`gup.json` records each tool's import path, version, and update channel. The schema and the lookup order are in the [reference](https://nao1215.github.io/gup/reference/#gupjson).
 
 ```json
 {
@@ -330,20 +303,6 @@ Use export/import when you want to install the same Go binaries across multiple 
   ]
 }
 ```
-
-By default:
-- `gup export` writes to `$XDG_CONFIG_HOME/gup/gup.json`
-- `gup import`, `gup check`, and `gup update` auto-detect the config path in this order:
-  1) `$XDG_CONFIG_HOME/gup/gup.json` (if exists)
-  2) `./gup.json` (if exists)
-
-If both the user-level `gup.json` and `./gup.json` exist, `import`, `check`, `update`, and `list --json` fail fast and ask you to disambiguate with `--file`, instead of silently picking one. You can always override the path with `--file` (`-f`); `list` accepts `--file` together with `--json` to choose the config that supplies the reported `channel`.
-
-`schema_version` is `1` for configs with no pinned packages and `2` once any package is pinned, so an environment that uses no pins keeps producing the `1` format that older gup releases can read. gup reads both `1` and `2`. The `pinned` channel is only valid under `schema_version: 2`; a `pinned` entry under `schema_version: 1`, a pinned package without a concrete version, an unknown channel value, or an unsupported `schema_version` is rejected.
-
-A malformed or invalid `gup.json` (invalid JSON, an unknown channel, an unsupported `schema_version`, or an unsafe pin) is treated as an error rather than silently ignored: `check`, `update`, and `export` fail fast and name the offending file, so saved per-package channels are never quietly downgraded to `latest` because the config could not be parsed. An unknown channel is never normalized to `latest`.
-
-When exporting to a file, `gup export` reads saved update channels from the same `gup.json` it writes to: a default export (no `--file`) reads from and writes to the canonical user-level `gup.json`, while `gup export --file <path>` reads from and writes to `<path>`. Exporting back to the same alternate config file therefore preserves its saved channels (round-trip safe) instead of resetting them to `latest` from another source. A first export to a brand-new file has no saved channels to read, so its packages are recorded as `latest`. With `--output`, `--file` still selects the channel source, but the exported config is printed to STDOUT instead of being written back to that path.
 
 ```shell
 ※ Environments A (e.g. ubuntu)
@@ -390,10 +349,6 @@ $ gup migrate /old/gobin /new/gobin gopls air
 - `AFTER_PATH` is created automatically when it does not exist.
 - `BEFORE_PATH` and `AFTER_PATH` must be different directories.
 
-Binaries whose import path or version cannot be resolved, and development builds (`devel` / `(devel)`), are skipped instead of being upgraded, so local or non-reproducible builds are never broken.
-
-Supported flags: `--dry-run` (`-n`), `--notify` (`-N`), `--jobs` (`-j`), `--force`.
-
 ### Generate man-pages (for linux, mac)
 man subcommand generates man-pages under /usr/share/man/man1 by default. If `MANPATH` is set, gup writes to the `man1` directory under each entry instead, creating it when it does not exist yet. An unwritable target exits with a clear error.
 ```shell
@@ -426,78 +381,7 @@ $ gup completion powershell > gup.ps1
 $ gup completion --install
 ```
 
-On Linux and macOS, `--install` writes bash, fish, and zsh completion to the paths that match your shell/config layout: bash honors `XDG_DATA_HOME` (falling back to `$HOME/.local/share`), fish honors `XDG_CONFIG_HOME` (falling back to `$HOME/.config`), and zsh resolves both the completion file and `.zshrc` via `ZDOTDIR` (falling back to `$HOME`). It still requires `HOME` to be set; it fails fast (without writing files into the current directory) when `HOME` is empty, and exits non-zero if any completion file cannot be written.
-
-On Windows, the same command sets up PowerShell — no redirecting and no hand-editing:
-
-```powershell
-PS> gup completion --install
-PS> . $PROFILE   # or open a new PowerShell window
-```
-
-It writes `gup.completion.ps1` next to your PowerShell profile and adds one guarded dot-source line to the profile itself, inside a block marked `# setting for gup command (auto generate)`. Everything else in your profile is left exactly as it was, the profile (and its parent directory) is created if it does not exist yet, and the write is atomic. gup installs into the profile `$PROFILE` names when that variable is exported, and otherwise into **every** profile that already exists under `Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell` (Windows PowerShell 5.1) — the two shells read different profiles and are commonly installed side by side, so wiring up only one would leave the other with no completion after a command that reported success. If neither exists, the PowerShell 7 profile is created. Those paths resolve under `USERPROFILE`, falling back to `HOME`; with neither set it fails fast with a message naming both rather than guessing.
-
-Re-running `--install` is idempotent on every platform: it does not duplicate the zsh init snippet in `.zshrc` or the gup block in your PowerShell profile.
-
-### Running two gup commands at once
-The commands that change state take a lock on each resource they write, so a second one refuses to start rather than interleaving with the first.
-
-| Command | What it locks |
-|:--|:--|
-| `update` | `$GOBIN` and the `gup.json` it may write |
-| `import` | `$GOBIN` |
-| `remove` | `$GOBIN` |
-| `migrate` | `BEFORE_PATH` and `AFTER_PATH` |
-| `export`, `pin` | `$GOBIN` and the `gup.json` they write |
-| `unpin` | the `gup.json` it writes |
-
-The lock is the operating system's own — `flock` on Linux and macOS, `LockFileEx` on Windows — taken on a file gup keeps open for as long as it holds the resource. That choice is what makes the rest of this section short: a lock the kernel owns is released the moment the process holding it ends, however it ends, so there is no such thing as a stale gup lock and never a file for you to delete.
-
-The files it takes the lock on are `$GOBIN/.gup.lock` and `<gup.json>.lock`, next to what they guard. That is deliberate: `$GOBIN` and your config directory move independently, so a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other project, and two commands given the same `--file` may be started from different config directories entirely. A lock kept in the config directory would serialize neither. (`.gup.lock` starts with a dot, so `gup list` never shows it, and `gup remove` refuses to delete it — it is gup's, not a tool you installed.)
-
-A lock is scoped to the *file*, not to the path that names it. Two arguments that reach one directory — `gup migrate ~/go/bin ~/bin` where `~/bin` is a symlink to `~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive filesystems macOS and Windows use — take one lock, not two, so gup never waits for itself. And a lock path that is a symlink is refused rather than followed: gup truncates its lock file to record who holds it, so writing through a link somebody put there would mean truncating a file that is not gup's.
-
-A lock path that is a *hard* link is refused for the same reason, and it has to be caught differently: a hard link is not a link the open can see through — the file it lands on is an ordinary file with two equally real names, so `gup.json.lock` made a second name for `gup.json` would pass every check a symlink fails and get your config truncated. gup therefore refuses a lock file that has more than one name, because the ones it creates have exactly one:
-
-> can not open the gup lock file /home/you/.config/gup/gup.json.lock: the lock path is a hard link
-> to another file, and gup will not truncate a file it does not own: delete the lock file while no
-> gup is running, or point gup at a directory it owns
-
-```shell
-$ gup update
-```
-The second one exits non-zero after reporting who is in the way:
-
-> another gup process is already running (pid 40321 on carbon, running "gup update",
-> since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
-> gup.json, so wait for it to finish and run this command again. The lock is held by the
-> operating system, not by /home/you/go/bin/.gup.lock, so it is released the moment that
-> process ends and there is never a file to delete by hand
-
-`export`, `pin` and `migrate` lock directories they never write to, because what they write is derived from what they read there: `export`'s whole output is a description of `$GOBIN`, `pin` resolves its target against it, and `migrate` reinstalls into `AFTER_PATH` the versions it read in `BEFORE_PATH`. A `gup remove` deleting a binary halfway through any of those leaves a result describing a tool set that never existed. `unpin` names an entry in `gup.json` and never looks at `$GOBIN`, so it does not wait behind one.
-
-A `$GOBIN` that does not exist yet is created so it can be locked, by the commands that read it as well as those that install into it. Whether it exists is exactly what a concurrent `gup import` changes, and a command that skipped the lock because the directory was missing would be the one command in the set with no protection at all.
-
-Two commands write files and still take no lock: `gup completion --install` and `gup man`. Both write with the same atomic replace `gup.json` gets, and two runs of either produce byte-identical content, so the only thing a lock would add is a `.zshrc.lock` in your home directory. What neither a lock nor anything else can protect is your editor writing `.zshrc` at the same moment.
-
-Nothing that changes no state is blocked. `update --dry-run`, `import --dry-run`, `migrate --dry-run`, and `export --output` take no lock at all, and neither do the read-only commands (`list`, `check`, `version`, `completion`, `man`, `bug-report`) — gup replaces `gup.json` with an atomic rename, so a reader always sees a complete file and has nothing to wait for. That holds for a read-only `gup.json` too: the read-only bit is cleared for the length of the rename and put back, rather than moving the old file aside and leaving the path briefly empty.
-
-#### The lock files stay behind, and that is fine
-An empty `.gup.lock` in `$GOBIN`, or a `gup.json.lock` beside your config, is not a leftover to clean up. gup never deletes them, because deleting a file another gup may already have opened is precisely what would let two processes take a lock on two different files at one path. Between commands the file holds nothing at all: it is a name for the kernel to hang the next lock on, and it is emptied when the lock is dropped, so it never names a process that has already finished. There is nothing to do about one, and `gup remove .gup.lock` is refused for that reason — as is any other name that reaches the same file, whether that is a hard link, a Windows spelling with a trailing dot, or an 8.3 alias like `GUPLOC~1.LOC`. Deleting it would not release the lock, which lives on an open handle; it would free the *name*, and the next gup would create a fresh file there and lock that instead.
-
-Nothing wedges. A gup killed with `kill -9`, a machine that lost power mid-update, a lock file copied onto a shared home directory from another machine — none of them block anything, because none of them is holding a lock. If you interrupt a `gup update`, the next one runs immediately.
-
-Ctrl-C does not release the lock — the process holding it does, by ending. Releasing it from a signal handler would free the resource while the command is still installing binaries and rewriting `gup.json` on its way out, so a second gup started in that moment would run alongside the first. An interrupted `gup update` therefore stops its work, unwinds, and releases on the way out; a command killed outright never gets that far, and the kernel drops the lock as it reaps the process. Either way no second gup gets in early, and no cleanup is left for you.
-
-#### Where the lock does not reach
-Two situations are outside what this can promise, and both are worth naming rather than discovering.
-
-The first is a `$GOBIN` or a `gup.json` on a network filesystem — NFS, SMB, sshfs. `flock` and `LockFileEx` are the kernel's, and what a kernel does with them on a remote mount is up to the mount: some map them to a server-side lock, some make them local to one machine, some ignore them. Two gups on one machine are still serialized; two on different machines sharing the mount may not be.
-
-The second is deleting a lock file *while* gup is running. Doing so does not stop the running command — its lock is on an open handle — but it frees the name, and the next gup creates a new file there and locks that instead, leaving two commands changing one `$GOBIN`. gup never deletes these files itself and refuses to let `gup remove` do it; nothing else should either.
-
-> [!NOTE]
-> gup v1.8.1 and earlier take no lock at all. If you keep an older gup on your `PATH` and run it against the same `$GOBIN` at the same time as a current one, the two are not serialized — the older one does not know there is anything to wait for. Two current gups are, on any filesystem that honors the kernel's lock — see "Where the lock does not reach" above for the ones that may not.
+`--install` needs `HOME` (or `USERPROFILE` on Windows) and is safe to re-run. On Windows it sets up PowerShell; see the [install page](https://nao1215.github.io/gup/install/#shell-completion) for the paths it writes.
 
 ### Desktop notification
 If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
