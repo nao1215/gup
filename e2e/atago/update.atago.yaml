@@ -203,6 +203,54 @@ scenarios:
           stdout:
             not_contains: v1.1.0
 
+  # Issue #488. With $GOBIN unset, --dry-run points $GOPATH at a temp directory,
+  # so `go install` downloads the module cache into it, and the go command makes
+  # every extracted module directory read-only. A plain os.RemoveAll cannot
+  # unlink files inside those directories, so the dry run failed at the end and
+  # left the whole module cache behind in the temp directory. The bootstrap's
+  # shared GOMODCACHE hid this in every other scenario; it is cleared here so the
+  # cache lands under the dry run's GOPATH the way it does on a default setup.
+  - name: --dry-run with only GOPATH set removes its read-only module cache (issue 488)
+    env:
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: ""
+      GOPATH: "${workdir}/gopath"
+      GOMODCACHE: ""
+      TMPDIR: "${workdir}/tmp"
+    steps:
+      # The fixture creates the temp root; its placeholder is the only entry that
+      # may remain once the dry run is over.
+      - fixture:
+          file: tmp/.keep
+          content: "placeholder so the directory exists"
+      # -modcacherw keeps the pre-install's own cache under the workdir removable;
+      # the gup run below must cope without it.
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+          env:
+            GOFLAGS: "-mod=mod -modcacherw"
+      - run:
+          command: gup update --dry-run outdated
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: outdated
+          stderr:
+            not_contains:
+              - temporary directory for dry run remains
+              - permission denied
+          dir:
+            path: tmp
+            count: 1
+            contains:
+              - .keep
+      - run:
+          command: go version -m gopath/bin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
   - name: --quiet prints a summary line and still updates
     env: *iso
     steps:

@@ -3,7 +3,15 @@ package goutil
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+)
+
+const (
+	// writableFileMode and writableDirMode are the owner-only modes the dry run
+	// temporary tree is reset to before it is removed.
+	writableFileMode fs.FileMode = 0o600
+	writableDirMode  fs.FileMode = 0o700
 )
 
 // GoPaths has $GOBIN and $GOPATH.
@@ -93,9 +101,33 @@ func (gp *GoPaths) EndDryRunMode() error {
 }
 
 // removeTmpDir remove tmporary directory for dry run.
+//
+// With $GOBIN unset, dry run points $GOPATH at the temporary directory, so
+// `go install` extracts the module cache under it, and the go command makes
+// every module directory and file read-only. os.RemoveAll cannot unlink an entry
+// of a read-only directory (nor a read-only file on Windows), so the write bits
+// are restored first, the way `go clean -modcache` does (see issue #488).
 func (gp *GoPaths) removeTmpDir() error {
-	if gp.TmpPath != "" {
-		return os.RemoveAll(gp.TmpPath)
+	if gp.TmpPath == "" {
+		return nil
 	}
-	return nil
+	// The walk is scoped to an os.Root so a symlink in the tree can never make the
+	// chmod reach outside the temporary directory.
+	if root, err := os.OpenRoot(gp.TmpPath); err == nil {
+		_ = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+			// A walk error is left for os.RemoveAll to report, and a symlink is
+			// not followed.
+			if err != nil || d.Type()&fs.ModeSymlink != 0 {
+				return nil //nolint:nilerr // os.RemoveAll reports what could not be removed
+			}
+			mode := writableFileMode
+			if d.IsDir() {
+				mode = writableDirMode
+			}
+			_ = root.Chmod(path, mode)
+			return nil
+		})
+		_ = root.Close()
+	}
+	return os.RemoveAll(gp.TmpPath)
 }

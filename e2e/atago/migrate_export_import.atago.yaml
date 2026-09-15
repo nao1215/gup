@@ -79,6 +79,44 @@ scenarios:
             path: gobin/uptodate
             exists: false
 
+  # Issue #488, the import side of update.atago.yaml's scenario: with $GOBIN and
+  # GOMODCACHE unset, the dry run's temporary GOPATH receives a read-only module
+  # cache, and it must still be removed.
+  - name: import --dry-run with only GOPATH set removes its read-only module cache (issue 488)
+    env:
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: ""
+      GOPATH: "${workdir}/gopath"
+      GOMODCACHE: ""
+      TMPDIR: "${workdir}/tmp"
+    steps:
+      - fixture:
+          file: tmp/.keep
+          content: "placeholder so the directory exists"
+      - fixture:
+          file: import.json
+          content: |
+            {"schema_version":1,"packages":[{"name":"uptodate","import_path":"gup.test/uptodate","version":"v1.0.0","channel":"latest"}]}
+      - run:
+          command: gup import --dry-run --file "${workdir}/import.json"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: gup.test/uptodate
+          stderr:
+            not_contains:
+              - temporary directory for dry run remains
+              - permission denied
+          dir:
+            path: tmp
+            count: 1
+            contains:
+              - .keep
+          file:
+            path: gopath/bin/uptodate
+            exists: false
+
   - name: import rejects a config with an invalid package entry
     env: *iso
     steps:

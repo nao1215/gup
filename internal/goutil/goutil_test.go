@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -850,6 +851,99 @@ func TestGoPaths_EndDryRunMode_removesTmpDir_even_if_restore_fails(t *testing.T)
 	if _, statErr := os.Stat(tmpDir); !errors.Is(statErr, os.ErrNotExist) {
 		t.Errorf("temp dir should be removed even when env restore fails. stat err: %v", statErr)
 	}
+}
+
+// TestGoPaths_EndDryRunMode_removes_read_only_module_cache covers issue #488.
+// With $GOBIN unset, dry run points $GOPATH at the temporary directory, so
+// `go install` extracts the module cache into it and marks every module
+// directory and file read-only. The temporary directory must still be removed.
+func TestGoPaths_EndDryRunMode_removes_read_only_module_cache(t *testing.T) {
+	t.Setenv("GOPATH", t.Name())
+
+	tmpDir := filepath.Join(t.TempDir(), "dryrun")
+	helper_chmodWritableOnCleanup(t, tmpDir)
+
+	// The shape the go command leaves behind: writable parents, a read-only
+	// module directory, read-only files inside it.
+	moduleDir := filepath.Join(tmpDir, "pkg", "mod", "example.com", "tool@v1.0.0")
+	if err := os.MkdirAll(filepath.Join(moduleDir, "internal"), 0o750); err != nil {
+		t.Fatalf("failed to set up module dir: %v", err)
+	}
+	for _, name := range []string{"main.go", filepath.Join("internal", "x.go")} {
+		path := filepath.Join(moduleDir, name)
+		if err := os.WriteFile(path, []byte("package main\n"), 0o600); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
+		if err := os.Chmod(path, 0o444); err != nil { //nolint:gosec // the read-only module cache layout under test
+			t.Fatalf("failed to make %s read-only: %v", name, err)
+		}
+	}
+	for _, dir := range []string{filepath.Join(moduleDir, "internal"), moduleDir} {
+		if err := os.Chmod(dir, 0o555); err != nil { //nolint:gosec // the read-only module cache layout under test
+			t.Fatalf("failed to make %s read-only: %v", dir, err)
+		}
+	}
+
+	gp := GoPaths{GOPATH: t.Name(), TmpPath: tmpDir}
+	if err := gp.EndDryRunMode(); err != nil {
+		t.Fatalf("EndDryRunMode() should remove a read-only module cache. got: %v", err)
+	}
+	if _, err := os.Stat(tmpDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("temporary directory should be removed after EndDryRunMode(). stat err: %v", err)
+	}
+}
+
+// TestGoPaths_removeTmpDir_does_not_follow_symlinks verifies that clearing the
+// read-only bits stays inside the temporary directory: a symlink pointing
+// outside of it must not change the permissions of its target.
+func TestGoPaths_removeTmpDir_does_not_follow_symlinks(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(root, "outside.txt")
+	if err := os.WriteFile(outside, []byte("keep"), 0o600); err != nil {
+		t.Fatalf("failed to write outside file: %v", err)
+	}
+	if err := os.Chmod(outside, 0o400); err != nil {
+		t.Fatalf("failed to make outside file read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(outside, 0o600) })
+
+	tmpDir := filepath.Join(root, "dryrun")
+	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
+		t.Fatalf("failed to set up temp dir: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(tmpDir, "link")); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+
+	gp := GoPaths{TmpPath: tmpDir}
+	if err := gp.removeTmpDir(); err != nil {
+		t.Fatalf("removeTmpDir() should return no error. got: %v", err)
+	}
+	if _, err := os.Stat(tmpDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("temporary directory should be removed. stat err: %v", err)
+	}
+	info, err := os.Stat(outside)
+	if err != nil {
+		t.Fatalf("the symlink target outside the temp dir must survive. err: %v", err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o400 {
+		t.Errorf("the symlink target's mode must not change. got: %v, want: %v", info.Mode().Perm(), fs.FileMode(0o400))
+	}
+}
+
+// helper_chmodWritableOnCleanup makes the tree under root writable again before
+// t.TempDir's own cleanup runs, so a failing assertion does not also turn into
+// a cleanup error. Cleanups run last-in first-out.
+func helper_chmodWritableOnCleanup(t *testing.T, root string) {
+	t.Helper()
+	t.Cleanup(func() {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && d.Type()&fs.ModeSymlink == 0 {
+				_ = os.Chmod(path, 0o700) //nolint:gosec // test cleanup of its own tree
+			}
+			return nil
+		})
+	})
 }
 
 // TestGoPaths_EndDryRunMode_joins_restore_and_remove_errors verifies that when
