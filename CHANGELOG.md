@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [v1.9.3](https://github.com/nao1215/gup/compare/v1.9.2...v1.9.3) (2026-09-16)
+
 ### Bug Fixes
 
 * `gup update --dry-run` and `gup import --dry-run` remove their temporary directory again when `$GOBIN` is unset, instead of failing at the end with `temporary directory for dry run remains: unlinkat ...: permission denied` and leaving a whole module cache behind in `$TMPDIR` ([#488](https://github.com/nao1215/gup/issues/488)). Without `$GOBIN`, a dry run points `$GOPATH` at the temporary directory so nothing is installed into the real one, which also puts the module cache there, and the go command extracts every module read-only. `os.RemoveAll` cannot unlink an entry of a read-only directory, so the removal stopped at the first module. gup now restores the owner's write bits across that tree first, the way `go clean -modcache` does, without following symbolic links out of it. A shared `GOMODCACHE` or a set `$GOBIN` never put the cache there, which is why the end-to-end suite, which sets both, never saw it; it now has a scenario with neither.
