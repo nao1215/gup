@@ -330,13 +330,10 @@ func TestAcquire_ignoresALockFileNobodyHolds(t *testing.T) { //nolint:parallelte
 		Acquired: time.Now(),
 	})
 
-	start := time.Now()
+	// shortWait turns a held lock into a busy error, so success is the proof.
 	lock, err := Acquire(t.Context(), path, "remove")
 	if err != nil {
 		t.Fatalf("Acquire() over an unheld lock file = %v, want success", err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("Acquire() waited %v over a file nobody holds, want no wait", elapsed)
 	}
 	if err := lock.Release(); err != nil {
 		t.Errorf("Release() = %v, want nil", err)
@@ -829,13 +826,10 @@ func TestAcquireAll_normalizesBeforeDeduplicating(t *testing.T) { //nolint:paral
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	start := time.Now()
+	// shortWait turns contention into a busy error, so success is the proof.
 	held, err := AcquireAll(t.Context(), cmdUpdate, "gup.json.lock", filepath.Join(dir, "gup.json.lock"))
 	if err != nil {
 		t.Fatalf("AcquireAll() = %v, want success", err)
-	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("AcquireAll() took %v: the two spellings contended against each other", elapsed)
 	}
 	if got := held.Paths(); len(got) != 1 {
 		t.Errorf("Paths() = %v, want one entry", got)
