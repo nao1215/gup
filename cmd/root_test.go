@@ -712,7 +712,7 @@ func TestExecute_Import_WithInputOption(t *testing.T) {
 	}
 }
 
-func TestExecute_Import_WithBadInputFile(t *testing.T) {
+func TestExecute_Import_WithMissingOrEmptyInputFile(t *testing.T) {
 	setupXDGBase(t)
 
 	tests := []struct {
@@ -732,7 +732,7 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 			name:      "specify empty file",
 			inputFile: "testdata/gup_config/empty.json",
 			want: []string{
-				"gup:ERROR: unable to import package: no package information",
+				"nothing to import from testdata/gup_config/empty.json",
 				"",
 			},
 		},
