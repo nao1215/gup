@@ -37,4 +37,44 @@ Numbers from different machines are not comparable; compare revisions on one mac
 It is not a CI gate: CI only validates it. `make bench-docs` needs go-global-update on PATH (`go install github.com/Gelio/go-global-update@v0.2.5`), runs the suite, and replaces what is between the markers below, with the machine and the versions under the tables.
 
 <!-- himorime:begin comparison -->
+
+### gup and other updaters of go install binaries
+
+Updating 30 binaries installed by go install from v1.0.0 to v1.0.1, compiling and installing each.
+
+#### Latency
+
+| Benchmark | Command | Median | P95 | Mean | Stddev | Min | Max | Runs | Relative |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| update 30 | gup | 196.35ms | 213.42ms | 197.87ms | 11.03ms | 184.90ms | 220.16ms | 10 | 0.11x |
+| update 30 | go-global-update | 1.75s | 1.84s | 1.76s | 58.91ms | 1.68s | 1.85s | 10 | 0.98x |
+| update 30 | go-install-loop | 1.79s | 1.82s | 1.77s | 44.53ms | 1.69s | 1.83s | 10 | 1.00x |
+
+Relative is the median divided by the baseline command's median, or by the fastest command's.
+
+#### CPU
+
+| Benchmark | Command | User | System | Total | Total p95 | Utilization |
+|---|---|--:|--:|--:|--:|--:|
+| update 30 | gup | 3.11s | 951.93ms | 4.06s | 4.14s | 2063.0% |
+| update 30 | go-global-update | 2.26s | 957.43ms | 3.21s | 3.37s | 183.2% |
+| update 30 | go-install-loop | 2.25s | 871.92ms | 3.15s | 3.22s | 176.5% |
+
+CPU values are medians over runs of the process tree. Utilization is CPU time divided by wall-clock time; above 100% means more than one CPU was busy. Process tree: the command plus every descendant its parent waited for (rusage); a descendant left running or reaped by init is not counted.
+
+#### Memory
+
+| Benchmark | Command | Peak RSS (median) | Peak RSS (max) |
+|---|---|--:|--:|
+| update 30 | gup | 45.25MiB | 46.04MiB |
+| update 30 | go-global-update | 44.28MiB | 45.48MiB |
+| update 30 | go-install-loop | 44.62MiB | 45.23MiB |
+
+Peak RSS is a resident set size, not the heap size of a language runtime. Peak RSS is the largest peak of any single process of the tree (rusage ru_maxrss), not the combined memory of processes running at the same time.
+
+Measured with himorime v0.2.0 on linux/amd64, AMD RYZEN AI MAX+ 395 w/ Radeon 8060S (32 logical CPUs), head d67bb9151c7a, seed 3376384279169423.
+
+- go-global-update: go-global-update version v0.2.5
+- go: go version go1.26.4 linux/amd64
+
 <!-- himorime:end comparison -->
