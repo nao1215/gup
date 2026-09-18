@@ -1,4 +1,4 @@
-.PHONY: build test e2e coverage clean vet fmt chkfmt changelog update-tools help coverage-tree website website-serve
+.PHONY: build test e2e coverage clean vet fmt chkfmt changelog update-tools help coverage-tree website website-serve bench bench-compare bench-docs
 
 APP         = gup
 VERSION     = $(shell git describe --tags --abbrev=0)
@@ -31,6 +31,15 @@ test: ## Start test
 
 e2e: ## Run offline end-to-end tests against the real CLI (requires atago)
 	$(GO) run ./e2e/runner
+
+bench: ## Measure gup with the himorime suite in bench/ (requires himorime on PATH)
+	himorime run bench
+
+bench-compare: ## Compare main with the working tree on the himorime suite (BASE=main)
+	himorime compare --against $${BASE:-main} bench
+
+bench-docs: ## Measure gup against go-global-update and a go install loop and rewrite the comparison in bench/README.md
+	himorime run --format markdown --output bench/README.md --section comparison bench/compare
 
 coverage: ## Combine unit + self-hosted E2E coverage into cover.out / cover.html (uses a `go build -cover` gup; scratch under .coverage/)
 	bash ./scripts/coverage.sh
