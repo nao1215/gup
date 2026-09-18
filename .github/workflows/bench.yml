@@ -1,0 +1,52 @@
+name: Benchmark
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# gup is measured end to end with himorime, from bench/himorime.yaml.
+#
+# On a pull request, `himorime ci` checks the base of the pull request out
+# into a temporary worktree, builds it and the head with the same Go, and
+# measures both in interleaved rounds on this runner, so a noisy neighbour
+# slows both revisions instead of one. The job fails when the head is slower,
+# uses more CPU time or more memory than the base beyond the tolerance of the
+# suite with 95% confidence; a difference too close to call is inconclusive
+# and does not fail it. The comparison is written to the job summary.
+#
+# Started by hand, the job measures the ref it runs on without comparing.
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The base commit must exist locally for the temporary worktree.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: nao1215/setup-himorime@b2896dee554ef31ea979f0388d9be22779ce73a2 # v0.1.1
+        with:
+          version: v0.2.0
+      # The comparison with go-global-update needs that tool and is
+      # run by hand (make bench-docs); it must still be a valid suite.
+      - name: Validate the comparison suite
+        run: himorime validate bench/compare
+      - name: Compare the base with the head
+        if: github.event_name == 'pull_request'
+        run: himorime ci --output "$RUNNER_TEMP/himorime.json" --format json bench
+      - name: Measure
+        if: github.event_name != 'pull_request'
+        run: himorime run --output "$RUNNER_TEMP/himorime.json" --format json --summary "$GITHUB_STEP_SUMMARY" bench
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: himorime-report
+          path: ${{ runner.temp }}/himorime.json
+          retention-days: 7
