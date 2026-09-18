@@ -147,12 +147,11 @@ func Test_englishReadme_hasRequiredSectionContent(t *testing.T) {
 			"\"channel\": \"pinned\"",       // pinned gup.json entry
 		},
 		// Feature comparison: the migrate --force row is unique to this table, and
-		// the benchmark result (folded into this section) carries the competitor
-		// link and the measurement-environment note.
+		// the note under it links the competitor and the measured comparison.
 		"## Feature comparison": {
 			"migrate --force", // command-scoped row unique to the comparison table
 			"https://github.com/Gelio/go-global-update", // benchmarked competitor (table column)
-			"AMD Ryzen AI Max+ 395",                     // benchmark measurement-environment note
+			"bench/README.md", // where the measured comparison lives
 		},
 		// Generate man-pages: the MANPATH note added when man learned to honor
 		// MANPATH.

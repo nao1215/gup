@@ -1,0 +1,166 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nao1215/himorime/main/schema/himorime.schema.json
+#
+# gup measured end to end with himorime (https://github.com/nao1215/himorime):
+# the process a user starts, from its first instruction to its exit.
+#
+#   make bench          measure the working tree
+#   make bench-compare  compare main with the working tree
+#
+# On a pull request, .github/workflows/bench.yml runs `himorime ci bench`:
+# the base of the pull request and its head are built and measured in
+# interleaved rounds on the same runner. See bench/README.md.
+#
+# No benchmark touches the network. check and update resolve and install
+# synthetic modules from a file GOPROXY in ${workdir} (bench/proxygen), each
+# published at v1.0.0 and v1.0.1, so a binary installed at v1.0.0 has an
+# update. Both revisions run the working tree's gen.sh (${head_root}).
+version: "1"
+
+suite:
+  name: gup
+  description: Start-up, list over 3 and 150 binaries, check, and update with real installs from a local module proxy at several -j.
+
+build:
+  command: [go, build, -trimpath, -o, "${artifact}", .]
+  cwd: ..
+
+defaults:
+  warmup: 2
+  runs: 20
+  # Every go command gup runs, and every go install of the setup, reads the
+  # proxy and the caches in the benchmark's own directory.
+  env:
+    HOME: "${workdir}"
+    XDG_CONFIG_HOME: "${workdir}/.config"
+    GOPATH: "${workdir}/gopath"
+    GOBIN: "${workdir}/gobin"
+    GOPROXY: "file://${workdir}/proxy"
+    GOSUMDB: "off"
+    GOFLAGS: -mod=mod
+    GOTOOLCHAIN: local
+    GOMODCACHE: "${workdir}/modcache"
+    GOCACHE: "${workdir}/gocache"
+  metrics:
+    cpu: true
+    memory: true
+  regression:
+    confidence: 0.95
+    latency:
+      max_percent: 10
+      min_difference: 1ms
+    cpu:
+      max_percent: 15
+      min_difference: 2ms
+    memory:
+      max_percent: 15
+      min_difference: 2MiB
+
+benchmarks:
+  - name: version
+    description: Starting gup and exiting.
+    tags: [smoke]
+    commands:
+      gup:
+        command: ["${artifact}", version]
+
+  - name: list 3
+    description: Listing a GOBIN of 3 binaries, reading the build information of each. The go version check is skipped for list.
+    tags: [smoke]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", copies, "3", "${workdir}/gobin"]
+    commands:
+      gup:
+        command: ["${artifact}", list]
+
+  - name: list 150
+    description: Listing a GOBIN of 150 binaries, which gup reads in parallel.
+    tags: [large]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", copies, "150", "${workdir}/gobin"]
+    commands:
+      gup:
+        command: ["${artifact}", list]
+
+  - name: check 3
+    description: Checking 3 binaries installed at v1.0.0 for their latest version, which runs go version once and go list -m per module.
+    tags: [smoke]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", proxy, "3", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/gen.sh", install, "3", v1.0.0, "${workdir}/gobin"]
+    commands:
+      gup:
+        command: ["${artifact}", check]
+
+  - name: check 30
+    description: Checking 30 binaries with one worker, four, and the default of one per CPU.
+    tags: [large]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", proxy, "30", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/gen.sh", install, "30", v1.0.0, "${workdir}/gobin"]
+    baseline: default
+    commands:
+      j1:
+        command: ["${artifact}", check, -j, "1"]
+      j4:
+        command: ["${artifact}", check, -j, "4"]
+      default:
+        command: ["${artifact}", check]
+
+  - name: update 30
+    description: >-
+      Updating 30 binaries from v1.0.0 to v1.0.1, compiling and installing
+      each, with one worker, four, eight and the default. Before every run the
+      GOBIN is put back to v1.0.0, outside the measured time.
+    tags: [large]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", proxy, "30", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/gen.sh", install, "30", v1.0.0, "${workdir}/pristine"]
+    prepare_each:
+      - command: [sh, "${head_root}/gen.sh", link, "${workdir}/pristine", "${workdir}/gobin"]
+    baseline: default
+    commands:
+      j1:
+        command: ["${artifact}", update, -j, "1"]
+      j4:
+        command: ["${artifact}", update, -j, "4"]
+      j8:
+        command: ["${artifact}", update, -j, "8"]
+      default:
+        command: ["${artifact}", update]
+
+  - name: update 150
+    description: Updating 150 binaries from v1.0.0 to v1.0.1 with the default number of workers.
+    tags: [large]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", proxy, "150", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/gen.sh", install, "150", v1.0.0, "${workdir}/pristine"]
+    prepare_each:
+      - command: [sh, "${head_root}/gen.sh", link, "${workdir}/pristine", "${workdir}/gobin"]
+    commands:
+      gup:
+        command: ["${artifact}", update]
+
+  - name: update 30 up to date
+    description: Updating 30 binaries that are already at v1.0.1, which only resolves versions and installs nothing; and --dry-run over 30 at v1.0.0.
+    tags: [large]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", proxy, "30", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/gen.sh", install, "30", v1.0.1, "${workdir}/gobin"]
+      - command: [sh, "${head_root}/gen.sh", install, "30", v1.0.0, "${workdir}/old"]
+    commands:
+      up-to-date:
+        command: ["${artifact}", update]
+      dry-run:
+        command: ["${artifact}", update, --dry-run]
+        env:
+          GOBIN: "${workdir}/old"
+
+  - name: check error
+    description: Checking a binary that is not installed, which fails with exit 1.
+    tags: [smoke]
+    setup:
+      - command: [sh, "${head_root}/gen.sh", copies, "3", "${workdir}/gobin"]
+    exit_codes: [1]
+    commands:
+      gup:
+        command: ["${artifact}", check, no-such-binary]

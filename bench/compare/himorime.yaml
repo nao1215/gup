@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nao1215/himorime/main/schema/himorime.schema.json
+#
+# gup update against go-global-update and a go install loop: the same 30
+# binaries updated from v1.0.0 to v1.0.1, end to end, with himorime
+# (https://github.com/nao1215/himorime).
+#
+#   make bench-docs   run it and rewrite the comparison section of
+#                     bench/README.md
+#
+# It needs go-global-update on PATH (bench/README.md has the pinned go
+# install line). It is not a CI gate: CI only validates it. Like the
+# regression suite, it installs synthetic modules from a file GOPROXY in
+# ${workdir} and never touches the network.
+version: "1"
+
+suite:
+  name: gup and other updaters of go install binaries
+  description: Updating 30 binaries installed by go install from v1.0.0 to v1.0.1, compiling and installing each.
+
+build:
+  command: [go, build, -trimpath, -o, "${artifact}", .]
+  cwd: ../..
+
+defaults:
+  warmup: 2
+  runs: 10
+  env:
+    HOME: "${workdir}"
+    XDG_CONFIG_HOME: "${workdir}/.config"
+    GOPATH: "${workdir}/gopath"
+    GOBIN: "${workdir}/gobin"
+    GOPROXY: "file://${workdir}/proxy"
+    GOSUMDB: "off"
+    GOFLAGS: -mod=mod
+    GOTOOLCHAIN: local
+    GOMODCACHE: "${workdir}/modcache"
+    GOCACHE: "${workdir}/gocache"
+  metrics:
+    cpu: true
+    memory: true
+    unsupported: skip
+
+benchmarks:
+  - name: update 30
+    description: >-
+      Every tool starts from the same GOBIN of 30 binaries at v1.0.0, put
+      back before each run outside the measured time, and ends with all of
+      them at v1.0.1; setup checks that end state for each tool before
+      measuring. gup updates with one worker per CPU; go-global-update and the
+      loop install one binary after another. The modules are tiny and served
+      from a local proxy with a warm build cache, so the times are mostly go
+      install's own work, not the network.
+    setup:
+      - command: [sh, "${head_root}/../gen.sh", proxy, "30", "${workdir}/proxy"]
+      - command: [sh, "${head_root}/../gen.sh", install, "30", v1.0.0, "${workdir}/pristine"]
+      - command: [sh, -c, 'for tool in "$@"; do sh "$0/../gen.sh" link "$W/pristine" "$W/gobin" && sh -c "$tool" && sh "$0/../gen.sh" verify 30 v1.0.1 "$W/gobin" || exit 1; done', "${head_root}", "${artifact} update", go-global-update, "sh ${head_root}/../gen.sh install 30 latest ${workdir}/gobin"]
+        env:
+          W: "${workdir}"
+    prepare_each:
+      - command: [sh, "${head_root}/../gen.sh", link, "${workdir}/pristine", "${workdir}/gobin"]
+    baseline: go-install-loop
+    commands:
+      gup:
+        command: ["${artifact}", update]
+      go-global-update:
+        command: [go-global-update]
+      go-install-loop:
+        command: [sh, "${head_root}/../gen.sh", install, "30", latest, "${workdir}/gobin"]
+
+report:
+  versions:
+    go-global-update: [go-global-update, --version]
+    go: [go, version]

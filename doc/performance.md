@@ -7,22 +7,13 @@ rest.
 
 ## How to reproduce
 
-- Package-level benchmarks (local-only, stable):
+The measurements below were taken with Go benchmarks in `internal/goutil` and shell harnesses in `scripts/`. Both have since been replaced by the [himorime](https://github.com/nao1215/himorime) suite in `bench/`, which measures the same commands end to end, offline, and on every pull request; the tables stay as the record of this investigation.
 
-  ```sh
-  go test ./internal/goutil/ -run '^$' -bench 'Benchmark(GetPackageInformation|BinaryPathList|GetInstalledGoVersion|GoBin)' -benchmem
-  ```
-
-- Command-level harness (builds gup, synthesizes a GOBIN, times `list` /
-  `check` / `update --dry-run` for several sizes and `-j` values):
-
-  ```sh
-  sh scripts/perf.sh                 # defaults: sizes 3 30 150, 10 runs
-  RUNS=20 SIZES="3 50 200" CMDS="list" sh scripts/perf.sh
-  ```
-
-  `check`/`update` resolve versions over the network, so treat their absolute
-  numbers as relative, same-machine measurements. `list` is local-only.
+```sh
+make bench                                  # every benchmark (bench/README.md lists them)
+himorime run --filter '^list' bench         # list over 3 and 150 binaries
+himorime run --filter '^(check|update)' bench
+```
 
 ## Baseline measurements
 
@@ -81,14 +72,10 @@ The optimizations above target `list`/`export`/`migrate`. This section targets
 
 ### Harness
 
-`scripts/perf_update.sh` is offline and reproducible: it serves synthetic
-modules (each published at v1.0.0 and v1.0.1) from a local file `GOPROXY`,
-installs v1.0.0 into a temp GOBIN, then times `gup update` actually compiling
-and installing v1.0.1. Real network is avoided so numbers are stable.
+The harness served synthetic modules (each published at v1.0.0 and v1.0.1) from a local file `GOPROXY`, installed v1.0.0 into a temp GOBIN, then timed `gup update` actually compiling and installing v1.0.1, with no network. `bench/proxygen` and the `update` benchmarks of `bench/himorime.yaml` do the same today:
 
 ```sh
-sh scripts/perf_update.sh
-SIZES="30" JOBS="8 0" RUNS=7 sh scripts/perf_update.sh   # -j 0 = gup default (NumCPU)
+himorime run --filter '^update' bench
 ```
 
 ### Measurement table
