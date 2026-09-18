@@ -407,7 +407,6 @@ Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#
 | Feature | gup | [go-global-update](https://github.com/Gelio/go-global-update) | `go install` loop |
 | --- | :-: | :-: | :-: |
 | Parallel update | Yes | No | Manual |
-| Update time, 9 binaries | 0.7s | 2.9s | 2.9s |
 | Per-package update channels (`latest`/`main`/`master`) | Yes | No | Manual |
 | Version pinning / lock | Yes | No | Manual |
 | Export/import tool set | Yes | No | Manual |
@@ -419,7 +418,7 @@ Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#
 | Failure diagnostics / next-step hints | Yes | Yes | No |
 | `NO_COLOR` support | Yes | Yes | — |
 
-*Update time: 9 binaries each with a newer version available; gup updates in parallel, the others sequentially. AMD Ryzen AI Max+ 395 / go 1.26.4, median of 5 runs with a warm module cache; times depend on build time and CPU.*
+gup updates binaries in parallel; go-global-update and a `go install` loop update them one after another. How long each takes to update the same 30 binaries is measured end to end with [himorime](https://github.com/nao1215/himorime), and the latest figures, with the machine and the versions they were measured on, are in [bench/README.md](./bench/README.md#comparison-suite-comparehimorimeyaml).
 
 ## Integrations
 gup runs inside higher-level upgrade tools. Nothing extra is needed on the gup side.
