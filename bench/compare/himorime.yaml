@@ -13,9 +13,8 @@
 # ${workdir} and never touches the network.
 version: "1"
 
-suite:
-  name: gup and other updaters of go install binaries
-  description: Updating 30 binaries installed by go install from v1.0.0 to v1.0.1, compiling and installing each.
+name: gup and other updaters of go install binaries
+description: Updating 30 binaries installed by go install from v1.0.0 to v1.0.1, compiling and installing each.
 
 build:
   command: [go, build, -trimpath, -o, "${artifact}", .]
