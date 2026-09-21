@@ -16,12 +16,6 @@ import (
 	"github.com/nao1215/gup/internal/goutil"
 )
 
-// ptr returns a pointer to v. It replaces the external pointer.Ptr helper,
-// whose go1.26 build constraint conflicts with this module's go1.25.0 policy.
-func ptr[T any](v T) *T {
-	return &v
-}
-
 // ConfigFileName is gup command configuration file.
 const ConfigFileName = "gup.json"
 
@@ -193,8 +187,8 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 		pkgs = append(pkgs, goutil.Package{
 			Name:          name,
 			ImportPath:    importPath,
-			Version:       ptr(binVer),
-			GoVersion:     ptr(goVer),
+			Version:       new(binVer),
+			GoVersion:     new(goVer),
 			UpdateChannel: channel,
 			PinnedVersion: pinnedVersion,
 		})

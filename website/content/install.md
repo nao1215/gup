@@ -8,9 +8,9 @@ has to be on `PATH` whichever way you install gup itself.
 
 ## Supported Go versions
 
-Unit tests run on Go 1.25, 1.26, and 1.27 across Linux, macOS, and Windows, with
-a separate job tracking the latest Go release. `go.mod` declares Go 1.25 as the
-minimum, so building from source needs Go 1.25 or newer.
+Unit tests run on Go 1.26 and 1.27 across Linux, macOS, and Windows, with
+a separate job tracking the latest Go release. `go.mod` declares Go 1.26 as the
+minimum, so building from source needs Go 1.26 or newer.
 
 The prebuilt release binaries are built with the latest Go 1.27 patch release.
 Go 1.27 dropped support for macOS 12 and earlier, so the macOS release binaries
@@ -23,7 +23,7 @@ version that still supports it.
 go install github.com/nao1215/gup@latest
 ```
 
-Building from source needs Go 1.25 or newer. On an older Go, take a prebuilt
+Building from source needs Go 1.26 or newer. On an older Go, take a prebuilt
 binary or a package below.
 
 ## Package managers

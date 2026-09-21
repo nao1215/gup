@@ -40,12 +40,11 @@ jobs:
       # Every Go version gup supports is scanned: a standard-library advisory is
       # fixed in a specific patch of a specific minor, so a vulnerability that is
       # already fixed in Go 1.27 can still be live for someone building gup with
-      # the Go 1.25 it says it supports. Keep this list in sync with
+      # the Go 1.26 it says it supports. Keep this list in sync with
       # unit_test.yml and the "Supported Go versions" section of README.md.
       fail-fast: false
       matrix:
         go:
-          - "1.25"
           - "1.26"
           - "1.27"
 
