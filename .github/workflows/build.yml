@@ -14,7 +14,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # go-version-file pins this job to go.mod's minimum (Go 1.25), so the
+      # go-version-file pins this job to go.mod's minimum (Go 1.26), so the
       # oldest toolchain gup claims to support is proven to still build it. The
       # newer supported minors and the latest release are covered by
       # unit_test.yml.

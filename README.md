@@ -23,7 +23,7 @@ Documentation: **https://nao1215.github.io/gup/**
 - Windows
 
 ### Supported Go versions
-Unit tests run on Go 1.25, 1.26, and 1.27. Building from source needs Go 1.25 or newer. The release binaries are built with the latest Go 1.27 patch release, so on macOS they need macOS 13 Ventura or newer.
+Unit tests run on Go 1.26 and 1.27. Building from source needs Go 1.26 or newer. The release binaries are built with the latest Go 1.27 patch release, so on macOS they need macOS 13 Ventura or newer.
 
 ## How to install
 gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
@@ -33,7 +33,7 @@ If you do not have the Go development environment installed on your system, plea
 ```
 go install github.com/nao1215/gup@latest
 ```
-Building from source needs Go 1.25 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
+Building from source needs Go 1.26 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
 
 ### Use homebrew
 gup is in homebrew-core, so no tap is required:

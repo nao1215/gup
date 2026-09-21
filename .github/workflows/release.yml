@@ -34,7 +34,7 @@ jobs:
           persist-credentials: false
 
       # Published binaries are built with the latest Go 1.27 patch release, the
-      # newest toolchain gup supports, rather than go.mod's minimum (Go 1.25) -
+      # newest toolchain gup supports, rather than go.mod's minimum (Go 1.26) -
       # users of a prebuilt artifact get the current runtime and its security
       # fixes even when they never install Go themselves.
       - name: Setup Go

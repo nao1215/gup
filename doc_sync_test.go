@@ -274,7 +274,7 @@ func Test_websiteInstallPage_matchesReadme(t *testing.T) {
 		"gup_1.8.1_linux_amd64.deb",
 		"gup_1.8.1_linux_amd64.rpm",
 		"gup_1.8.1_linux_amd64.apk",
-		"Go 1.25, 1.26, and 1.27",   // the supported-minor list
+		"Go 1.26 and 1.27",          // the supported-minor list
 		"latest Go 1.27 patch",      // the toolchain release binaries are built with
 		"macOS 13 Ventura or newer", // the macOS floor Go 1.27 imposes
 	}

@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changes
+
+* Building from source now needs Go 1.26 or newer (was 1.25). The golang.org/x/sys and golang.org/x/term releases this update takes declare `go 1.26.0`, and Go 1.26 and 1.27 are the two releases the Go team still supports. Prebuilt binaries and packages are unaffected.
+
 ## [v1.9.3](https://github.com/nao1215/gup/compare/v1.9.2...v1.9.3) (2026-09-16)
 
 ### Bug Fixes
