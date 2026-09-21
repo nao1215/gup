@@ -16,9 +16,8 @@
 # update. Both revisions run the working tree's gen.sh (${head_root}).
 version: "1"
 
-suite:
-  name: gup
-  description: Start-up, list over 3 and 150 binaries, check, and update with real installs from a local module proxy at several -j.
+name: gup
+description: Start-up, list over 3 and 150 binaries, check, and update with real installs from a local module proxy at several -j.
 
 build:
   command: [go, build, -trimpath, -o, "${artifact}", .]
@@ -48,10 +47,10 @@ defaults:
     latency:
       max_percent: 10
       min_difference: 1ms
-    cpu:
+    cpu_total:
       max_percent: 15
       min_difference: 2ms
-    memory:
+    peak_rss:
       max_percent: 15
       min_difference: 2MiB
 
