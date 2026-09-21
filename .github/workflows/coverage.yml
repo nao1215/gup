@@ -44,7 +44,7 @@ jobs:
         with:
           # The version the cross-platform specs are verified against; the per-OS
           # `skip:`/`only:` gates they use are validated by its loader.
-          version: v0.22.0
+          version: v0.23.0
 
       # Combines unit-test coverage with self-hosted E2E coverage, then merges
       # both into cover.out. The E2E suite is fully offline (it starts its own
