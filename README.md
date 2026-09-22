@@ -1,5 +1,5 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-37-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-38-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 [![reviewdog](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml/badge.svg)](https://github.com/nao1215/gup/actions/workflows/reviewdog.yml)
@@ -514,6 +514,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://nikolasgrottendieck.com/"><img src="https://avatars.githubusercontent.com/u/887496?v=4?s=64" width="64px;" alt="Nikolas Grottendieck"/><br /><sub><b>Nikolas Grottendieck</b></sub></a><br /><a href="#platform-Okeanos" title="Packaging/porting to new platform">📦</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/gebi"><img src="https://avatars.githubusercontent.com/u/659?v=4?s=64" width="64px;" alt="Michael Gebetsroither"/><br /><sub><b>Michael Gebetsroither</b></sub></a><br /><a href="https://github.com/nao1215/gup/issues?q=author%3Agebi" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.kunpeng.blog/en"><img src="https://avatars.githubusercontent.com/u/68572236?v=4?s=64" width="64px;" alt="Kunpeng Xie"/><br /><sub><b>Kunpeng Xie</b></sub></a><br /><a href="#ideas-pentaoa" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
