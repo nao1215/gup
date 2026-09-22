@@ -1,0 +1,416 @@
+# Consumer contracts: what other programs that run gup rely on.
+#
+# gup is increasingly run by other tools rather than typed by a person. Those
+# tools never see the README; they see an exit code, a stdout they parse and a
+# stderr they may read as the failure signal. Each scenario below pins one such
+# expectation, taken from the consumer's own source, so a change that breaks a
+# caller fails here before it ships. When a scenario fails, the fix is almost
+# never to edit the assertion: it is a breaking change for the consumer named in
+# the scenario, and it needs a deliberate decision (and a CHANGELOG entry).
+#
+# Consumers and what they run (as of 2026-09):
+#
+#   Topgrade (topgrade-rs/topgrade, src/steps/go.rs run_go_gup)
+#     `gup update` plus one `--exclude <name>` per entry of the user's
+#     `gup_exclude` list, checked with status_checked(): exit 0 is success,
+#     anything else marks the Go step as failed. The same config file is often
+#     shared across machines, so an excluded name need not be installed here.
+#
+#   Meta Package Manager (kdeldycke/meta-package-manager,
+#   meta_package_manager/managers/gup.toml)
+#     version   `gup version`, parsed with 'gup\s+version\s+v?(?P<version>\S+)'
+#     installed `gup list --json`, reads name and current_version
+#     outdated  `gup check --json`, reads name, current_version, latest_version;
+#               expects EVERY binary, up-to-date ones included, and filters
+#               itself
+#     remove    `gup remove --force <name>` (stdin is not a TTY)
+#     upgrade   `gup update <name>` and `gup update`
+#     mpm treats a non-zero exit WITH a non-empty stderr as a failure, and
+#     documents that the listing works without the go command while check and
+#     update fail loudly with "you didn't install golang".
+#
+#   Dotfiles / provisioning scripts found on GitHub, e.g.
+#     dimitarvp/dotfiles scripts/executable_gup_converge
+#       `gup list | awk -F: '{print $1}'` (name before the first colon),
+#       `gup list --json | jq '.[].import_path, .name'`,
+#       `gup update --exclude a,b` (comma-joined), `xargs gup remove -f`
+#     chuxubank/dotfiles, CatBraaain/dotfiles (bootstrap.ts)
+#       `gup list --json` as an import_path -> name map, then
+#       `gup remove --force <name>...` with several names at once
+#     umi-uyura/mydotfiles bin/chkupdate, azzamsa/dot, lavantien/dotfiles,
+#     notjedi/dotfiles
+#       `gup check` / `gup update`, success judged by the exit code
+#
+# Run with: make e2e
+version: "1"
+
+suite:
+  name: gup consumer contracts (offline)
+
+scenarios:
+  # ---------------------------------------------------------------- Topgrade
+
+  - name: "topgrade: gup update exits 0 when every binary updates"
+    tags: [contract, topgrade]
+    env: &iso
+      HOME: "${workdir}/home"
+      XDG_CONFIG_HOME: "${workdir}/home/.config"
+      GOBIN: "${workdir}/gobin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      # Topgrade inherits the terminal, but in CI and under cron it does not
+      # have one: a pipe on stdin must not turn update into a prompt.
+      - run:
+          command: gup update
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "topgrade: a binary that fails to update makes gup update exit non-zero"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      # replaced@v1.1.0 carries a replace directive, so `go install @latest`
+      # refuses it: the update of this one binary fails.
+      - run:
+          command: go install gup.test/replaced@v1.0.0
+      - run:
+          command: gup update
+          stdin: ""
+      # Topgrade reads exit != 0 as "the gup step failed". A partial failure
+      # reported as success would hide the broken binary from the summary.
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: replaced
+      # ...and the failure of one binary does not stop the others.
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "topgrade: --exclude, one flag per gup_exclude entry, skips those binaries"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/replaced@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      # Exactly the argv Topgrade builds for gup_exclude = ["replaced", "pinnable"].
+      - run:
+          command: gup update --exclude replaced --exclude pinnable
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - run:
+          command: go version -m gobin/replaced
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  - name: "topgrade: an excluded name that is not installed here is not an error"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      # gup_exclude lives in a config shared across machines; this one never
+      # installed "kind".
+      - run:
+          command: gup update --exclude kind
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "topgrade: gup update on a machine with no Go binaries exits 0"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup update
+          stdin: ""
+      - assert:
+          exit_code: 0
+
+  # ---------------------------------------------------- Meta Package Manager
+
+  - name: "mpm: gup version matches the version probe regex"
+    tags: [contract, mpm]
+    env: *iso
+    steps:
+      - run:
+          command: gup version
+      - assert:
+          exit_code: 0
+          stdout:
+            matches: 'gup\s+version\s+v?\S+'
+
+  - name: "mpm: gup list --json is a bare JSON array with name and current_version"
+    tags: [contract, mpm]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup list --json
+      # The json matcher parses the whole of stdout, so a progress line or a
+      # notice printed next to the array fails here as well.
+      - assert:
+          exit_code: 0
+          stderr:
+            equals: ""
+          stdout:
+            json:
+              - { path: "$", length: 2 }
+              - { path: "$[?(@.name == 'outdated')].current_version", equals: v1.0.0 }
+              - { path: "$[?(@.name == 'outdated')].import_path", equals: gup.test/outdated }
+              - { path: "$[?(@.name == 'uptodate')].current_version", equals: v1.0.0 }
+
+  - name: "mpm: gup list --json works without the go command"
+    tags: [contract, mpm]
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/nogo && cp "$(command -v gup)" ${workdir}/nogo/gup
+      # Only gup is on PATH: no go command to fall back on.
+      - run:
+          shell: true
+          command: PATH=${workdir}/nogo ${workdir}/nogo/gup list --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              - { path: "$[0].name", equals: outdated }
+              - { path: "$[0].current_version", equals: v1.0.0 }
+
+  - name: "mpm: gup check --json reports every binary and exits 0 with updates pending"
+    tags: [contract, mpm]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: gup check --json
+      # An available update is a finding, not a failure: mpm would otherwise
+      # read the outdated listing as a broken manager.
+      - assert:
+          exit_code: 0
+          stderr:
+            equals: ""
+          stdout:
+            json:
+              # Up-to-date binaries are included; mpm filters them itself.
+              - { path: "$", length: 2 }
+              - { path: "$[?(@.name == 'outdated')].current_version", equals: v1.0.0 }
+              - { path: "$[?(@.name == 'outdated')].latest_version", equals: v1.1.0 }
+              - { path: "$[?(@.name == 'outdated')].status", equals: update-available }
+              - { path: "$[?(@.name == 'uptodate')].latest_version", equals: v1.0.0 }
+              - { path: "$[?(@.name == 'uptodate')].status", equals: up-to-date }
+
+  - name: "mpm: gup check without the go command fails loudly"
+    tags: [contract, mpm]
+    skip:
+      os: windows
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/nogo && cp "$(command -v gup)" ${workdir}/nogo/gup
+      # Only gup is on PATH: no go command to fall back on.
+      - run:
+          shell: true
+          command: PATH=${workdir}/nogo ${workdir}/nogo/gup check --json
+      # mpm's failure gate is "non-zero exit AND something on stderr".
+      - assert:
+          exit_code: { not: 0 }
+          stderr:
+            contains: "you didn't install golang"
+
+  - name: "mpm: gup remove --force removes a binary with stdin not a TTY"
+    tags: [contract, mpm]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup remove --force outdated
+          stdin: ""
+      - assert:
+          exit_code: 0
+          file:
+            path: gobin/outdated
+            exists: false
+
+  - name: "mpm: gup update <name> updates that binary alone"
+    tags: [contract, mpm]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup update outdated
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.0.0
+
+  # ------------------------------------------------ dotfiles / provisioning
+
+  - name: "scripts: gup list prints the binary name before the first colon"
+    tags: [contract, scripts]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      # `awk -F: '{gsub(/^[ \t]+|[ \t]+$/, "", $1); print $1}'` must yield the
+      # bare names: one binary per line, "<padding><name>: <import path>@<version>".
+      - run:
+          command: gup list
+      - assert:
+          exit_code: 0
+          stdout:
+            matches: '(?m)^\s*outdated: gup\.test/outdated@v1\.0\.0$'
+      - assert:
+          stdout:
+            matches: '(?m)^\s*uptodate: gup\.test/uptodate@v1\.0\.0$'
+
+  - name: "scripts: gup list --json maps each import_path to the binary name"
+    tags: [contract, scripts]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/moved/cmd/tool@v1.0.0
+      # The binary name differs from the last module path element here, which is
+      # exactly why the scripts resolve names through the listing.
+      - run:
+          command: gup list --json
+      - assert:
+          exit_code: 0
+          stdout:
+            json:
+              - { path: "$[0].import_path", equals: gup.test/moved/cmd/tool }
+              - { path: "$[0].name", equals: tool }
+
+  - name: "scripts: gup remove --force takes several names at once"
+    tags: [contract, scripts]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/uptodate@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      # `gup remove --force a b` (bootstrap.ts) and `xargs gup remove -f`.
+      - run:
+          command: gup remove -f outdated uptodate
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: false
+      - assert:
+          file:
+            path: gobin/uptodate
+            exists: false
+      - assert:
+          file:
+            path: gobin/pinnable
+            exists: true
+
+  - name: "scripts: gup update --exclude accepts a comma-joined list"
+    tags: [contract, scripts]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: go install gup.test/replaced@v1.0.0
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup update --exclude replaced,pinnable
+          stdin: ""
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.0.0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
+
+  - name: "scripts: gup check exits 0 when updates are available"
+    tags: [contract, scripts]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup check
+          stdin: ""
+      - assert:
+          exit_code: 0
