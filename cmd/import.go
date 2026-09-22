@@ -105,8 +105,11 @@ func runImport(p *print.Printer, cmd *cobra.Command, _ []string) int {
 	}
 
 	if len(pkgs) == 0 {
-		p.Err("unable to import package: no package information")
-		return 1
+		// An empty manifest is what `gup export` writes on a machine with no Go
+		// binaries, so importing it must succeed: the round trip is a no-op, not
+		// an error (#422).
+		p.Info(confFile + " lists no packages; nothing to import")
+		return 0
 	}
 
 	p.Info("start import based on " + confFile)

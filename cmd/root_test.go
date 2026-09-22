@@ -728,14 +728,6 @@ func TestExecute_Import_WithBadInputFile(t *testing.T) {
 				"",
 			},
 		},
-		{
-			name:      "specify empty file",
-			inputFile: "testdata/gup_config/empty.json",
-			want: []string{
-				"gup:ERROR: unable to import package: no package information",
-				"",
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

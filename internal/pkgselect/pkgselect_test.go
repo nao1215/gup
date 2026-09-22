@@ -20,6 +20,9 @@ const (
 	pkg3        = "pkg3"
 	nameTest2   = "test2"
 	nameMissing = "missing"
+	nameGopls   = "gopls"
+	nameLazygit = "lazygit"
+	typoLazygit = "lazygti"
 	blankTarget = "   "
 )
 
@@ -142,11 +145,78 @@ func TestWarnMissing(t *testing.T) {
 	t.Parallel()
 
 	var warnings []string
-	WarnMissing([]string{nameMissing}, func(msg string) { warnings = append(warnings, msg) })
+	WarnMissing([]string{nameMissing, typoLazygit}, []string{nameLazygit, nameGopls},
+		func(msg string) { warnings = append(warnings, msg) })
 
-	want := []string{"not found '" + nameMissing + "' package in $GOPATH/bin or $GOBIN"}
+	want := []string{
+		"not found '" + nameMissing + "' package in $GOPATH/bin or $GOBIN",
+		"not found 'lazygti' package in $GOPATH/bin or $GOBIN; did you mean 'lazygit'?",
+	}
 	if diff := cmp.Diff(want, warnings); diff != "" {
 		t.Fatalf("warnings mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestWarnUnmatchedExcludes(t *testing.T) {
+	t.Parallel()
+
+	installed := []string{nameLazygit, nameGopls, "golangci-lint"}
+	tests := []struct {
+		name     string
+		excludes []string
+		want     []string
+	}{
+		{
+			name:     "installed names are not warned about",
+			excludes: []string{nameLazygit, " gopls "},
+			want:     nil,
+		},
+		{
+			// A shared exclude list naming tools this machine never installed is
+			// normal (Topgrade's gup_exclude); only a likely typo is worth a word.
+			name:     "a name with no close match stays silent",
+			excludes: []string{"kind", "pkgsite"},
+			want:     nil,
+		},
+		{
+			name:     "a likely typo gets a suggestion",
+			excludes: []string{typoLazygit},
+			want:     []string{"--exclude 'lazygti' matches no installed binary; did you mean 'lazygit'?"},
+		},
+		{
+			name:     "a repeated typo is reported once",
+			excludes: []string{typoLazygit, typoLazygit + " "},
+			want:     []string{"--exclude 'lazygti' matches no installed binary; did you mean 'lazygit'?"},
+		},
+		{
+			name:     "blank entries are ignored",
+			excludes: []string{"", "  "},
+			want:     nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var got []string
+			WarnUnmatchedExcludes(tt.excludes, installed, func(msg string) { got = append(got, msg) })
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Fatalf("warnings mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestInstalledNames(t *testing.T) {
+	t.Parallel()
+
+	got := InstalledNames([]string{
+		filepath.Join("bin", nameGopls),
+		filepath.Join("bin", "lazygit.exe"),
+		filepath.Join("bin", "Tool.EXE"),
+	})
+	want := []string{nameGopls, nameLazygit, "Tool"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("InstalledNames mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -283,10 +353,11 @@ func TestBinaryPaths_missingGOBINIsEmpty(t *testing.T) {
 func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_success"))
 
-	pkgs, missing, _, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"gal"})
+	sel, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"gal"})
 	if err != nil {
 		t.Fatalf("PackageInfoByTargets() error = %v", err)
 	}
+	pkgs, missing := sel.Packages, sel.Missing
 	if len(pkgs) != 1 {
 		t.Fatalf("PackageInfoByTargets() returned %d packages, want 1: %+v", len(pkgs), pkgs)
 	}
@@ -305,10 +376,11 @@ func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 func TestPackageInfoByTargets_presentButUnreadableIsNotMissing(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_fail"))
 
-	pkgs, missing, _, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"dummy"})
+	sel, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"dummy"})
 	if err != nil {
 		t.Fatalf("PackageInfoByTargets() error = %v", err)
 	}
+	pkgs, missing := sel.Packages, sel.Missing
 	if len(pkgs) != 0 {
 		t.Fatalf("PackageInfoByTargets() returned %d packages, want 0: %+v", len(pkgs), pkgs)
 	}

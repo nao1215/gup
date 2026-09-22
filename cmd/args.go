@@ -12,6 +12,10 @@ import (
 // condition rather than an error (#350).
 const emptyEnvMessage = "no binaries are installed under $GOPATH/bin or $GOBIN"
 
+// allExcludedMessage is the note update prints when --exclude filtered out every
+// binary it would otherwise have updated.
+const allExcludedMessage = "every selected binary is excluded by --exclude; nothing to update"
+
 // argsGuidance builds a concise, actionable error for a missing-argument
 // situation: a one-line summary followed by one or two example invocations
 // (issue #324). It deliberately stays short and never dumps full help.

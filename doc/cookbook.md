@@ -158,6 +158,12 @@ Or update everything except the ones you name:
 gup update --exclude gopls,golangci-lint
 ```
 
+A name in `--exclude` that is not installed is ignored, so one exclude list can
+be shared between machines. When it looks like a typo of an installed binary,
+gup says so on STDERR (`--exclude 'lazygti' matches no installed binary; did you
+mean 'lazygit'?`), because a mistyped exclude would otherwise update the very
+tool it was meant to hold back.
+
 `--exclude` combines with `--dry-run`, so you can confirm the skip list before
 anything is built:
 
@@ -336,7 +342,9 @@ NO_COLOR=1 gup update
 ```
 
 An empty `$GOBIN` is a normal first run, not an error: `list`, `check`, and
-`update` exit `0` (and print `[]` with `--json`).
+`update` exit `0` (and print `[]` with `--json`), with or without `--exclude`.
+`update --exclude` that leaves nothing to update exits `0` too, and so does
+`import` of the empty `gup.json` that `export` writes on such a machine.
 
 ## When an update fails
 
