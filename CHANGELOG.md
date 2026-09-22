@@ -1,9 +1,11 @@
 ## Unreleased
 
+## [v1.10.0](https://github.com/nao1215/gup/compare/v1.9.4...v1.10.0) (2026-09-22)
+
 ### Bug Fixes
 
-* `gup update --exclude ...` on a machine with no Go binaries exits 0 again, the same first-run success it is without `--exclude`, and excluding every installed binary is reported as nothing to update (exit 0) rather than a usage error ([#422](https://github.com/nao1215/gup/issues/422)). `--exclude` is a filter: it only takes binaries away, so what it leaves cannot be the user's mistake. The exit 1 mattered most to [Topgrade](https://github.com/topgrade-rs/topgrade), which passes the user's `gup_exclude` list on every machine and reports the whole Go step as failed on a non-zero exit, so a fresh machine with gup installed from a package manager and an exclude list failed every run. Naming a binary that is not installed as a positional target is still a usage error.
-* `gup import` of a `gup.json` with no packages succeeds as a no-op and names the file it read, instead of failing with `unable to import package: no package information`. That is the file `gup export` writes on an empty `$GOBIN`, so the export/import round trip now holds there too ([#422](https://github.com/nao1215/gup/issues/422)).
+* `gup update --exclude ...` on a machine with no Go binaries exits 0, the same first-run success it is without `--exclude`, and excluding every installed binary is reported as nothing to update (exit 0) rather than a usage error ([#422](https://github.com/nao1215/gup/issues/422)). `--exclude` is a filter: it only takes binaries away, so what it leaves cannot be the user's mistake. The exit 1 mattered most to [Topgrade](https://github.com/topgrade-rs/topgrade), which passes the user's `gup_exclude` list on every machine and reports the whole Go step as failed on a non-zero exit, so a fresh machine with gup installed from a package manager and an exclude list failed every run. Naming a binary that is not installed as a positional target is still a usage error.
+* `gup import` of a `gup.json` with no packages succeeds as a no-op and names the file it read, instead of failing with `unable to import package: no package information`. That is the file `gup export` writes on an empty `$GOBIN`, so the export/import round trip now holds there too ([#422](https://github.com/nao1215/gup/issues/422)). Thanks to [@pentaoa](https://github.com/pentaoa), who proposed this fix first in [#477](https://github.com/nao1215/gup/pull/477).
 
 ### Changes
 
