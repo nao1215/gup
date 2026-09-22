@@ -21,6 +21,7 @@ import (
 	"github.com/nao1215/gup/internal/binname"
 	"github.com/nao1215/gup/internal/goutil"
 	"github.com/nao1215/gup/internal/print"
+	"github.com/nao1215/gup/internal/suggest"
 )
 
 // BinaryPaths returns the absolute paths of the binaries installed under $GOBIN
@@ -59,26 +60,58 @@ func PackageInfo(p *print.Printer) ([]goutil.Package, error) {
 	return goutil.GetPackageInformationWithoutGoVersion(p, binList), nil
 }
 
-// PackageInfoByTargets returns package information for the installed binaries
-// matching targets (all binaries when targets is empty), the targets that match
-// no installed binary (for "not found" reporting), and a bool reporting whether
-// the installed Go version was detected. When the bool is false, callers must
-// disable Go-version comparison (see issue #296).
+// Selection is what PackageInfoByTargets resolved for a command's targets.
+type Selection struct {
+	// Packages are the installed binaries matching the targets (every installed
+	// binary when there are none).
+	Packages []goutil.Package
+	// Missing are the targets that match no installed binary, for "not found"
+	// reporting.
+	Missing []string
+	// Installed names every binary in $GOBIN, whether or not it matched a target
+	// or could be read. It is the candidate list for "did you mean" suggestions.
+	Installed []string
+	// GoVersionAvailable reports whether the installed Go version was detected.
+	// When it is false, callers must disable Go-version comparison (see issue
+	// #296).
+	GoVersionAvailable bool
+}
+
+// PackageInfoByTargets resolves the installed binaries matching targets (all
+// binaries when targets is empty) into a Selection.
 //
-// "missing" is derived from the binary paths, not from the resolved packages, so
+// Missing is derived from the binary paths, not from the resolved packages, so
 // a binary that exists in $GOBIN but whose build info can't be read (or that was
 // not installed by 'go install') is never mislabeled as "not found"; it is
 // present but unmanageable, and GetPackageInformation already warns about it.
-func PackageInfoByTargets(p *print.Printer, targets []string) (pkgs []goutil.Package, missing []string, goVersionAvailable bool, err error) {
+func PackageInfoByTargets(p *print.Printer, targets []string) (Selection, error) {
 	binList, err := BinaryPaths()
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("%s: %w", "can't get package info", err)
+		return Selection{}, fmt.Errorf("%s: %w", "can't get package info", err)
 	}
 
 	filtered := FilterBinaryPaths(binList, targets)
-	pkgs, goVersionAvailable = goutil.GetPackageInformation(p, filtered)
-	missing = MissingTargets(binList, targets)
-	return pkgs, missing, goVersionAvailable, nil
+	pkgs, goVersionAvailable := goutil.GetPackageInformation(p, filtered)
+	return Selection{
+		Packages:           pkgs,
+		Missing:            MissingTargets(binList, targets),
+		Installed:          InstalledNames(binList),
+		GoVersionAvailable: goVersionAvailable,
+	}, nil
+}
+
+// InstalledNames returns the binary names in binList as a user would type them:
+// the base name, without the ".exe" suffix Windows gives every binary.
+func InstalledNames(binList []string) []string {
+	names := make([]string, 0, len(binList))
+	for _, path := range binList {
+		base := filepath.Base(path)
+		if ext := filepath.Ext(base); strings.EqualFold(ext, ".exe") {
+			base = strings.TrimSuffix(base, ext)
+		}
+		names = append(names, base)
+	}
+	return names
 }
 
 // FilterBinaryPaths returns the subset of binList whose base name matches one of
@@ -151,13 +184,54 @@ func MissingTargets(binList, targets []string) []string {
 }
 
 // WarnMissing reports each missing target name (as returned by MissingTargets)
-// through warn, using the standard "not found ... in $GOBIN" wording. warn is
-// called once per name; centralizing the message keeps update and check
+// through warn, using the standard "not found ... in $GOBIN" wording, followed by
+// a "did you mean" suggestion when an installed binary is a likely typo target.
+// warn is called once per name; centralizing the message keeps update and check
 // consistent.
-func WarnMissing(missing []string, warn func(string)) {
+func WarnMissing(missing, installed []string, warn func(string)) {
 	for _, name := range missing {
-		warn("not found '" + name + "' package in $GOPATH/bin or $GOBIN")
+		warn("not found '" + name + "' package in $GOPATH/bin or $GOBIN" + didYouMean(name, installed))
 	}
+}
+
+// WarnUnmatchedExcludes warns about each --exclude name that matches no
+// installed binary but is a likely typo of one, so `--exclude lazygti` does not
+// quietly update lazygit. An excluded name with no close match stays silent: it
+// is normal for an exclude list shared between machines (Topgrade's
+// gup_exclude) to name tools this machine never installed, and warning about
+// those on every run would be noise.
+func WarnUnmatchedExcludes(excludeList, installed []string, warn func(string)) {
+	present := make(map[string]struct{}, len(installed))
+	for _, name := range installed {
+		present[binname.NormalizeForMatch(name)] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(excludeList))
+	for _, raw := range excludeList {
+		normalized := binname.NormalizeForMatch(raw)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := present[normalized]; ok {
+			continue
+		}
+		if _, dup := seen[normalized]; dup {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		name := strings.TrimSpace(raw)
+		if hint := didYouMean(name, installed); hint != "" {
+			warn("--exclude '" + name + "' matches no installed binary" + hint)
+		}
+	}
+}
+
+// didYouMean renders the suggestion suffix for name, or "" when no installed
+// binary is close enough to suggest.
+func didYouMean(name string, installed []string) string {
+	if match, ok := suggest.Closest(name, installed); ok {
+		return "; did you mean '" + match + "'?"
+	}
+	return ""
 }
 
 // Exclude returns pkgs with the binaries named in excludeList removed. For each

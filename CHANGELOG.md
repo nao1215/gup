@@ -1,5 +1,14 @@
 ## Unreleased
 
+### Bug Fixes
+
+* `gup update --exclude ...` on a machine with no Go binaries exits 0 again, the same first-run success it is without `--exclude`, and excluding every installed binary is reported as nothing to update (exit 0) rather than a usage error ([#422](https://github.com/nao1215/gup/issues/422)). `--exclude` is a filter: it only takes binaries away, so what it leaves cannot be the user's mistake. The exit 1 mattered most to [Topgrade](https://github.com/topgrade-rs/topgrade), which passes the user's `gup_exclude` list on every machine and reports the whole Go step as failed on a non-zero exit, so a fresh machine with gup installed from a package manager and an exclude list failed every run. Naming a binary that is not installed as a positional target is still a usage error.
+* `gup import` of a `gup.json` with no packages succeeds as a no-op and names the file it read, instead of failing with `unable to import package: no package information`. That is the file `gup export` writes on an empty `$GOBIN`, so the export/import round trip now holds there too ([#422](https://github.com/nao1215/gup/issues/422)).
+
+### Changes
+
+* A binary name that matches nothing now comes with the closest installed name when there is a likely one, found by edit distance with adjacent swaps counted as one typo: `not found 'lazygti' ...; did you mean 'lazygit'?` for `update` and `check` targets, and `--exclude 'lazygti' matches no installed binary; did you mean 'lazygit'?` on STDERR for `update --exclude`, where a typo would otherwise update the very tool it meant to hold back. An excluded name with nothing close stays silent, so an exclude list shared between machines does not warn on every run.
+
 ## [v1.9.4](https://github.com/nao1215/gup/compare/v1.9.3...v1.9.4) (2026-09-21)
 
 ### Changes

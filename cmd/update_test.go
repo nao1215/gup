@@ -1290,8 +1290,11 @@ func Test_updateWithChannels_mainChannel_skipDecisionUsesChannel(t *testing.T) {
 	}
 }
 
+// --exclude is a filter, not a selection: filtering out every installed binary
+// leaves nothing to do, which is a success, not a usage error (#422).
 func Test_gup_excludeFlag(t *testing.T) {
 	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+	setupXDGBase(t)
 
 	cmd := newUpdateCmd()
 	if err := cmd.Flags().Set("exclude", "gal,posixer,subaru"); err != nil {
@@ -1303,12 +1306,109 @@ func Test_gup_excludeFlag(t *testing.T) {
 	OsExit = func(code int) {}
 	defer func() { OsExit = os.Exit }()
 
-	p, _ := newTestPrinter()
+	p, buf := newTestPrinter()
 
-	got := gup(deps, p, cmd, []string{})
+	if got := gup(deps, p, cmd, []string{}); got != 0 {
+		t.Errorf("gup() with all excluded = %v, want 0; output: %s", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), allExcludedMessage) {
+		t.Errorf("expected %q, got: %s", allExcludedMessage, buf.String())
+	}
+}
 
-	if got != 1 {
-		t.Errorf("gup() with all excluded = %v, want 1", got)
+// Topgrade passes the user's gup_exclude list on every machine, including one
+// with no Go binaries yet. That must be the same first-run success it is
+// without --exclude (#422).
+func Test_gup_excludeFlag_emptyGOBIN(t *testing.T) {
+	t.Setenv("GOBIN", t.TempDir())
+	setupXDGBase(t)
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("exclude", "kind"); err != nil {
+		t.Fatalf("failed to set exclude flag: %v", err)
+	}
+
+	OsExit = func(code int) {}
+	defer func() { OsExit = os.Exit }()
+
+	p, buf := newTestPrinter()
+
+	if got := gup(stubUpdateDeps(), p, cmd, []string{}); got != 0 {
+		t.Errorf("gup() --exclude on an empty GOBIN = %v, want 0; output: %s", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), emptyEnvMessage) {
+		t.Errorf("expected %q, got: %s", emptyEnvMessage, buf.String())
+	}
+}
+
+// A positional target that exists but is also excluded is filtered out, not
+// missing: nothing to do, exit 0.
+func Test_gup_excludeFlag_excludesNamedTarget(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+	setupXDGBase(t)
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("exclude", "gal"); err != nil {
+		t.Fatalf("failed to set exclude flag: %v", err)
+	}
+
+	OsExit = func(code int) {}
+	defer func() { OsExit = os.Exit }()
+
+	p, buf := newTestPrinter()
+
+	if got := gup(stubUpdateDeps(), p, cmd, []string{"gal"}); got != 0 {
+		t.Errorf("gup() gal --exclude gal = %v, want 0; output: %s", got, buf.String())
+	}
+}
+
+// A positional target is a name the user typed, so a name that matches nothing
+// is still a usage error, and a close installed name is offered as the fix.
+func Test_gup_missingTargetSuggestsClosest(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+	setupXDGBase(t)
+
+	cmd := newUpdateCmd()
+
+	OsExit = func(code int) {}
+	defer func() { OsExit = os.Exit }()
+
+	p, buf := newTestPrinter()
+
+	if got := gup(stubUpdateDeps(), p, cmd, []string{"posixr"}); got != 1 {
+		t.Errorf("gup() posixr = %v, want 1; output: %s", got, buf.String())
+	}
+	if want := "did you mean 'posixer'?"; !strings.Contains(buf.String(), want) {
+		t.Errorf("expected %q, got: %s", want, buf.String())
+	}
+}
+
+// A mistyped --exclude would otherwise update the very binary the user meant to
+// hold back, silently. The update still runs; the warning is the signal.
+func Test_gup_excludeTypoWarns(t *testing.T) {
+	t.Setenv("GOBIN", filepath.Join("testdata", "check_success"))
+	setupXDGBase(t)
+
+	cmd := newUpdateCmd()
+	if err := cmd.Flags().Set("exclude", "posixr,kind"); err != nil {
+		t.Fatalf("failed to set exclude flag: %v", err)
+	}
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("failed to set dry-run flag: %v", err)
+	}
+
+	OsExit = func(code int) {}
+	defer func() { OsExit = os.Exit }()
+
+	p, buf := newTestPrinter()
+
+	gup(stubUpdateDeps(), p, cmd, []string{})
+	out := buf.String()
+	if want := "--exclude 'posixr' matches no installed binary; did you mean 'posixer'?"; !strings.Contains(out, want) {
+		t.Errorf("expected %q, got: %s", want, out)
+	}
+	if strings.Contains(out, "'kind'") {
+		t.Errorf("an exclude with no close match must stay silent, got: %s", out)
 	}
 }
 

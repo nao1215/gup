@@ -60,6 +60,27 @@ scenarios:
           stdout:
             contains: gup.test/uptodate
 
+  # #422: export on an empty GOBIN writes a manifest with no packages, and
+  # importing that manifest is a no-op that succeeds, so the round trip holds.
+  - name: export then import round-trips an empty GOBIN
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup export --file "${workdir}/empty.json"
+      - assert:
+          exit_code: 0
+      - run:
+          command: gup import --file "${workdir}/empty.json"
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: nothing to import
+          stderr:
+            not_contains: ERROR
+
   - name: import --dry-run reports the plan without installing anything
     env: *iso
     steps:

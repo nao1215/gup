@@ -149,29 +149,40 @@ func Test_runImport_fileIsDirectory(t *testing.T) {
 	}
 }
 
+// An empty gup.json is what `gup export` writes on a machine with no Go
+// binaries, so importing it is a successful no-op rather than an error: the
+// export/import round trip has to hold on an empty GOBIN too (#422).
 func Test_runImport_emptyConf(t *testing.T) {
-	// Create a temporary conf file with no packages
-	tmpDir := t.TempDir()
-	confPath := filepath.Join(tmpDir, "empty.json")
-	if err := os.WriteFile(confPath, []byte(""), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	for _, tc := range []struct {
+		name    string
+		content string
+	}{
+		{name: "blank file", content: ""},
+		{name: "what export writes for an empty GOBIN", content: `{"schema_version":2,"packages":[]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			confPath := filepath.Join(tmpDir, "empty.json")
+			if err := os.WriteFile(confPath, []byte(tc.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
 
-	cmd := newImportCmd()
-	if err := cmd.Flags().Set("file", confPath); err != nil {
-		t.Fatal(err)
-	}
+			cmd := newImportCmd()
+			if err := cmd.Flags().Set("file", confPath); err != nil {
+				t.Fatal(err)
+			}
 
-	p, buf := newTestPrinter()
+			p, buf := newTestPrinter()
 
-	got := runImport(p, cmd, nil)
-
-	if got != 1 {
-		t.Errorf("runImport() = %v, want 1", got)
-	}
-
-	if !strings.Contains(buf.String(), "unable to import package") {
-		t.Errorf("expected 'unable to import package' error, got: %s", buf.String())
+			if got := runImport(p, cmd, nil); got != 0 {
+				t.Errorf("runImport() = %v, want 0; output: %s", got, buf.String())
+			}
+			// The note names the file, so a user who pointed --file at the wrong
+			// manifest can see which one was read.
+			if want := confPath + " lists no packages; nothing to import"; !strings.Contains(buf.String(), want) {
+				t.Errorf("expected %q, got: %s", want, buf.String())
+			}
+		})
 	}
 }
 
@@ -193,12 +204,10 @@ func Test_runImport_jobsClamp(t *testing.T) {
 
 	p, _ := newTestPrinter()
 
-	// Should not panic with jobs=0 (clamped to 1)
-	got := runImport(p, cmd, nil)
-
-	// Expect exit code 1 because the conf file has no packages
-	if got != 1 {
-		t.Errorf("runImport() = %v, want 1", got)
+	// Should not panic with jobs=0 (clamped to 1); the empty conf file is a
+	// successful no-op.
+	if got := runImport(p, cmd, nil); got != 0 {
+		t.Errorf("runImport() = %v, want 0", got)
 	}
 }
 

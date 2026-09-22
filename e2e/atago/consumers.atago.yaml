@@ -165,6 +165,43 @@ scenarios:
       - assert:
           exit_code: 0
 
+  # #422: gup_exclude comes along even on a machine that has no Go binaries yet.
+  # --exclude is a filter, so filtering nothing is still the first-run success
+  # the scenario above pins, not the usage error it used to be.
+  - name: "topgrade: gup update --exclude on a machine with no Go binaries exits 0"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          shell: true
+          command: mkdir -p ${workdir}/gobin
+      - run:
+          command: gup update --exclude kind --exclude pkgsite
+          stdin: ""
+      - assert:
+          exit_code: 0
+          stderr:
+            equals: ""
+
+  - name: "topgrade: excluding every installed binary is nothing to do, not a failure"
+    tags: [contract, topgrade]
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --exclude outdated
+          stdin: ""
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: nothing to update
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+
   # ---------------------------------------------------- Meta Package Manager
 
   - name: "mpm: gup version matches the version probe regex"

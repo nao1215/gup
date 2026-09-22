@@ -269,8 +269,11 @@ STDERR so STDOUT stays parseable.
 
 | Code | When |
 |:--|:--|
-| `0` | The command did its job — including `check` finding updates, and any command on an empty `$GOBIN` |
+| `0` | The command did its job — including `check` finding updates, any command on an empty `$GOBIN`, `update --exclude` leaving nothing to update, and `import` of a `gup.json` with no packages |
 | `1` | A usage error, a config error, or at least one package failed |
 
-Naming a binary that is not installed, or excluding every binary, is a usage
-error.
+Naming a binary that is not installed is a usage error, and gup suggests the
+closest installed name when there is one. `--exclude` is a filter, not a
+selection: a name it lists that is not installed is ignored (with a
+"did you mean" warning on STDERR when it looks like a typo of an installed
+binary), and excluding everything is simply nothing to do.

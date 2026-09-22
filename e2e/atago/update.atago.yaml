@@ -304,3 +304,35 @@ scenarios:
       - assert:
           stdout:
             contains: v1.0.0
+
+  # A mistyped --exclude would update the very binary it meant to hold back.
+  # The update still runs (a filter that matches nothing is not an error), but a
+  # close installed name is named on stderr.
+  - name: a mistyped --exclude warns with the closest installed name
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update --exclude outdatd --exclude kind
+      - assert:
+          exit_code: 0
+          stderr:
+            contains: "--exclude 'outdatd' matches no installed binary; did you mean 'outdated'?"
+      # A name with nothing close (a shared exclude list's tool this machine
+      # never installed) stays silent.
+      - assert:
+          stderr:
+            not_contains: "'kind'"
+
+  - name: a mistyped target is still an error and suggests the closest installed name
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup update outdatd
+      - assert:
+          exit_code: 1
+          stderr:
+            contains: "not found 'outdatd' package in $GOPATH/bin or $GOBIN; did you mean 'outdated'?"

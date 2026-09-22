@@ -143,17 +143,30 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 		return 1
 	}
 
-	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(p, args)
+	sel, err := pkgselect.PackageInfoByTargets(p, args)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
+	pkgs := sel.Packages
 	// When the installed Go version can't be detected, behave as
 	// --ignore-go-update so a transient "go version" failure does not force
 	// every binary to reinstall (see issue #296).
-	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
+	ignoreGoUpdate := opts.ignoreGoUpdate || !sel.GoVersionAvailable
 
-	pkgselect.WarnMissing(missingTargets, func(msg string) { p.Warn(msg) })
+	pkgselect.WarnMissing(sel.Missing, sel.Installed, func(msg string) { p.Warn(msg) })
+	if len(pkgs) == 0 {
+		// Nothing matched before --exclude was applied. With explicit targets
+		// that means every name the user typed was wrong: a usage error. Without
+		// any, it is a normal first-run condition handled the same way as check,
+		// whatever --exclude says -- an exclude list shared between machines
+		// (Topgrade's gup_exclude) must not fail a machine with no Go binaries
+		// yet (#422).
+		return handleEmptyEnvironment(p, opts.confFile, opts.jsonOut, len(args) != 0,
+			"unable to update package: no package information or no package under $GOBIN")
+	}
+
+	pkgselect.WarnUnmatchedExcludes(opts.excludePkgList, sel.Installed, func(msg string) { p.Warn(msg) })
 	// In JSON mode the human-readable "Exclude ..." notice is suppressed so
 	// STDOUT stays valid JSON (the notice goes to STDOUT via p.Info, which
 	// would otherwise break machine-readable output; see issue #291).
@@ -164,12 +177,10 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 	pkgs = pkgselect.Exclude(pkgs, opts.excludePkgList, excludeNotify)
 
 	if len(pkgs) == 0 {
-		// With explicit targets or --exclude, an empty result means the user
-		// narrowed everything out: that is a usage error. Otherwise it is a normal
-		// first-run condition handled the same way as check.
-		return handleEmptyEnvironment(p, opts.confFile, opts.jsonOut,
-			len(args) != 0 || len(opts.excludePkgList) != 0,
-			"unable to update package: no package information or no package under $GOBIN")
+		// --exclude filtered out everything that was selected. A filter that
+		// leaves nothing to do is not a failure: there is simply nothing to
+		// update (#422).
+		return handleNothingSelected(p, opts.confFile, opts.jsonOut, allExcludedMessage)
 	}
 
 	// When both the user-level config and ./gup.json exist and no --file is
@@ -196,11 +207,11 @@ func gup(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string)
 		return 1
 	}
 
-	// missingTargets were already reported as "not found ... in $GOBIN" above;
+	// sel.Missing targets were already reported as "not found ... in $GOBIN" above;
 	// pass them so ResolveChannels does not emit a second, redundant notice for a
 	// name listed both as a positional target and in --main/--master/--latest.
 	channelMap, pinnedMap, err := configstate.ResolveChannels(pkgs, confPkgs, opts.mainPkgNames, opts.masterPkgNames, opts.latestPkgNames,
-		missingTargets, func(msg string) { p.Warn(msg) })
+		sel.Missing, func(msg string) { p.Warn(msg) })
 	if err != nil {
 		p.Err(err)
 		return 1

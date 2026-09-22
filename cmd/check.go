@@ -97,16 +97,17 @@ func check(deps dependencies, p *print.Printer, cmd *cobra.Command, args []strin
 		return 1
 	}
 
-	pkgs, missingTargets, goVersionAvailable, err := pkgselect.PackageInfoByTargets(p, args)
+	sel, err := pkgselect.PackageInfoByTargets(p, args)
 	if err != nil {
 		p.Err(err)
 		return 1
 	}
+	pkgs := sel.Packages
 	// When the installed Go version can't be detected, behave as
 	// --ignore-go-update so check does not report every binary as outdated
 	// (see issue #296).
-	ignoreGoUpdate := opts.ignoreGoUpdate || !goVersionAvailable
-	pkgselect.WarnMissing(missingTargets, func(msg string) { p.Warn(msg) })
+	ignoreGoUpdate := opts.ignoreGoUpdate || !sel.GoVersionAvailable
+	pkgselect.WarnMissing(sel.Missing, sel.Installed, func(msg string) { p.Warn(msg) })
 
 	if len(pkgs) == 0 {
 		return handleEmptyEnvironment(p, opts.confFile, opts.jsonOut, len(args) != 0,

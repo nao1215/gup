@@ -138,7 +138,7 @@ update binary under $GOPATH/bin or $GOBIN
 
 ### Exclude binaries during gup update
 If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
-Also works in combination with --dry-run
+Also works in combination with --dry-run. A name that is not installed is ignored, so the same list can be shared between machines; if it looks like a typo of an installed binary, gup prints a "did you mean" warning.
 ```shell
 $ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
 ```
