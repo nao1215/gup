@@ -269,7 +269,7 @@ STDERR so STDOUT stays parseable.
 
 | Code | When |
 |:--|:--|
-| `0` | The command did its job — including `check` finding updates, any command on an empty `$GOBIN`, `update --exclude` leaving nothing to update, and `import` of a `gup.json` with no packages |
+| `0` | The command did its job — including `check` finding updates, `list`, `export`, and `check` or `update` without named binaries on an empty `$GOBIN`, `update --exclude` leaving nothing to update, and `import` of a `gup.json` with no packages |
 | `1` | A usage error, a config error, or at least one package failed |
 
 Naming a binary that is not installed is a usage error, and gup suggests the
