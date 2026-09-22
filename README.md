@@ -427,6 +427,8 @@ gup runs inside higher-level upgrade tools. Nothing extra is needed on the gup s
 - [Topgrade](https://github.com/topgrade-rs/topgrade) has run `gup update` in its Go step since v10.2.0. Binaries can be skipped with `gup_exclude` (v17.3.0 and later).
 - [Meta Package Manager](https://github.com/kdeldycke/meta-package-manager) lists, checks, removes, and upgrades the binaries gup manages. The support ships in its upcoming v8.0.0.
 
+The exit codes, `--json` fields and text output these tools and a number of dotfiles scripts rely on are pinned as end-to-end contracts in [e2e/atago/consumers.atago.yaml](./e2e/atago/consumers.atago.yaml), so a change that would break a caller fails CI first.
+
 ## FAQ
 
 ### `gup` fails with `fatal: not a git repository`
