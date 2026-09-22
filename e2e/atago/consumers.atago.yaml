@@ -397,6 +397,11 @@ scenarios:
       - assert:
           stdout:
             contains: v1.0.0
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.1.0
 
   - name: "scripts: gup check exits 0 when updates are available"
     tags: [contract, scripts]
