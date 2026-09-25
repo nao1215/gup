@@ -176,8 +176,11 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 				return nil, fmt.Errorf("%s package %q: channel \"pinned\" requires schema_version %d, but file is schema_version %d",
 					path, name, configSchemaVersionV2, conf.SchemaVersion)
 			}
+			// An invalid pin is never degraded to @latest or silently unpinned: the
+			// whole read fails, naming the entry and how to repair the file by hand.
 			if err := goutil.ValidatePinnedVersion(version); err != nil {
-				return nil, fmt.Errorf("%s package %q: %w", path, name, err)
+				return nil, fmt.Errorf("%s package %q: %w (to fix it, edit %s and set this entry's \"version\" to such a version, or set its \"channel\" to \"latest\" to unpin it)",
+					path, name, err, path)
 			}
 			pinnedVersion = version
 		}

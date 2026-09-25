@@ -35,6 +35,11 @@ func TestParsePinArgs(t *testing.T) {
 		{name: "main keyword rejected", args: []string{testBinTool, string(goutil.UpdateChannelMain)}, wantErr: true},
 		{name: "double version specification", args: []string{testBinTool + "@" + testVersion123, "v2.0.0"}, wantErr: true},
 		{name: "empty target", args: []string{"@v1.0.0"}, wantErr: true},
+		{name: "pseudo-version accepted", args: []string{testBinTool + "@v0.0.0-20240102150405-abcdef123456"}, wantTarget: testBinTool, wantVersion: "v0.0.0-20240102150405-abcdef123456"},
+		{name: "prerelease accepted", args: []string{testBinTool, "v1.2.3-rc.1"}, wantTarget: testBinTool, wantVersion: "v1.2.3-rc.1"},
+		{name: "branch rejected", args: []string{testBinTool, "release"}, wantErr: true},
+		{name: "commit hash rejected", args: []string{testBinTool + "@abc1234"}, wantErr: true},
+		{name: "abbreviated version rejected", args: []string{testBinTool, "v1.2"}, wantErr: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

@@ -165,7 +165,11 @@ $ gup pin golangci-lint v1.62.0
 $ gup update
 ```
 
-`gup update` keeps a pinned tool at that version while the rest of the tool set updates. The pin is stored in `gup.json`:
+`gup update` keeps a pinned tool at that version while the rest of the tool set updates.
+
+A pin must name one fixed version, so that `go install` can never resolve it to different code later. `gup pin` accepts a full version (`v1.62.0`), a prerelease (`v2.0.0-rc.1`), a `+incompatible` version of a v2+ module (`v2.0.0+incompatible`), or a pseudo-version to pin a commit (`v0.0.0-20240102150405-abcdef123456`). It rejects branch names, commit hashes, abbreviated versions such as `v1` or `v1.2`, and version queries such as `>=v1.2.0`, all of which the go command resolves when it runs. To pin a commit, use its pseudo-version: `go list -m <module>@<commit>` prints it. The check needs neither the network nor the go command, so a well-formed version that does not exist is only reported by `gup update`.
+
+The pin is stored in `gup.json`:
 
 ```json
 {
@@ -186,6 +190,8 @@ To allow the tool to update again:
 ```shell
 $ gup unpin golangci-lint
 ```
+
+If a hand-edited `gup.json` holds a pin that is not one fixed version, every command that reads it (`update`, `import`, `check`, `pin`, ...) fails and names the file, the tool, and the value. gup never falls back to `@latest` or removes the pin on its own. Fix the entry by setting its `"version"` to a full version or a pseudo-version, or set its `"channel"` to `"latest"` to unpin it.
 
 ### List up command name with package path and version under $GOPATH/bin
 list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.

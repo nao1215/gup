@@ -395,3 +395,167 @@ scenarios:
           exit_code: 1
           stderr:
             contains: "is not valid JSON"
+
+  # --- A pin must name one fixed version -----------------------------------
+  # A pin is only a pin if 'go install <path>@<version>' can never resolve it to
+  # different code later. Full versions (including prereleases) and
+  # pseudo-versions qualify; branch names, commit hashes, abbreviated versions
+  # (v1, v1.2) and version queries do not, because the go command resolves them
+  # at install time.
+
+  - name: pins a prerelease and gup update installs exactly that version
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/pinnable@v1.0.0
+      - run:
+          command: gup pin pinnable v1.2.0-rc.1
+      - assert:
+          exit_code: 0
+          stdout:
+            contains: "Pinned pinnable to v1.2.0-rc.1"
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"version": "v1.2.0-rc.1"'
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/pinnable
+      - assert:
+          stdout:
+            contains: v1.2.0-rc.1
+
+  - name: pins a commit by pseudo-version and gup update installs exactly that commit
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/badmaintool@v1.0.0
+      - run:
+          command: gup pin badmaintool@v1.0.1-0.20240102000000-00000000000d
+      - assert:
+          exit_code: 0
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"version": "v1.0.1-0.20240102000000-00000000000d"'
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 0
+      - run:
+          command: go version -m gobin/badmaintool
+      - assert:
+          stdout:
+            contains: v1.0.1-0.20240102000000-00000000000d
+
+  - name: "rejects a pin that does not name one fixed version (${version})"
+    matrix:
+      - { version: release, reason: "branch names" }
+      - { version: abc1234, reason: "commit hash" }
+      - { version: v1, reason: "abbreviated version" }
+      - { version: v1.1, reason: "abbreviated version" }
+      - { version: ">=v1.1.0", reason: "version query" }
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated v1.0.0
+      # Before the fix, v1 and v1.1 were saved and 'gup update' then installed
+      # v1.1.0, the newest matching release, under the name of a pin.
+      - run:
+          command: gup pin outdated "${version}"
+      - assert:
+          exit_code: 1
+          stdout:
+            not_contains: "Pinned"
+          stderr:
+            contains:
+              - '"${version}"'
+              - ${reason}
+              - "full version such as v1.2.3"
+              - "pseudo-version"
+          # Neither gup.json nor the installed binary is touched.
+          changes:
+            created: []
+            modified: []
+            deleted: []
+      - assert:
+          file:
+            path: home/.config/gup/gup.json
+            contains: '"version": "v1.0.0"'
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+            not_contains: v1.1.0
+
+  - name: "gup update fails on a hand-edited pin that can move instead of installing it (${version})"
+    matrix:
+      - { version: v1 }
+      - { version: release }
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - fixture:
+          file: home/.config/gup/gup.json
+          content: |
+            {"schema_version":2,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"${version}","channel":"pinned"}]}
+      - run:
+          command: gup update
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - '"outdated"'
+              - '"${version}"'
+              - "full version such as v1.2.3"
+              - "pseudo-version"
+              - 'set its "channel" to "latest" to unpin it'
+          # No install, no fallback to @latest, and no automatic unpin: the
+          # config and $GOBIN are exactly as they were. Only the state-lock files
+          # and the go command's telemetry counters may appear.
+          changes:
+            created: []
+            modified: []
+            deleted: []
+            ignore: &lock_noise ["**/.gup.lock", "**/gup.json.lock", "**/go/telemetry/**"]
+      - run:
+          command: go version -m gobin/outdated
+      - assert:
+          stdout:
+            contains: v1.0.0
+            not_contains: v1.1.0
+
+  - name: "gup import fails on a hand-edited pin that can move instead of installing it (${version})"
+    matrix:
+      - { version: v1.1 }
+      - { version: main-branch }
+    env: *iso
+    steps:
+      - fixture:
+          file: pinned.json
+          content: |
+            {"schema_version":2,"packages":[{"name":"outdated","import_path":"gup.test/outdated","version":"${version}","channel":"pinned"}]}
+      - run:
+          command: gup import --file "${workdir}/pinned.json"
+      - assert:
+          exit_code: 1
+          stderr:
+            contains:
+              - "pinned.json"
+              - '"outdated"'
+              - '"${version}"'
+              - "pseudo-version"
+          changes:
+            created: []
+            modified: []
+            deleted: []
+            ignore: *lock_noise
+      - assert:
+          file:
+            path: gobin/outdated
+            exists: false
