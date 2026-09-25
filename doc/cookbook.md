@@ -190,6 +190,13 @@ A pinned tool is installed as `go install <import_path>@<version>` and is never
 resolved to `@latest`. The pin lives in `gup.json` under `channel: "pinned"`, so
 it survives `export`/`import`.
 
+The version must be a full one (`v1.62.0`, `v2.0.0-rc.1`), not `v1` or a branch.
+To hold a tool at a commit, pin its pseudo-version:
+
+```shell
+gup pin mytool "$(go list -m -f '{{.Version}}' example.com/mytool@abc1234)"
+```
+
 Which tools are pinned, and to what:
 
 ```shell

@@ -101,8 +101,11 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 		{module: "gup.test/outdated", version: "v1.1.0", mainGo: okMain("outdated v1.1.0")},
 		// pinnable: a second tool with v1.0.0 and v1.1.0, used by the pin e2e to
 		// prove a pinned tool stays put while an unpinned one updates in the same run.
+		// v1.2.0-rc.1 is a prerelease a pin can name; @latest stays v1.1.0 because
+		// the go command prefers a release over a prerelease.
 		{module: "gup.test/pinnable", version: "v1.0.0", mainGo: okMain("pinnable v1.0.0")},
 		{module: "gup.test/pinnable", version: "v1.1.0", mainGo: okMain("pinnable v1.1.0")},
+		{module: "gup.test/pinnable", version: "v1.2.0-rc.1", mainGo: okMain("pinnable v1.2.0-rc.1")},
 		// maintool: tracked on @main (resolves to a pseudo-version).
 		{module: "gup.test/maintool", version: "v0.0.0-20240101000000-00000000000a", mainGo: okMain("maintool main")},
 		// mastertool: has only a master branch (no main).
@@ -142,7 +145,7 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 	lists := map[string][]string{
 		"gup.test/uptodate":    {"v1.0.0"},
 		"gup.test/outdated":    {"v1.0.0", "v1.1.0"},
-		"gup.test/pinnable":    {"v1.0.0", "v1.1.0"},
+		"gup.test/pinnable":    {"v1.0.0", "v1.1.0", "v1.2.0-rc.1"},
 		"gup.test/maintool":    {},
 		"gup.test/mastertool":  {},
 		"gup.test/badmaintool": {"v1.0.0"},

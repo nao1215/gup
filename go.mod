@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/mattn/go-colorable v0.1.15
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/mod v0.21.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v3 v3.0.1

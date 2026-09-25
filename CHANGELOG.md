@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Bug Fixes
+
+* A pin now has to name one fixed Go module version. `gup pin` accepted any string that was not empty or a channel keyword, so `gup pin tool v1`, `gup pin tool v1.2`, a branch name such as `release`, a commit hash, or a query such as `>=v1.2.0` was saved, and every later `gup update` ran `go install <path>@<that>`, which the go command resolves to whatever it points at that day: a pin to `v1` installed the newest v1.x.y. `gup pin` and every command that reads or writes `gup.json` (so a hand-edited file cannot bypass it) now accept only a canonical Go module version, checked with golang.org/x/mod: a full `vMAJOR.MINOR.PATCH`, optionally with a prerelease, `+incompatible` for major version 2 or later, or a well-formed pseudo-version, which is how to pin a commit. The check is still syntactic and offline, so it needs neither the network nor the go command. An existing `gup.json` with such a pin now makes `update`, `import`, `check` and the other readers fail with the file, the tool, the value and the fix (set the entry's `version` to a full version or pseudo-version, or its `channel` to `latest` to unpin it), instead of installing it; gup never falls back to `@latest` or unpins on its own.
+
 ## [v1.10.0](https://github.com/nao1215/gup/compare/v1.9.4...v1.10.0) (2026-09-22)
 
 ### Bug Fixes

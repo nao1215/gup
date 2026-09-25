@@ -34,9 +34,22 @@ A pinned binary is recorded in gup.json with channel "pinned" and a concrete
 version. 'gup update' then installs that exact version with
 'go install <import_path>@<version>' instead of resolving @latest, so the tool
 stays on the version you rely on (for example to match CI or a team-wide
-development environment). Run 'gup unpin' to allow the tool to update again.`,
+development environment). Run 'gup unpin' to allow the tool to update again.
+
+VERSION must name one fixed Go module version: a full version (v1.62.0), a
+prerelease (v2.0.0-rc.1), a +incompatible version of a v2+ module
+(v2.0.0+incompatible), or a pseudo-version to pin a commit
+(v0.0.0-20240102150405-abcdef123456). Branch names, commit hashes, abbreviated
+versions such as v1 or v1.2, and version queries such as >=v1.2.0 are rejected,
+because the go command would resolve them to different code over time. To pin
+a commit, pass its pseudo-version ('go list -m MODULE@COMMIT' prints it).
+
+A gup.json whose pinned entry is not such a version is rejected by every
+command that reads it; set that entry's "version" to an accepted form, or its
+"channel" to "latest" to unpin it.`,
 		Example: `  gup pin golangci-lint v1.62.0
-  gup pin golangci-lint@v1.62.0`,
+  gup pin golangci-lint@v1.62.0
+  gup pin mytool v0.0.0-20240102150405-abcdef123456`,
 		Args:              cobra.RangeArgs(pinMinArgs, pinMaxArgs),
 		ValidArgsFunction: completeFirstArgPathBinaries,
 		Run: func(cmd *cobra.Command, args []string) {

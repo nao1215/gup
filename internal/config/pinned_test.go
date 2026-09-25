@@ -89,7 +89,12 @@ func TestReadConfFile_schemaV2_pinnedLoads(t *testing.T) {
 
 func TestReadConfFile_pinnedRejectsBadVersions(t *testing.T) {
 	t.Parallel()
-	for _, ver := range []string{"latest", "main", "master", "pinned", "(devel)", "unknown"} {
+	for _, ver := range []string{
+		"latest", "main", "master", "pinned", "(devel)", "unknown",
+		// A hand-edited gup.json must not bypass the rule the pin command
+		// enforces: moving references and abbreviated versions are rejected too.
+		"release", "abc1234", "v1", "v1.2", ">=v1.2.0", "v1.2.3+incompatible",
+	} {
 		t.Run(ver, func(t *testing.T) {
 			t.Parallel()
 			path := writeTempConf(t, `{"schema_version":2,"packages":[
@@ -99,6 +104,52 @@ func TestReadConfFile_pinnedRejectsBadVersions(t *testing.T) {
 				t.Fatalf("ReadConfFile() with pinned version %q expected error, got nil", ver)
 			}
 		})
+	}
+}
+
+// TestReadConfFile_pinnedAcceptsFixedVersions checks that every accepted form of
+// a fixed version loads from a hand-written gup.json unchanged.
+func TestReadConfFile_pinnedAcceptsFixedVersions(t *testing.T) {
+	t.Parallel()
+	for _, ver := range []string{
+		verSemver,
+		"v1.2.3-rc.1",
+		"v2.0.0+incompatible",
+		"v0.0.0-20240102150405-abcdef123456",
+		"v1.2.4-0.20240102150405-abcdef123456",
+	} {
+		t.Run(ver, func(t *testing.T) {
+			t.Parallel()
+			path := writeTempConf(t, `{"schema_version":2,"packages":[
+				{"name":"a","import_path":"example.com/a","version":"`+ver+`","channel":"pinned"}
+			]}`)
+			pkgs, err := ReadConfFile(path)
+			if err != nil {
+				t.Fatalf("ReadConfFile() with pinned version %q: %v", ver, err)
+			}
+			if pkgs[0].PinnedVersion != ver {
+				t.Errorf("PinnedVersion = %q, want %q", pkgs[0].PinnedVersion, ver)
+			}
+		})
+	}
+}
+
+// TestReadConfFile_invalidPinErrorExplainsTheFix checks that the error for an
+// invalid pin in gup.json names the file, the package, the value, the accepted
+// forms, and how to repair the entry.
+func TestReadConfFile_invalidPinErrorExplainsTheFix(t *testing.T) {
+	t.Parallel()
+	path := writeTempConf(t, `{"schema_version":2,"packages":[
+		{"name":"mytool","import_path":"example.com/mytool","version":"v1.2","channel":"pinned"}
+	]}`)
+	_, err := ReadConfFile(path)
+	if err == nil {
+		t.Fatal("ReadConfFile() with pinned version v1.2 expected error, got nil")
+	}
+	for _, want := range []string{path, `"mytool"`, `"v1.2"`, "full version such as " + verSemver, "pseudo-version", `set its "channel" to "latest"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }
 
@@ -195,6 +246,25 @@ func TestWriteConfFile_pinnedWithBadVersionFails(t *testing.T) {
 	}
 	if err := WriteConfFile(&buf, pkgs); err == nil {
 		t.Fatal("WriteConfFile() with empty pinned version expected error (never write an unsafe pin), got nil")
+	}
+}
+
+func TestWriteConfFile_pinnedWithMovingReferenceFails(t *testing.T) {
+	t.Parallel()
+	for _, ver := range []string{"release", "v1", "v1.2", "abc1234"} {
+		t.Run(ver, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			pkgs := []goutil.Package{
+				{Name: "a", ImportPath: pinTestImport, UpdateChannel: goutil.UpdateChannelPinned, PinnedVersion: ver},
+			}
+			if err := WriteConfFile(&buf, pkgs); err == nil {
+				t.Fatalf("WriteConfFile() with pinned version %q expected error, got nil", ver)
+			}
+			if buf.Len() != 0 {
+				t.Errorf("WriteConfFile() wrote %d bytes for a rejected pin, want none", buf.Len())
+			}
+		})
 	}
 }
 

@@ -85,6 +85,16 @@ reads both. A malformed file, an unknown `channel`, an unsupported
 `schema_version`, or a `pinned` entry with no concrete version is an error, not
 something to ignore — a saved channel is never quietly downgraded to `latest`.
 
+A `pinned` entry's `version` must name one fixed Go module version: a full
+version (`v1.62.0`), a prerelease (`v2.0.0-rc.1`), a `+incompatible` version of
+a v2+ module, or a pseudo-version (`v0.0.0-20240102150405-abcdef123456`) to pin
+a commit. Branch names, commit hashes, abbreviated versions such as `v1` or
+`v1.2`, and version queries such as `>=v1.2.0` are rejected by `gup pin` and by
+every command that reads the file, because the go command would resolve them to
+whatever they point at when it runs. The error names the file, the tool and the
+value; fix it by setting that entry's `version` to one of the accepted forms, or
+its `channel` to `latest` to unpin it.
+
 ## Running two gup commands at once
 
 The commands that change state take a lock on each resource they write, so a
