@@ -522,7 +522,7 @@ scenarios:
             created: []
             modified: []
             deleted: []
-            ignore: &lock_noise ["**/.gup.lock", "**/gup.json.lock", "home/.config/go/telemetry/**"]
+            ignore: &lock_noise ["**/.gup.lock", "**/gup.json.lock", "**/go/telemetry/**"]
       - run:
           command: go version -m gobin/outdated
       - assert:
