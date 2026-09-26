@@ -142,6 +142,10 @@ func run(args []string) error {
 		}
 	}
 
+	if err := isolateHostDirs(); err != nil {
+		return err
+	}
+
 	fmt.Println("e2e: warming module cache...")
 	warmCache(tmp)
 
@@ -376,4 +380,23 @@ func removeAllForce(root string) error {
 		return nil
 	})
 	return os.RemoveAll(root)
+}
+
+// hostDirEnv lists the host variables that move where gup writes: completion
+// files under XDG_DATA_HOME or ZDOTDIR, gup.json under XDG_CONFIG_HOME. The
+// specs isolate HOME per scenario, so a value inherited from the developer's
+// session would send those writes into their real directories and fail the
+// assertions that look under ${workdir}/home. CI runners do not set them, which
+// is why only local runs saw it.
+var hostDirEnv = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "ZDOTDIR"} //nolint:gochecknoglobals
+
+// isolateHostDirs unsets hostDirEnv so every scenario starts from its own HOME;
+// a spec that needs one of them sets it in its env:.
+func isolateHostDirs() error {
+	for _, k := range hostDirEnv {
+		if err := os.Unsetenv(k); err != nil {
+			return fmt.Errorf("can not unset %s: %w", k, err)
+		}
+	}
+	return nil
 }

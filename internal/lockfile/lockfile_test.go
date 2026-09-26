@@ -190,7 +190,7 @@ func runAcquireSetHelper() int {
 
 // bumpCounter is the unsafe increment the contending helpers race on.
 func bumpCounter(path string) error {
-	raw, err := os.ReadFile(filepath.Clean(path))
+	raw, err := os.ReadFile(filepath.Clean(path)) //nolint:gosec // G703: the path comes from the parent test process, not a user.
 	if err != nil {
 		return err
 	}
