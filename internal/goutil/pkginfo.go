@@ -137,8 +137,10 @@ func GetPackageInformation(p *print.Printer, binList []string) ([]Package, bool)
 }
 
 // GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips
-// the "go version" subprocess. Use it for commands (list, export, migrate) that
-// never read Package.GoVersion, avoiding a needless subprocess per invocation.
+// the "go version" subprocess, so GoVersion.Latest is "unknown". GoVersion.Current,
+// the Go each binary was built with, is still read from its build info. Use it
+// for commands (list, export, migrate) that never compare against the local Go
+// version, avoiding a needless subprocess per invocation.
 func GetPackageInformationWithoutGoVersion(p *print.Printer, binList []string) []Package {
 	return collectPackageInformation(p, binList, unknown)
 }

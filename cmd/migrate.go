@@ -141,7 +141,9 @@ func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
 	// mislabeled as "not found". This matches update/check via MissingTargets.
 	missing := pkgselect.MissingTargets(binList, binaries)
 	filtered := pkgselect.FilterBinaryPaths(binList, binaries)
-	// migrate never reads GoVersion, so skip the "go version" subprocess.
+	// migrate needs only the Go each binary was built with (GoVersion.Current,
+	// read from its build info) as the toolchain floor, not the local Go
+	// version, so skip the "go version" subprocess.
 	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, filtered)
 	warnMissingMigrateTargets(p, missing, beforePath)
 

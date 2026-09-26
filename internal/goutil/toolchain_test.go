@@ -16,6 +16,9 @@ const (
 	goVer1266     = "go1.26.6"
 	goVer1268     = "go1.26.8"
 	goVer1269     = "go1.26.9"
+	// galBuiltGo is the Go the cmd/testdata "gal" fixture was built with. It is
+	// a pre-1.21 language version, not a toolchain name.
+	galBuiltGo = "go1.18"
 )
 
 // withToolchainSetting replaces the cached "go env" result for one test.
@@ -49,7 +52,7 @@ func TestGoToolchainEnv(t *testing.T) {
 		{"no floor", "", toolchainSetting{toolchainAuto, goVer1264}, ""},
 		{"devel floor is not a release", "devel", toolchainSetting{toolchainAuto, goVer1264}, ""},
 		{"rc floor is not a release", "go1.27rc1", toolchainSetting{toolchainAuto, goVer1264}, ""},
-		{"language version floor is not a toolchain", "go1.18", toolchainSetting{toolchainAuto, "go1.17.13"}, ""},
+		{"language version floor is not a toolchain", galBuiltGo, toolchainSetting{toolchainAuto, "go1.17.13"}, ""},
 		{"devel local go is left alone", goVer1266, toolchainSetting{toolchainAuto, "devel go1.27-abcdef"}, ""},
 	}
 	for _, tt := range tests {
