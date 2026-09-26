@@ -55,7 +55,7 @@ parse those specs. CI pins v0.21.0 via setup-atago.
 
 ```shell
 # Install atago once, at the version CI pins, so local runs and CI agree
-go install github.com/nao1215/atago@v0.21.0
+go install github.com/nao1215/atago@v0.25.0
 
 # Run the specs classified for this operating system
 make e2e
