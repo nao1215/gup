@@ -70,3 +70,17 @@ func TestHasTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestIsolateHostDirs(t *testing.T) {
+	for _, k := range hostDirEnv {
+		t.Setenv(k, "/home/someone/"+k)
+	}
+	if err := isolateHostDirs(); err != nil {
+		t.Fatalf("isolateHostDirs() unexpected error: %v", err)
+	}
+	for _, k := range hostDirEnv {
+		if v, ok := os.LookupEnv(k); ok {
+			t.Errorf("%s = %q, want it unset so the scenario's HOME decides where gup writes", k, v)
+		}
+	}
+}
