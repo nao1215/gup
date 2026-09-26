@@ -48,16 +48,41 @@ type toolchainSetting struct {
 	goVersion   string
 }
 
-// goToolchainSetting reads the toolchain setting once per process. It is a
-// variable so tests can replace it.
-var goToolchainSetting = sync.OnceValues(readGoToolchainSetting) //nolint:gochecknoglobals
+// goToolchainSetting reads the toolchain setting, at most once successfully per
+// process. It is a variable so tests can replace it.
+var goToolchainSetting = cachedGoToolchainSetting //nolint:gochecknoglobals
 
-// readGoToolchainSetting runs "go env GOTOOLCHAIN GOVERSION". It runs in the
-// temporary directory so a go.mod in the working directory cannot switch the
-// go command to another toolchain and report that toolchain's version instead.
-func readGoToolchainSetting() (toolchainSetting, error) {
+// toolchainSettingCache holds the first successful read of the setting.
+var toolchainSettingCache struct { //nolint:gochecknoglobals
+	mu      sync.Mutex
+	setting *toolchainSetting
+}
+
+// cachedGoToolchainSetting returns the cached setting or reads it with ctx. A
+// failed or canceled read is not cached, so the next install tries again under
+// its own context.
+func cachedGoToolchainSetting(ctx context.Context) (toolchainSetting, error) {
+	toolchainSettingCache.mu.Lock()
+	defer toolchainSettingCache.mu.Unlock()
+	if s := toolchainSettingCache.setting; s != nil {
+		return *s, nil
+	}
+	s, err := readGoToolchainSetting(ctx)
+	if err != nil {
+		return toolchainSetting{}, err
+	}
+	toolchainSettingCache.setting = &s
+	return s, nil
+}
+
+// readGoToolchainSetting runs "go env GOTOOLCHAIN GOVERSION" under ctx, so the
+// install timeout also bounds it: with GOTOOLCHAIN naming a toolchain that is not
+// installed, the go command downloads it before it can answer. It runs in the
+// temporary directory so a go.mod in the working directory cannot switch the go
+// command to another toolchain and report that toolchain's version instead.
+func readGoToolchainSetting(ctx context.Context) (toolchainSetting, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := goCommandContext(context.Background(), "env", envGoToolchain, "GOVERSION")
+	cmd := goCommandContext(ctx, "env", envGoToolchain, "GOVERSION")
 	cmd.Dir = os.TempDir()
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -87,7 +112,7 @@ func goToolchainEnv(ctx context.Context) (string, error) {
 	if !IsReleaseGoVersion(floor) {
 		return "", nil
 	}
-	setting, err := goToolchainSetting()
+	setting, err := goToolchainSetting(ctx)
 	if err != nil {
 		return "", fmt.Errorf("can't tell whether the go command can build with %s: %w", floor, err)
 	}

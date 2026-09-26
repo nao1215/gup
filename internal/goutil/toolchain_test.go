@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Toolchain names shared by the tests below.
@@ -19,6 +20,8 @@ const (
 	// galBuiltGo is the Go the cmd/testdata "gal" fixture was built with. It is
 	// a pre-1.21 language version, not a toolchain name.
 	galBuiltGo = "go1.18"
+	// goEnvFailure is what a failing "go env" helper prints.
+	goEnvFailure = "boom"
 )
 
 // withToolchainSetting replaces the cached "go env" result for one test.
@@ -26,7 +29,7 @@ func withToolchainSetting(t *testing.T, s toolchainSetting, err error) {
 	t.Helper()
 	old := goToolchainSetting
 	t.Cleanup(func() { goToolchainSetting = old })
-	goToolchainSetting = func() (toolchainSetting, error) { return s, err }
+	goToolchainSetting = func(context.Context) (toolchainSetting, error) { return s, err }
 }
 
 func TestGoToolchainEnv(t *testing.T) {
@@ -162,7 +165,7 @@ func withEchoToolchainHelper(t *testing.T) {
 
 func TestReadGoToolchainSetting(t *testing.T) {
 	withHelperProcess(t, helperProcessConfig{stdout: "auto\ngo1.26.4\n"})
-	got, err := readGoToolchainSetting()
+	got, err := readGoToolchainSetting(context.Background())
 	if err != nil {
 		t.Fatalf("readGoToolchainSetting() unexpected error: %v", err)
 	}
@@ -174,14 +177,14 @@ func TestReadGoToolchainSetting(t *testing.T) {
 
 func TestReadGoToolchainSetting_errors(t *testing.T) {
 	t.Run("command fails", func(t *testing.T) {
-		withHelperProcess(t, helperProcessConfig{stderr: "boom", exit: 1})
-		if _, err := readGoToolchainSetting(); err == nil || !strings.Contains(err.Error(), "boom") {
+		withHelperProcess(t, helperProcessConfig{stderr: goEnvFailure, exit: 1})
+		if _, err := readGoToolchainSetting(context.Background()); err == nil || !strings.Contains(err.Error(), goEnvFailure) {
 			t.Errorf("want an error carrying stderr, got %v", err)
 		}
 	})
 	t.Run("unexpected output", func(t *testing.T) {
 		withHelperProcess(t, helperProcessConfig{stdout: "auto\n"})
-		if _, err := readGoToolchainSetting(); err == nil {
+		if _, err := readGoToolchainSetting(context.Background()); err == nil {
 			t.Error("want an error for a one-line output")
 		}
 	})
@@ -205,5 +208,52 @@ func TestIsGoDowngrade(t *testing.T) {
 		if got := IsGoDowngrade(tt.before, tt.after); got != tt.want {
 			t.Errorf("IsGoDowngrade(%q, %q) = %v, want %v", tt.before, tt.after, got, tt.want)
 		}
+	}
+}
+
+// resetToolchainSettingCache empties the process-wide cache for one test.
+func resetToolchainSettingCache(t *testing.T) {
+	t.Helper()
+	toolchainSettingCache.setting = nil
+	t.Cleanup(func() { toolchainSettingCache.setting = nil })
+}
+
+func TestCachedGoToolchainSetting_doesNotCacheFailures(t *testing.T) {
+	resetToolchainSettingCache(t)
+
+	withHelperProcess(t, helperProcessConfig{stderr: goEnvFailure, exit: 1})
+	if _, err := cachedGoToolchainSetting(context.Background()); err == nil {
+		t.Fatal("want the failed read reported")
+	}
+
+	withHelperProcess(t, helperProcessConfig{stdout: toolchainAuto + "\n" + goVer1264 + "\n"})
+	got, err := cachedGoToolchainSetting(context.Background())
+	if err != nil {
+		t.Fatalf("a failed read must not be cached; the retry failed: %v", err)
+	}
+	if got.goVersion != goVer1264 {
+		t.Errorf("goVersion = %q, want %q", got.goVersion, goVer1264)
+	}
+
+	// A successful read is cached: a later failure of the go command is not seen.
+	withHelperProcess(t, helperProcessConfig{stderr: goEnvFailure, exit: 1})
+	if _, err := cachedGoToolchainSetting(context.Background()); err != nil {
+		t.Errorf("a successful read must be cached, got %v", err)
+	}
+}
+
+func TestInstallWithContext_timeoutWhileReadingSetting(t *testing.T) {
+	resetToolchainSettingCache(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	defer cancel()
+	<-ctx.Done()
+
+	withHelperProcess(t, helperProcessConfig{stdout: toolchainAuto + "\n" + goVer1264 + "\n"})
+	err := InstallWithContext(WithMinGoToolchain(ctx, goVer1266), "github.com/example/tool", "latest")
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("InstallWithContext() error = %v, want the --timeout message", err)
+	}
+	if toolchainSettingCache.setting != nil {
+		t.Error("a read cut short by the timeout must not be cached")
 	}
 }

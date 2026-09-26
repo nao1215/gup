@@ -82,6 +82,9 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 
 	toolchain, err := goToolchainEnv(ctx)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return installContextError(importPath, version, ctxErr)
+		}
 		return fmt.Errorf("can't install %s: %w", importPath, err)
 	}
 
@@ -94,10 +97,7 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 
 	if err := cmd.Run(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
-			}
-			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
+			return installContextError(importPath, version, ctxErr)
 		}
 		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
 		// fall back to err (e.g. "signal: killed") to always name a cause.
@@ -111,4 +111,12 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 		return fmt.Errorf("can't install %s:\n%s", importPath, detail)
 	}
 	return nil
+}
+
+// installContextError reports an install stopped by --timeout or cancellation.
+func installContextError(importPath, version string, ctxErr error) error {
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
+	}
+	return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 }
