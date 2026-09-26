@@ -40,11 +40,11 @@ jobs:
       # The offline E2E suite drives the real CLI through atago; it builds a
       # `go build -cover` gup and collects its covdata via GOCOVERDIR.
       - name: Install atago
-        uses: nao1215/setup-atago@7cae89595fcbba334db0fe16fc9a24ed5b0a3fea # v0.1.2
+        uses: nao1215/setup-atago@5c563dcd9d85e114f8abe8bbdcd058e51de09efb # v0.1.3
         with:
           # The version the cross-platform specs are verified against; the per-OS
           # `skip:`/`only:` gates they use are validated by its loader.
-          version: v0.23.0
+          version: v0.25.0
 
       # Combines unit-test coverage with self-hosted E2E coverage, then merges
       # both into cover.out. The E2E suite is fully offline (it starts its own
