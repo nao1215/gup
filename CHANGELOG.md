@@ -1,9 +1,11 @@
 ## Unreleased
 
+## [v1.10.2](https://github.com/nao1215/gup/compare/v1.10.1...v1.10.2) (2026-09-26)
+
 ### Bug Fixes
 
-* `gup update` no longer lowers the Go a binary is built with. It ran `go install` with the local go command, so a binary built with go1.26.6 and updated on a machine with go1.26.4 came back built with go1.26.4, losing the fixes of the newer Go. gup now asks the go command for at least the Go the binary was built with (`GOTOOLCHAIN=<that version>+auto`), which the go command downloads like any toolchain a module requires. This covers every reinstall: a new module version, a Go-only rebuild, a pinned version and `gup migrate`. When `GOTOOLCHAIN` rules out downloads (`local`, `path` or a fixed version), gup keeps that setting and prints a warning that the Go went down.
-* The Go version gup reports after an update, in the line and in `installed_go_version` with `--json`, is now read from the rebuilt binary. gup printed the local Go version, so a binary the go command built with a newer toolchain because its module requires one was shown as built with the older local Go, e.g. `go1.26.8 to go1.26.4` for a binary still built with go1.26.8.
+* `gup update` no longer lowers the Go a binary is built with. It ran `go install` with the local go command, so a binary built with go1.26.6 and updated on a machine with go1.26.4 came back built with go1.26.4, losing the fixes of the newer Go. gup now asks the go command for at least the Go the binary was built with (`GOTOOLCHAIN=<that version>+auto`), which the go command downloads like any toolchain a module requires. This covers every reinstall: a new module version, a Go-only rebuild, a pinned version and `gup migrate`. When `GOTOOLCHAIN` rules out downloads (`local`, `path` or a fixed version), gup keeps that setting and prints a warning that the Go went down. When that Go cannot be downloaded, or the go command's toolchain setting cannot be read, the package fails with an error instead of being rebuilt with the older Go.
+* For a binary `gup update` reinstalls from its `latest`, `main` or `master` channel, the Go version it reports, in the line and in `installed_go_version` with `--json`, is now read from the rebuilt binary. gup printed the local Go version, so a binary the go command built with a newer toolchain because its module requires one was shown as built with the older local Go, e.g. `go1.26.8 to go1.26.4` for a binary still built with go1.26.8.
 
 ## [v1.10.1](https://github.com/nao1215/gup/compare/v1.10.0...v1.10.1) (2026-09-25)
 
