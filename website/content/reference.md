@@ -267,7 +267,7 @@ to wait for.
 | `latest_version` | Empty for `list` and for pinned packages |
 | `pinned_version` | Only for `channel: "pinned"` |
 | `current_go_version` | Go toolchain the binary was built with |
-| `installed_go_version` | Go toolchain on this machine |
+| `installed_go_version` | Go toolchain on this machine; for an `updated` binary, the Go it was rebuilt with |
 | `status` | `installed`, `up-to-date`, `update-available`, `updated`, `pinned`, `pin-mismatch`, `error` |
 | `error` | Omitted when absent |
 | `hint` | Next step for the error, when gup has one |

@@ -335,7 +335,7 @@ $ gup import --file=gup.json
 gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
 ```
 
-`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`, using the exact `import path@version` recorded in each binary's build info (it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to `AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt with the Go toolchain currently in use.
+`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`, using the exact `import path@version` recorded in each binary's build info (it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to `AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt with the Go toolchain currently in use, or with the newer Go a binary was built with, as `update` does.
 
 #### Why this is useful (e.g. with `mise`)
 

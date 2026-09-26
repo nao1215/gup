@@ -298,6 +298,11 @@ func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string,
 			return updateResult{updated: true, pkg: p}
 		}
 
+		// Reinstalling must not build the binary with an older Go than it has now.
+		if p.GoVersion != nil {
+			ctx = goutil.WithMinGoToolchain(ctx, p.GoVersion.Current)
+		}
+
 		if err := installByVersionMigrateCtx(ctx, p.ImportPath, version); err != nil {
 			newPkg, changed := resolveModulePathChange(p, err)
 			if !changed {

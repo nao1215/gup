@@ -262,6 +262,18 @@ func TestGetPackageVersion_golden(t *testing.T) {
 	if want != got {
 		t.Fatalf("GetPackageVersion() should return %v. got: %v", want, got)
 	}
+
+	// The Go version comes from the same build information.
+	gotGo, err := GetPackageGoVersion(nameFileBin)
+	if err != nil {
+		t.Fatalf("GetPackageGoVersion() unexpected error: %v", err)
+	}
+	if gotGo != "go1.18" {
+		t.Errorf("GetPackageGoVersion() = %q, want %q", gotGo, "go1.18")
+	}
+	if _, err := GetPackageGoVersion("no-such-binary"); err == nil {
+		t.Error("GetPackageGoVersion() of a missing binary must fail")
+	}
 }
 
 func TestGetPackageVersion_getting_error_from_gobin(t *testing.T) {

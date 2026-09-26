@@ -23,6 +23,10 @@ type dependencies struct {
 	installLatest       func(ctx context.Context, importPath string) error
 	installMainOrMaster func(ctx context.Context, importPath string) error
 	installByVersion    func(ctx context.Context, importPath, version string) error
+	// installedGoVersion reads the Go version a binary under $GOBIN was built
+	// with, so the result reports the Go actually used rather than assuming the
+	// local go command built it.
+	installedGoVersion func(binName string) (string, error)
 }
 
 // defaultDependencies wires the real goutil operations used in production. It is
@@ -36,7 +40,21 @@ func defaultDependencies() dependencies {
 		installLatest:       goutil.InstallLatestWithContext,
 		installMainOrMaster: goutil.InstallMainOrMasterWithContext,
 		installByVersion:    goutil.InstallWithContext,
+		installedGoVersion:  goutil.GetPackageGoVersion,
 	}
+}
+
+// builtGoVersion returns the Go version the freshly installed binary name was
+// built with, or fallback when it cannot be read.
+func (d dependencies) builtGoVersion(name, fallback string) string {
+	if d.installedGoVersion == nil {
+		return fallback
+	}
+	v, err := d.installedGoVersion(name)
+	if err != nil || v == "" {
+		return fallback
+	}
+	return v
 }
 
 // newVerCache builds the per-(module,channel) version cache used by update and

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -66,6 +67,11 @@ func Install(importPath, version string) error {
 }
 
 // InstallWithContext executes "$ go install <importPath>@<version>".
+//
+// When ctx carries a toolchain floor (see WithMinGoToolchain) that is newer than
+// the toolchain the go command would use, the install runs with
+// GOTOOLCHAIN=<floor>+auto so the go command downloads that toolchain instead
+// of building with an older Go.
 func InstallWithContext(ctx context.Context, importPath, version string) error {
 	if importPath == "command-line-arguments" {
 		return errors.New("is devel-binary copied from local environment")
@@ -77,6 +83,10 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 	var stderr bytes.Buffer
 	cmd := goCommandContext(ctx, "install", fmt.Sprintf("%s@%s", importPath, version))
 	cmd.Stderr = &stderr
+	toolchain := goToolchainEnv(ctx)
+	if toolchain != "" {
+		cmd.Env = append(os.Environ(), envGoToolchain+"="+toolchain)
+	}
 
 	err := cmd.Run()
 	if err != nil {
@@ -91,6 +101,9 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 		detail := stderr.String()
 		if strings.TrimSpace(detail) == "" {
 			detail = err.Error()
+		}
+		if toolchain != "" {
+			return fmt.Errorf("can't install %s with %s=%s (the Go the installed binary was built with):\n%s", importPath, envGoToolchain, toolchain, detail)
 		}
 		return fmt.Errorf("can't install %s:\n%s", importPath, detail)
 	}

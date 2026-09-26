@@ -37,6 +37,8 @@ func ExampleBinaryPathList() {
 		"paths.go",
 		"pkginfo.go",
 		"property_test.go",
+		"toolchain.go",
+		"toolchain_test.go",
 		"version.go",
 	}
 
