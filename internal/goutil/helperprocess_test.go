@@ -30,6 +30,9 @@ const (
 	// envHelperFailMainStderr customizes the stderr printed for the failing
 	// "@main" attempt (e.g. to inject "unknown revision main").
 	envHelperFailMainStderr = "GO_HELPER_FAIL_MAIN_STDERR"
+	// envHelperEchoToolchain makes the helper fail and print the GOTOOLCHAIN it
+	// was started with, so a test can see what the install passed to go.
+	envHelperEchoToolchain = "GO_HELPER_ECHO_TOOLCHAIN"
 )
 
 // Shared version literals used across the helper-process tests. They are
@@ -46,6 +49,13 @@ type helperProcessConfig struct {
 	exit   int
 }
 
+// helperCommand re-executes the test binary as TestHelperProcess with the given
+// go arguments after "--".
+func helperCommand(ctx context.Context, args ...string) *exec.Cmd {
+	cs := append([]string{"-test.run=TestHelperProcess", "--"}, args...)
+	return exec.CommandContext(ctx, os.Args[0], cs...) //#nosec G204 -- os.Args[0] is the test binary
+}
+
 // withHelperProcess swaps goCommandContext so every go invocation re-executes
 // the test binary as a helper process configured by cfg. It restores the
 // previous seam on cleanup. The returned function is unused but kept symmetric
@@ -56,8 +66,7 @@ func withHelperProcess(t *testing.T, cfg helperProcessConfig) {
 	t.Cleanup(func() { goCommandContext = old })
 
 	goCommandContext = func(ctx context.Context, args ...string) *exec.Cmd {
-		cs := append([]string{"-test.run=TestHelperProcess", "--"}, args...)
-		cmd := exec.CommandContext(ctx, os.Args[0], cs...) //#nosec G204 -- os.Args[0] is the test binary
+		cmd := helperCommand(ctx, args...)
 		cmd.Env = append(os.Environ(),
 			envHelperProcess+"=1",
 			envHelperStdout+"="+cfg.stdout,
@@ -77,8 +86,7 @@ func withHelperProcessMainMasterFallback(t *testing.T, mainStderr string) {
 	t.Cleanup(func() { goCommandContext = old })
 
 	goCommandContext = func(ctx context.Context, args ...string) *exec.Cmd {
-		cs := append([]string{"-test.run=TestHelperProcess", "--"}, args...)
-		cmd := exec.CommandContext(ctx, os.Args[0], cs...) //#nosec G204 -- os.Args[0] is the test binary
+		cmd := helperCommand(ctx, args...)
 		env := append(os.Environ(),
 			envHelperProcess+"=1",
 			envHelperFailMain+"=1",
@@ -118,6 +126,11 @@ func TestHelperProcess(t *testing.T) {
 			args = args[i+1:]
 			break
 		}
+	}
+
+	if os.Getenv(envHelperEchoToolchain) == "1" {
+		fmt.Fprintf(os.Stderr, "GOTOOLCHAIN=[%s]", os.Getenv(envGoToolchain))
+		os.Exit(1)
 	}
 
 	// Fallback mode: fail only on the "@main" ref, succeed otherwise.

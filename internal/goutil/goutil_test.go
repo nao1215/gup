@@ -184,6 +184,30 @@ func TestGetPackageInformation_unknown_module(t *testing.T) {
 // when "go version" cannot be read, GetPackageInformation reports that the Go
 // version is unavailable (second return value false) and warns exactly once,
 // instead of silently stamping "unknown" and forcing every binary to reinstall.
+// TestGetPackageInformationWithoutGoVersion_readsBuiltGo pins that skipping the
+// "go version" subprocess still reads the Go each binary was built with, which
+// migrate uses as the toolchain floor.
+func TestGetPackageInformationWithoutGoVersion_readsBuiltGo(t *testing.T) {
+	withGoExecutable(t, "gup-nonexistent-go-command-for-test")
+
+	nameDir, nameBin := "check_success", "gal"
+	if runtime.GOOS == "windows" {
+		nameDir, nameBin = "check_success_for_windows", "gal.exe"
+	}
+	pathBin := filepath.Join("..", "..", "cmd", "testdata", nameDir, nameBin)
+
+	pkgs := GetPackageInformationWithoutGoVersion(print.New(&bytes.Buffer{}, &bytes.Buffer{}), []string{pathBin})
+	if len(pkgs) != 1 {
+		t.Fatalf("GetPackageInformationWithoutGoVersion() returned %d packages, want 1", len(pkgs))
+	}
+	if got := pkgs[0].GoVersion.Current; got != galBuiltGo {
+		t.Errorf("GoVersion.Current = %q, want the Go the binary was built with (go1.18)", got)
+	}
+	if got := pkgs[0].GoVersion.Latest; got != unknown {
+		t.Errorf("GoVersion.Latest = %q, want %q without the go version subprocess", got, unknown)
+	}
+}
+
 func TestGetPackageInformation_goVersionFailure(t *testing.T) {
 	// Point the go command at a binary that does not exist so "go version"
 	// fails on every OS (unlike "false", which is absent on Windows).
@@ -261,6 +285,18 @@ func TestGetPackageVersion_golden(t *testing.T) {
 	// Require to get the expected version of go module binary
 	if want != got {
 		t.Fatalf("GetPackageVersion() should return %v. got: %v", want, got)
+	}
+
+	// The Go version comes from the same build information.
+	gotGo, err := GetPackageGoVersion(nameFileBin)
+	if err != nil {
+		t.Fatalf("GetPackageGoVersion() unexpected error: %v", err)
+	}
+	if gotGo != galBuiltGo {
+		t.Errorf("GetPackageGoVersion() = %q, want %q", gotGo, galBuiltGo)
+	}
+	if _, err := GetPackageGoVersion("no-such-binary"); err == nil {
+		t.Error("GetPackageGoVersion() of a missing binary must fail")
 	}
 }
 

@@ -137,8 +137,10 @@ func GetPackageInformation(p *print.Printer, binList []string) ([]Package, bool)
 }
 
 // GetPackageInformationWithoutGoVersion is like GetPackageInformation but skips
-// the "go version" subprocess. Use it for commands (list, export, migrate) that
-// never read Package.GoVersion, avoiding a needless subprocess per invocation.
+// the "go version" subprocess, so GoVersion.Latest is "unknown". GoVersion.Current,
+// the Go each binary was built with, is still read from its build info. Use it
+// for commands (list, export, migrate) that never compare against the local Go
+// version, avoiding a needless subprocess per invocation.
 func GetPackageInformationWithoutGoVersion(p *print.Printer, binList []string) []Package {
 	return collectPackageInformation(p, binList, unknown)
 }
@@ -199,15 +201,32 @@ func collectPackageInformation(p *print.Printer, binList []string, goVer string)
 
 // GetPackageVersion return golang package version.
 func GetPackageVersion(cmdName string) string {
-	goBin, err := GoBin()
-	if err != nil {
-		return unknown
-	}
-	info, err := buildinfo.ReadFile(filepath.Join(goBin, cmdName))
+	info, err := readBinaryBuildInfo(cmdName)
 	if err != nil {
 		return unknown
 	}
 	return info.Main.Version
+}
+
+// GetPackageGoVersion returns the Go toolchain version the binary cmdName under
+// $GOBIN was built with, e.g. "go1.26.6".
+func GetPackageGoVersion(cmdName string) (string, error) {
+	info, err := readBinaryBuildInfo(cmdName)
+	if err != nil {
+		return "", err
+	}
+	goVer, _, _ := strings.Cut(info.GoVersion, " ")
+	return goVer, nil
+}
+
+// readBinaryBuildInfo reads the build information of the binary cmdName under
+// $GOBIN.
+func readBinaryBuildInfo(cmdName string) (*buildinfo.BuildInfo, error) {
+	goBin, err := GoBin()
+	if err != nil {
+		return nil, err
+	}
+	return buildinfo.ReadFile(filepath.Join(goBin, cmdName))
 }
 
 // GetInstalledGoVersion return installed go version.

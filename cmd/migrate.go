@@ -20,6 +20,10 @@ import (
 // It is a package-level variable so tests can swap the implementation.
 var installByVersionMigrateCtx = goutil.InstallWithContext //nolint:gochecknoglobals // swapped in tests
 
+// installedGoVersionMigrate reads the Go a binary in the migration target was
+// built with. It is a package-level variable so tests can swap the implementation.
+var installedGoVersionMigrate = goutil.GetPackageGoVersion //nolint:gochecknoglobals // swapped in tests
+
 const (
 	// migrateMinArgs is the minimum number of positional arguments for migrate
 	// (BEFORE_PATH and AFTER_PATH).
@@ -141,7 +145,9 @@ func runMigrate(p *print.Printer, cmd *cobra.Command, args []string) int {
 	// mislabeled as "not found". This matches update/check via MissingTargets.
 	missing := pkgselect.MissingTargets(binList, binaries)
 	filtered := pkgselect.FilterBinaryPaths(binList, binaries)
-	// migrate never reads GoVersion, so skip the "go version" subprocess.
+	// migrate needs only the Go each binary was built with (GoVersion.Current,
+	// read from its build info) as the toolchain floor, not the local Go
+	// version, so skip the "go version" subprocess.
 	pkgs := goutil.GetPackageInformationWithoutGoVersion(p, filtered)
 	warnMissingMigrateTargets(p, missing, beforePath)
 
@@ -298,6 +304,20 @@ func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string,
 			return updateResult{updated: true, pkg: p}
 		}
 
+		// Reinstalling must not build the binary with an older Go than it has now.
+		goBefore := ""
+		if p.GoVersion != nil {
+			goBefore = p.GoVersion.Current
+			ctx = goutil.WithMinGoToolchain(ctx, goBefore)
+		}
+		// GOBIN points at AFTER_PATH here, so this reads the reinstalled binary.
+		warnIfDowngraded := func(importPath string) {
+			name := binaryNameFromImportPath(importPath)
+			if goAfter, err := installedGoVersionMigrate(name); err == nil {
+				warnGoDowngrade(pr, name, goBefore, goAfter)
+			}
+		}
+
 		if err := installByVersionMigrateCtx(ctx, p.ImportPath, version); err != nil {
 			newPkg, changed := resolveModulePathChange(p, err)
 			if !changed {
@@ -309,8 +329,10 @@ func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string,
 			if retryErr := installByVersionMigrateCtx(ctx, newPkg.ImportPath, version); retryErr != nil {
 				return updateResult{pkg: newPkg, err: fmt.Errorf("%s: %w", p.Name, retryErr)}
 			}
+			warnIfDowngraded(newPkg.ImportPath)
 			return updateResult{updated: true, pkg: newPkg}
 		}
+		warnIfDowngraded(p.ImportPath)
 		return updateResult{updated: true, pkg: p}
 	}
 

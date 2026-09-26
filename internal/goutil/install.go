@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -66,6 +67,11 @@ func Install(importPath, version string) error {
 }
 
 // InstallWithContext executes "$ go install <importPath>@<version>".
+//
+// When ctx carries a toolchain floor (see WithMinGoToolchain) that is newer than
+// the toolchain the go command would use, the install runs with
+// GOTOOLCHAIN=<floor>+auto so the go command downloads that toolchain instead
+// of building with an older Go.
 func InstallWithContext(ctx context.Context, importPath, version string) error {
 	if importPath == "command-line-arguments" {
 		return errors.New("is devel-binary copied from local environment")
@@ -74,17 +80,24 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 		ctx = context.Background()
 	}
 
+	toolchain, err := goToolchainEnv(ctx)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return installContextError(importPath, version, ctxErr)
+		}
+		return fmt.Errorf("can't install %s: %w", importPath, err)
+	}
+
 	var stderr bytes.Buffer
 	cmd := goCommandContext(ctx, "install", fmt.Sprintf("%s@%s", importPath, version))
 	cmd.Stderr = &stderr
+	if toolchain != "" {
+		cmd.Env = append(os.Environ(), envGoToolchain+"="+toolchain)
+	}
 
-	err := cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			if errors.Is(ctxErr, context.DeadlineExceeded) {
-				return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
-			}
-			return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
+			return installContextError(importPath, version, ctxErr)
 		}
 		// A killed subprocess (e.g. SIGKILL) often writes nothing to stderr, so
 		// fall back to err (e.g. "signal: killed") to always name a cause.
@@ -92,7 +105,18 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 		if strings.TrimSpace(detail) == "" {
 			detail = err.Error()
 		}
+		if toolchain != "" {
+			return fmt.Errorf("can't install %s with %s=%s (the Go the installed binary was built with):\n%s", importPath, envGoToolchain, toolchain, detail)
+		}
 		return fmt.Errorf("can't install %s:\n%s", importPath, detail)
 	}
 	return nil
+}
+
+// installContextError reports an install stopped by --timeout or cancellation.
+func installContextError(importPath, version string, ctxErr error) error {
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)
+	}
+	return fmt.Errorf("install of %s canceled: %w", importPath, ctxErr)
 }

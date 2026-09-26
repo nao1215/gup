@@ -31,7 +31,9 @@ func newUpdateCmd() *cobra.Command {
 
 If you execute '$ gup update', gup gets the package path of all commands
 under $GOPATH/bin and automatically updates commands to the latest version,
-using the current installed Go toolchain.`,
+using the current installed Go toolchain. A binary built with a newer Go than
+the installed one is rebuilt with that newer Go (downloaded by the go command,
+as GOTOOLCHAIN=auto allows), so an update never lowers the Go a binary uses.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := printerFor(cmd)
 			OsExit(withStateLock(p, cmd, args, cmdNameUpdate, func() int {
@@ -275,12 +277,23 @@ func updateWithChannels(deps dependencies, pr *print.Printer, pkgs []goutil.Pack
 		channel := configstate.PackageChannel(p.Name, p.UpdateChannel, channelMap)
 		p.UpdateChannel = channel
 
+		// Reinstalling must not build the binary with an older Go than it has now.
+		goBefore := ""
+		if p.GoVersion != nil {
+			goBefore = p.GoVersion.Current
+			ctx = goutil.WithMinGoToolchain(ctx, goBefore)
+		}
+
 		// A pinned package is installed at its exact recorded version and never
 		// resolves @latest/@main/@master, so it is handled entirely separately from
 		// the channel-version lookup below.
 		if channel == goutil.UpdateChannelPinned {
 			p.PinnedVersion = pinnedMap[p.Name]
-			return updatePinned(deps, ctx, p, ignoreGoUpdate)
+			res := updatePinned(deps, ctx, p, ignoreGoUpdate)
+			if res.updated && res.pkg.GoVersion != nil {
+				warnGoDowngrade(pr, res.pkg.Name, goBefore, res.pkg.GoVersion.Current)
+			}
+			return res
 		}
 
 		// Collect online channel version if possible; else always update
@@ -361,6 +374,10 @@ func updateWithChannels(deps dependencies, pr *print.Printer, pkgs []goutil.Pack
 			if p.UpdateChannel != goutil.UpdateChannelLatest || modulePathChanged || installedViaRetry {
 				p.SetLatestVer()
 			}
+			if p.GoVersion != nil {
+				p.GoVersion.Latest = deps.builtGoVersion(p.Name, p.GoVersion.Latest)
+				warnGoDowngrade(pr, p.Name, goBefore, p.GoVersion.Latest)
+			}
 		}
 		var renamed string
 		if updateErr == nil && p.Name != originalName {
@@ -431,6 +448,17 @@ func desktopNotifyIfNeeded(p *print.Printer, result int, enable bool) {
 			notify.Warn(p, "gup", "Some package can't update")
 		}
 	}
+}
+
+// warnGoDowngrade warns when a reinstalled binary ended up built with an older Go
+// than before. gup asks the go command for at least the previous Go, so this
+// happens only when GOTOOLCHAIN does not allow downloading that toolchain.
+func warnGoDowngrade(pr *print.Printer, name, before, after string) {
+	if !goutil.IsGoDowngrade(before, after) {
+		return
+	}
+	pr.Warn(fmt.Sprintf("%s was rebuilt with %s, older than the %s it was built with before; "+
+		"set GOTOOLCHAIN=auto so gup can download %s", name, after, before, before))
 }
 
 // updateResultStr renders the per-binary update line, using the pinned-specific
@@ -505,11 +533,12 @@ func updatePinned(deps dependencies, ctx context.Context, p goutil.Package, igno
 		}
 	}
 
-	// The reinstalled binary now matches the pinned version and was built with the
-	// current Go toolchain.
+	// The reinstalled binary now matches the pinned version. Record the Go it was
+	// actually built with: the go command may have switched to a newer toolchain
+	// than the local one.
 	p.Version.Current = pinnedVer
 	if p.GoVersion != nil {
-		p.GoVersion.Current = p.GoVersion.Latest
+		p.GoVersion.Current = deps.builtGoVersion(p.Name, p.GoVersion.Latest)
 	}
 	return updateResult{
 		updated: true,
