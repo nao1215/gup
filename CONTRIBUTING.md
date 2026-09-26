@@ -51,7 +51,7 @@ needs no network access. The tests are plain-YAML specs run by
 
 The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 `gup remove` prompt, and golden-output snapshots), so an older atago will fail to
-parse those specs. CI pins v0.21.0 via setup-atago.
+parse those specs. CI pins v0.25.0 via setup-atago.
 
 ```shell
 # Install atago once, at the version CI pins, so local runs and CI agree
