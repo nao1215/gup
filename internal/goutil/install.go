@@ -80,16 +80,19 @@ func InstallWithContext(ctx context.Context, importPath, version string) error {
 		ctx = context.Background()
 	}
 
+	toolchain, err := goToolchainEnv(ctx)
+	if err != nil {
+		return fmt.Errorf("can't install %s: %w", importPath, err)
+	}
+
 	var stderr bytes.Buffer
 	cmd := goCommandContext(ctx, "install", fmt.Sprintf("%s@%s", importPath, version))
 	cmd.Stderr = &stderr
-	toolchain := goToolchainEnv(ctx)
 	if toolchain != "" {
 		cmd.Env = append(os.Environ(), envGoToolchain+"="+toolchain)
 	}
 
-	err := cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			if errors.Is(ctxErr, context.DeadlineExceeded) {
 				return fmt.Errorf("install of %s timed out; run `go install %s@%s` manually or raise --timeout (0 disables it): %w", importPath, importPath, version, ctxErr)

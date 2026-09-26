@@ -199,3 +199,28 @@ func Test_migratePackages_asksForAtLeastThePreviousGo(t *testing.T) {
 		t.Errorf("migrate install got toolchain floor %q, want go1.26.6", floor)
 	}
 }
+
+func Test_migratePackages_warnsWhenGoWentDown(t *testing.T) {
+	after := t.TempDir()
+	t.Setenv("GOBIN", t.TempDir())
+
+	origInstall, origGo := installByVersionMigrateCtx, installedGoVersionMigrate
+	t.Cleanup(func() { installByVersionMigrateCtx, installedGoVersionMigrate = origInstall, origGo })
+	installByVersionMigrateCtx = func(context.Context, string, string) error { return nil }
+	installedGoVersionMigrate = func(string) (string, error) { return floorGoLocal, nil }
+
+	pkgs := []goutil.Package{{
+		Name:       testBinTool,
+		ImportPath: testImportPathTool,
+		Version:    &goutil.Version{Current: testVersion123},
+		GoVersion:  &goutil.Version{Current: floorGoOld, Latest: "unknown"},
+	}}
+	out := captureMigrateOutput(t, func(p *print.Printer) {
+		if got := migratePackages(p, pkgs, after, false, false, 1, false, 0); got != 0 {
+			t.Fatalf("migratePackages() = %d, want 0", got)
+		}
+	})
+	if !strings.Contains(out, "rebuilt with "+floorGoLocal+", older than the "+floorGoOld) {
+		t.Errorf("want a warning that the Go went down:\n%s", out)
+	}
+}

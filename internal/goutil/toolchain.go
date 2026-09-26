@@ -80,20 +80,22 @@ func readGoToolchainSetting() (toolchainSetting, error) {
 // the go command to download a toolchain ("auto" or "<name>+auto") and the
 // toolchain it would start from is older than the floor. With "local", "path"
 // or a fixed version the user has ruled out downloads, so the setting is kept.
-func goToolchainEnv(ctx context.Context) string {
+// When there is a floor but the setting cannot be read, it returns an error
+// rather than install without the floor and risk an older Go.
+func goToolchainEnv(ctx context.Context) (string, error) {
 	floor := MinGoToolchain(ctx)
 	if !IsReleaseGoVersion(floor) {
-		return ""
+		return "", nil
 	}
 	setting, err := goToolchainSetting()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("can't tell whether the go command can build with %s: %w", floor, err)
 	}
 	base, ok := autoSwitchBase(setting)
 	if !ok || !IsReleaseGoVersion(base) || goVersionUpToDate(base, floor) {
-		return ""
+		return "", nil
 	}
-	return floor + autoSuffix
+	return floor + autoSuffix, nil
 }
 
 // autoSwitchBase returns the toolchain the go command starts from when the

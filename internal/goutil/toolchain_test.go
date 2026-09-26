@@ -59,7 +59,11 @@ func TestGoToolchainEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			withToolchainSetting(t, tt.setting, nil)
 			ctx := WithMinGoToolchain(context.Background(), tt.floor)
-			if got := goToolchainEnv(ctx); got != tt.want {
+			got, err := goToolchainEnv(ctx)
+			if err != nil {
+				t.Fatalf("goToolchainEnv() unexpected error: %v", err)
+			}
+			if got != tt.want {
 				t.Errorf("goToolchainEnv(floor=%q, %+v) = %q, want %q", tt.floor, tt.setting, got, tt.want)
 			}
 		})
@@ -69,14 +73,37 @@ func TestGoToolchainEnv(t *testing.T) {
 func TestGoToolchainEnv_settingUnreadable(t *testing.T) {
 	withToolchainSetting(t, toolchainSetting{}, errors.New("go env failed"))
 	ctx := WithMinGoToolchain(context.Background(), goVer1266)
-	if got := goToolchainEnv(ctx); got != "" {
-		t.Errorf("goToolchainEnv() = %q, want the user's setting kept when go env fails", got)
+	if _, err := goToolchainEnv(ctx); err == nil || !strings.Contains(err.Error(), "go env failed") {
+		t.Errorf("goToolchainEnv() error = %v, want the go env failure instead of dropping the floor", err)
+	}
+	// Without a floor there is nothing to protect, so the setting is not needed.
+	if got, err := goToolchainEnv(context.Background()); got != "" || err != nil {
+		t.Errorf("goToolchainEnv() without a floor = %q, %v, want \"\", nil", got, err)
+	}
+}
+
+func TestInstallWithContext_failsWhenFloorCannotBeChecked(t *testing.T) {
+	withToolchainSetting(t, toolchainSetting{}, errors.New("go env failed"))
+	ran := false
+	old := goCommandContext
+	t.Cleanup(func() { goCommandContext = old })
+	goCommandContext = func(ctx context.Context, args ...string) *exec.Cmd {
+		ran = true
+		return old(ctx, args...)
+	}
+
+	err := InstallWithContext(WithMinGoToolchain(context.Background(), goVer1266), "github.com/example/tool", "latest")
+	if err == nil || !strings.Contains(err.Error(), "go env failed") {
+		t.Fatalf("InstallWithContext() error = %v, want the go env failure", err)
+	}
+	if ran {
+		t.Error("go install must not run when the toolchain floor cannot be checked")
 	}
 }
 
 func TestGoToolchainEnv_noFloorInContext(t *testing.T) {
 	withToolchainSetting(t, toolchainSetting{toolchainAuto, goVer1264}, nil)
-	if got := goToolchainEnv(context.Background()); got != "" {
+	if got, _ := goToolchainEnv(context.Background()); got != "" {
 		t.Errorf("goToolchainEnv() = %q, want empty without a floor", got)
 	}
 }
