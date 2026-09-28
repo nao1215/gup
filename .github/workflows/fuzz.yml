@@ -14,8 +14,12 @@ on:
     - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
+      # A choice rather than free text, so a manual run cannot ask for more
+      # than the 30-minute job timeout allows.
       fuzztime:
         description: "go test -fuzztime per target"
+        type: choice
+        options: ["30s", "1m", "5m", "20m"]
         default: "5m"
 
 permissions:
