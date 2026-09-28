@@ -5,13 +5,8 @@ on:
     tags:
       - "v*"
 
-# id-token: keyless cosign signing + provenance via GitHub OIDC.
-# attestations: publish build provenance for the release artifacts.
-# contents: create the GitHub Release and upload assets.
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
   # The publish job is gated on a full artifact smoke test, run on all three
@@ -110,6 +105,13 @@ jobs:
     name: Release
     needs: [smoke, smoke-cross]
     runs-on: ubuntu-latest
+    # id-token: keyless cosign signing + provenance via GitHub OIDC.
+    # attestations: publish build provenance for the release artifacts.
+    # contents: create the GitHub Release and upload assets.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

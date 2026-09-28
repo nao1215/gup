@@ -1,10 +1,17 @@
 name: reviewdog
 on: [pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   misspell:
     name: misspell
     runs-on: ubuntu-latest
+    # reporter: github-pr-review posts review comments on the pull request.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -20,6 +27,10 @@ jobs:
 
   actionlint:
     runs-on: ubuntu-latest
+    # reporter: github-pr-review posts review comments on the pull request.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

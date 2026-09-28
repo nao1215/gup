@@ -9,6 +9,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/nao1215/gup.svg)](https://pkg.go.dev/github.com/nao1215/gup)
 ![GitHub](https://img.shields.io/github/license/nao1215/gup)
 [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/nao1215/gup/total)](https://github.com/nao1215/gup/releases)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nao1215/gup/badge)](https://scorecard.dev/viewer/?uri=github.com/nao1215/gup)
 
 ![sample](./doc/img/sample.gif)
 
