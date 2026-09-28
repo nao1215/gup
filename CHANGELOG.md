@@ -6,7 +6,7 @@
 
 ### Changes
 
-* Release artifacts now ship with SLSA build provenance as a release asset (`multiple.intoto.jsonl`), which `slsa-verifier verify-artifact` checks offline against a downloaded archive. The release run verifies every published archive against it before finishing. The GitHub attestation checked by `gh attestation verify` is still published.
+* Release artifacts now ship with SLSA build provenance as a release asset (`multiple.intoto.jsonl`), which `slsa-verifier verify-artifact` checks against a downloaded archive, verifying its signature against the Sigstore transparency log. The release run verifies every published archive against it before finishing. The GitHub attestation checked by `gh attestation verify` is still published.
 
 ## [v1.10.2](https://github.com/nao1215/gup/compare/v1.10.1...v1.10.2) (2026-09-26)
 
