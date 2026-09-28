@@ -40,13 +40,14 @@ jobs:
       # Every Go version gup supports is scanned: a standard-library advisory is
       # fixed in a specific patch of a specific minor, so a vulnerability that is
       # already fixed in Go 1.27 can still be live for someone building gup with
-      # the Go 1.26 it says it supports. Keep this list in sync with
-      # unit_test.yml and the "Supported Go versions" section of README.md.
+      # the Go 1.26 it says it supports. The first entry is the go directive in
+      # go.mod; "stable" follows the newest release on its own, so a new Go minor
+      # is scanned the day it ships instead of when someone edits this list.
       fail-fast: false
       matrix:
         go:
           - "1.26"
-          - "1.27"
+          - "stable"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,7 +63,28 @@ jobs:
       # The advisory database is intentionally NOT pinned - scanning against a
       # frozen copy of the vulnerability data would defeat the point.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
+      # ACCEPTED lists advisories gup is known to reach and has defended against
+      # on its own side, one ID each, with why, which test holds the defense, and
+      # when to remove it. It is empty today. JSON mode exits 0 even with
+      # findings, so the verdict is made here: any reachable advisory that is not
+      # in ACCEPTED fails the job and prints the human-readable report.
+      # pipefail and the record-count check keep a failed or empty scan from
+      # reading as "nothing found": the default run shell does not set pipefail,
+      # so a jq error would otherwise be hidden behind sort.
       - name: Scan for known vulnerabilities
-        run: govulncheck ./...
+        env:
+          ACCEPTED: ""
+        run: |
+          set -o pipefail
+          govulncheck -format json ./... > "$RUNNER_TEMP/govulncheck.json"
+          jq -e -s 'length > 0' "$RUNNER_TEMP/govulncheck.json" > /dev/null
+          jq -r 'select(.finding != null and (.finding.trace[0].function // "") != "") | .finding.osv' \
+            "$RUNNER_TEMP/govulncheck.json" | sort -u > "$RUNNER_TEMP/called.txt"
+          tr ' ' '\n' <<< "$ACCEPTED" | sed '/^$/d' > "$RUNNER_TEMP/accepted.txt"
+          if grep -vxF -f "$RUNNER_TEMP/accepted.txt" "$RUNNER_TEMP/called.txt"; then
+            echo "::error::govulncheck found an advisory that is not in ACCEPTED"
+            govulncheck ./...
+            exit 1
+          fi
