@@ -1,0 +1,81 @@
+name: Fuzz
+
+# `go test` on every pull request already runs each Fuzz target over its seed
+# corpus and testdata/fuzz/. This workflow is the part that actually searches:
+# each target gets its own job and a few minutes of `go test -fuzz` every night.
+# Five minutes per target on every push would cost more than it finds, so the
+# search runs on schedule and on demand only.
+#
+# Targets are discovered, not listed, so a Fuzz function added later is fuzzed
+# without editing this file.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: "go test -fuzztime per target"
+        default: "5m"
+
+permissions:
+  contents: read
+
+jobs:
+  targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.find.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: find
+        run: |
+          grep -rlE '^func Fuzz[A-Za-z0-9_]*\(' --include='*_test.go' . \
+            | grep -v '/testdata/' \
+            | while read -r f; do
+                # "./" keeps `go test` from reading internal/x as a std path.
+                dir=$(dirname "$f"); dir="./${dir#./}"
+                # A target inside a nested module (its own go.mod) cannot be
+                # run from the root; skip it.
+                d=$dir; nested=""
+                while [ "$d" != "." ]; do [ -f "$d/go.mod" ] && nested=1; d=$(dirname "$d"); done
+                [ -n "$nested" ] && continue
+                grep -oE '^func Fuzz[A-Za-z0-9_]*' "$f" | awk '{print $2}' \
+                  | while read -r name; do printf '{"pkg":"%s","name":"%s"}\n' "$dir" "$name"; done
+              done \
+            | jq -sc '{target: .}' > matrix.json
+          cat matrix.json
+          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    needs: targets
+    if: fromJSON(needs.targets.outputs.matrix).target[0] != null
+    name: ${{ matrix.target.name }} (${{ matrix.target.pkg }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Fuzz
+        env:
+          PKG: ${{ matrix.target.pkg }}
+          NAME: ${{ matrix.target.name }}
+          FUZZTIME: ${{ inputs.fuzztime || '5m' }}
+        run: go test -run '^$' -fuzz "^${NAME}\$" -fuzztime "$FUZZTIME" "$PKG"
+      # A failing input is written under testdata/fuzz/<Name>/. Download it,
+      # commit it next to the target, and fix the bug with it as the
+      # regression test (Phase 5 of ghq-go).
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: fuzz-crashers-${{ matrix.target.name }}
+          path: "**/testdata/fuzz/**"
