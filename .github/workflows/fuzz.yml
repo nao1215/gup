@@ -39,9 +39,9 @@ jobs:
           grep -rlE '^func Fuzz[A-Za-z0-9_]*\(' --include='*_test.go' . \
             | grep -v '/testdata/' \
             | while read -r f; do
-                # "./" keeps `go test` from reading internal/x as a std path; the
-                # root stays "." so it is not taken for a nested module below.
-                dir=$(dirname "$f"); [ "$dir" = "." ] || dir="./${dir#./}"
+                # "./" keeps `go test` from reading internal/x as a std path;
+                # the root package stays ".".
+                dir=$(dirname "$f"); case "$dir" in .|./*) ;; *) dir="./$dir" ;; esac
                 # A target inside a nested module (its own go.mod) cannot be
                 # run from the root; skip it.
                 d=$dir; nested=""
@@ -76,11 +76,12 @@ jobs:
           NAME: ${{ matrix.target.name }}
           FUZZTIME: ${{ inputs.fuzztime || '5m' }}
         run: go test -run '^$' -fuzz "^${NAME}\$" -fuzztime "$FUZZTIME" "$PKG"
-      # A failing input is written under testdata/fuzz/<Name>/. Download it,
-      # commit it next to the target, and fix the bug with it as the
-      # regression test (Phase 5 of ghq-go).
+      # A failing input is written under <pkg>/testdata/fuzz/<Name>/. Download
+      # it, commit it next to the target, and fix the bug with it as the
+      # regression test. The job index keeps artifact names apart when two
+      # packages have a target of the same name.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: fuzz-crashers-${{ matrix.target.name }}
-          path: "**/testdata/fuzz/**"
+          name: fuzz-crashers-${{ matrix.target.name }}-${{ strategy.job-index }}
+          path: ${{ matrix.target.pkg }}/testdata/fuzz/${{ matrix.target.name }}/
