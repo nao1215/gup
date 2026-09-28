@@ -1,8 +1,12 @@
 ## Unreleased
 
+### Bug Fixes
+
+* `gup pin TOOL@VERSION` with more than one `@`, such as `gup pin tool@v1@v1.2.3`, is rejected with `specify the version once`, the error `gup pin tool@v1 v1.2.3` already gave. Only the last `@` split the argument, so the target became `tool@v1` and the command failed with `'tool@v1' is not managed by gup`, which does not name the mistake.
+
 ### Changes
 
-* Release artifacts now ship with SLSA build provenance as a release asset (`multiple.intoto.jsonl`), which `slsa-verifier verify-artifact` checks offline against a downloaded archive. The release run verifies every published archive against it before finishing. The GitHub attestation checked by `gh attestation verify` is still published.
+* Release artifacts now ship with SLSA build provenance as a release asset (`multiple.intoto.jsonl`), which `slsa-verifier verify-artifact` checks against a downloaded archive, verifying its signature against the Sigstore transparency log. The release run verifies every published archive against it before finishing. The GitHub attestation checked by `gh attestation verify` is still published.
 
 ## [v1.10.2](https://github.com/nao1215/gup/compare/v1.10.1...v1.10.2) (2026-09-26)
 

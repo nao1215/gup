@@ -17,15 +17,18 @@ const (
 	pinTestV162   = "v1.62.0"
 )
 
-func TestParsePinArgs(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name        string
-		args        []string
-		wantTarget  string
-		wantVersion string
-		wantErr     bool
-	}{
+// parsePinArgsCases is the example table of TestParsePinArgs, shared as the
+// seed corpus of FuzzParsePinArgs.
+type pinArgsCase struct {
+	name        string
+	args        []string
+	wantTarget  string
+	wantVersion string
+	wantErr     bool
+}
+
+func parsePinArgsCases() []pinArgsCase {
+	return []pinArgsCase{
 		{name: "two args", args: []string{pinTestTool, pinTestV162}, wantTarget: pinTestTool, wantVersion: pinTestV162},
 		{name: "at form", args: []string{pinTestTool + "@" + pinTestV162}, wantTarget: pinTestTool, wantVersion: pinTestV162},
 		{name: "import path at form", args: []string{"github.com/x/y/cmd/z@" + testVersion123}, wantTarget: "github.com/x/y/cmd/z", wantVersion: testVersion123},
@@ -34,13 +37,19 @@ func TestParsePinArgs(t *testing.T) {
 		{name: "latest keyword rejected", args: []string{testBinTool, string(goutil.UpdateChannelLatest)}, wantErr: true},
 		{name: "main keyword rejected", args: []string{testBinTool, string(goutil.UpdateChannelMain)}, wantErr: true},
 		{name: "double version specification", args: []string{testBinTool + "@" + testVersion123, "v2.0.0"}, wantErr: true},
+		{name: "double version in at form", args: []string{testBinTool + "@v1@" + testVersion123}, wantErr: true},
 		{name: "empty target", args: []string{"@v1.0.0"}, wantErr: true},
 		{name: "pseudo-version accepted", args: []string{testBinTool + "@v0.0.0-20240102150405-abcdef123456"}, wantTarget: testBinTool, wantVersion: "v0.0.0-20240102150405-abcdef123456"},
 		{name: "prerelease accepted", args: []string{testBinTool, "v1.2.3-rc.1"}, wantTarget: testBinTool, wantVersion: "v1.2.3-rc.1"},
 		{name: "branch rejected", args: []string{testBinTool, "release"}, wantErr: true},
 		{name: "commit hash rejected", args: []string{testBinTool + "@abc1234"}, wantErr: true},
 		{name: "abbreviated version rejected", args: []string{testBinTool, "v1.2"}, wantErr: true},
-	} {
+	}
+}
+
+func TestParsePinArgs(t *testing.T) {
+	t.Parallel()
+	for _, tt := range parsePinArgsCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			target, version, err := parsePinArgs(tt.args)
@@ -182,5 +191,58 @@ func Test_pinAndUnpinUseFirstArgCompletion(t *testing.T) {
 				t.Errorf("second argument completions = %v, want none", got)
 			}
 		})
+	}
+}
+
+// FuzzParsePinArgs checks the two spellings of "gup pin" against each other and
+// the contract of what they accept:
+//   - an accepted target is trimmed, non-empty and contains no "@", and an
+//     accepted version is trimmed and passes goutil.ValidatePinnedVersion;
+//   - "gup pin TOOL VERSION" and "gup pin TOOL@VERSION" agree whenever neither
+//     part contains "@" (the separator of the one-argument form).
+func FuzzParsePinArgs(f *testing.F) {
+	for _, tt := range parsePinArgsCases() {
+		switch len(tt.args) {
+		case 1:
+			if at := strings.LastIndex(tt.args[0], "@"); at >= 0 {
+				f.Add(tt.args[0][:at], tt.args[0][at+1:])
+			}
+		case 2:
+			f.Add(tt.args[0], tt.args[1])
+		}
+	}
+	f.Add(" tool ", " "+testVersion123+" ")
+	f.Add(testBinTool, "x@"+testVersion123)
+
+	f.Fuzz(func(t *testing.T, tool, ver string) {
+		joined := tool + "@" + ver
+		tT, tV, tErr := parsePinArgs([]string{tool, ver})
+		jT, jV, jErr := parsePinArgs([]string{joined})
+		checkPinArgs(t, []string{tool, ver}, tT, tV, tErr)
+		checkPinArgs(t, []string{joined}, jT, jV, jErr)
+
+		if strings.Contains(tool, "@") || strings.Contains(ver, "@") {
+			return
+		}
+		if (tErr == nil) != (jErr == nil) || tT != jT || tV != jV {
+			t.Fatalf("spellings disagree: (%q, %q) -> (%q, %q, %v) but %q -> (%q, %q, %v)",
+				tool, ver, tT, tV, tErr, joined, jT, jV, jErr)
+		}
+	})
+}
+
+func checkPinArgs(t *testing.T, args []string, target, version string, err error) {
+	t.Helper()
+	if err != nil {
+		return
+	}
+	if target == "" || target != strings.TrimSpace(target) || strings.Contains(target, "@") {
+		t.Fatalf("parsePinArgs(%q) accepted target %q: must be trimmed, non-empty and without \"@\"", args, target)
+	}
+	if version != strings.TrimSpace(version) {
+		t.Fatalf("parsePinArgs(%q) returned untrimmed version %q", args, version)
+	}
+	if vErr := goutil.ValidatePinnedVersion(version); vErr != nil {
+		t.Fatalf("parsePinArgs(%q) accepted invalid version %q: %v", args, version, vErr)
 	}
 }

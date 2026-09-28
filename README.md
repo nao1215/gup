@@ -114,7 +114,7 @@ Verify the build provenance of a downloaded artifact with the GitHub CLI:
 gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
 ```
 
-Or verify it offline against the `multiple.intoto.jsonl` release asset with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier):
+Or download the `multiple.intoto.jsonl` release asset and verify the archive against it with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier), which checks the provenance signature against the Sigstore transparency log:
 
 ```shell
 slsa-verifier verify-artifact gup_<version>_<os>_<arch>.tar.gz \

@@ -4,6 +4,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -68,13 +71,16 @@ func TestParseConfigChannel(t *testing.T) {
 	}
 }
 
-func TestValidatePinnedVersion(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name    string
-		in      string
-		wantErr bool
-	}{
+// validatePinnedVersionCases is the example table of TestValidatePinnedVersion,
+// shared as the seed corpus of FuzzValidatePinnedVersion.
+type pinnedVersionCase struct {
+	name    string
+	in      string
+	wantErr bool
+}
+
+func validatePinnedVersionCases() []pinnedVersionCase {
+	return []pinnedVersionCase{
 		// Accepted: every form names one fixed version.
 		{name: "semver ok", in: "v1.62.0"},
 		{name: "zero version ok", in: "v0.0.0"},
@@ -129,7 +135,12 @@ func TestValidatePinnedVersion(t *testing.T) {
 		{name: "pseudo uppercase rev rejected", in: "v0.0.0-20240102150405-ABCDEF123456", wantErr: true},
 		{name: "pseudo without base but incompatible rejected", in: "v2.0.0-20240102150405-abcdef123456+incompatible", wantErr: true},
 		{name: "pseudo negative patch rejected", in: "v1.0.0-0.20240102150405-abcdef123456", wantErr: true},
-	} {
+	}
+}
+
+func TestValidatePinnedVersion(t *testing.T) {
+	t.Parallel()
+	for _, tt := range validatePinnedVersionCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePinnedVersion(tt.in)
@@ -236,4 +247,86 @@ func TestValidatePinnedVersionErrorGuidesTheFix(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzValidatePinnedVersion checks the pin validator against golang.org/x/mod,
+// which implements the go command's own version rules. A pin comes from the
+// user (gup pin, a hand-edited gup.json), and accepting a version the go command
+// would treat as a query or reject would let a "pin" move or fail later, so:
+//   - the validator never panics and ignores surrounding whitespace;
+//   - every accepted pin is a fixed module version (see isFixedModuleVersion)
+//     and is not a channel keyword;
+//   - every fixed module version that is not a pseudo-version is accepted, so
+//     the validator does not reject real releases. Pseudo-versions are excluded
+//     from this direction because x/mod does not check their timestamp and
+//     revision, which the validator does on purpose.
+func FuzzValidatePinnedVersion(f *testing.F) {
+	for _, tt := range validatePinnedVersionCases() {
+		f.Add(tt.in)
+	}
+	for _, seed := range []string{"<v2", "patch", "develop", "v1.2.3-rc.1\t", "v2.0.0+incompatible+incompatible"} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, in string) {
+		err := ValidatePinnedVersion(in)
+		if padded := ValidatePinnedVersion(" \t" + in + "\n "); (padded == nil) != (err == nil) {
+			t.Fatalf("surrounding whitespace changed the verdict for %q: %v vs %v", in, err, padded)
+		}
+
+		v := strings.TrimSpace(in)
+		fixed := isFixedModuleVersion(v)
+		if err == nil {
+			if IsReservedChannelKeyword(v) {
+				t.Fatalf("accepted channel keyword %q as a pin", in)
+			}
+			if !fixed {
+				t.Fatalf("accepted %q, which is not a fixed module version", in)
+			}
+			return
+		}
+		if fixed && !module.IsPseudoVersion(v) {
+			t.Fatalf("rejected %q, which is a fixed module version: %v", in, err)
+		}
+	})
+}
+
+// isFixedModuleVersion is the oracle for FuzzValidatePinnedVersion, built from
+// golang.org/x/mod instead of the validator's own helpers: v must pass
+// module.Check for a module path of its major version and already be in the
+// canonical form module.CanonicalVersion produces (so abbreviations such as v1.2
+// and build metadata other than +incompatible are out). module.Check allows
+// +incompatible on v0/v1, which the go command refuses when it fetches a
+// module, so that combination is excluded here as well. module.Check does not
+// look inside a pseudo-version, so its base and timestamp are checked with the
+// x/mod pseudo-version parsers.
+func isFixedModuleVersion(v string) bool {
+	if module.Check(pathForVersion(v), v) != nil || module.CanonicalVersion(v) != v {
+		return false
+	}
+	if module.IsPseudoVersion(v) {
+		if _, err := module.PseudoVersionBase(v); err != nil {
+			return false
+		}
+		if _, err := module.PseudoVersionTime(v); err != nil {
+			return false
+		}
+	}
+	if semver.Build(v) == incompatibleBuild {
+		major := semver.Major(v)
+		return major != "v0" && major != "v1"
+	}
+	return true
+}
+
+// pathForVersion returns a module path whose major-version suffix matches v, so
+// module.Check judges only the version: v0/v1 and +incompatible versions belong
+// to a path without a /vN suffix, every other major to one with it.
+func pathForVersion(v string) string {
+	const base = "example.com/m"
+	major := semver.Major(v)
+	if major == "" || major == "v0" || major == "v1" || semver.Build(v) == incompatibleBuild {
+		return base
+	}
+	return base + "/" + major
 }
