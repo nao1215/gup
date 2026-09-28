@@ -638,7 +638,14 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	if vperms, ok := verification["permissions"].(map[string]any); !ok || vperms["contents"] != permRead || len(vperms) != 1 {
 		t.Errorf("the verification job must run with exactly 'contents: read', got %v", verification["permissions"])
 	}
+	// Both archive formats are published (tar.gz for Linux and macOS, zip for
+	// Windows), so both have to be downloaded and let through the verification
+	// loop's filter; dropping either would leave that platform unverified
+	// without failing anything.
 	installsVerifier, runsVerifier := false, false
+	downloaded := map[string]bool{}
+	verified := map[string]bool{}
+	archives := []string{"*.tar.gz", "*.zip"}
 	steps, _ := verification["steps"].([]any)
 	for _, s := range steps {
 		step, ok := s.(map[string]any)
@@ -648,8 +655,20 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 		if u, ok := step["uses"].(string); ok && strings.HasPrefix(u, "slsa-framework/slsa-verifier/actions/installer@") {
 			installsVerifier = true
 		}
-		if run, ok := step["run"].(string); ok && strings.Contains(run, "slsa-verifier verify-artifact") {
+		run, ok := step["run"].(string)
+		if !ok {
+			continue
+		}
+		for _, pattern := range archives {
+			if strings.Contains(run, "release download") && strings.Contains(run, `-p "`+pattern+`"`) {
+				downloaded[pattern] = true
+			}
+		}
+		if strings.Contains(run, "slsa-verifier verify-artifact") {
 			runsVerifier = true
+			if filter := regexp.MustCompile(`(?m)^\s*\*\.tar\.gz\|\*\.zip\)`); filter.MatchString(run) {
+				verified["*.tar.gz"], verified["*.zip"] = true, true
+			}
 		}
 	}
 	if !installsVerifier {
@@ -657,6 +676,14 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	}
 	if !runsVerifier {
 		t.Error("the verification job never runs 'slsa-verifier verify-artifact'")
+	}
+	for _, pattern := range archives {
+		if !downloaded[pattern] {
+			t.Errorf("the verification job does not download the %s release archives", pattern)
+		}
+		if !verified[pattern] {
+			t.Errorf("the verification loop does not let %s archives through to slsa-verifier (want a '*.tar.gz|*.zip)' case)", pattern)
+		}
 	}
 }
 
