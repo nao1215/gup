@@ -297,10 +297,20 @@ func FuzzValidatePinnedVersion(f *testing.F) {
 // canonical form module.CanonicalVersion produces (so abbreviations such as v1.2
 // and build metadata other than +incompatible are out). module.Check allows
 // +incompatible on v0/v1, which the go command refuses when it fetches a
-// module, so that combination is excluded here as well.
+// module, so that combination is excluded here as well. module.Check does not
+// look inside a pseudo-version, so its base and timestamp are checked with the
+// x/mod pseudo-version parsers.
 func isFixedModuleVersion(v string) bool {
 	if module.Check(pathForVersion(v), v) != nil || module.CanonicalVersion(v) != v {
 		return false
+	}
+	if module.IsPseudoVersion(v) {
+		if _, err := module.PseudoVersionBase(v); err != nil {
+			return false
+		}
+		if _, err := module.PseudoVersionTime(v); err != nil {
+			return false
+		}
 	}
 	if semver.Build(v) == incompatibleBuild {
 		major := semver.Major(v)
