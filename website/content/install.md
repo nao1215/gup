@@ -90,7 +90,8 @@ applicable. The packages also install the bash, fish, and zsh completion files.
 ## Verify what you downloaded
 
 Every release ships a cosign-signed `checksums.txt`, an SPDX SBOM per archive,
-and SLSA build provenance attested through GitHub OIDC.
+and SLSA build provenance attested through GitHub OIDC and attached to the
+release as `multiple.intoto.jsonl`.
 
 ```shell
 cosign verify-blob \
@@ -103,6 +104,13 @@ sha256sum --check --ignore-missing checksums.txt
 
 ```shell
 gh attestation verify gup_1.0.0_linux_amd64.tar.gz --repo nao1215/gup
+```
+
+```shell
+slsa-verifier verify-artifact gup_1.0.0_linux_amd64.tar.gz \
+  --provenance-path multiple.intoto.jsonl \
+  --source-uri github.com/nao1215/gup \
+  --source-tag v1.0.0
 ```
 
 ## Shell completion

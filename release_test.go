@@ -14,6 +14,9 @@ import (
 // workflowDir holds the GitHub Actions workflows the tests below inspect.
 const workflowDir = ".github/workflows"
 
+// permRead is the read-only GITHUB_TOKEN scope the workflows are held to.
+const permRead = "read"
+
 // The GitHub-hosted runner labels the cross-platform jobs are asserted against.
 const (
 	runnerMacOS   = "macos-latest"
@@ -149,7 +152,7 @@ func Test_releaseWorkflow_provenanceAndSigning(t *testing.T) {
 	if perms["contents"] != write {
 		t.Errorf("release job needs 'contents: write' to publish the release, got %v", perms["contents"])
 	}
-	if top, ok := doc["permissions"].(map[string]any); !ok || top["contents"] != "read" || len(top) != 1 {
+	if top, ok := doc["permissions"].(map[string]any); !ok || top["contents"] != permRead || len(top) != 1 {
 		t.Errorf("release workflow's top-level permissions must be exactly 'contents: read', got %v", doc["permissions"])
 	}
 
@@ -262,6 +265,15 @@ func Test_workflows_pinActionsToCommitSHA(t *testing.T) {
 			if strings.HasPrefix(ref, "./") {
 				continue
 			}
+			// The SLSA generator is the one reusable workflow that must be
+			// referenced by a release tag: it reads its own ref to decide which
+			// builder binary to fetch, and slsa-verifier rejects provenance whose
+			// builder ref is not a vX.Y.Z tag. Scorecard's Pinned-Dependencies
+			// exempts it for the same reason. The tag itself is asserted by
+			// Test_releaseWorkflow_slsaProvenance.
+			if strings.HasPrefix(ref, slsaGeneratorWorkflow+"@") {
+				continue
+			}
 			if !pinned.MatchString(ref) {
 				t.Errorf("%s:%d pins an action by tag or branch, not by commit SHA with a version comment: %q",
 					path, i+1, ref)
@@ -295,7 +307,7 @@ func Test_workflows_haveGovulncheck(t *testing.T) {
 	if !ok {
 		t.Fatal("govulncheck workflow is missing a permissions block")
 	}
-	if perms["contents"] != "read" {
+	if perms["contents"] != permRead {
 		t.Errorf("govulncheck workflow should run with 'contents: read', got %v", perms["contents"])
 	}
 	if len(perms) != 1 {
@@ -535,4 +547,153 @@ func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
 	if !ranRunner {
 		t.Error("the e2e job does not run 'go run ./e2e/runner'")
 	}
+}
+
+// slsaGeneratorWorkflow is the reusable workflow that writes the SLSA build
+// provenance attached to every release.
+const slsaGeneratorWorkflow = "slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml"
+
+// Test_releaseWorkflow_slsaProvenance asserts that every release ships SLSA
+// build provenance as a release asset (multiple.intoto.jsonl) and that the
+// release run verifies it. The GitHub attestation in the release job is not a
+// release asset, so without this job a user holding only the downloaded files
+// has no provenance to check, and OpenSSF Scorecard's Signed-Releases check
+// sees none either. The chain has three links, and each one is checked here:
+// the release job exports the base64 of checksums.txt, the provenance job
+// hands it to the generator with upload-assets, and the verification job runs
+// slsa-verifier against what was published.
+func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
+	t.Parallel()
+	doc := readYAMLFile(t, filepath.Join(workflowDir, "release.yml"))
+
+	jobs, ok := doc["jobs"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no jobs block")
+	}
+
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'release' job")
+	}
+	outputs, ok := release["outputs"].(map[string]any)
+	if !ok {
+		t.Fatal("the release job has no outputs; the provenance job has no subjects to attest")
+	}
+	if hashes, _ := outputs["hashes"].(string); !strings.Contains(hashes, "steps.hash.outputs.hashes") {
+		t.Errorf("the release job's hashes output is %q, want it to come from the 'hash' step", hashes)
+	}
+	if !releaseHasStep(release, "run-goreleaser") {
+		t.Error("the GoReleaser step has no 'id: run-goreleaser'; the subject step cannot read its artifacts output")
+	}
+	if !releaseHasStep(release, "hash") {
+		t.Error("the release job has no step with 'id: hash' that writes the provenance subjects")
+	}
+
+	provenance, ok := jobs["provenance"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'provenance' job")
+	}
+	uses, _ := provenance["uses"].(string)
+	generatorTag := regexp.MustCompile(`^` + regexp.QuoteMeta(slsaGeneratorWorkflow) + `@v\d+\.\d+\.\d+$`)
+	if !generatorTag.MatchString(uses) {
+		t.Errorf("the provenance job uses %q, want %s@vX.Y.Z (a release tag, not a SHA or branch)", uses, slsaGeneratorWorkflow)
+	}
+	if needs := stringSlice(provenance["needs"]); !slices.Contains(needs, "release") {
+		t.Errorf("the provenance job does not depend on 'release' (needs = %v)", needs)
+	}
+	with, ok := provenance["with"].(map[string]any)
+	if !ok {
+		t.Fatal("the provenance job passes no inputs to the generator")
+	}
+	if subjects, _ := with["base64-subjects"].(string); !strings.Contains(subjects, "needs.release.outputs.hashes") {
+		t.Errorf("the provenance job's base64-subjects is %q, want needs.release.outputs.hashes", subjects)
+	}
+	if with["upload-assets"] != true {
+		t.Errorf("the provenance job must set upload-assets: true so multiple.intoto.jsonl is a release asset, got %v", with["upload-assets"])
+	}
+	const write = "write"
+	perms, ok := provenance["permissions"].(map[string]any)
+	if !ok {
+		t.Fatal("the provenance job has no permissions block")
+	}
+	for scope, want := range map[string]string{"actions": permRead, "id-token": write, "contents": write} {
+		if perms[scope] != want {
+			t.Errorf("the provenance job needs '%s: %s', got %v", scope, want, perms[scope])
+		}
+	}
+	if len(perms) != 3 {
+		t.Errorf("the provenance job grants more than actions/id-token/contents: %v", perms)
+	}
+
+	verification, ok := jobs["verification"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no 'verification' job; published provenance would never be checked")
+	}
+	needs := stringSlice(verification["needs"])
+	for _, want := range []string{"release", "provenance"} {
+		if !slices.Contains(needs, want) {
+			t.Errorf("the verification job does not depend on %q (needs = %v)", want, needs)
+		}
+	}
+	if vperms, ok := verification["permissions"].(map[string]any); !ok || vperms["contents"] != permRead || len(vperms) != 1 {
+		t.Errorf("the verification job must run with exactly 'contents: read', got %v", verification["permissions"])
+	}
+	// Both archive formats are published (tar.gz for Linux and macOS, zip for
+	// Windows), so both have to be downloaded and let through the verification
+	// loop's filter; dropping either would leave that platform unverified
+	// without failing anything.
+	installsVerifier, runsVerifier := false, false
+	downloaded := map[string]bool{}
+	verified := map[string]bool{}
+	archives := []string{"*.tar.gz", "*.zip"}
+	steps, _ := verification["steps"].([]any)
+	for _, s := range steps {
+		step, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		if u, ok := step["uses"].(string); ok && strings.HasPrefix(u, "slsa-framework/slsa-verifier/actions/installer@") {
+			installsVerifier = true
+		}
+		run, ok := step["run"].(string)
+		if !ok {
+			continue
+		}
+		for _, pattern := range archives {
+			if strings.Contains(run, "release download") && strings.Contains(run, `-p "`+pattern+`"`) {
+				downloaded[pattern] = true
+			}
+		}
+		if strings.Contains(run, "slsa-verifier verify-artifact") {
+			runsVerifier = true
+			if filter := regexp.MustCompile(`(?m)^\s*\*\.tar\.gz\|\*\.zip\)`); filter.MatchString(run) {
+				verified["*.tar.gz"], verified["*.zip"] = true, true
+			}
+		}
+	}
+	if !installsVerifier {
+		t.Error("the verification job does not install slsa-verifier")
+	}
+	if !runsVerifier {
+		t.Error("the verification job never runs 'slsa-verifier verify-artifact'")
+	}
+	for _, pattern := range archives {
+		if !downloaded[pattern] {
+			t.Errorf("the verification job does not download the %s release archives", pattern)
+		}
+		if !verified[pattern] {
+			t.Errorf("the verification loop does not let %s archives through to slsa-verifier (want a '*.tar.gz|*.zip)' case)", pattern)
+		}
+	}
+}
+
+// releaseHasStep reports whether the job has a step with the given id.
+func releaseHasStep(job map[string]any, id string) bool {
+	steps, _ := job["steps"].([]any)
+	for _, s := range steps {
+		if step, ok := s.(map[string]any); ok && step["id"] == id {
+			return true
+		}
+	}
+	return false
 }
