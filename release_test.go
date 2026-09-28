@@ -135,17 +135,18 @@ func Test_releaseWorkflow_provenanceAndSigning(t *testing.T) {
 	if !ok {
 		t.Fatal("release workflow has no release job")
 	}
+	const write = "write"
 	perms, ok := release["permissions"].(map[string]any)
 	if !ok {
 		t.Fatal("release job is missing a permissions block")
 	}
-	if perms["id-token"] != "write" {
+	if perms["id-token"] != write {
 		t.Errorf("release job needs 'id-token: write' for keyless signing/provenance, got %v", perms["id-token"])
 	}
-	if perms["attestations"] != "write" {
+	if perms["attestations"] != write {
 		t.Errorf("release job needs 'attestations: write' for provenance, got %v", perms["attestations"])
 	}
-	if perms["contents"] != "write" {
+	if perms["contents"] != write {
 		t.Errorf("release job needs 'contents: write' to publish the release, got %v", perms["contents"])
 	}
 	if top, ok := doc["permissions"].(map[string]any); !ok || top["contents"] != "read" || len(top) != 1 {
