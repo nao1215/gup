@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [v1.10.3](https://github.com/nao1215/gup/compare/v1.10.2...v1.10.3) (2026-09-28)
+
 ### Bug Fixes
 
 * `gup pin TOOL@VERSION` with more than one `@`, such as `gup pin tool@v1@v1.2.3`, is rejected with `specify the version once`, the error `gup pin tool@v1 v1.2.3` already gave. Only the last `@` split the argument, so the target became `tool@v1` and the command failed with `'tool@v1' is not managed by gup`, which does not name the mistake.
