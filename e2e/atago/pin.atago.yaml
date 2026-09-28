@@ -354,6 +354,21 @@ scenarios:
           stderr:
             contains: "specify the version once"
 
+  - name: rejects specifying the version twice in the tool@version form
+    env: *iso
+    steps:
+      - run:
+          command: go install gup.test/outdated@v1.0.0
+      - run:
+          command: gup pin outdated@v1@v1.0.0
+      - assert:
+          exit_code: 1
+          stdout:
+            not_contains: "Pinned"
+          stderr:
+            contains: "specify the version once"
+            not_contains: "not managed by gup"
+
   - name: pin fails fast on a malformed channel-source config
     env: *iso
     steps:

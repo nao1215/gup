@@ -116,11 +116,15 @@ func parsePinArgs(args []string) (target, version string, err error) {
 	case pinMaxArgs:
 		target = strings.TrimSpace(args[0])
 		version = strings.TrimSpace(args[1])
-		if strings.Contains(target, "@") {
-			return "", "", errors.New("specify the version once: either 'gup pin TOOL@VERSION' or 'gup pin TOOL VERSION'")
-		}
 	default:
 		return "", "", errors.New("pin takes a tool and a version")
+	}
+
+	// A tool name or import path never contains "@", so one left in the target
+	// means the version was given twice ("tool@v1 v1.2.3", or "tool@v1@v1.2.3"
+	// where only the last "@" splits). Both spellings reject it the same way.
+	if strings.Contains(target, "@") {
+		return "", "", errors.New("specify the version once: either 'gup pin TOOL@VERSION' or 'gup pin TOOL VERSION'")
 	}
 
 	if target == "" {
