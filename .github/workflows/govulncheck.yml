@@ -66,7 +66,7 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
       # ACCEPTED lists advisories gup is known to reach and has defended against
-      # on its own side, one ID each, with why, which test holds the defence, and
+      # on its own side, one ID each, with why, which test holds the defense, and
       # when to remove it. It is empty today. JSON mode exits 0 even with
       # findings, so the verdict is made here: any reachable advisory that is not
       # in ACCEPTED fails the job and prints the human-readable report.
