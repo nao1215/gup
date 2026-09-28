@@ -137,6 +137,13 @@ func ReadConfFile(path string) ([]goutil.Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't read %s: %w", path, err)
 	}
+	return parseConf(raw, path)
+}
+
+// parseConf decodes the contents of a gup.json file. path is used only to name
+// the file in error messages. It is the pure core of ReadConfFile, kept separate
+// so the decoding rules can be tested (and fuzzed) without touching the disk.
+func parseConf(raw []byte, path string) ([]goutil.Package, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return []goutil.Package{}, nil
 	}
