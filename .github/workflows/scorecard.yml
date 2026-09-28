@@ -9,6 +9,8 @@ on:
   schedule:
     - cron: "30 1 * * 6"
   branch_protection_rule:
+  # Re-score on demand after changing repository settings that fire no event (rulesets, security settings).
+  workflow_dispatch:
 
 permissions: read-all
 
