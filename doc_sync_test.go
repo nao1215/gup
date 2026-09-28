@@ -118,6 +118,8 @@ func Test_englishReadme_hasRequiredSectionContent(t *testing.T) {
 		"## Verifying release integrity": {
 			"cosign verify-blob",                  // signed-checksum verification command
 			"gh attestation verify gup_<version>", // SLSA build-provenance command
+			"slsa-verifier verify-artifact",       // offline check of multiple.intoto.jsonl
+			"--provenance-path multiple.intoto.jsonl",
 		},
 		// Migrate: the command synopsis and the mise rationale link.
 		"### Migrate binaries to a new $GOBIN": {

@@ -95,7 +95,7 @@ Every release ships supply-chain metadata so you can verify what you download:
 
 - Signed checksums: `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
 - SBOM: an SPDX Software Bill of Materials is attached to each release archive.
-- Build provenance: SLSA build provenance is attested via GitHub OIDC.
+- Build provenance: SLSA build provenance is attested via GitHub OIDC, and is also attached to the release as `multiple.intoto.jsonl`.
 
 Verify the signed checksums (then check your archive against `checksums.txt`):
 
@@ -112,6 +112,15 @@ Verify the build provenance of a downloaded artifact with the GitHub CLI:
 
 ```shell
 gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
+```
+
+Or verify it offline against the `multiple.intoto.jsonl` release asset with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier):
+
+```shell
+slsa-verifier verify-artifact gup_<version>_<os>_<arch>.tar.gz \
+  --provenance-path multiple.intoto.jsonl \
+  --source-uri github.com/nao1215/gup \
+  --source-tag v<version>
 ```
 
 ## How to use
