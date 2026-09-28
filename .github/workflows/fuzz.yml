@@ -39,8 +39,9 @@ jobs:
           grep -rlE '^func Fuzz[A-Za-z0-9_]*\(' --include='*_test.go' . \
             | grep -v '/testdata/' \
             | while read -r f; do
-                # "./" keeps `go test` from reading internal/x as a std path.
-                dir=$(dirname "$f"); dir="./${dir#./}"
+                # "./" keeps `go test` from reading internal/x as a std path; the
+                # root stays "." so it is not taken for a nested module below.
+                dir=$(dirname "$f"); [ "$dir" = "." ] || dir="./${dir#./}"
                 # A target inside a nested module (its own go.mod) cannot be
                 # run from the root; skip it.
                 d=$dir; nested=""
