@@ -7,18 +7,20 @@ on:
   pull_request:
     branches: [main]
 
-# octocov needs to read/write the Actions-artifact datastore (report/diff in
-# .octocov.yml) and comment coverage on pull requests. The repo's default token
-# permissions are read-only, which makes those API calls 403, so grant the
-# needed scopes explicitly here.
 permissions:
   contents: read
-  actions: write
-  pull-requests: write
 
 jobs:
   coverage:
     name: Coverage (unit + e2e)
+
+    # octocov needs to read/write the Actions-artifact datastore (report/diff in
+    # .octocov.yml) and comment coverage on pull requests, so the job grants
+    # those scopes explicitly; the rest of the workflow stays read-only.
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: write
 
     strategy:
       matrix:
