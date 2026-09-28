@@ -125,15 +125,31 @@ func Test_releaseWorkflow_provenanceAndSigning(t *testing.T) {
 	t.Parallel()
 	doc := readYAMLFile(t, ".github/workflows/release.yml")
 
-	perms, ok := doc["permissions"].(map[string]any)
+	// The write scopes belong to the publishing job only; the smoke jobs run
+	// with the workflow's read-only default.
+	jobs, ok := doc["jobs"].(map[string]any)
 	if !ok {
-		t.Fatal("release workflow is missing a permissions block")
+		t.Fatal("release workflow has no jobs")
+	}
+	release, ok := jobs["release"].(map[string]any)
+	if !ok {
+		t.Fatal("release workflow has no release job")
+	}
+	perms, ok := release["permissions"].(map[string]any)
+	if !ok {
+		t.Fatal("release job is missing a permissions block")
 	}
 	if perms["id-token"] != "write" {
-		t.Errorf("release workflow needs 'id-token: write' for keyless signing/provenance, got %v", perms["id-token"])
+		t.Errorf("release job needs 'id-token: write' for keyless signing/provenance, got %v", perms["id-token"])
 	}
 	if perms["attestations"] != "write" {
-		t.Errorf("release workflow needs 'attestations: write' for provenance, got %v", perms["attestations"])
+		t.Errorf("release job needs 'attestations: write' for provenance, got %v", perms["attestations"])
+	}
+	if perms["contents"] != "write" {
+		t.Errorf("release job needs 'contents: write' to publish the release, got %v", perms["contents"])
+	}
+	if top, ok := doc["permissions"].(map[string]any); !ok || top["contents"] != "read" || len(top) != 1 {
+		t.Errorf("release workflow's top-level permissions must be exactly 'contents: read', got %v", doc["permissions"])
 	}
 
 	// Validate the structured jobs.release.steps[*].uses rather than raw text so
