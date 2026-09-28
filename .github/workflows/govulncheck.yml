@@ -70,11 +70,16 @@ jobs:
       # when to remove it. It is empty today. JSON mode exits 0 even with
       # findings, so the verdict is made here: any reachable advisory that is not
       # in ACCEPTED fails the job and prints the human-readable report.
+      # pipefail and the record-count check keep a failed or empty scan from
+      # reading as "nothing found": the default run shell does not set pipefail,
+      # so a jq error would otherwise be hidden behind sort.
       - name: Scan for known vulnerabilities
         env:
           ACCEPTED: ""
         run: |
+          set -o pipefail
           govulncheck -format json ./... > "$RUNNER_TEMP/govulncheck.json"
+          jq -e -s 'length > 0' "$RUNNER_TEMP/govulncheck.json" > /dev/null
           jq -r 'select(.finding != null and (.finding.trace[0].function // "") != "") | .finding.osv' \
             "$RUNNER_TEMP/govulncheck.json" | sort -u > "$RUNNER_TEMP/called.txt"
           tr ' ' '\n' <<< "$ACCEPTED" | sed '/^$/d' > "$RUNNER_TEMP/accepted.txt"
