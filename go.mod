@@ -1,6 +1,6 @@
 module github.com/nao1215/gup
 
-go 1.26.0
+go 1.26.9
 
 require (
 	github.com/adrg/xdg v0.5.3
@@ -8,7 +8,7 @@ require (
 	github.com/gen2brain/beeep v0.11.2
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-version v1.9.0
-	github.com/mattn/go-colorable v0.1.15
+	github.com/mattn/go-colorable v0.1.16
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/mod v0.41.0
 	golang.org/x/sys v0.48.0
