@@ -1,9 +1,5 @@
 ## Unreleased
 
-### Changes
-
-* Building gup from source now needs Go 1.26.9 or later (was 1.26.0). Earlier 1.26 patch releases carry standard library advisories that gup reaches in `net/http`, `net/textproto`, `crypto/tls`, `crypto/x509`, `os` and others, the newest being GO-2026-6603 to GO-2026-6617, which Go 1.26.9 fixes. The floor legs of the unit test, lint and govulncheck workflows now run that exact patch instead of whatever setup-go resolves "1.26" to. Prebuilt binaries are unaffected.
-
 ## [v1.10.3](https://github.com/nao1215/gup/compare/v1.10.2...v1.10.3) (2026-09-28)
 
 ### Bug Fixes

@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         go:
-          - "1.26.9"
+          - "1.26"
           - "stable"
 
     steps:
