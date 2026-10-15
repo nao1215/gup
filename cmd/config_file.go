@@ -97,8 +97,8 @@ func renameWithReplace(src, dst string) error {
 	// Asked before the platform gate below, because a read-only destination is a
 	// property of the file rather than of the operating system, and clearing it
 	// keeps the replace atomic where the swap could not.
-	if replaceErr := replaceReadOnlyDestination(src, dst); replaceErr == nil {
-		return nil
+	if handled, replaceErr := replaceReadOnlyDestination(src, dst); handled {
+		return replaceErr
 	}
 	if !shouldRetryRenameWithReplace(err, dst) {
 		return err
@@ -115,27 +115,30 @@ func renameWithReplace(src, dst string) error {
 // which the unlocked readers (`gup check`, `gup list`, `gup import`) would read
 // as "no config". Clearing the bit for the length of one rename costs nothing
 // and keeps the file continuously present.
-func replaceReadOnlyDestination(src, dst string) error {
+// handled is true once replacement succeeds or restoring permissions fails:
+// neither case permits another attempt through the backup-swap fallback.
+func replaceReadOnlyDestination(src, dst string) (handled bool, err error) {
 	info, err := os.Stat(dst)
 	if err != nil {
-		return err
+		return false, err
 	}
 	const ownerWrite = 0o200
 	if info.Mode().Perm()&ownerWrite != 0 {
 		// Not a read-only destination, so this is not what stopped the replace.
-		return errNotReadOnlyDestination
+		return false, errNotReadOnlyDestination
 	}
 	if err := os.Chmod(dst, info.Mode()|ownerWrite); err != nil {
-		return err
+		return false, err
 	}
 	if err := renameFunc(src, dst); err != nil {
 		// Put the destination back as it was found: the write failed, so nothing
 		// about the file the user has should have changed.
-		return errors.Join(err, os.Chmod(dst, info.Mode()))
+		restoreErr := os.Chmod(dst, info.Mode())
+		return restoreErr != nil, errors.Join(err, restoreErr)
 	}
 	// The new file inherits the temp file's mode, so the destination's read-only
 	// intent is restored onto it rather than silently dropped.
-	return os.Chmod(dst, info.Mode())
+	return true, os.Chmod(dst, info.Mode())
 }
 
 // errNotReadOnlyDestination reports that the replace failed for some reason
