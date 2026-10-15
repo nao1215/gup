@@ -239,7 +239,9 @@ func startHolderAs(t *testing.T, path, role string) *exec.Cmd {
 	t.Helper()
 
 	ready := filepath.Join(t.TempDir(), "ready")
-	cmd := exec.CommandContext(t.Context(), os.Args[0]) //nolint:gosec // this test binary, re-executed
+	// Cleanup owns termination; t.Context is canceled before cleanup runs and
+	// would otherwise race a second Kill against it on Windows.
+	cmd := exec.CommandContext(context.Background(), os.Args[0]) //nolint:gosec // this test binary, re-executed
 	cmd.Env = append(os.Environ(),
 		envHelperRole+"="+role,
 		envHelperLock+"="+path,
