@@ -250,15 +250,13 @@ func startHolderAs(t *testing.T, path, role string) *exec.Cmd {
 		t.Fatalf("failed to start the lock holder: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := cmd.Process.Kill(); err != nil {
-			if errors.Is(err, os.ErrProcessDone) {
-				return
-			}
+		if cmd.ProcessState != nil {
+			return
+		}
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 			t.Error(err)
 		}
-		if _, err := cmd.Process.Wait(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			t.Error(err)
-		}
+		waitForHolderExit(t, cmd)
 	})
 
 	waitForFile(t, ready)
@@ -330,9 +328,7 @@ func TestAcquire_takesTheLockAsSoonAsAKilledHolderIsGone(t *testing.T) { //nolin
 	if err := holder.Process.Kill(); err != nil {
 		t.Fatalf("failed to kill the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 	// The file the dead process left behind, owner record and all.
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("the killed holder's lock file is gone: %v", err)
@@ -438,9 +434,7 @@ func TestRelease_handsTheLockToTheNextProcess(t *testing.T) { //nolint:parallelt
 	if err := holder.Process.Kill(); err != nil {
 		t.Fatalf("failed to kill the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 
 	// ...and granted once it is not.
 	lock, err := Acquire(t.Context(), path, "remove")
@@ -1131,5 +1125,18 @@ func TestAcquire_keepsHoldingALockTheCallerDropped(t *testing.T) { //nolint:para
 	var busy *BusyError
 	if !errors.As(err, &busy) {
 		t.Fatalf("Acquire() error = %v, want *BusyError", err)
+	}
+}
+
+// waitForHolderExit reaps a deliberately terminated holder once through exec.Cmd.
+func waitForHolderExit(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+	if cmd.ProcessState != nil {
+		return
+	}
+	err := cmd.Wait()
+	var exited *exec.ExitError
+	if err != nil && !errors.As(err, &exited) {
+		t.Fatalf("reap holder: %v", err)
 	}
 }

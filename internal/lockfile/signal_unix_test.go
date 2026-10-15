@@ -28,9 +28,7 @@ func TestAcquire_takesTheLockAfterAnInterruptedHolderExits(t *testing.T) { //nol
 	if err := holder.Process.Signal(syscall.SIGINT); err != nil {
 		t.Fatalf("failed to interrupt the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 	// Nothing raced the process to the file: it is exactly where its owner left
 	// it, and it holds nothing.
 	if _, err := os.Stat(path); err != nil {
