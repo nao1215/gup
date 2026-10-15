@@ -31,7 +31,8 @@ func newListCmd() *cobra.Command {
 	return cmd
 }
 
-func list(p *print.Printer, cmd *cobra.Command, _ []string) int {
+func list(p *print.Printer, cmd *cobra.Command, _ []string) (code int) {
+	defer func() { code = p.ExitCode(code) }()
 	// list only reads local build info from $GOBIN and never invokes the Go
 	// toolchain, so it must not fail when 'go' is absent (mirrors 'gup unpin').
 	pkgs, err := pkgselect.PackageInfo(p)
@@ -117,9 +118,9 @@ func printPackageList(p *print.Printer, pkgs []goutil.Package) {
 	}
 
 	for _, v := range pkgs {
-		_, _ = fmt.Fprintf(p.Out(), "%"+strconv.Itoa(max)+"s: %s%s\n",
+		p.Info(fmt.Sprintf("%"+strconv.Itoa(max)+"s: %s%s",
 			v.Name,
 			v.ImportPath,
-			color.GreenString("@"+v.Version.Current))
+			color.GreenString("@"+v.Version.Current)))
 	}
 }

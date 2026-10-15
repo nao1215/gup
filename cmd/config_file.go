@@ -47,12 +47,14 @@ func writeConfigFile(path string, pkgs []goutil.Package) (err error) {
 	tmpPath := file.Name()
 	defer func() {
 		if file != nil {
-			if closeErr := file.Close(); closeErr != nil && err == nil {
-				err = closeErr
+			if closeErr := file.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
 			}
 		}
 		if err != nil {
-			_ = os.Remove(tmpPath)
+			if removeErr := os.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, removeErr)
+			}
 		}
 	}()
 
@@ -129,8 +131,7 @@ func replaceReadOnlyDestination(src, dst string) error {
 	if err := renameFunc(src, dst); err != nil {
 		// Put the destination back as it was found: the write failed, so nothing
 		// about the file the user has should have changed.
-		_ = os.Chmod(dst, info.Mode())
-		return err
+		return errors.Join(err, os.Chmod(dst, info.Mode()))
 	}
 	// The new file inherits the temp file's mode, so the destination's read-only
 	// intent is restored onto it rather than silently dropped.
@@ -158,8 +159,7 @@ func renameWithBackupSwap(src, dst string) error {
 		return err
 	}
 
-	_ = os.Remove(backupPath)
-	return nil
+	return os.Remove(backupPath)
 }
 
 func prepareBackupPath(dst string) (string, error) {
@@ -169,8 +169,7 @@ func prepareBackupPath(dst string) (string, error) {
 	}
 	backupPath := backupFile.Name()
 	if err := backupFile.Close(); err != nil {
-		_ = os.Remove(backupPath)
-		return "", err
+		return "", errors.Join(err, os.Remove(backupPath))
 	}
 	if err := os.Remove(backupPath); err != nil {
 		return "", err

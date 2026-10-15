@@ -20,6 +20,7 @@ package main
 import (
 	"archive/zip"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -176,12 +177,15 @@ func writeFile(path, content string) error {
 }
 
 func infoJSON(version string) string {
-	b, _ := json.Marshal(map[string]string{"Version": version, "Time": fixtureTime})
+	b, err := json.Marshal(map[string]string{"Version": version, "Time": fixtureTime})
+	if err != nil {
+		panic(err)
+	}
 	return string(b)
 }
 
 // writeVersion writes the .info/.mod/.zip for one module version.
-func writeVersion(dir string, v modVersion) error {
+func writeVersion(dir string, v modVersion) (err error) {
 	vdir := filepath.Join(dir, v.module, "@v")
 	if err := writeFile(filepath.Join(vdir, v.version+".info"), infoJSON(v.version)); err != nil {
 		return err
@@ -197,7 +201,7 @@ func writeVersion(dir string, v modVersion) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = zf.Close() }()
+	defer func() { err = errors.Join(err, zf.Close()) }()
 	zw := zip.NewWriter(zf)
 	prefix := v.module + "@" + v.version + "/"
 	mainGoPath := "main.go"
@@ -258,13 +262,17 @@ func proxyHandler(root string) http.HandlerFunc {
 			return
 		}
 		if data, err := os.ReadFile(path); err == nil { //nolint:gosec // path constrained to root
-			_, _ = w.Write(data)
+			if _, err := w.Write(data); err != nil {
+				log.Printf("write proxy response: %v", err)
+			}
 			return
 		}
 		if strings.HasSuffix(clean, ".info") {
 			ref := strings.TrimSuffix(filepath.Base(clean), ".info")
 			w.WriteHeader(http.StatusNotFound)
-			_, _ = fmt.Fprintf(w, "unknown revision %s", ref)
+			if _, err := fmt.Fprintf(w, "unknown revision %s", ref); err != nil {
+				log.Printf("write proxy error response: %v", err)
+			}
 			return
 		}
 		http.NotFound(w, r)

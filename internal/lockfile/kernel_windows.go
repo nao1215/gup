@@ -95,22 +95,18 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	// handle for the same reason - it answers about the thing gup has open.
 	kind, err := windows.GetFileType(handle)
 	if err != nil || kind != windows.FILE_TYPE_DISK {
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, errLockPathIsNotRegular
+		return nil, fileID{}, errors.Join(errLockPathIsNotRegular, windows.CloseHandle(handle))
 	}
 
 	var info windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, err
+		return nil, fileID{}, errors.Join(err, windows.CloseHandle(handle))
 	}
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, errLockPathIsSymlink
+		return nil, fileID{}, errors.Join(errLockPathIsSymlink, windows.CloseHandle(handle))
 	}
 	if info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, errLockPathIsDirectory
+		return nil, fileID{}, errors.Join(errLockPathIsDirectory, windows.CloseHandle(handle))
 	}
 	// A file with more than one name is not a lock file gup made. NTFS has hard
 	// links, and one pointed at a gup.json gives that file a second name ending in
@@ -121,8 +117,7 @@ func openLockFile(path string) (*os.File, fileID, error) {
 	// path that could have changed underneath it. A count of zero is not a second
 	// name - a volume that does not track link counts reports it.
 	if info.NumberOfLinks > 1 {
-		_ = windows.CloseHandle(handle)
-		return nil, fileID{}, errLockPathIsHardLink
+		return nil, fileID{}, errors.Join(errLockPathIsHardLink, windows.CloseHandle(handle))
 	}
 	return os.NewFile(uintptr(handle), path), fileID{
 		device: uint64(info.VolumeSerialNumber),

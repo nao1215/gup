@@ -81,10 +81,10 @@ func TestCache_Get_cachesPerChannel(t *testing.T) {
 	})
 
 	for range 2 {
-		if got, _ := cache.Get(context.Background(), testModule, goutil.UpdateChannelLatest); got != string(goutil.UpdateChannelLatest) {
+		if got, err := cache.Get(context.Background(), testModule, goutil.UpdateChannelLatest); err != nil || got != string(goutil.UpdateChannelLatest) {
 			t.Fatalf("Get(latest) = %q", got)
 		}
-		if got, _ := cache.Get(context.Background(), testModule, goutil.UpdateChannelMain); got != string(goutil.UpdateChannelMain) {
+		if got, err := cache.Get(context.Background(), testModule, goutil.UpdateChannelMain); err != nil || got != string(goutil.UpdateChannelMain) {
 			t.Fatalf("Get(main) = %q", got)
 		}
 	}
@@ -109,7 +109,9 @@ func TestCache_Get_waiterContextCanceled(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, _ = cache.Get(context.Background(), testModule, goutil.UpdateChannelLatest)
+		if _, err := cache.Get(context.Background(), testModule, goutil.UpdateChannelLatest); err != nil {
+			t.Error(err)
+		}
 	}()
 
 	select {

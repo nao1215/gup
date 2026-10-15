@@ -83,7 +83,7 @@ func canonicalTargetPath(path string) (string, error) {
 // the ancestor walk above needs. Reparse points are deliberately NOT opened as
 // themselves here: a gup.json linked into place must lock the file the write
 // lands on, which is the target.
-func describeByHandle(path string) (string, uint32, bool, error) {
+func describeByHandle(path string) (_ string, _ uint32, _ bool, err error) {
 	name, err := windows.UTF16PtrFromString(extendedPath(path))
 	if err != nil {
 		return "", 0, false, err
@@ -100,7 +100,7 @@ func describeByHandle(path string) (string, uint32, bool, error) {
 	if err != nil {
 		return "", 0, false, err
 	}
-	defer func() { _ = windows.CloseHandle(handle) }()
+	defer func() { err = errors.Join(err, windows.CloseHandle(handle)) }()
 
 	var info windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(handle, &info); err != nil {

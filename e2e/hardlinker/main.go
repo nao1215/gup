@@ -36,12 +36,18 @@ func main() {
 	flag.Parse()
 
 	if *target == "" || *link == "" {
-		fmt.Fprintln(os.Stderr, "hardlinker: both -target and -link are required")
+		if _, err := fmt.Fprintln(os.Stderr, "hardlinker: both -target and -link are required"); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(2)
 	}
 	if err := os.Link(*target, *link); err != nil {
-		fmt.Fprintf(os.Stderr, "hardlinker: can not link %s to %s: %v\n", *link, *target, err)
+		if _, err := fmt.Fprintf(os.Stderr, "hardlinker: can not link %s to %s: %v\n", *link, *target, err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "hardlinker: %s is now a second name for %s\n", *link, *target)
+	if _, err := fmt.Fprintf(os.Stderr, "hardlinker: %s is now a second name for %s\n", *link, *target); err != nil {
+		os.Exit(1)
+	}
 }

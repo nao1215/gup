@@ -12,12 +12,12 @@ import (
 var openBrowserTimeout = 5 * time.Second //nolint:gochecknoglobals // overridden in tests
 
 // runBrowserCommand executes browser launcher commands. This is swapped in tests.
-var runBrowserCommand = func(command string, args ...string) error { //nolint:gochecknoglobals
+var runBrowserCommand = func(command string, args ...string) error { //nolint:gochecknoglobals // browser launcher is replaced in tests
 	ctx, cancel := context.WithTimeout(context.Background(), openBrowserTimeout)
 	defer cancel()
 
 	// Command names are hard-coded in openBrowser and URL is internally generated.
-	err := exec.CommandContext(ctx, command, args...).Run() //nolint:gosec
+	err := exec.CommandContext(ctx, command, args...).Run() //nolint:gosec // fixed platform launcher and internally generated issue URL
 	return browserCommandError(ctx, err)
 }
 

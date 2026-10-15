@@ -25,11 +25,12 @@ import (
 // This keeps diagnostics intact and the underlying writer (a bytes.Buffer in
 // tests, the colorable process streams in production) race-free.
 type Printer struct {
-	mu     sync.Mutex
-	out    io.Writer
-	err    io.Writer
-	scanln func(a ...any) (n int, err error)
-	exit   func(code int)
+	mu       sync.Mutex
+	out      io.Writer
+	err      io.Writer
+	scanln   func(a ...any) (n int, err error)
+	exit     func(code int)
+	writeErr error
 }
 
 // New returns a Printer that writes normal output to out and warnings/errors to
@@ -44,7 +45,25 @@ func New(out, err io.Writer) *Printer {
 func (p *Printer) printf(w io.Writer, format string, args ...any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	_, _ = fmt.Fprintf(w, format, args...)
+	if _, err := fmt.Fprintf(w, format, args...); err != nil && p.writeErr == nil {
+		p.writeErr = err
+	}
+}
+
+// OutputError returns the first failed message write, including diagnostics.
+func (p *Printer) OutputError() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.writeErr
+}
+
+// ExitCode preserves a command failure and reports an otherwise hidden output
+// failure as an unsuccessful command.
+func (p *Printer) ExitCode(code int) int {
+	if code == 0 && p.OutputError() != nil {
+		return 1
+	}
+	return code
 }
 
 // NewColorable returns the production Printer, writing to the colorable wrappers
@@ -120,6 +139,9 @@ func (p *Printer) Question(ask string) (bool, error) {
 
 		p.printf(p.out, "%s:%s: %s",
 			cmdinfo.Name, color.GreenString("CHECK"), ask+" [Y/n] ")
+		if err := p.OutputError(); err != nil {
+			return false, err
+		}
 		_, err := p.scanln(&response)
 		if err != nil {
 			// If user input only enter, [Y/n] syntax is commonly used to denote that

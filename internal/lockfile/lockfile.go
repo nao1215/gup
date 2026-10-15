@@ -202,8 +202,7 @@ func Acquire(ctx context.Context, path, command string) (*Lock, error) {
 	}
 	lock, err := target.acquire(ctx, command)
 	if err != nil {
-		target.close()
-		return nil, err
+		return nil, errors.Join(err, target.close())
 	}
 	return lock, nil
 }
@@ -240,12 +239,13 @@ func openTarget(path string) (*lockTarget, error) {
 // close gives back a lock file that will not be locked after all. A target whose
 // descriptor has been handed to a Lock closes nothing, so releasing that Lock
 // stays the only thing that drops the lock.
-func (t *lockTarget) close() {
+func (t *lockTarget) close() error {
 	if t == nil || t.file == nil {
-		return
+		return nil
 	}
-	_ = t.file.Close()
+	err := t.file.Close()
 	t.file = nil
+	return err
 }
 
 // acquire turns an opened target into a held Lock, taking the in-process slot
@@ -324,7 +324,7 @@ func (m *MultiLock) Paths() []string {
 // empty path list is not an error - a command that writes nothing needs no lock,
 // and expressing that as "no resources" keeps the decision with the command
 // instead of duplicating it here.
-func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLock, error) {
+func AcquireAll(ctx context.Context, command string, paths ...string) (_ *MultiLock, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -337,7 +337,7 @@ func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLoc
 	// closes only the ones that did not.
 	defer func() {
 		for _, target := range targets {
-			target.close()
+			err = errors.Join(err, target.close())
 		}
 	}()
 
@@ -364,7 +364,7 @@ func AcquireAll(ctx context.Context, command string, paths ...string) (*MultiLoc
 // the only honest way to ask is to ask this package. Nothing in gup itself calls
 // it - AcquireAll orders its own set - and it takes no lock, so an answer is a
 // statement about the past the moment it is returned.
-func AcquisitionOrder(paths ...string) ([]string, error) {
+func AcquisitionOrder(paths ...string) (_ []string, err error) {
 	targets, err := openTargets(paths)
 	if err != nil {
 		return nil, err
@@ -372,9 +372,9 @@ func AcquisitionOrder(paths ...string) ([]string, error) {
 	order := make([]string, 0, len(targets))
 	for _, target := range targets {
 		order = append(order, target.path)
-		target.close()
+		err = errors.Join(err, target.close())
 	}
-	return order, nil
+	return order, err
 }
 
 // openTargets opens every path, then reduces them to the distinct FILES they
@@ -390,7 +390,7 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 		target, err := openTarget(path)
 		if err != nil {
 			for _, opened := range targets {
-				opened.close()
+				err = errors.Join(err, opened.close())
 			}
 			return nil, err
 		}
@@ -409,7 +409,12 @@ func openTargets(paths []string) ([]*lockTarget, error) {
 			// neighboring one, which is why this is a set rather than a comparison
 			// with the previous entry. Its descriptor is closed here rather than
 			// carried, so nothing later can try to lock it.
-			target.close()
+			if err := target.close(); err != nil {
+				for _, opened := range targets {
+					err = errors.Join(err, opened.close())
+				}
+				return nil, err
+			}
 			continue
 		}
 		seen[target.id] = struct{}{}
@@ -458,9 +463,10 @@ func (t *lockTarget) waitForKernelLock(ctx context.Context, command string) erro
 			return fmt.Errorf("can not lock %s: %w", t.path, err)
 		}
 		if locked {
-			// The lock is held from here on. Nothing below can lose it, and a
-			// failure to describe the holder is not a reason to give it up.
-			writeOwner(t.file, command)
+			// Roll back the kernel lock if its owner record cannot be written.
+			if err := writeOwner(t.file, command); err != nil {
+				return errors.Join(err, unlockFile(t.file))
+			}
 			return nil
 		}
 
@@ -506,16 +512,16 @@ func (l *Lock) Release() error {
 // descriptor.
 //
 // The record is cleared while the lock is still held, so no waiter can ever read
-// a record naming a process that has already let go. Failing to clear it is
-// ignored for the reason writing it is: it describes the holder, it does not
-// make the lock.
+// a record naming a process that has already let go. Cleanup failures are
+// returned after unlocking and closing the descriptor.
 func (l *Lock) releaseFile() error {
 	if l.file == nil {
 		return nil
 	}
-	_ = l.file.Truncate(0)
-
 	var errs []error
+	if err := l.file.Truncate(0); err != nil {
+		errs = append(errs, fmt.Errorf("can not clear owner record %s: %w", l.path, err))
+	}
 	if err := unlockFile(l.file); err != nil {
 		errs = append(errs, fmt.Errorf("can not unlock the gup lock file %s: %w", l.path, err))
 	}

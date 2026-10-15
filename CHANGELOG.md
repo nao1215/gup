@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Fixed
+
+* Commands now fail when writing their messages fails, including redirected output to a full device. Interactive questions stop before reading input when the question cannot be displayed.
+
+* File cleanup and lock release failures are now returned to callers instead of being discarded, and filesystem inspection failures no longer look like missing symlink targets.
+
 ### Changes
 
 * Release archives and Linux packages now include the license texts of linked dependencies under THIRD_PARTY_LICENSES/. CI checks dependency licenses on Linux, Windows, and macOS.

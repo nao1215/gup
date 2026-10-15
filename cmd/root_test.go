@@ -1,6 +1,6 @@
 // Package cmd define subcommands provided by the gup command
 //
-//nolint:paralleltest
+//nolint:paralleltest // tests change shared environment or package seams; fixture values are intentionally repeated
 package cmd
 
 import (
@@ -32,13 +32,21 @@ func helper_CopyFile(t *testing.T, src, dst string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer in.Close() //nolint:errcheck // ignore close error in test
+	defer func() {
+		if err := in.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	out, err := os.Create(filepath.Clean(dst))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer out.Close() //nolint:errcheck // ignore close error in test
+	defer func() {
+		if err := out.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	_, err = io.Copy(out, in)
 	if err != nil {
@@ -178,15 +186,23 @@ func setupXDGBase(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		_ = os.Unsetenv("HOME")
+		if err := os.Unsetenv("HOME"); err != nil {
+			t.Error(err)
+		}
 		if origHome != "" {
-			_ = os.Setenv("HOME", origHome)
+			if err := os.Setenv("HOME", origHome); err != nil {
+				t.Error(err)
+			}
 		}
 		xdg.ConfigHome = origConfig
 		xdg.DataHome = origData
 		xdg.CacheHome = origCache
-		_ = os.RemoveAll(base)
-		_ = os.RemoveAll(telemetryDir)
+		if err := os.RemoveAll(base); err != nil {
+			t.Error(err)
+		}
+		if err := os.RemoveAll(telemetryDir); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Setenv("HOME", base)

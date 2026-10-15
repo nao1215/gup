@@ -26,7 +26,9 @@ func TestAcquire_refusesALockPathThatIsNotARegularFile(t *testing.T) { //nolint:
 
 	lock, err := Acquire(t.Context(), path, cmdUpdate)
 	if err == nil {
-		_ = lock.Release()
+		if err := lock.Release(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("Acquire() on a FIFO succeeded, want a refusal")
 	}
 	if !errors.Is(err, errLockPathIsNotRegular) {

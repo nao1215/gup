@@ -444,7 +444,11 @@ func TestWriteConfigFile_createTempFailure(t *testing.T) {
 	if err := os.Mkdir(roDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+	t.Cleanup(func() {
+		if err := os.Chmod(roDir, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 
 	err := writeConfigFile(filepath.Join(roDir, "gup.json"), []goutil.Package{{Name: "x"}})
 	if err == nil {
@@ -505,7 +509,11 @@ func Test_writeConfigFile_replacesAReadOnlyConfigInPlace(t *testing.T) { //nolin
 	if err := os.WriteFile(path, []byte(`{"schema_version":1,"packages":[]}`), 0o400); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Error(err)
+		}
+	})
 
 	// POSIX lets a rename replace a read-only file, so the refusal Windows gives
 	// is simulated here: the first attempt fails, and the retry after the

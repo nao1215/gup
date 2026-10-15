@@ -37,7 +37,10 @@ func WithMinGoToolchain(ctx context.Context, goVersion string) context.Context {
 // MinGoToolchain returns the toolchain floor stored by WithMinGoToolchain, or
 // "" when there is none.
 func MinGoToolchain(ctx context.Context) string {
-	v, _ := ctx.Value(minGoToolchainKey{}).(string)
+	v, ok := ctx.Value(minGoToolchainKey{}).(string)
+	if !ok {
+		return ""
+	}
 	return v
 }
 
@@ -50,10 +53,9 @@ type toolchainSetting struct {
 
 // goToolchainSetting reads the toolchain setting, at most once successfully per
 // process. It is a variable so tests can replace it.
-var goToolchainSetting = cachedGoToolchainSetting //nolint:gochecknoglobals
-
+var goToolchainSetting = cachedGoToolchainSetting //nolint:gochecknoglobals // process-wide synchronized toolchain cache and test seam
 // toolchainSettingCache holds the first successful read of the setting.
-var toolchainSettingCache struct { //nolint:gochecknoglobals
+var toolchainSettingCache struct { //nolint:gochecknoglobals // process-wide synchronized toolchain cache and test seam
 	mu      sync.Mutex
 	setting *toolchainSetting
 }

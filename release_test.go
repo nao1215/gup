@@ -466,7 +466,10 @@ func jobMatrixOS(t *testing.T, job map[string]any) []string {
 		t.Fatal("job strategy has no matrix")
 	}
 
-	runsOn, _ := job["runs-on"].(string)
+	runsOn, ok := job["runs-on"].(string)
+	if !ok {
+		t.Fatal("runs-on must be a string")
+	}
 	if !strings.Contains(runsOn, "matrix.os") {
 		t.Errorf("runs-on is %q, want it to resolve from matrix.os; otherwise every matrix leg runs on the same runner", runsOn)
 	}
@@ -509,7 +512,7 @@ func Test_e2eWorkflow_runsOnEveryOS(t *testing.T) {
 	if !ok {
 		t.Fatal("the e2e job strategy has no matrix")
 	}
-	if runsOn, _ := job["runs-on"].(string); !strings.Contains(runsOn, "matrix.os") {
+	if runsOn, ok := job["runs-on"].(string); !ok || !strings.Contains(runsOn, "matrix.os") {
 		t.Errorf("the e2e job's runs-on is %q, want it to resolve from matrix.os", runsOn)
 	}
 	// A plain list, not an expression: the matrix must not be able to shrink for
@@ -579,7 +582,7 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	if !ok {
 		t.Fatal("the release job has no outputs; the provenance job has no subjects to attest")
 	}
-	if hashes, _ := outputs["hashes"].(string); !strings.Contains(hashes, "steps.hash.outputs.hashes") {
+	if hashes, ok := outputs["hashes"].(string); !ok || !strings.Contains(hashes, "steps.hash.outputs.hashes") {
 		t.Errorf("the release job's hashes output is %q, want it to come from the 'hash' step", hashes)
 	}
 	if !releaseHasStep(release, "run-goreleaser") {
@@ -593,7 +596,10 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	if !ok {
 		t.Fatal("release workflow has no 'provenance' job")
 	}
-	uses, _ := provenance["uses"].(string)
+	uses, ok := provenance["uses"].(string)
+	if !ok {
+		t.Fatal("provenance uses must be a string")
+	}
 	generatorTag := regexp.MustCompile(`^` + regexp.QuoteMeta(slsaGeneratorWorkflow) + `@v\d+\.\d+\.\d+$`)
 	if !generatorTag.MatchString(uses) {
 		t.Errorf("the provenance job uses %q, want %s@vX.Y.Z (a release tag, not a SHA or branch)", uses, slsaGeneratorWorkflow)
@@ -605,7 +611,7 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	if !ok {
 		t.Fatal("the provenance job passes no inputs to the generator")
 	}
-	if subjects, _ := with["base64-subjects"].(string); !strings.Contains(subjects, "needs.release.outputs.hashes") {
+	if subjects, ok := with["base64-subjects"].(string); !ok || !strings.Contains(subjects, "needs.release.outputs.hashes") {
 		t.Errorf("the provenance job's base64-subjects is %q, want needs.release.outputs.hashes", subjects)
 	}
 	if with["upload-assets"] != true {
@@ -646,7 +652,10 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 	downloaded := map[string]bool{}
 	verified := map[string]bool{}
 	archives := []string{"*.tar.gz", "*.zip"}
-	steps, _ := verification["steps"].([]any)
+	steps, ok := verification["steps"].([]any)
+	if !ok {
+		t.Fatal("verification steps must be a sequence")
+	}
 	for _, s := range steps {
 		step, ok := s.(map[string]any)
 		if !ok {
@@ -689,7 +698,10 @@ func Test_releaseWorkflow_slsaProvenance(t *testing.T) {
 
 // releaseHasStep reports whether the job has a step with the given id.
 func releaseHasStep(job map[string]any, id string) bool {
-	steps, _ := job["steps"].([]any)
+	steps, ok := job["steps"].([]any)
+	if !ok {
+		return false
+	}
 	for _, s := range steps {
 		if step, ok := s.(map[string]any); ok && step["id"] == id {
 			return true

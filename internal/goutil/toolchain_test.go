@@ -106,7 +106,7 @@ func TestInstallWithContext_failsWhenFloorCannotBeChecked(t *testing.T) {
 
 func TestGoToolchainEnv_noFloorInContext(t *testing.T) {
 	withToolchainSetting(t, toolchainSetting{toolchainAuto, goVer1264}, nil)
-	if got, _ := goToolchainEnv(context.Background()); got != "" {
+	if got, err := goToolchainEnv(context.Background()); err != nil || got != "" {
 		t.Errorf("goToolchainEnv() = %q, want empty without a floor", got)
 	}
 }

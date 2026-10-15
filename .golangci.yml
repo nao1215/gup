@@ -11,6 +11,7 @@ linters:
     - dogsled
     - durationcheck
     - errcheck
+    - errchkjson
     - errname
     - errorlint
     - exhaustive
@@ -53,6 +54,24 @@ linters:
     - wastedassign
     - whitespace
   settings:
+    errcheck:
+      check-blank: true
+      check-type-assertions: true
+      disable-default-exclusions: true
+      exclude-functions:
+        # These concrete in-memory writers document that writes cannot fail.
+        - (*bytes.Buffer).WriteString
+        - (*strings.Builder).WriteString
+        - (*strings.Builder).WriteRune
+        - fmt.Fprintf(*bytes.Buffer)
+        - fmt.Fprintf(*strings.Builder)
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
     tagliatelle:
       case:
         rules:

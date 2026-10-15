@@ -1,4 +1,4 @@
-//nolint:paralleltest,errcheck,gosec // these tests swap package-level seams (goCommandContext) and re-exec the test binary
+//nolint:paralleltest,gosec // these tests swap package-level seams (goCommandContext) and re-exec the test binary
 package goutil
 
 import (
@@ -129,7 +129,9 @@ func TestHelperProcess(t *testing.T) {
 	}
 
 	if os.Getenv(envHelperEchoToolchain) == "1" {
-		fmt.Fprintf(os.Stderr, "GOTOOLCHAIN=[%s]", os.Getenv(envGoToolchain))
+		if _, err := fmt.Fprintf(os.Stderr, "GOTOOLCHAIN=[%s]", os.Getenv(envGoToolchain)); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 
@@ -137,7 +139,9 @@ func TestHelperProcess(t *testing.T) {
 	if os.Getenv(envHelperFailMain) == "1" {
 		if argsTargetRef(args, "main") {
 			if s := os.Getenv(envHelperFailMainStderr); s != "" {
-				fmt.Fprint(os.Stderr, s)
+				if _, err := fmt.Fprint(os.Stderr, s); err != nil {
+					os.Exit(1)
+				}
 			}
 			os.Exit(1)
 		}
@@ -145,10 +149,14 @@ func TestHelperProcess(t *testing.T) {
 	}
 
 	if s := os.Getenv(envHelperStdout); s != "" {
-		fmt.Fprint(os.Stdout, s)
+		if _, err := fmt.Fprint(os.Stdout, s); err != nil {
+			os.Exit(1)
+		}
 	}
 	if s := os.Getenv(envHelperStderr); s != "" {
-		fmt.Fprint(os.Stderr, s)
+		if _, err := fmt.Fprint(os.Stderr, s); err != nil {
+			os.Exit(1)
+		}
 	}
 	exit := 0
 	if v := os.Getenv(envHelperExit); v != "" {

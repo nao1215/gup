@@ -54,7 +54,7 @@ var goToolchainRegex = regexp.MustCompile(`requires go ?>?=? ?\d`)
 
 // matchers is consulted in order; keep the most specific failure modes first so
 // they win over the broader network/permission fallbacks.
-var matchers = []matcher{ //nolint:gochecknoglobals
+var matchers = []matcher{ //nolint:gochecknoglobals // ordered read-only diagnostic rules shared by all commands
 	{
 		needles: []string{"is not installed by 'go install'"},
 		hint:    "This binary has no embedded module path. Reinstall it once with `go install <importpath>@latest` so gup can manage it, then run gup again.",

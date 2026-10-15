@@ -1,4 +1,4 @@
-//nolint:paralleltest,gosec
+//nolint:paralleltest,gosec // tests change shared environment or package seams; fixture values are intentionally repeated
 package cmd
 
 import (

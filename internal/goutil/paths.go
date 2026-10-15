@@ -44,7 +44,7 @@ func (gp *GoPaths) StartDryRunMode() error {
 	case gp.GOBIN != "":
 		if err := os.Setenv(keyGoBin, tmpDir); err != nil {
 			// Avoid leaking the temp dir when the env mutation fails.
-			_ = gp.removeTmpDir()
+			err = errors.Join(err, gp.removeTmpDir())
 			// Wrap error to avoid OS dependent error message during testing.
 			return fmt.Errorf(
 				"failed to set GOBIN to env variable. key: %v, value: %v: %w",
@@ -53,15 +53,14 @@ func (gp *GoPaths) StartDryRunMode() error {
 		}
 	case gp.GOPATH != "":
 		if err := os.Setenv(keyGoPath, tmpDir); err != nil {
-			_ = gp.removeTmpDir()
+			err = errors.Join(err, gp.removeTmpDir())
 			return fmt.Errorf(
 				"failed to set GOPATH to env variable. key: %v, value: %v: %w",
 				keyGoPath, tmpDir, err,
 			)
 		}
 	default:
-		_ = gp.removeTmpDir()
-		return errors.New("$GOPATH and $GOBIN is not set")
+		return errors.Join(errors.New("$GOPATH and $GOBIN is not set"), gp.removeTmpDir())
 	}
 	return nil
 }
@@ -113,21 +112,24 @@ func (gp *GoPaths) removeTmpDir() error {
 	}
 	// The walk is scoped to an os.Root so a symlink in the tree can never make the
 	// chmod reach outside the temporary directory.
+	var cleanupErr error
 	if root, err := os.OpenRoot(gp.TmpPath); err == nil {
-		_ = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
-			// A walk error is left for os.RemoveAll to report, and a symlink is
-			// not followed.
-			if err != nil || d.Type()&fs.ModeSymlink != 0 {
-				return nil //nolint:nilerr // os.RemoveAll reports what could not be removed
+		walkErr := fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.Type()&fs.ModeSymlink != 0 {
+				return nil
 			}
 			mode := writableFileMode
 			if d.IsDir() {
 				mode = writableDirMode
 			}
-			_ = root.Chmod(path, mode)
-			return nil
+			return root.Chmod(path, mode)
 		})
-		_ = root.Close()
+		cleanupErr = errors.Join(walkErr, root.Close())
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		cleanupErr = err
 	}
-	return os.RemoveAll(gp.TmpPath)
+	return errors.Join(cleanupErr, os.RemoveAll(gp.TmpPath))
 }

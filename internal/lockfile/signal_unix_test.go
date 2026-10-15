@@ -84,7 +84,11 @@ func TestAcquire_reportsALockFileItCanNotOpen(t *testing.T) { //nolint:parallelt
 		t.Fatalf("failed to seal the directory: %v", err)
 	}
 	//nolint:gosec // G302: restoring the mode so t.TempDir can clean up.
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Error(err)
+		}
+	})
 
 	path := filepath.Join(dir, ".gup.lock")
 	start := time.Now()

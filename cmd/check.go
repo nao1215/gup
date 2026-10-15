@@ -85,7 +85,8 @@ func parseCheckFlags(cmd *cobra.Command) (checkOpts, error) {
 // check runs the check command. deps carries the go-toolchain version lookups so
 // the flow takes its collaborators explicitly: production passes
 // defaultDependencies(); tests inject fakes.
-func check(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string) int {
+func check(deps dependencies, p *print.Printer, cmd *cobra.Command, args []string) (code int) {
+	defer func() { code = p.ExitCode(code) }()
 	if err := ensureGoCommandAvailable(); err != nil {
 		p.Err(err)
 		return 1

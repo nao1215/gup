@@ -1,4 +1,4 @@
-//nolint:errcheck,gosec,wastedassign
+//nolint:gosec,wastedassign // fixture paths and deliberate reassignment exercise removal behavior
 package cmd
 
 import (
@@ -125,10 +125,16 @@ func Test_removeLoop(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() {
-				os.Remove(dest)
+				if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+					t.Error(err)
+				}
 			}()
-			oldFile.Close()
-			newFile.Close()
+			if err := oldFile.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := newFile.Close(); err != nil {
+				t.Fatal(err)
+			}
 
 			funcDefer, err := mockStdin(t, tt.input)
 			if err != nil {
@@ -548,7 +554,12 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	return func() {
 		// clean up
 		os.Stdin = oldOsStdin
-		os.Remove(tmpFile.Name())
+		if err := tmpFile.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Error(err)
+		}
 	}, nil
 }
 
@@ -567,7 +578,11 @@ func TestRemoveLoop_removeFailure(t *testing.T) {
 	if err := os.Chmod(gobin, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(gobin, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(gobin, 0o700); err != nil {
+			t.Error(err)
+		}
+	})
 
 	p, buf := newTestPrinter()
 	if got := removeLoop(p, gobin, true, []string{testBinTool}); got != 1 {

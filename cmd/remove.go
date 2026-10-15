@@ -65,11 +65,10 @@ const goosWindows = "windows"
 const exeSuffix = ".exe"
 
 // GOOS is wrapper for runtime.GOOS variable. It's for unit test.
-var GOOS = runtime.GOOS //nolint:gochecknoglobals
-
+var GOOS = runtime.GOOS //nolint:gochecknoglobals // platform and terminal probes are replaced in tests
 // stdinIsTerminal reports whether os.Stdin is connected to a terminal (TTY).
 // It is a package-level variable so that it can be overridden in unit tests.
-var stdinIsTerminal = func() bool { //nolint:gochecknoglobals
+var stdinIsTerminal = func() bool { //nolint:gochecknoglobals // platform and terminal probes are replaced in tests
 	return isTerminal(os.Stdin)
 }
 

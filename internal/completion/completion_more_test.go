@@ -325,9 +325,15 @@ func TestAppendFpathAtZshrc_atomicAppendFailureKeepsOriginal(t *testing.T) {
 // the ambient environment. Tests that exercise those variables set them
 // explicitly via t.Setenv, which is restored after each test (#366).
 func TestMain(m *testing.M) {
-	_ = os.Unsetenv("XDG_DATA_HOME")
-	_ = os.Unsetenv("XDG_CONFIG_HOME")
-	_ = os.Unsetenv("ZDOTDIR")
+	if err := os.Unsetenv("XDG_DATA_HOME"); err != nil {
+		panic(err)
+	}
+	if err := os.Unsetenv("XDG_CONFIG_HOME"); err != nil {
+		panic(err)
+	}
+	if err := os.Unsetenv("ZDOTDIR"); err != nil {
+		panic(err)
+	}
 	os.Exit(m.Run())
 }
 
@@ -876,7 +882,7 @@ func TestAppendFpathAtZshrcIfNeeded(t *testing.T) {
 	}
 }
 
-func TestMakeBashCompletionFileIfNeeded_MkdirError(t *testing.T) {
+func TestMakeBashCompletionFileIfNeeded_ParentIsFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	if IsWindows() {
@@ -884,14 +890,14 @@ func TestMakeBashCompletionFileIfNeeded_MkdirError(t *testing.T) {
 	}
 	cmd := testCompletionCmd()
 
-	// Put a regular file where a parent directory must be created, so MkdirAll fails.
+	// A regular file in the parent path must fail before writing completion data.
 	if err := os.WriteFile(filepath.Join(home, ".local"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	err := makeBashCompletionFileIfNeeded(cmd)
-	if err == nil || !strings.Contains(err.Error(), "can not create directory for bash-completion file") {
-		t.Errorf("expected MkdirAll error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "can not resolve bash-completion file path") {
+		t.Errorf("expected invalid parent path error, got: %v", err)
 	}
 }
 
@@ -1000,7 +1006,11 @@ func TestAtomicWriteFile_createTempFailure(t *testing.T) {
 	if err := os.Mkdir(roDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+	t.Cleanup(func() {
+		if err := os.Chmod(roDir, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 
 	if err := atomicWriteFile(filepath.Join(roDir, "completion"), []byte("data"), "completion file"); err == nil {
 		t.Fatal("atomicWriteFile() err = nil, want temp-create failure in a read-only dir")

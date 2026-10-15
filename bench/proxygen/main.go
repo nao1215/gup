@@ -10,6 +10,7 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,23 +26,29 @@ const (
 
 func main() {
 	if len(os.Args) != wantArgs {
-		fmt.Fprintln(os.Stderr, "usage: proxygen DIR N")
+		if _, err := fmt.Fprintln(os.Stderr, "usage: proxygen DIR N"); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(exitUsage)
 	}
 	n, err := strconv.Atoi(os.Args[2])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "proxygen:", err)
+		if _, err := fmt.Fprintln(os.Stderr, "proxygen:", err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(exitUsage)
 	}
 	if err := write(os.Args[1], n); err != nil {
-		fmt.Fprintln(os.Stderr, "proxygen:", err)
+		if _, err := fmt.Fprintln(os.Stderr, "proxygen:", err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 }
 
 // write publishes the modules under proxy. Every file is written through an
 // os.Root of that directory, so nothing lands outside it.
-func write(proxy string, n int) error {
+func write(proxy string, n int) (err error) {
 	if err := os.MkdirAll(proxy, dirMode); err != nil { //nolint:gosec // G703: the directory the caller asked for on the command line
 		return err
 	}
@@ -49,7 +56,7 @@ func write(proxy string, n int) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = root.Close() }()
+	defer func() { err = errors.Join(err, root.Close()) }()
 	for i := range n {
 		mod := fmt.Sprintf("example.test/m%04d", i)
 		dir := filepath.Join(mod, "@v")
@@ -76,11 +83,12 @@ func write(proxy string, n int) error {
 	return nil
 }
 
-func writeZip(root *os.Root, path, mod, version, gomod string) error {
+func writeZip(root *os.Root, path, mod, version, gomod string) (err error) {
 	f, err := root.Create(path)
 	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, f.Close()) }()
 	zw := zip.NewWriter(f)
 	prefix := mod + "@" + version + "/"
 	for name, body := range map[string]string{
@@ -98,5 +106,5 @@ func writeZip(root *os.Root, path, mod, version, gomod string) error {
 	if err := zw.Close(); err != nil {
 		return err
 	}
-	return f.Close()
+	return nil
 }

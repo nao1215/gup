@@ -2,6 +2,7 @@
 package fileutil
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -49,19 +50,20 @@ func IsHiddenFile(filePath string) bool {
 func ResolveSymlinkTarget(path string) (string, error) {
 	for range 255 {
 		info, err := os.Lstat(path)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			// path does not exist yet (e.g. a dangling link's final target): it is
 			// the destination to create, so stop here with no error.
-			return path, nil //nolint:nilerr // a missing target is the intended write path
+			return path, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("inspect symlink target %s: %w", path, err)
 		}
 		if info.Mode()&os.ModeSymlink == 0 {
 			return path, nil
 		}
 		dest, err := os.Readlink(path)
 		if err != nil {
-			// The link is unreadable; fall back to treating path as the destination
-			// so the caller surfaces a concrete write error rather than this one.
-			return path, nil //nolint:nilerr // fall back to writing at path
+			return "", fmt.Errorf("read symlink %s: %w", path, err)
 		}
 		if !filepath.IsAbs(dest) {
 			dest = filepath.Join(filepath.Dir(path), dest)

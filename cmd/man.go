@@ -36,7 +36,8 @@ func newManCmd() *cobra.Command {
 	return cmd
 }
 
-func man(p *print.Printer, _ *cobra.Command, _ []string) int {
+func man(p *print.Printer, _ *cobra.Command, _ []string) (code int) {
+	defer func() { code = p.ExitCode(code) }()
 	for _, dst := range manPaths(os.Getenv("MANPATH")) {
 		if err := generateManpages(p, dst); err != nil {
 			p.Err(fmt.Errorf("can not generate man-pages in %s: %w", dst, err))
@@ -74,7 +75,7 @@ func manPaths(manpathEnv string) []string {
 	return paths
 }
 
-func generateManpages(p *print.Printer, dst string) error {
+func generateManpages(p *print.Printer, dst string) (err error) {
 	now := time.Now()
 	header := &doc.GenManHeader{
 		Title:   `gup - Update binaries installed by 'go install'`,
@@ -182,12 +183,14 @@ func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (er
 	tmpPath := out.Name()
 	defer func() {
 		if out != nil {
-			if closeErr := out.Close(); closeErr != nil && err == nil {
-				err = closeErr
+			if closeErr := out.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
 			}
 		}
 		if err != nil {
-			_ = os.Remove(tmpPath)
+			if removeErr := os.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, removeErr)
+			}
 		}
 	}()
 

@@ -77,7 +77,8 @@ var commandLockPolicy = map[string]lockTargets{ //nolint:gochecknoglobals // the
 // projects, and two commands given the same `--file` may be started from
 // different configuration directories entirely. A single config-directory lock
 // would serialize neither of those.
-func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name string, run func() int) int {
+func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name string, run func() int) (code int) {
+	defer func() { code = p.ExitCode(code) }()
 	targets, ok := commandLockPolicy[name]
 	if !ok {
 		// Reaching this means a subcommand was added without deciding whether it
@@ -112,14 +113,11 @@ func withStateLock(p *print.Printer, cmd *cobra.Command, args []string, name str
 		return 1
 	}
 	defer func() {
-		// Releasing is dropping a kernel lock and closing a descriptor, so the only
-		// way it fails is a filesystem problem on the way out. The work is already
-		// done and correct - nothing overlapped it, because the lock was held for
-		// every moment of it - so the failure is reported without changing the exit
-		// status, and the next command takes the same lock file as if nothing had
-		// happened.
 		if releaseErr := lock.Release(); releaseErr != nil {
 			p.Err(releaseErr)
+			if code == 0 {
+				code = 1
+			}
 		}
 	}()
 	return run()
