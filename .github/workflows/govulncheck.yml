@@ -63,7 +63,7 @@ jobs:
       # The advisory database is intentionally NOT pinned - scanning against a
       # frozen copy of the vulnerability data would defeat the point.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       # ACCEPTED lists advisories gup is known to reach and has defended against
       # on its own side, one ID each, with why, which test holds the defense, and

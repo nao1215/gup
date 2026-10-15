@@ -7,6 +7,9 @@ before:
     - go mod tidy
     - go generate ./...
     - ./scripts/completions.sh
+    - sh -c 'GOROOT="$(go env GOROOT)" CGO_ENABLED=0 GOOS=linux go-licenses save . --save_path=third_party_licenses/linux --force'
+    - sh -c 'GOROOT="$(go env GOROOT)" CGO_ENABLED=0 GOOS=windows go-licenses save . --save_path=third_party_licenses/windows --force'
+    - sh -c 'GOROOT="$(go env GOROOT)" CGO_ENABLED=0 GOOS=darwin go-licenses save . --save_path=third_party_licenses/darwin --force'
 builds:
   - main: .
     ldflags:
@@ -36,6 +39,8 @@ archives:
         formats: [zip]
     files:
     - completions/*
+    - src: "third_party_licenses/{{ .Os }}/**/*"
+      dst: THIRD_PARTY_LICENSES
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -107,6 +112,9 @@ nfpms:
       - rpm
       - apk
     contents:
+      - src: ./third_party_licenses/linux
+        dst: /usr/share/doc/gup/THIRD_PARTY_LICENSES
+        type: tree
       - src: ./completions/gup.bash
         dst: /usr/share/bash-completion/completions/gup
         file_info:

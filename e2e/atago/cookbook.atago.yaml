@@ -608,7 +608,7 @@ scenarios:
       - assert:
           exit_code: 0
           stdout:
-            not_matches: "\\["
+            not_matches: "\e\\["
       - assert:
           stdout:
             contains: "up-to-date"
@@ -625,7 +625,7 @@ scenarios:
       - assert:
           exit_code: 0
           stdout:
-            not_matches: "\\["
+            not_matches: "\e\\["
 
   - name: "Script it: an empty GOBIN is a first run, not an error"
     env: *iso

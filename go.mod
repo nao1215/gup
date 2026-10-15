@@ -10,9 +10,9 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/mattn/go-colorable v0.1.16
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/mod v0.41.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/mod v0.42.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/esiqveland/notify v0.14.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
+	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -35,7 +35,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 )
 
 tool github.com/nikolaydubina/go-cover-treemap
