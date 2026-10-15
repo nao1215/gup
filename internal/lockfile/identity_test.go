@@ -54,7 +54,9 @@ func TestAcquire_refusesALockPathThatIsASymlink(t *testing.T) { //nolint:paralle
 
 	lock, err := Acquire(t.Context(), path, cmdUpdate)
 	if err == nil {
-		_ = lock.Release()
+		if err := lock.Release(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("Acquire() on a symlinked lock path succeeded, want a refusal")
 	}
 	if !strings.Contains(err.Error(), "symbolic link") {
@@ -192,7 +194,9 @@ func TestAcquire_refusesALockPathThatIsAHardLink(t *testing.T) { //nolint:parall
 
 	lock, err := Acquire(t.Context(), path, cmdUpdate)
 	if err == nil {
-		_ = lock.Release()
+		if err := lock.Release(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("Acquire() on a hard-linked lock path succeeded, want a refusal")
 	}
 	if !errors.Is(err, errLockPathIsHardLink) {

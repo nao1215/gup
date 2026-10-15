@@ -72,8 +72,10 @@ Any other useful data to share.
 
 	if !openBrowser(url) {
 		out := cmd.OutOrStdout()
-		_, _ = fmt.Fprint(out, "Please file a new issue at https://github.com/nao1215/gup/issues/new using this template:\n\n")
-		_, _ = fmt.Fprint(out, body)
+		if _, err := fmt.Fprint(out, "Please file a new issue at https://github.com/nao1215/gup/issues/new using this template:\n\n", body); err != nil {
+			printerFor(cmd).Err(err)
+			return 1
+		}
 	}
 
 	return 0

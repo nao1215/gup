@@ -84,17 +84,12 @@ func (e *BusyError) Error() string {
 
 // writeOwner records the holder in the lock file it has just taken.
 //
-// Every failure is ignored, and that is the point: the lock is already held by
-// the kernel, so refusing to proceed because a descriptive record could not be
-// written would turn a cosmetic problem into a failed command. The worst outcome
-// is a waiter that reports the path without naming the process.
-//
 // The file is truncated first because it may still carry a previous holder's
 // longer record, and a half-overwritten one would parse as neither.
-func writeOwner(file *os.File, command string) {
+func writeOwner(file *os.File, command string) error {
 	host, err := os.Hostname()
 	if err != nil {
-		host = ""
+		return fmt.Errorf("read lock owner hostname: %w", err)
 	}
 	data, err := json.Marshal(Owner{
 		PID:      os.Getpid(),
@@ -103,12 +98,13 @@ func writeOwner(file *os.File, command string) {
 		Acquired: time.Now(),
 	})
 	if err != nil {
-		return
+		return err
 	}
 	if err := file.Truncate(0); err != nil {
-		return
+		return err
 	}
-	_, _ = file.WriteAt(append(data, '\n'), 0)
+	_, err = file.WriteAt(append(data, '\n'), 0)
+	return err
 }
 
 // readOwner parses the holder's record out of an open lock file. A file that is

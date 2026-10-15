@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -444,7 +445,11 @@ func TestWriteConfigFile_createTempFailure(t *testing.T) {
 	if err := os.Mkdir(roDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+	t.Cleanup(func() {
+		if err := os.Chmod(roDir, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 
 	err := writeConfigFile(filepath.Join(roDir, "gup.json"), []goutil.Package{{Name: "x"}})
 	if err == nil {
@@ -505,7 +510,11 @@ func Test_writeConfigFile_replacesAReadOnlyConfigInPlace(t *testing.T) { //nolin
 	if err := os.WriteFile(path, []byte(`{"schema_version":1,"packages":[]}`), 0o400); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Error(err)
+		}
+	})
 
 	// POSIX lets a rename replace a read-only file, so the refusal Windows gives
 	// is simulated here: the first attempt fails, and the retry after the
@@ -540,5 +549,53 @@ func Test_writeConfigFile_replacesAReadOnlyConfigInPlace(t *testing.T) { //nolin
 	}
 	if !strings.Contains(string(raw), "example.com/dummy") {
 		t.Errorf("gup.json = %q, want the newly written package", raw)
+	}
+}
+
+//nolint:paralleltest // mutates package-level renameFunc
+func TestRenameWithReplace_preservesPermissionRestoreFailure(t *testing.T) {
+	original := renameFunc
+	t.Cleanup(func() { renameFunc = original })
+	for _, renameSucceeds := range []bool{false, true} {
+		t.Run(fmt.Sprintf("renameSucceeds=%t", renameSucceeds), func(t *testing.T) {
+			dir := t.TempDir()
+			src, dst := filepath.Join(dir, "new"), filepath.Join(dir, "old")
+			if err := os.WriteFile(src, []byte("new"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dst, []byte("old"), 0o400); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			renameFunc = func(from, to string) error {
+				calls++
+				if calls == 1 {
+					return os.ErrExist
+				}
+				if renameSucceeds {
+					if err := original(from, to); err != nil {
+						return err
+					}
+				}
+				// Simulate a concurrent removal before permissions are restored.
+				if err := os.Remove(to); err != nil {
+					t.Fatal(err)
+				}
+				if renameSucceeds {
+					return nil
+				}
+				return os.ErrPermission
+			}
+			err := renameWithReplace(src, dst)
+			if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("permission restoration error lost: %v", err)
+			}
+			if !renameSucceeds && !errors.Is(err, os.ErrPermission) {
+				t.Fatalf("rename error lost: %v", err)
+			}
+			if calls != 2 {
+				t.Fatalf("attempted backup swap after permission restoration failed: %d rename calls", calls)
+			}
+		})
 	}
 }

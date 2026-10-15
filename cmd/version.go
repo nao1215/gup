@@ -12,8 +12,10 @@ func newVersionCmd() *cobra.Command {
 		Example:           "  gup version",
 		Args:              cobra.NoArgs,
 		ValidArgsFunction: cobra.NoFileCompletions,
-		Run: func(cmd *cobra.Command, args []string) {
-			printerFor(cmd).Info(cmdinfo.GetVersion())
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			p := printerFor(cmd)
+			p.Info(cmdinfo.GetVersion())
+			return p.OutputError()
 		},
 	}
 }

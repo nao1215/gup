@@ -6,8 +6,7 @@ import (
 )
 
 // Version value is set by ldflags.
-var Version string //nolint:gochecknoglobals
-
+var Version string //nolint:gochecknoglobals // the linker injects the release version
 // Name is command name.
 const Name = "gup"
 

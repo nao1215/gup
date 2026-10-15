@@ -47,15 +47,14 @@ func openLockFile(path string) (*os.File, fileID, error) {
 
 		var stat unix.Stat_t
 		if err := unix.Fstat(fd, &stat); err != nil {
-			_ = unix.Close(fd)
-			return nil, fileID{}, err
+			return nil, fileID{}, errors.Join(err, unix.Close(fd))
 		}
 		if kind := stat.Mode & unix.S_IFMT; kind != unix.S_IFREG {
-			_ = unix.Close(fd)
+			closeErr := unix.Close(fd)
 			if kind == unix.S_IFDIR {
-				return nil, fileID{}, errLockPathIsDirectory
+				return nil, fileID{}, errors.Join(errLockPathIsDirectory, closeErr)
 			}
-			return nil, fileID{}, errLockPathIsNotRegular
+			return nil, fileID{}, errors.Join(errLockPathIsNotRegular, closeErr)
 		}
 		// A regular file with more than one name is not a lock file gup made. It is
 		// somebody else's file that a hard link has given a second name ending in
@@ -69,12 +68,10 @@ func openLockFile(path string) (*os.File, fileID, error) {
 		// link counts reports it, and so does a file already unlinked, which is
 		// nobody's data.
 		if widen(stat.Nlink) > 1 {
-			_ = unix.Close(fd)
-			return nil, fileID{}, errLockPathIsHardLink
+			return nil, fileID{}, errors.Join(errLockPathIsHardLink, unix.Close(fd))
 		}
 		if err := unix.SetNonblock(fd, false); err != nil {
-			_ = unix.Close(fd)
-			return nil, fileID{}, err
+			return nil, fileID{}, errors.Join(err, unix.Close(fd))
 		}
 		file := os.NewFile(uintptr(fd), path)
 		return file, fileID{device: widen(stat.Dev), index: widen(stat.Ino)}, nil

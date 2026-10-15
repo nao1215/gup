@@ -13,8 +13,7 @@ import (
 )
 
 // OsExit is wrapper for  os.Exit(). It's for unit test.
-var OsExit = os.Exit //nolint:gochecknoglobals
-
+var OsExit = os.Exit //nolint:gochecknoglobals // tests intercept process exits
 // printerFor builds a Printer from a command's output streams. It uses
 // cmd.OutOrStdout()/ErrOrStderr() so output flows through cobra's configurable
 // writers: production wires the colorable process streams onto the root command

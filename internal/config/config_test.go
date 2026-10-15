@@ -287,7 +287,9 @@ func TestResolveImportFilePath(t *testing.T) { //nolint:paralleltest // changes 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(wd)
+		if err := os.Chdir(wd); err != nil {
+			t.Error(err)
+		}
 	})
 
 	tmpDir := t.TempDir()
@@ -355,7 +357,9 @@ func TestResolveImportFilePathDirectoryCandidate(t *testing.T) { //nolint:parall
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			_ = os.Chdir(wd)
+			if err := os.Chdir(wd); err != nil {
+				t.Error(err)
+			}
 		})
 
 		tmpDir := t.TempDir()
@@ -388,7 +392,9 @@ func TestResolveImportFilePathDirectoryCandidate(t *testing.T) { //nolint:parall
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			_ = os.Chdir(wd)
+			if err := os.Chdir(wd); err != nil {
+				t.Error(err)
+			}
 		})
 
 		// Run from a directory with no local ./gup.json so only the XDG

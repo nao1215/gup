@@ -577,7 +577,11 @@ func TestResolveAndApplyChannels_ambiguousConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chdir(wd) })
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Error(err)
+		}
+	})
 	localDir := t.TempDir()
 	if err := os.Chdir(localDir); err != nil {
 		t.Fatal(err)

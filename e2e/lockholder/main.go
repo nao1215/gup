@@ -65,26 +65,36 @@ func main() {
 	flag.Parse()
 
 	if len(paths) == 0 || *readyPath == "" {
-		fmt.Fprintln(os.Stderr, "lockholder: both -lock and -ready are required")
+		if _, err := fmt.Fprintln(os.Stderr, "lockholder: both -lock and -ready are required"); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(2)
 	}
 
 	wanted, err := selectPaths(paths, *hold)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "lockholder: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "lockholder: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 
 	lock, err := lockfile.AcquireAll(context.Background(), *command, wanted...)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "lockholder: can not take %v: %v\n", wanted, err)
+		if _, err := fmt.Fprintf(os.Stderr, "lockholder: can not take %v: %v\n", wanted, err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
 	if err := os.WriteFile(*readyPath, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
-		fmt.Fprintf(os.Stderr, "lockholder: can not announce readiness: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "lockholder: can not announce readiness: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "lockholder: holding %v\n", lock.Paths())
+	if _, err := fmt.Fprintf(os.Stderr, "lockholder: holding %v\n", lock.Paths()); err != nil {
+		os.Exit(1)
+	}
 
 	// Held until the runner kills it. A blocking channel receive would be tidier
 	// and is not usable: the Go runtime calls a program with nothing left to do a

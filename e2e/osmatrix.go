@@ -6,6 +6,7 @@ package e2e
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,13 +49,13 @@ func (c Classification) RunsOn(goos string) bool { return c.OS[goos] }
 // excludes a platform carries a written reason, and a test fails when a spec is
 // added without a decision -- so a new spec is either portable or its
 // portability gap is on the record.
-func LoadMatrix(dir string) ([]Classification, error) {
+func LoadMatrix(dir string) (_ []Classification, err error) {
 	path := filepath.Join(dir, MatrixFileName)
 	file, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("can not read the OS matrix: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() { err = errors.Join(err, file.Close()) }()
 
 	var out []Classification
 	seen := map[string]bool{}

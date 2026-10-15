@@ -60,7 +60,9 @@ var warmModules = []string{
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: %v\n", err)
+		if _, writeErr := fmt.Fprintf(os.Stderr, "e2e: %v\n", err); writeErr != nil {
+			os.Exit(1)
+		}
 		var exit *exitError
 		if errors.As(err, &exit) {
 			os.Exit(exit.code)
@@ -79,7 +81,7 @@ type exitError struct {
 func (e *exitError) Error() string { return e.err.Error() }
 func (e *exitError) Unwrap() error { return e.err }
 
-func run(args []string) error {
+func run(args []string) (err error) {
 	repoRoot, err := findRepoRoot()
 	if err != nil {
 		return err
@@ -101,15 +103,17 @@ func run(args []string) error {
 			return err
 		}
 		atagoArgs = append(atagoArgs, targets...)
-		fmt.Printf("e2e: %s: running %d of %d spec files (see e2e/%s)\n",
-			runtime.GOOS, len(targets), countSpecs(e2eDir), e2e.MatrixFileName)
+		if _, err := fmt.Printf("e2e: %s: running %d of %d spec files (see e2e/%s)\n",
+			runtime.GOOS, len(targets), countSpecs(e2eDir), e2e.MatrixFileName); err != nil {
+			return err
+		}
 	}
 
 	tmp, err := os.MkdirTemp("", "gup-e2e-")
 	if err != nil {
 		return fmt.Errorf("can not create the e2e temp tree: %w", err)
 	}
-	defer func() { _ = removeAllForce(tmp) }()
+	defer func() { err = errors.Join(err, removeAllForce(tmp)) }()
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o750); err != nil {
@@ -124,7 +128,7 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer stopProxy()
+	defer func() { err = errors.Join(err, stopProxy()) }()
 
 	// Shared, offline toolchain settings inherited by every scenario. Per-scenario
 	// HOME/GOBIN/GOPATH isolation comes from each spec's `env:` + ${workdir}.
@@ -146,15 +150,21 @@ func run(args []string) error {
 		return err
 	}
 
-	fmt.Println("e2e: warming module cache...")
-	warmCache(tmp)
+	if _, err := fmt.Println("e2e: warming module cache..."); err != nil {
+		return err
+	}
+	if err := warmCache(tmp); err != nil {
+		return err
+	}
 
 	// Put the e2e-built gup first on PATH so the specs exercise that exact binary.
 	if err := os.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
 		return fmt.Errorf("can not extend PATH: %w", err)
 	}
 
-	fmt.Printf("e2e: GOPROXY=%s\n", proxyURL)
+	if _, err := fmt.Printf("e2e: GOPROXY=%s\n", proxyURL); err != nil {
+		return err
+	}
 	atago := exec.Command("atago", append([]string{"run"}, atagoArgs...)...) //nolint:gosec // a fixed command with author-supplied spec targets
 	atago.Dir = repoRoot
 	atago.Stdout = os.Stdout
@@ -244,14 +254,18 @@ func countSpecs(e2eDir string) int {
 func buildBinaries(repoRoot, binDir string) error {
 	gupArgs := []string{"build"}
 	if os.Getenv("COVER") != "" {
-		fmt.Println("e2e: COVER=1 -> building coverage-instrumented gup")
+		if _, err := fmt.Println("e2e: COVER=1 -> building coverage-instrumented gup"); err != nil {
+			return err
+		}
 		gupArgs = append(gupArgs, "-cover", "-covermode=atomic", "-coverpkg=./...")
 	}
 	gupArgs = append(gupArgs,
 		"-ldflags", "-X github.com/nao1215/gup/internal/cmdinfo.Version=v0.0.0-e2e",
 		"-o", filepath.Join(binDir, exeName("gup")), ".")
 
-	fmt.Println("e2e: building gup, the test proxy, the lock holder and the hard linker...")
+	if _, err := fmt.Println("e2e: building gup, the test proxy, the lock holder and the hard linker..."); err != nil {
+		return err
+	}
 	if err := goRun(repoRoot, gupArgs...); err != nil {
 		return fmt.Errorf("can not build gup: %w", err)
 	}
@@ -277,9 +291,11 @@ func buildBinaries(repoRoot, binDir string) error {
 
 // startProxy launches the offline module proxy and waits for it to report its
 // URL, returning that URL and a stop function.
-func startProxy(binDir, tmp string) (string, func(), error) {
+func startProxy(binDir, tmp string) (string, func() error, error) {
 	urlFile := filepath.Join(tmp, "proxy.url")
-	fmt.Println("e2e: starting offline module proxy...")
+	if _, err := fmt.Println("e2e: starting offline module proxy..."); err != nil {
+		return "", nil, err
+	}
 	proxy := exec.Command(filepath.Join(binDir, exeName("testproxy")), //nolint:gosec // a binary this program just built
 		"-dir", filepath.Join(tmp, "proxy"),
 		"-url-file", urlFile,
@@ -289,9 +305,13 @@ func startProxy(binDir, tmp string) (string, func(), error) {
 	if err := proxy.Start(); err != nil {
 		return "", nil, fmt.Errorf("can not start the test proxy: %w", err)
 	}
-	stop := func() {
-		_ = proxy.Process.Kill()
-		_, _ = proxy.Process.Wait()
+	stop := func() error {
+		killErr := proxy.Process.Kill()
+		if errors.Is(killErr, os.ErrProcessDone) {
+			killErr = nil
+		}
+		_, waitErr := proxy.Process.Wait()
+		return errors.Join(killErr, waitErr)
 	}
 
 	// The proxy binds an ephemeral port and writes the resulting URL, so there is
@@ -302,19 +322,17 @@ func startProxy(binDir, tmp string) (string, func(), error) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	stop()
-	return "", nil, errors.New("the test proxy did not report its URL in time")
+	return "", nil, errors.Join(errors.New("the test proxy did not report its URL in time"), stop())
 }
 
 // warmCache pre-installs the fixture modules into the shared module cache.
 // Failures are ignored on purpose: the deliberately broken fixtures are expected
 // to fail here, and warming is an optimization, not a precondition.
-func warmCache(tmp string) {
+func warmCache(tmp string) error {
 	warmHome := filepath.Join(tmp, "warm")
 	gobin := filepath.Join(warmHome, "gobin")
 	if err := os.MkdirAll(gobin, 0o750); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: could not create the warm-up GOBIN: %v\n", err)
-		return
+		return fmt.Errorf("create warm-up GOBIN: %w", err)
 	}
 	for _, module := range warmModules {
 		cmd := exec.Command("go", "install", module) //nolint:gosec // module names are this file's own constants
@@ -324,8 +342,17 @@ func warmCache(tmp string) {
 			"GOBIN="+gobin,
 			"GOPATH="+filepath.Join(warmHome, "gopath"),
 		)
-		_ = cmd.Run()
+		if err := cmd.Run(); err != nil {
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) {
+				return err
+			}
+			if _, writeErr := fmt.Fprintf(os.Stderr, "e2e: warm-up %s failed: %v\n", module, err); writeErr != nil {
+				return writeErr
+			}
+		}
 	}
+	return nil
 }
 
 // goRun runs the go tool in dir with the process environment.
@@ -368,18 +395,20 @@ func findRepoRoot() (string, error) {
 // module cache sets. os.RemoveAll cannot delete a read-only file on Windows, and
 // a leaked module cache per run adds up fast.
 func removeAllForce(root string) error {
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil //nolint:nilerr // a path that cannot be walked is one RemoveAll will report
+			return err
 		}
 		mode := fs.FileMode(0o600)
 		if d.IsDir() {
 			mode = 0o700
 		}
-		_ = os.Chmod(path, mode)
-		return nil
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		return os.Chmod(path, mode)
 	})
-	return os.RemoveAll(root)
+	return errors.Join(walkErr, os.RemoveAll(root))
 }
 
 // hostDirEnv lists the host variables that move where gup writes: completion
@@ -388,8 +417,7 @@ func removeAllForce(root string) error {
 // session would send those writes into their real directories and fail the
 // assertions that look under ${workdir}/home. CI runners do not set them, which
 // is why only local runs saw it.
-var hostDirEnv = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "ZDOTDIR"} //nolint:gochecknoglobals
-
+var hostDirEnv = []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "ZDOTDIR"} //nolint:gochecknoglobals // fixed list of host environment variables to isolate
 // isolateHostDirs unsets hostDirEnv so every scenario starts from its own HOME;
 // a spec that needs one of them sets it in its env:.
 func isolateHostDirs() error {

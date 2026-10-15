@@ -1,6 +1,6 @@
 // Package cmd define subcommands provided by the gup command
 //
-//nolint:paralleltest
+//nolint:paralleltest // tests change shared environment or package seams; fixture values are intentionally repeated
 package cmd
 
 import (
@@ -32,13 +32,21 @@ func helper_CopyFile(t *testing.T, src, dst string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer in.Close() //nolint:errcheck // ignore close error in test
+	defer func() {
+		if err := in.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	out, err := os.Create(filepath.Clean(dst))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer out.Close() //nolint:errcheck // ignore close error in test
+	defer func() {
+		if err := out.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	_, err = io.Copy(out, in)
 	if err != nil {
@@ -165,9 +173,7 @@ func setupXDGBase(t *testing.T) {
 	origData := xdg.DataHome
 	origCache := xdg.CacheHome
 
-	// Use os.MkdirTemp instead of t.TempDir() to avoid flaky
-	// "directory not empty" failures on macOS caused by Spotlight
-	// indexing race conditions during t.TempDir() cleanup.
+	// Keep test HOME and Go telemetry isolated from the real user directories.
 	base, err := os.MkdirTemp("", "gup-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -178,20 +184,33 @@ func setupXDGBase(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		_ = os.Unsetenv("HOME")
+		if err := os.Unsetenv("HOME"); err != nil {
+			t.Error(err)
+		}
 		if origHome != "" {
-			_ = os.Setenv("HOME", origHome)
+			if err := os.Setenv("HOME", origHome); err != nil {
+				t.Error(err)
+			}
 		}
 		xdg.ConfigHome = origConfig
 		xdg.DataHome = origData
 		xdg.CacheHome = origCache
-		_ = os.RemoveAll(base)
-		_ = os.RemoveAll(telemetryDir)
+		if err := os.RemoveAll(base); err != nil {
+			t.Error(err)
+		}
+		if err := os.RemoveAll(telemetryDir); err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Setenv("HOME", base)
-	t.Setenv("GOTELEMETRY", "off")
-	t.Setenv("GOTELEMETRYDIR", telemetryDir)
+	// GOTELEMETRY and GOTELEMETRYDIR are go-env outputs, not input overrides.
+	// The Go toolchain reads TEST_TELEMETRY_DIR and its mode file. Disable
+	// telemetry before launching go so no background uploader outlives cleanup.
+	if err := os.WriteFile(filepath.Join(telemetryDir, "mode"), []byte("off\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TEST_TELEMETRY_DIR", telemetryDir)
 	xdg.ConfigHome = filepath.Join(base, "config")
 	xdg.DataHome = filepath.Join(base, "data")
 	xdg.CacheHome = filepath.Join(base, "cache")

@@ -101,7 +101,9 @@ func TestMain(m *testing.M) {
 func runHoldHelper(drop bool) int {
 	lock, err := Acquire(context.Background(), os.Getenv(envHelperLock), cmdUpdate)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "helper could not acquire: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "helper could not acquire: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		return 1
 	}
 	if drop {
@@ -110,7 +112,9 @@ func runHoldHelper(drop bool) int {
 		runtime.GC()
 	}
 	if err := os.WriteFile(os.Getenv(envHelperReady), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil { //nolint:gosec // G703: the path comes from the parent test process, not a user.
-		fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		return 1
 	}
 
@@ -133,23 +137,33 @@ func runHoldHelper(drop bool) int {
 func runContendHelper() int {
 	rounds, err := strconv.Atoi(os.Getenv(envHelperRounds))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "helper got an unusable round count: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "helper got an unusable round count: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		return 1
 	}
 	counter := os.Getenv(envHelperCounter)
 	for range rounds {
 		lock, err := Acquire(context.Background(), os.Getenv(envHelperLock), cmdUpdate)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "helper could not acquire: %v\n", err)
+			if _, err := fmt.Fprintf(os.Stderr, "helper could not acquire: %v\n", err); err != nil {
+				os.Exit(1)
+			}
 			return 1
 		}
 		if err := bumpCounter(counter); err != nil {
-			_ = lock.Release()
-			fmt.Fprintf(os.Stderr, "helper could not bump the counter: %v\n", err)
+			if err := lock.Release(); err != nil {
+				os.Exit(1)
+			}
+			if _, err := fmt.Fprintf(os.Stderr, "helper could not bump the counter: %v\n", err); err != nil {
+				os.Exit(1)
+			}
 			return 1
 		}
 		if err := lock.Release(); err != nil {
-			fmt.Fprintf(os.Stderr, "helper could not release: %v\n", err)
+			if _, err := fmt.Fprintf(os.Stderr, "helper could not release: %v\n", err); err != nil {
+				os.Exit(1)
+			}
 			return 1
 		}
 	}
@@ -166,22 +180,30 @@ func runContendHelper() int {
 func runAcquireSetHelper() int {
 	rounds, err := strconv.Atoi(os.Getenv(envHelperRounds))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "helper got an unusable round count: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "helper got an unusable round count: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		return 1
 	}
 	paths := filepath.SplitList(os.Getenv(envHelperSet))
 	if err := os.WriteFile(os.Getenv(envHelperReady), []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil { //nolint:gosec // G703: the path comes from the parent test process, not a user.
-		fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err)
+		if _, err := fmt.Fprintf(os.Stderr, "helper could not announce readiness: %v\n", err); err != nil {
+			os.Exit(1)
+		}
 		return 1
 	}
 	for range rounds {
 		held, err := AcquireAll(context.Background(), cmdUpdate, paths...)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "helper could not acquire %v: %v\n", paths, err)
+			if _, err := fmt.Fprintf(os.Stderr, "helper could not acquire %v: %v\n", paths, err); err != nil {
+				os.Exit(1)
+			}
 			return 1
 		}
 		if err := held.Release(); err != nil {
-			fmt.Fprintf(os.Stderr, "helper could not release %v: %v\n", paths, err)
+			if _, err := fmt.Fprintf(os.Stderr, "helper could not release %v: %v\n", paths, err); err != nil {
+				os.Exit(1)
+			}
 			return 1
 		}
 	}
@@ -217,7 +239,9 @@ func startHolderAs(t *testing.T, path, role string) *exec.Cmd {
 	t.Helper()
 
 	ready := filepath.Join(t.TempDir(), "ready")
-	cmd := exec.CommandContext(t.Context(), os.Args[0]) //nolint:gosec // this test binary, re-executed
+	// Cleanup owns termination; t.Context is canceled before cleanup runs and
+	// would otherwise race a second Kill against it on Windows.
+	cmd := exec.CommandContext(context.Background(), os.Args[0]) //nolint:gosec // this test binary, re-executed
 	cmd.Env = append(os.Environ(),
 		envHelperRole+"="+role,
 		envHelperLock+"="+path,
@@ -228,8 +252,13 @@ func startHolderAs(t *testing.T, path, role string) *exec.Cmd {
 		t.Fatalf("failed to start the lock holder: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
+		if cmd.ProcessState != nil {
+			return
+		}
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Error(err)
+		}
+		waitForHolderExit(t, cmd)
 	})
 
 	waitForFile(t, ready)
@@ -270,7 +299,9 @@ func TestAcquire_refusesALockHeldByAnotherProcess(t *testing.T) { //nolint:paral
 
 	lock, err := Acquire(t.Context(), path, "remove")
 	if err == nil {
-		_ = lock.Release()
+		if err := lock.Release(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("Acquire() succeeded while another process held the lock")
 	}
 	var busy *BusyError
@@ -299,9 +330,7 @@ func TestAcquire_takesTheLockAsSoonAsAKilledHolderIsGone(t *testing.T) { //nolin
 	if err := holder.Process.Kill(); err != nil {
 		t.Fatalf("failed to kill the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 	// The file the dead process left behind, owner record and all.
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("the killed holder's lock file is gone: %v", err)
@@ -407,9 +436,7 @@ func TestRelease_handsTheLockToTheNextProcess(t *testing.T) { //nolint:parallelt
 	if err := holder.Process.Kill(); err != nil {
 		t.Fatalf("failed to kill the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 
 	// ...and granted once it is not.
 	lock, err := Acquire(t.Context(), path, "remove")
@@ -945,7 +972,11 @@ func readPlantedOwner(t *testing.T, path string) Owner {
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", path, err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	owner := readOwner(file)
 	if owner.PID == 0 {
@@ -990,7 +1021,11 @@ func TestAcquire_timesOutAgainstAnotherOperationInThisProcess(t *testing.T) { //
 	if err != nil {
 		t.Fatalf("Acquire() = %v, want success", err)
 	}
-	defer func() { _ = held.Release() }()
+	defer func() {
+		if err := held.Release(); err != nil {
+			t.Error(err)
+		}
+	}()
 
 	_, err = Acquire(t.Context(), path, "remove")
 	if err == nil {
@@ -1054,7 +1089,11 @@ func TestReadOwner(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to open %s: %v", path, err)
 			}
-			defer func() { _ = file.Close() }()
+			defer func() {
+				if err := file.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 
 			if got := readOwner(file).PID; got != tt.wantPID {
 				t.Errorf("readOwner().PID = %d, want %d", got, tt.wantPID)
@@ -1080,11 +1119,26 @@ func TestAcquire_keepsHoldingALockTheCallerDropped(t *testing.T) { //nolint:para
 
 	lock, err := Acquire(t.Context(), path, "remove")
 	if err == nil {
-		_ = lock.Release()
+		if err := lock.Release(); err != nil {
+			t.Error(err)
+		}
 		t.Fatal("Acquire() succeeded: the holder's lock was collected out from under it")
 	}
 	var busy *BusyError
 	if !errors.As(err, &busy) {
 		t.Fatalf("Acquire() error = %v, want *BusyError", err)
+	}
+}
+
+// waitForHolderExit reaps a deliberately terminated holder once through exec.Cmd.
+func waitForHolderExit(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+	if cmd.ProcessState != nil {
+		return
+	}
+	err := cmd.Wait()
+	var exited *exec.ExitError
+	if err != nil && !errors.As(err, &exited) {
+		t.Fatalf("reap holder: %v", err)
 	}
 }

@@ -213,12 +213,14 @@ func atomicWriteFile(path string, data []byte, what string) (err error) {
 	tmpPath := file.Name()
 	defer func() {
 		if file != nil {
-			if closeErr := file.Close(); closeErr != nil && err == nil {
-				err = closeErr
+			if closeErr := file.Close(); closeErr != nil {
+				err = errors.Join(err, closeErr)
 			}
 		}
 		if err != nil {
-			_ = os.Remove(tmpPath)
+			if removeErr := os.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, removeErr)
+			}
 		}
 	}()
 

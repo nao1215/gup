@@ -281,7 +281,11 @@ func TestWriteManpageAtomically_createTempFailure(t *testing.T) {
 	if err := os.Mkdir(roDir, 0o500); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(roDir, 0o700) }) //nolint:gosec // restore dir perms so t.TempDir cleanup can remove it
+	t.Cleanup(func() {
+		if err := os.Chmod(roDir, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 
 	if err := writeManpageAtomically(filepath.Join(roDir, "gup.1.gz"), strings.NewReader("body"), "gup"); err == nil {
 		t.Fatal("writeManpageAtomically() err = nil, want temp-create failure")

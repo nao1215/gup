@@ -29,7 +29,11 @@ func TestIsTerminalRejectsCharacterDevicesThatAreNotTerminals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open %s: %v", os.DevNull, err)
 	}
-	t.Cleanup(func() { _ = devNull.Close() })
+	t.Cleanup(func() {
+		if err := devNull.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	info, err := devNull.Stat()
 	if err != nil {
@@ -58,7 +62,11 @@ func TestIsTerminalRejectsARegularFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = f.Close() })
+	t.Cleanup(func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 
 	if isTerminal(f) {
 		t.Error("a regular file is reported as a terminal")

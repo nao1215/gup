@@ -260,6 +260,11 @@ func mockStdin(t *testing.T, dummyInput string) (funcDefer func(), err error) {
 	return func() {
 		// clean up
 		os.Stdin = oldOsStdin
-		_ = os.Remove(tmpFile.Name())
+		if err := tmpFile.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			t.Error(err)
+		}
 	}, nil
 }

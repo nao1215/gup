@@ -1,4 +1,4 @@
-//nolint:paralleltest
+//nolint:paralleltest // tests change shared environment or package seams; fixture values are intentionally repeated
 package cmd
 
 import (
@@ -222,7 +222,11 @@ func Test_validateMigratePaths(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Restore write permission so t.TempDir cleanup can remove it.
-		t.Cleanup(func() { _ = os.Chmod(parent, 0o755) }) //nolint:gosec // restore standard dir perms for cleanup
+		t.Cleanup(func() {
+			if err := os.Chmod(parent, 0o755); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+				t.Error(err)
+			}
+		})
 
 		after := filepath.Join(parent, "gobin")
 		if err := validateMigratePaths(before, after, true); err == nil {
@@ -713,8 +717,14 @@ func Test_binaryExistsInDir(t *testing.T) {
 //
 //nolint:paralleltest // mutates the GOBIN environment variable
 func TestWithGoBin_restoresUnsetState(t *testing.T) {
-	_ = os.Unsetenv("GOBIN")
-	t.Cleanup(func() { _ = os.Unsetenv("GOBIN") })
+	if err := os.Unsetenv("GOBIN"); err != nil {
+		t.Error(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Unsetenv("GOBIN"); err != nil {
+			t.Error(err)
+		}
+	})
 	dir := t.TempDir()
 	restore, err := withGoBin(dir)
 	if err != nil {
@@ -723,7 +733,9 @@ func TestWithGoBin_restoresUnsetState(t *testing.T) {
 	if got := os.Getenv("GOBIN"); got != dir {
 		t.Fatalf("GOBIN = %q, want %q", got, dir)
 	}
-	restore()
+	if err := restore(); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := os.LookupEnv("GOBIN"); ok {
 		t.Fatal("GOBIN should be unset again after restore")
 	}

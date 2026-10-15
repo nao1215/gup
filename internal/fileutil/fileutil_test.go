@@ -15,7 +15,9 @@ func TestIsFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = f.Close()
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
 		if !IsFile(f.Name()) {
 			t.Errorf("IsFile(%q) = false, want true", f.Name())
 		}
@@ -54,7 +56,9 @@ func TestIsDir(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = f.Close()
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
 		if IsDir(f.Name()) {
 			t.Errorf("IsDir(%q) = true, want false for file", f.Name())
 		}
@@ -89,7 +93,9 @@ func TestIsHiddenFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = f.Close()
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
 		if IsHiddenFile(f.Name()) {
 			t.Errorf("IsHiddenFile(%q) = true, want false", f.Name())
 		}
@@ -230,5 +236,12 @@ func TestResolveSymlinkTarget_relativeLink(t *testing.T) {
 	}
 	if got != filepath.Clean(target) {
 		t.Fatalf("ResolveSymlinkTarget() = %q, want %q", got, target)
+	}
+}
+
+func TestResolveSymlinkTargetReportsInvalidPath(t *testing.T) {
+	t.Parallel()
+	if _, err := ResolveSymlinkTarget("invalid\x00path"); err == nil {
+		t.Fatal("invalid path must return its filesystem error")
 	}
 }

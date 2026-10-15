@@ -64,7 +64,7 @@ func Test_list_gobin_is_empty(t *testing.T) {
 		},
 	}
 
-	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0o755); err != nil { //nolint:gosec
+	if err := os.Mkdir(filepath.Join("testdata", "empty_dir"), 0o755); err != nil { //nolint:gosec // test fixture directory uses conventional directory permissions
 		t.Fatal(err)
 	}
 

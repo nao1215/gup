@@ -236,9 +236,7 @@ func ensureAfterPathCreatable(afterPath string) error {
 				return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, perr)
 			}
 			name := probe.Name()
-			_ = probe.Close()
-			_ = os.Remove(name)
-			return nil
+			return errors.Join(probe.Close(), os.Remove(name))
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("can't access AFTER_PATH %s: %w", afterPath, err)
@@ -270,7 +268,7 @@ func sameDirPath(a, b string) (bool, error) {
 	return false, nil
 }
 
-func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) int {
+func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string, dryRun, notification bool, cpus int, force bool, timeout time.Duration) (code int) {
 	// Point GOBIN at AFTER_PATH so the existing 'go install' path reinstalls
 	// into the target directory. Restore the environment afterward. Dry-run
 	// never installs, so the environment is left untouched.
@@ -280,7 +278,14 @@ func migratePackages(pr *print.Printer, pkgs []goutil.Package, afterPath string,
 			pr.Err(fmt.Errorf("can't set GOBIN to %s: %w", afterPath, err))
 			return 1
 		}
-		defer restore()
+		defer func() {
+			if err := restore(); err != nil {
+				pr.Err(fmt.Errorf("restore GOBIN: %w", err))
+				if code == 0 {
+					code = 1
+				}
+			}
+		}()
 	}
 
 	migrator := func(ctx context.Context, p goutil.Package) updateResult {
@@ -397,16 +402,15 @@ func binaryExistsInDir(dir, name string) bool {
 
 // withGoBin sets the GOBIN environment variable to path and returns a function
 // that restores the previous value (or unsets it when it was not present).
-func withGoBin(path string) (func(), error) {
+func withGoBin(path string) (func() error, error) {
 	orig, had := os.LookupEnv("GOBIN")
 	if err := os.Setenv("GOBIN", path); err != nil {
 		return nil, err
 	}
-	return func() {
+	return func() error {
 		if had {
-			_ = os.Setenv("GOBIN", orig)
-		} else {
-			_ = os.Unsetenv("GOBIN")
+			return os.Setenv("GOBIN", orig)
 		}
+		return os.Unsetenv("GOBIN")
 	}, nil
 }

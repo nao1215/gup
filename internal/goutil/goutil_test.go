@@ -1,4 +1,4 @@
-//nolint:paralleltest,goconst
+//nolint:paralleltest,goconst // tests change shared environment or package seams; fixture values are intentionally repeated
 package goutil
 
 import (
@@ -940,7 +940,11 @@ func TestGoPaths_removeTmpDir_does_not_follow_symlinks(t *testing.T) {
 	if err := os.Chmod(outside, 0o400); err != nil {
 		t.Fatalf("failed to make outside file read-only: %v", err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(outside, 0o600) })
+	t.Cleanup(func() {
+		if err := os.Chmod(outside, 0o600); err != nil {
+			t.Error(err)
+		}
+	})
 
 	tmpDir := filepath.Join(root, "dryrun")
 	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
@@ -972,12 +976,20 @@ func TestGoPaths_removeTmpDir_does_not_follow_symlinks(t *testing.T) {
 func helper_chmodWritableOnCleanup(t *testing.T, root string) {
 	t.Helper()
 	t.Cleanup(func() {
-		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err == nil && d.Type()&fs.ModeSymlink == 0 {
-				_ = os.Chmod(path, 0o700) //nolint:gosec // test cleanup of its own tree
+		walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.Type()&fs.ModeSymlink == 0 {
+				if err := os.Chmod(path, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test tree
+					t.Error(err)
+				}
 			}
 			return nil
 		})
+		if walkErr != nil && !errors.Is(walkErr, os.ErrNotExist) {
+			t.Error(walkErr)
+		}
 	})
 }
 
@@ -1390,5 +1402,19 @@ func TestGetVerWithContext_EmptyStderrFallback(t *testing.T) {
 	prefix := "can't check " + timeoutTestImportPath
 	if errorCauseAfterPrefix(t, err, prefix) == "" {
 		t.Errorf("error should include a non-empty cause when stderr is empty, got: %v", err)
+	}
+}
+
+func TestRemoveTmpDirReportsInvalidRoot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gp := &GoPaths{TmpPath: path}
+	if err := gp.removeTmpDir(); err == nil {
+		t.Fatal("expected error opening a non-directory root")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cleanup did not remove file: %v", err)
 	}
 }

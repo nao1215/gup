@@ -43,7 +43,9 @@ func ExampleBinaryPathList() {
 	}
 
 	if cmp.Equal(got, want) {
-		fmt.Println("Example BinaryPathList: OK")
+		if _, err := fmt.Println("Example BinaryPathList: OK"); err != nil {
+			panic(err)
+		}
 	}
 	// Output: Example BinaryPathList: OK
 }
@@ -54,17 +56,23 @@ func ExampleCanUseGoCmd() {
 		log.Fatal(err) // no go command found
 	}
 
-	fmt.Println("Example CanUseGoCmd: OK")
+	if _, err := fmt.Println("Example CanUseGoCmd: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example CanUseGoCmd: OK
 }
 
 func ExampleGetLatestVer() {
 	// Demonstrate error handling when the module is not available.
 	if _, err := goutil.GetLatestVer("example.com/this/module/does/not/exist"); err != nil {
-		fmt.Println("Example GetLatestVer: error")
+		if _, err := fmt.Println("Example GetLatestVer: error"); err != nil {
+			panic(err)
+		}
 		return
 	}
-	fmt.Println("Example GetLatestVer: OK")
+	if _, err := fmt.Println("Example GetLatestVer: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example GetLatestVer: error
 }
 
@@ -100,7 +108,9 @@ func ExampleGetPackageInformation() {
 	}
 
 	if cmp.Equal(got, want) {
-		fmt.Println("Example GetPackageInformation: OK")
+		if _, err := fmt.Println("Example GetPackageInformation: OK"); err != nil {
+			panic(err)
+		}
 	} else {
 		log.Fatalf("example GetPackageInformation failed. got: %#v, want: %#v", got, want)
 	}
@@ -116,7 +126,9 @@ func ExampleGetPackageVersion_unknown() {
 	want := "unknown"
 
 	if got == want {
-		fmt.Println("Example GetPackageVersion: OK")
+		if _, err := fmt.Println("Example GetPackageVersion: OK"); err != nil {
+			panic(err)
+		}
 	} else {
 		log.Fatalf(
 			"example GetPackageVersion failed. unexpected return. got: %s, want: %s",
@@ -139,7 +151,9 @@ func ExampleGoBin() {
 		log.Fatal("example GoBin failed. path to go binary is empty")
 	}
 
-	fmt.Println("Example GoBin: OK")
+	if _, err := fmt.Println("Example GoBin: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example GoBin: OK
 }
 
@@ -157,9 +171,13 @@ func ExampleInstallLatest() {
 	expectMsg := "can't install example.com/unknown_user/unknown_package"
 
 	if strings.Contains(err.Error(), expectMsg) {
-		fmt.Println("Example Install: OK")
+		if _, err := fmt.Println("Example Install: OK"); err != nil {
+			panic(err)
+		}
 	} else {
-		fmt.Println(err.Error())
+		if _, err := fmt.Println(err.Error()); err != nil {
+			panic(err)
+		}
 	}
 	// Output: Example Install: OK
 }
@@ -178,9 +196,13 @@ func ExamplePackage_IsPackageUpToDate() {
 
 	// Check if Current is already up to date (expected: false)
 	if pkg.IsPackageUpToDate() && pkg.IsGoUpToDate() {
-		fmt.Println("Example IsUpToDate: already up to date.")
+		if _, err := fmt.Println("Example IsUpToDate: already up to date."); err != nil {
+			panic(err)
+		}
 	} else {
-		fmt.Println("Example IsUpToDate: outdated. Newer latest version or installed Go toolchain exists.")
+		if _, err := fmt.Println("Example IsUpToDate: outdated. Newer latest version or installed Go toolchain exists."); err != nil {
+			panic(err)
+		}
 	}
 
 	// Output: Example IsUpToDate: outdated. Newer latest version or installed Go toolchain exists.
@@ -197,7 +219,9 @@ func ExampleNewGoPaths() {
 		log.Fatal("example NewGoPaths failed. both GOBIN and GOPATH are empty")
 	}
 
-	fmt.Println("Example NewGoPaths: OK")
+	if _, err := fmt.Println("Example NewGoPaths: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example NewGoPaths: OK
 }
 
@@ -214,7 +238,9 @@ func ExampleNewVersion() {
 		log.Fatal("example NewVersion failed. the field Latest is not empty")
 	}
 
-	fmt.Println("Example NewVersion: OK")
+	if _, err := fmt.Println("Example NewVersion: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example NewVersion: OK
 }
 
@@ -255,7 +281,9 @@ func ExampleGoPaths_StartDryRunMode() {
 		log.Fatal("example GoPaths.StartDryRunMode failed. dry run mode did not change to temp dir")
 	}
 
-	fmt.Println("Example GoPaths.StartDryRunMode: OK")
+	if _, err := fmt.Println("Example GoPaths.StartDryRunMode: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example GoPaths.StartDryRunMode: OK
 }
 
@@ -292,6 +320,8 @@ func ExamplePackage_SetLatestVer() {
 		)
 	}
 
-	fmt.Println("Example Package.SetLatestVer: OK")
+	if _, err := fmt.Println("Example Package.SetLatestVer: OK"); err != nil {
+		panic(err)
+	}
 	// Output: Example Package.SetLatestVer: OK
 }

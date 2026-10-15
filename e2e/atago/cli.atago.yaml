@@ -8,6 +8,29 @@ suite:
   name: gup cli entrypoint (offline)
 
 scenarios:
+  - name: version fails when stdout cannot be written
+    only:
+      os: linux
+    steps:
+      - run:
+          command: gup version > /dev/full
+          shell: true
+      - assert:
+          exit_code: 1
+
+  - name: list fails when stdout cannot be written
+    only:
+      os: linux
+    env:
+      GOBIN: "${workdir}/empty-bin"
+      GOPATH: "${workdir}/gopath"
+    steps:
+      - run:
+          command: gup list > /dev/full
+          shell: true
+      - assert:
+          exit_code: 1
+
   - name: an unknown subcommand fails via the process error path and names it
     env: &iso
       HOME: "${workdir}/home"

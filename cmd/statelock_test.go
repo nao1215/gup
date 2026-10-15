@@ -970,7 +970,11 @@ func Test_dirLockTarget_failsClosedWhenTheDirectoryCanNotBeCreated(t *testing.T)
 		t.Fatalf("failed to create the read-only parent: %v", err)
 	}
 	// Restored so the test framework can remove the tree it created.
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) //nolint:gosec // G302: a directory this test made unwritable on purpose
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 
 	got, err := dirLockTarget(filepath.Join(parent, "gobin"))
 	if err == nil {
@@ -998,7 +1002,11 @@ func Test_withStateLock_doesNotRunTheCommandWhenTheLockCanNotBeResolved(t *testi
 		t.Fatalf("failed to create the read-only parent: %v", err)
 	}
 	// Restored so the test framework can remove the tree it created.
-	t.Cleanup(func() { _ = os.Chmod(parent, 0o700) }) //nolint:gosec // G302: a directory this test made unwritable on purpose
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o700); err != nil { //nolint:gosec // restore traversal permissions on the test directory
+			t.Error(err)
+		}
+	})
 	t.Setenv("GOBIN", filepath.Join(parent, "gobin"))
 
 	buf := new(bytes.Buffer)

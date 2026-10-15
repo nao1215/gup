@@ -28,9 +28,7 @@ func TestAcquire_takesTheLockAfterAnInterruptedHolderExits(t *testing.T) { //nol
 	if err := holder.Process.Signal(syscall.SIGINT); err != nil {
 		t.Fatalf("failed to interrupt the holder: %v", err)
 	}
-	if _, err := holder.Process.Wait(); err != nil {
-		t.Fatalf("failed to reap the holder: %v", err)
-	}
+	waitForHolderExit(t, holder)
 	// Nothing raced the process to the file: it is exactly where its owner left
 	// it, and it holds nothing.
 	if _, err := os.Stat(path); err != nil {
@@ -84,7 +82,11 @@ func TestAcquire_reportsALockFileItCanNotOpen(t *testing.T) { //nolint:parallelt
 		t.Fatalf("failed to seal the directory: %v", err)
 	}
 	//nolint:gosec // G302: restoring the mode so t.TempDir can clean up.
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Error(err)
+		}
+	})
 
 	path := filepath.Join(dir, ".gup.lock")
 	start := time.Now()
