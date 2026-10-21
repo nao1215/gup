@@ -10,6 +10,8 @@
 
 * Release archives and Linux packages now include the license texts of linked dependencies under THIRD_PARTY_LICENSES/. CI checks dependency licenses on Linux, Windows, and macOS.
 
+* Update github.com/gen2brain/beeep to v0.11.3.
+
 ## [v1.10.3](https://github.com/nao1215/gup/compare/v1.10.2...v1.10.3) (2026-09-28)
 
 ### Bug Fixes
