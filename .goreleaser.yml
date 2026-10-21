@@ -37,7 +37,12 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    # Listing files replaces goreleaser's defaults, so gup's own LICENSE,
+    # README and CHANGELOG are named here too.
     files:
+    - LICENSE
+    - README.md
+    - CHANGELOG.md
     - completions/*
     - src: "third_party_licenses/{{ .Os }}/**/*"
       dst: THIRD_PARTY_LICENSES

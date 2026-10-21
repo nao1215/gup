@@ -2,6 +2,8 @@
 
 ### Fixed
 
+* Release archives include gup's own LICENSE, README.md and CHANGELOG.md again. They had been missing since the shell completions were added to the archives, because listing files there replaces goreleaser's default set. The release smoke check now fails an archive without them.
+
 * Commands now fail when writing their messages fails, including redirected output to a full device. Interactive questions stop before reading input when the question cannot be displayed.
 
 * File cleanup and lock release failures are now returned to callers instead of being discarded, and filesystem inspection failures no longer look like missing symlink targets.

@@ -148,6 +148,13 @@ check_archive_contents() {
 		echo "$listing" | grep -q "completions/gup\.${shell}\$" ||
 			fail "$archive is missing completions/gup.${shell}"
 	done
+	# gup's own license must travel with the binary, and the archive's files
+	# list replaces goreleaser's defaults, so check them by name.
+	for doc in LICENSE README.md CHANGELOG.md; do
+		echo "$listing" | grep -qx "${doc}" || fail "$archive is missing ${doc}"
+	done
+	echo "$listing" | grep -q '^THIRD_PARTY_LICENSES/' ||
+		fail "$archive is missing THIRD_PARTY_LICENSES/"
 }
 
 shopt -s nullglob
@@ -156,7 +163,7 @@ shopt -u nullglob
 for archive in "${archives[@]}"; do
 	check_archive_contents "$archive"
 done
-checked "every archive carries the gup binary and the bash/zsh/fish/powershell completions"
+checked "every archive carries the gup binary, the bash/zsh/fish/powershell completions, LICENSE, README.md, CHANGELOG.md and THIRD_PARTY_LICENSES/"
 
 # ---------------------------------------------------------------------------
 # 3) Binary identity: each archive's binary is built for the OS and architecture
