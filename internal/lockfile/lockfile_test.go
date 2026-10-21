@@ -848,7 +848,7 @@ func TestAcquireAll_withNoPathsIsANoOp(t *testing.T) { //nolint:paralleltest // 
 // Acquire normalizes before keying the in-process registry, so if AcquireAll
 // deduplicated the raw strings the two would take separate slots for one file
 // and the second would wait out the whole timeout against the first.
-func TestAcquireAll_normalizesBeforeDeduplicating(t *testing.T) { //nolint:paralleltest // changes the working directory
+func TestAcquireAll_normalizesBeforeDeduplicating(t *testing.T) {
 	shortWait(t)
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -868,7 +868,7 @@ func TestAcquireAll_normalizesBeforeDeduplicating(t *testing.T) { //nolint:paral
 
 // TestNormalizePath covers the key the in-process registry uses: two spellings
 // of one path must produce one key, or a lock does not lock.
-func TestNormalizePath(t *testing.T) { //nolint:paralleltest // changes the working directory
+func TestNormalizePath(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
