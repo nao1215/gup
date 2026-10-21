@@ -142,8 +142,6 @@ func TestValidateResolvedConfig_explicitFile(t *testing.T) {
 // --file) still validates the auto-detected config: a malformed user-level
 // config and an ambiguous user-level + ./gup.json pair both fail, while a clean
 // environment with no config succeeds.
-//
-//nolint:paralleltest // mutates xdg.ConfigHome and the working directory
 func TestValidateResolvedConfig_autoDetected(t *testing.T) {
 	t.Run("no config succeeds", func(t *testing.T) {
 		setupConfigHome(t)
