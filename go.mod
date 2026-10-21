@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/fatih/color v1.19.0
-	github.com/gen2brain/beeep v0.11.2
+	github.com/gen2brain/beeep v0.11.3
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/go-version v1.9.0
 	github.com/mattn/go-colorable v0.1.16
