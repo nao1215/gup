@@ -1,6 +1,7 @@
 # Version updates arrive once a month, one pull request per ecosystem.
-# Each group applies to version updates only, so security updates are not
-# grouped or delayed: Dependabot opens them as soon as an advisory is published.
+# Each group applies to version updates only. Security updates are switched on
+# in the repository settings, not here; where they are on, Dependabot opens
+# them one by one as advisories appear, outside this schedule and these groups.
 version: 2
 updates:
   - package-ecosystem: gomod
