@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [v1.10.4](https://github.com/nao1215/gup/compare/v1.10.3...v1.10.4) (2026-11-09)
+
 ### Fixed
 
 * Release archives include gup's own LICENSE, README.md and CHANGELOG.md again. They had been missing since the shell completions were added to the archives, because listing files there replaces goreleaser's default set. The release smoke check now fails an archive without them.
@@ -13,6 +15,8 @@
 * Release archives and Linux packages now include the license texts of linked dependencies under THIRD_PARTY_LICENSES/. CI checks dependency licenses on Linux, Windows, and macOS.
 
 * Update github.com/gen2brain/beeep to v0.11.3.
+
+* Update github.com/mattn/go-colorable to v0.1.16, golang.org/x/mod to v0.42.0, golang.org/x/sys to v0.49.0 and golang.org/x/term to v0.47.0.
 
 ## [v1.10.3](https://github.com/nao1215/gup/compare/v1.10.2...v1.10.3) (2026-09-28)
 
