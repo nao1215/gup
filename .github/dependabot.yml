@@ -1,13 +1,25 @@
+# Version updates arrive once a month, one pull request per ecosystem.
+# Each group applies to version updates only. Security updates are switched on
+# in the repository settings, not here; where they are on, Dependabot opens
+# them as advisories appear, outside this schedule and these groups.
 version: 2
 updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule:
-      interval: daily
-      time: "20:00"
+      interval: monthly
     open-pull-requests-limit: 10
-  # Maintain dependencies for GitHub Actions
-  - package-ecosystem: "github-actions"
+    groups:
+      gomod:
+        applies-to: version-updates
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: monthly
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
