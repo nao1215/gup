@@ -17,7 +17,7 @@ var runBrowserCommand = func(command string, args ...string) error { //nolint:go
 	defer cancel()
 
 	// Command names are hard-coded in openBrowser and URL is internally generated.
-	err := exec.CommandContext(ctx, command, args...).Run() //nolint:gosec // fixed platform launcher and internally generated issue URL
+	err := exec.CommandContext(ctx, command, args...).Run() // #nosec G204 -- fixed platform launcher and internally generated issue URL
 	return browserCommandError(ctx, err)
 }
 

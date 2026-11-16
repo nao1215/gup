@@ -49,7 +49,7 @@ func main() {
 // write publishes the modules under proxy. Every file is written through an
 // os.Root of that directory, so nothing lands outside it.
 func write(proxy string, n int) (err error) {
-	if err := os.MkdirAll(proxy, dirMode); err != nil { //nolint:gosec // G703: the directory the caller asked for on the command line
+	if err := os.MkdirAll(proxy, dirMode); err != nil { // #nosec G703 -- the directory the caller asked for on the command line
 		return err
 	}
 	root, err := os.OpenRoot(proxy)

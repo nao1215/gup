@@ -202,7 +202,7 @@ func validateMigratePaths(beforePath, afterPath string, dryRun bool) error {
 			if cErr := ensureAfterPathCreatable(afterPath); cErr != nil {
 				return cErr
 			}
-		} else if mkErr := os.MkdirAll(afterPath, binDirPerm); mkErr != nil {
+		} else if mkErr := os.MkdirAll(afterPath, binDirPerm); mkErr != nil { // #nosec G301 -- a binary directory needs the 0755 that go install uses
 			return fmt.Errorf("can't create AFTER_PATH %s: %w", afterPath, mkErr)
 		}
 	default:
