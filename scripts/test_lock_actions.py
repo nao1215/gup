@@ -52,6 +52,14 @@ class LockActionsTests(unittest.TestCase):
         originals = {root/'.github/workflows/test.yml': ('uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0\n').encode()}
         self.assertEqual(lock_actions.workflow_refs(originals), {'.github/workflows/test.yml': set()})
 
+    def test_workflow_with_only_local_calls_is_empty_in_lockfile(self):
+        sha = 'a'*40
+        text = ("version: 'v0.0.3'\nworkflows:\n    '.github/workflows/check.yml': []\n"
+                "    '.github/workflows/test.yml':\n        - 'actions/checkout@" + sha + "'\n"
+                "dependencies:\n    'actions/checkout@" + sha + "':\n        ref: 'v7'\n        commit: 'sha1-" + sha + "'\n")
+        expected = {'.github/workflows/check.yml': set(), '.github/workflows/test.yml': {'actions/checkout@'+sha}}
+        lock_actions.check_exact_refs(text, expected)
+
     def test_restore_sha_even_when_generator_fails(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

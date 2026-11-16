@@ -48,7 +48,9 @@ def lock_sections(text):
 
 def check_exact_refs(text, expected):
     workflows, dependencies = lock_sections(text)
-    if workflows != expected:
+    # A workflow that only calls local ./ workflows is written as `[]`.
+    nonempty = lambda refs: {k: v for k, v in refs.items() if v}
+    if nonempty(workflows) != nonempty(expected):
         raise ValueError('lockfile workflow references differ from the full-SHA workflows')
     for refs in expected.values():
         for key in refs:
