@@ -170,10 +170,10 @@ func fixtures() ([]modVersion, []branchRef, map[string][]string, map[string]stri
 }
 
 func writeFile(path, content string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // test fixture dir
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { // #nosec G301 -- test fixture dir
 		return err
 	}
-	return os.WriteFile(path, []byte(content), 0o644) //nolint:gosec // test fixture file
+	return os.WriteFile(path, []byte(content), 0o644) // #nosec G306 -- test fixture file
 }
 
 func infoJSON(version string) string {
@@ -194,10 +194,10 @@ func writeVersion(dir string, v modVersion) (err error) {
 		return err
 	}
 	zipPath := filepath.Join(vdir, v.version+".zip")
-	if err := os.MkdirAll(filepath.Dir(zipPath), 0o755); err != nil { //nolint:gosec // test fixture dir
+	if err := os.MkdirAll(filepath.Dir(zipPath), 0o755); err != nil { // #nosec G301 -- test fixture dir
 		return err
 	}
-	zf, err := os.Create(zipPath) //nolint:gosec // test fixture path
+	zf, err := os.Create(zipPath) // #nosec G304 -- test fixture path
 	if err != nil {
 		return err
 	}
@@ -261,8 +261,8 @@ func proxyHandler(root string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		if data, err := os.ReadFile(path); err == nil { //nolint:gosec // path constrained to root
-			if _, err := w.Write(data); err != nil {
+		if data, err := os.ReadFile(path); err == nil { // #nosec G304 G703 -- path constrained to root
+			if _, err := w.Write(data); err != nil { // #nosec G705 -- the go command reads this module proxy response, no browser renders it
 				log.Printf("write proxy response: %v", err)
 			}
 			return
@@ -270,7 +270,7 @@ func proxyHandler(root string) http.HandlerFunc {
 		if strings.HasSuffix(clean, ".info") {
 			ref := strings.TrimSuffix(filepath.Base(clean), ".info")
 			w.WriteHeader(http.StatusNotFound)
-			if _, err := fmt.Fprintf(w, "unknown revision %s", ref); err != nil {
+			if _, err := fmt.Fprintf(w, "unknown revision %s", ref); err != nil { // #nosec G705 -- the go command reads this module proxy response, no browser renders it
 				log.Printf("write proxy error response: %v", err)
 			}
 			return
@@ -296,11 +296,11 @@ func main() {
 		log.Fatalf("testproxy: listen: %v", err)
 	}
 	baseURL := "http://" + ln.Addr().String()
-	if err := os.WriteFile(*urlFile, []byte(baseURL), 0o644); err != nil { //nolint:gosec // test url file
+	if err := os.WriteFile(*urlFile, []byte(baseURL), 0o644); err != nil { // #nosec G306 -- test url file
 		log.Fatalf("testproxy: write url file: %v", err)
 	}
 	log.Printf("testproxy serving %s from %s", baseURL, *dir)
-	if err := http.Serve(ln, proxyHandler(*dir)); err != nil { //nolint:gosec // long-lived test server
+	if err := http.Serve(ln, proxyHandler(*dir)); err != nil { // #nosec G114 -- long-lived test server
 		log.Fatalf("testproxy: serve: %v", err)
 	}
 }

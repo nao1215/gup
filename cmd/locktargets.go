@@ -74,7 +74,7 @@ func dirLockTarget(dir string) ([]string, error) {
 			// The path exists but is not a directory: the command says so better.
 			return nil, nil
 		}
-		if err := os.MkdirAll(dir, binDirPerm); err != nil {
+		if err := os.MkdirAll(dir, binDirPerm); err != nil { // #nosec G301 -- a binary directory needs the 0755 that go install uses
 			if hasNonDirectoryAncestor(dir) {
 				// A file sits somewhere above the target, so this path can never be a
 				// directory. That is the command's diagnosis to give, not the lock's.

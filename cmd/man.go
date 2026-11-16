@@ -132,7 +132,7 @@ func copyOneManpage(p *print.Printer, file, dst string) (err error) {
 		}
 	}()
 
-	in, err := os.Open(file) //nolint:gosec // file comes from filepath.Glob, already cleaned by caller
+	in, err := os.Open(file) // #nosec G304 -- file comes from filepath.Glob, already cleaned by caller
 	if err != nil {
 		return err
 	}

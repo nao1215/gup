@@ -165,7 +165,7 @@ func run(args []string) (err error) {
 	if _, err := fmt.Printf("e2e: GOPROXY=%s\n", proxyURL); err != nil {
 		return err
 	}
-	atago := exec.Command("atago", append([]string{"run"}, atagoArgs...)...) //nolint:gosec // a fixed command with author-supplied spec targets
+	atago := exec.Command("atago", append([]string{"run"}, atagoArgs...)...) // #nosec G204 G702 -- a fixed command with author-supplied spec targets
 	atago.Dir = repoRoot
 	atago.Stdout = os.Stdout
 	atago.Stderr = os.Stderr
@@ -296,7 +296,7 @@ func startProxy(binDir, tmp string) (string, func() error, error) {
 	if _, err := fmt.Println("e2e: starting offline module proxy..."); err != nil {
 		return "", nil, err
 	}
-	proxy := exec.Command(filepath.Join(binDir, exeName("testproxy")), //nolint:gosec // a binary this program just built
+	proxy := exec.Command(filepath.Join(binDir, exeName("testproxy")), // #nosec G204 -- a binary this program just built
 		"-dir", filepath.Join(tmp, "proxy"),
 		"-url-file", urlFile,
 		"-addr", "127.0.0.1:0")
@@ -335,7 +335,7 @@ func warmCache(tmp string) error {
 		return fmt.Errorf("create warm-up GOBIN: %w", err)
 	}
 	for _, module := range warmModules {
-		cmd := exec.Command("go", "install", module) //nolint:gosec // module names are this file's own constants
+		cmd := exec.Command("go", "install", module) // #nosec G204 -- module names are this file's own constants
 		cmd.Env = append(os.Environ(),
 			"HOME="+warmHome,
 			"USERPROFILE="+warmHome,
@@ -357,7 +357,7 @@ func warmCache(tmp string) error {
 
 // goRun runs the go tool in dir with the process environment.
 func goRun(dir string, args ...string) error {
-	cmd := exec.Command("go", args...) //nolint:gosec // args are built by this file
+	cmd := exec.Command("go", args...) // #nosec G204 -- args are built by this file
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -406,7 +406,7 @@ func removeAllForce(root string) error {
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
-		return os.Chmod(path, mode)
+		return os.Chmod(path, mode) // #nosec G122 -- symlinks are skipped and the tree is this run's own temporary directory
 	})
 	return errors.Join(walkErr, os.RemoveAll(root))
 }

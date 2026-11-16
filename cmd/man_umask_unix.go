@@ -28,5 +28,5 @@ func readProcessUmask() int {
 func applyUmask(perm os.FileMode) os.FileMode {
 	// A umask only occupies the low permission bits, so the conversion cannot
 	// overflow; mask to os.ModePerm to make that explicit for the conversion.
-	return perm &^ (os.FileMode(processUmask) & os.ModePerm) //nolint:gosec // umask is a small permission bitmask
+	return perm &^ (os.FileMode(processUmask) & os.ModePerm) // #nosec G115 -- umask is a small permission bitmask
 }

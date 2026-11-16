@@ -158,7 +158,7 @@ func removeLoop(p *print.Printer, gobin string, force bool, target []string) int
 			}
 		}
 
-		//nolint:gosec // target is constrained to a file name under gobin by isSafeBinaryName.
+		// #nosec G703 -- target is constrained to a file name under gobin by isSafeBinaryName.
 		if err := os.Remove(target); err != nil {
 			p.Err(err)
 			result = 1

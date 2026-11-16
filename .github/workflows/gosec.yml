@@ -1,0 +1,24 @@
+name: Gosec
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Production code only, as in .golangci.yml. Suppress a finding with
+      # `// #nosec G123 -- reason`, which golangci-lint's gosec also honours.
+      - uses: securego/gosec@244f1f6f4d1d0d14f89e79a73dab1219eabb5228 # v2.30.0 post-release action image fix
+        with:
+          args: './...'

@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+* CI scans the repository with gosec and Trivy (dependency vulnerabilities, committed secrets and misconfigurations) on every pull request, and Trivy also runs daily. Workflow actions are recorded in `.github/workflows/actions.lock`, which CI verifies against the pinned commits.
+
 ## [v1.10.4](https://github.com/nao1215/gup/compare/v1.10.3...v1.10.4) (2026-11-09)
 
 ### Fixed
