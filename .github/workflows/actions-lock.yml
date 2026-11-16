@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 -m unittest discover -s scripts -p 'test_lock_actions.py'
+      - run: python3 scripts/test_lock_actions.py
       - name: Verify workflow lockfile and provenance
         env:
           GH_TOKEN: ${{ github.token }}
