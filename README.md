@@ -468,6 +468,7 @@ $ \gup update
 | [Property-based tests](internal/goutil/property_test.go) | Version orderings and gup.json round trips that break on unlisted inputs |
 | [Differential tests](internal/goutil/differential_test.go) | Build information or Go version order that disagrees with the go command |
 | [Fuzzing](internal/config/property_test.go) | Panics and wrong rejections on malformed gup.json and `gup pin` arguments |
+| [Mutation testing](.github/workflows/mutation.yml) | Tests that run changed code without checking its result |
 | [Benchmarks](bench) | Slower `list`, `check` and `update` on large tool sets |
 
 The commands, files and CI jobs for each are on the [Testing page](https://nao1215.github.io/gup/testing/).
