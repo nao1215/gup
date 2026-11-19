@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run for the previous commit, so
+# superseded runs do not hold the account's shared job slots.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   coverage:
     name: Coverage (unit + e2e)
@@ -46,7 +52,7 @@ jobs:
         with:
           # The version the cross-platform specs are verified against; the per-OS
           # `skip:`/`only:` gates they use are validated by its loader.
-          version: v0.26.1
+          version: v0.26.2
 
       # Combines unit-test coverage with self-hosted E2E coverage, then merges
       # both into cover.out. The E2E suite is fully offline (it starts its own
