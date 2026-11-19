@@ -19,6 +19,8 @@ concurrency:
 # save the key first, so every race build here started cold (about 95 s of
 # compiling on Windows). Each leg keeps its own key instead, restored on every
 # run and saved only from main, so pull requests cannot evict or poison it.
+# The cache holds compiled packages only: -count=1 keeps go test from
+# replaying a previous run's results, so every leg runs every test.
 jobs:
   # Pinned toolchains: the Go versions gup promises to keep working on. Every
   # supported minor gets its own leg on all three OSes, so dropping support for
@@ -71,7 +73,7 @@ jobs:
             go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-
 
       - name: Run tests with race detector
-        run: go test -race ./...
+        run: go test -race -count=1 ./...
 
       - name: Save Go caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -132,7 +134,7 @@ jobs:
             go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-
 
       - name: Run tests with race detector
-        run: go test -race ./...
+        run: go test -race -count=1 ./...
 
       - name: Save Go caches
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
