@@ -1,4 +1,4 @@
-package e2e
+package osmatrix
 
 import (
 	"os"
@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+// e2eDir is the e2e directory that holds os_matrix.tsv and the atago specs,
+// relative to this package.
+const e2eDir = "../.."
+
 // TestOSMatrix_classifiesEverySpec is the reason the table exists. gup's E2E
 // suite ran on Linux only; when it grew macOS and Windows legs, the risk was not
 // that a spec would be excluded -- some genuinely cannot run there -- but that
@@ -16,11 +20,11 @@ import (
 func TestOSMatrix_classifiesEverySpec(t *testing.T) {
 	t.Parallel()
 
-	matrix, err := LoadMatrix(".")
+	matrix, err := LoadMatrix(e2eDir)
 	if err != nil {
 		t.Fatalf("LoadMatrix() error: %v", err)
 	}
-	specs, err := SpecFiles(".")
+	specs, err := SpecFiles(e2eDir)
 	if err != nil {
 		t.Fatalf("SpecFiles() error: %v", err)
 	}
@@ -50,7 +54,7 @@ func TestOSMatrix_everyOSRunsSomething(t *testing.T) {
 	t.Parallel()
 
 	for _, goos := range SupportedOS {
-		targets, err := TargetsFor(".", goos)
+		targets, err := TargetsFor(e2eDir, goos)
 		if err != nil {
 			t.Errorf("TargetsFor(%q) error: %v", goos, err)
 			continue
@@ -73,7 +77,7 @@ func TestOSMatrix_everyOSRunsSomething(t *testing.T) {
 func TestOSMatrix_linuxRunsEverySpec(t *testing.T) {
 	t.Parallel()
 
-	matrix, err := LoadMatrix(".")
+	matrix, err := LoadMatrix(e2eDir)
 	if err != nil {
 		t.Fatalf("LoadMatrix() error: %v", err)
 	}
@@ -91,7 +95,7 @@ func TestOSMatrix_linuxRunsEverySpec(t *testing.T) {
 func TestOSMatrix_excludedSpecsExplainThemselves(t *testing.T) {
 	t.Parallel()
 
-	matrix, err := LoadMatrix(".")
+	matrix, err := LoadMatrix(e2eDir)
 	if err != nil {
 		t.Fatalf("LoadMatrix() error: %v", err)
 	}

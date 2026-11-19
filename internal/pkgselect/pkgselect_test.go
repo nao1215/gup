@@ -351,7 +351,7 @@ func TestBinaryPaths_missingGOBINIsEmpty(t *testing.T) {
 }
 
 func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
-	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_success"))
+	t.Setenv("GOBIN", filepath.Join("..", "cmd", "testdata", "check_success"))
 
 	sel, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"gal"})
 	if err != nil {
@@ -374,7 +374,7 @@ func TestPackageInfoByTargets_filtersToTarget(t *testing.T) {
 // is the regression for the "not found" mislabeling: check_fail/dummy is a
 // non-Go file, so GetPackageInformation drops it, yet it is present.
 func TestPackageInfoByTargets_presentButUnreadableIsNotMissing(t *testing.T) {
-	t.Setenv("GOBIN", filepath.Join("..", "..", "cmd", "testdata", "check_fail"))
+	t.Setenv("GOBIN", filepath.Join("..", "cmd", "testdata", "check_fail"))
 
 	sel, err := PackageInfoByTargets(print.New(io.Discard, io.Discard), []string{"dummy"})
 	if err != nil {

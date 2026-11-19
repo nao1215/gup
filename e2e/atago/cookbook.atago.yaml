@@ -3,7 +3,7 @@
 # copies off the site cannot silently stop working.
 #
 # Every scenario name starts with the "## " section title it comes from,
-# followed by ": ". TestCookbook_EverySectionIsExercised (cmd/docs_drift_test.go)
+# followed by ": ". TestCookbook_EverySectionIsExercised (internal/cmd/docs_drift_test.go)
 # reads both files and fails when a section has no scenario here, or a scenario
 # names a section the cookbook no longer has - so the mapping cannot rot and no
 # hand-maintained list has to be kept in step.

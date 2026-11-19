@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Removed
+
+* The Go packages `github.com/nao1215/gup/cmd` and `github.com/nao1215/gup/e2e` are no longer importable. They moved to `internal/cmd` and `e2e/internal/osmatrix`; neither pkg.go.dev nor GitHub listed any importer. The `gup` command, its flags and its output are unchanged.
+
 ### Changed
 
 * CI scans the repository with gosec and Trivy (dependency vulnerabilities, committed secrets and misconfigurations) on every pull request, and Trivy also runs daily. Workflow actions are recorded in `.github/workflows/actions.lock`, which CI verifies against the pinned commits.

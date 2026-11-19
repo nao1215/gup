@@ -194,7 +194,7 @@ func TestGetPackageInformationWithoutGoVersion_readsBuiltGo(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		nameDir, nameBin = "check_success_for_windows", "gal.exe"
 	}
-	pathBin := filepath.Join("..", "..", "cmd", "testdata", nameDir, nameBin)
+	pathBin := filepath.Join("..", "cmd", "testdata", nameDir, nameBin)
 
 	pkgs := GetPackageInformationWithoutGoVersion(print.New(&bytes.Buffer{}, &bytes.Buffer{}), []string{pathBin})
 	if len(pkgs) != 1 {
@@ -222,7 +222,7 @@ func TestGetPackageInformation_goVersionFailure(t *testing.T) {
 		nameDir = "check_success_for_windows"
 		nameBin = "gal.exe"
 	}
-	pathBin := filepath.Join("..", "..", "cmd", "testdata", nameDir, nameBin)
+	pathBin := filepath.Join("..", "cmd", "testdata", nameDir, nameBin)
 
 	pkgs, goVersionAvailable := GetPackageInformation(printer, []string{pathBin})
 
@@ -273,7 +273,7 @@ func TestGetPackageVersion_golden(t *testing.T) {
 		want = "(devel)"
 	}
 
-	pathDirBin := filepath.Join("..", "..", "cmd", "testdata", nameDirCheckSuccess)
+	pathDirBin := filepath.Join("..", "cmd", "testdata", nameDirCheckSuccess)
 
 	// Mock the search directory path of go module binaries
 	t.Setenv("GOBINTMP", pathDirBin)

@@ -3,7 +3,7 @@
 #
 #   sh gen.sh proxy N DIR           a file GOPROXY of N synthetic modules
 #   sh gen.sh install N V GOBIN     install version V of the N synthetic modules
-#   sh gen.sh copies N GOBIN        N copies of the binaries in cmd/testdata
+#   sh gen.sh copies N GOBIN        N copies of the binaries in internal/cmd/testdata
 #   sh gen.sh link FROM GOBIN       GOBIN of hard links to the binaries in FROM
 #   sh gen.sh verify N V GOBIN      fail unless the N binaries in GOBIN are version V
 #
@@ -34,7 +34,7 @@ copies)
 		1) src=posixer ;;
 		*) src=subaru ;;
 		esac
-		cp "$here/../cmd/testdata/check_success/$src" "$3/bin$(printf '%03d' "$i")"
+		cp "$here/../internal/cmd/testdata/check_success/$src" "$3/bin$(printf '%03d' "$i")"
 		i=$((i + 1))
 	done
 	;;

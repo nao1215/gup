@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nao1215/gup/e2e"
+	"github.com/nao1215/gup/e2e/internal/osmatrix"
 )
 
 // warmModules are the fixture modules the offline proxy serves. Installing them
@@ -98,13 +98,13 @@ func run(args []string) (err error) {
 	// classification table decides what runs here.
 	atagoArgs := append([]string{}, args...)
 	if !hasTarget(args) {
-		targets, err := e2e.TargetsFor(e2eDir, runtime.GOOS)
+		targets, err := osmatrix.TargetsFor(e2eDir, runtime.GOOS)
 		if err != nil {
 			return err
 		}
 		atagoArgs = append(atagoArgs, targets...)
 		if _, err := fmt.Printf("e2e: %s: running %d of %d spec files (see e2e/%s)\n",
-			runtime.GOOS, len(targets), countSpecs(e2eDir), e2e.MatrixFileName); err != nil {
+			runtime.GOOS, len(targets), countSpecs(e2eDir), osmatrix.MatrixFileName); err != nil {
 			return err
 		}
 	}
@@ -236,7 +236,7 @@ func hasTarget(args []string) bool {
 // countSpecs reports how many spec files exist, for the "running N of M" line
 // that makes a reduced OS leg visible in the log rather than silent.
 func countSpecs(e2eDir string) int {
-	specs, err := e2e.SpecFiles(e2eDir)
+	specs, err := osmatrix.SpecFiles(e2eDir)
 	if err != nil {
 		return 0
 	}

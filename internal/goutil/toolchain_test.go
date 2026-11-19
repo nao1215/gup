@@ -17,7 +17,7 @@ const (
 	goVer1266     = "go1.26.6"
 	goVer1268     = "go1.26.8"
 	goVer1269     = "go1.26.9"
-	// galBuiltGo is the Go the cmd/testdata "gal" fixture was built with. It is
+	// galBuiltGo is the Go the internal/cmd/testdata "gal" fixture was built with. It is
 	// a pre-1.21 language version, not a toolchain name.
 	galBuiltGo = "go1.18"
 	// goEnvFailure is what a failing "go env" helper prints.

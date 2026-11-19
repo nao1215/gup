@@ -86,7 +86,7 @@ func ExampleGetPackageInformation() {
 		nameFileBin = "gal.exe" // remember the extension
 	}
 
-	pathFileBin := filepath.Join("..", "..", "cmd", "testdata", nameDirCheckSuccess, nameFileBin)
+	pathFileBin := filepath.Join("..", "cmd", "testdata", nameDirCheckSuccess, nameFileBin)
 
 	pkgInfo, _ := goutil.GetPackageInformation(print.New(io.Discard, io.Discard), []string{pathFileBin})
 	if pkgInfo == nil {
@@ -294,7 +294,7 @@ func ExampleGoPaths_StartDryRunMode() {
 // ----------------------------------------------------------------------------
 
 func ExamplePackage_SetLatestVer() {
-	packages, _ := goutil.GetPackageInformation(print.New(io.Discard, io.Discard), []string{"../../cmd/testdata/check_success/gal"})
+	packages, _ := goutil.GetPackageInformation(print.New(io.Discard, io.Discard), []string{"../cmd/testdata/check_success/gal"})
 	if len(packages) == 0 {
 		log.Fatal("example GetPackageInformation failed. The returned package information is nil")
 	}

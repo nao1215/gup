@@ -19,7 +19,7 @@ dist
 cover.*
 /completions
 
-cmd/testdata/gobin_tmp
+internal/cmd/testdata/gobin_tmp
 
 # `make coverage` scratch: raw covdata (unit + e2e) and the merged dir. The
 # final cover.out / cover.html are the only kept artifacts.

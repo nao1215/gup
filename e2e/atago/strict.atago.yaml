@@ -44,7 +44,7 @@ scenarios:
               - "not found 'no-such-tool-xyz'"
               - "unable to update package"
 
-  # The message is gup's own (cmd/remove.go), not the operating system's errno
+  # The message is gup's own (internal/cmd/remove.go), not the operating system's errno
   # text, so it reads identically on Windows -- one scenario covers both. The
   # path it names does differ: it carries the .exe suffix on Windows, which is
   # why the assertion is on the binary name rather than the whole path.

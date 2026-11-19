@@ -1,8 +1,8 @@
-// Package e2e holds the bootstrap for gup's offline end-to-end suite: the OS
-// classification of the atago specs (this file) and the runner that builds gup,
-// starts the offline module proxy, and hands the right specs to atago
-// (e2e/runner).
-package e2e
+// Package osmatrix holds the OS classification of the atago specs in gup's
+// offline end-to-end suite. The runner (e2e/runner) builds gup, starts the
+// offline module proxy, and hands atago the specs this package selects for the
+// current operating system.
+package osmatrix
 
 import (
 	"bufio"
