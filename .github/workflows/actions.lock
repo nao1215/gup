@@ -9,7 +9,7 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
-        - 'nao1215/setup-himorime@14aeeb3fe55ad42cf29ee0802d578820faac3897'
+        - 'nao1215/setup-himorime@cae68ae0fcf303571b53dde1a73582fbc596857a'
     '.github/workflows/build.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
@@ -21,11 +21,11 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
         - 'k1low/octocov-action@a167dc0dee441b7ffc45e1b862ab55ec0d87f278'
-        - 'nao1215/setup-atago@5c563dcd9d85e114f8abe8bbdcd058e51de09efb'
+        - 'nao1215/setup-atago@5dca90fe652651408ccd1c2aee030767484482a9'
     '.github/workflows/e2e.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
-        - 'nao1215/setup-atago@5c563dcd9d85e114f8abe8bbdcd058e51de09efb'
+        - 'nao1215/setup-atago@5dca90fe652651408ccd1c2aee030767484482a9'
     '.github/workflows/fuzz.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
@@ -224,14 +224,14 @@ dependencies:
         uses:
             - 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3'
             - 'k1low/gh-setup@5fb38d34ea857e5a942b6fe10f1723e55055f6c0'
-    'nao1215/setup-atago@5c563dcd9d85e114f8abe8bbdcd058e51de09efb':
-        ref: 'v0.1.3'
-        commit: 'sha1-5c563dcd9d85e114f8abe8bbdcd058e51de09efb'
+    'nao1215/setup-atago@5dca90fe652651408ccd1c2aee030767484482a9':
+        ref: 'v0.1.5'
+        commit: 'sha1-5dca90fe652651408ccd1c2aee030767484482a9'
         owner_id: 22737008
         repo_id: 1286059375
-    'nao1215/setup-himorime@14aeeb3fe55ad42cf29ee0802d578820faac3897':
-        ref: 'v0.1.2'
-        commit: 'sha1-14aeeb3fe55ad42cf29ee0802d578820faac3897'
+    'nao1215/setup-himorime@cae68ae0fcf303571b53dde1a73582fbc596857a':
+        ref: 'v0.2.0'
+        commit: 'sha1-cae68ae0fcf303571b53dde1a73582fbc596857a'
         owner_id: 22737008
         repo_id: 1373972618
     'ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e':

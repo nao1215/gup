@@ -67,11 +67,11 @@ jobs:
           go-version: "stable"
 
       - name: Install atago
-        uses: nao1215/setup-atago@5c563dcd9d85e114f8abe8bbdcd058e51de09efb # v0.1.3
+        uses: nao1215/setup-atago@5dca90fe652651408ccd1c2aee030767484482a9 # v0.1.5
         with:
           # The version the cross-platform specs are verified against; the per-OS
           # `skip:`/`only:` gates they use are validated by its loader.
-          version: v0.26.2
+          version: v0.26.3
 
       # The runner picks the specs classified for this OS and prints how many of
       # the total it is running, so a shrunken leg is visible in the log rather
