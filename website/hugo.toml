@@ -35,6 +35,11 @@ name = "Reference"
 pageRef = "/reference"
 weight = 30
 
+[[menus.main]]
+name = "Testing"
+pageRef = "/testing"
+weight = 40
+
 [module]
 [[module.mounts]]
 source = "content"

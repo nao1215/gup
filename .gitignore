@@ -39,3 +39,7 @@ internal/cmd/testdata/gobin_tmp
 gup.json.lock
 
 /third_party_licenses/
+
+# rapid writes a failing case here so it can be replayed with -rapid.failfile.
+# Turn it into a named regression test instead of committing the file.
+testdata/rapid/

@@ -85,3 +85,27 @@ jobs:
         with:
           name: fuzz-crashers-${{ matrix.target.name }}-${{ strategy.job-index }}
           path: ${{ matrix.target.pkg }}/testdata/fuzz/${{ matrix.target.name }}/
+
+  # The rapid properties run 100 cases in every `go test`; the nightly run
+  # draws many more. A failure prints the seed and writes the case under
+  # <pkg>/testdata/rapid/, which is uploaded for reproduction.
+  properties:
+    name: rapid properties
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      # -rapid.checks is a flag of the test binaries that import rapid, so only
+      # those packages are listed.
+      - name: Properties
+        run: go test ./internal/goutil -run 'agreesWith' -rapid.checks=100000 -count=1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: rapid-failures
+          path: internal/goutil/testdata/rapid/

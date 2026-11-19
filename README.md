@@ -459,6 +459,19 @@ You are probably on oh-my-zsh, which ships a `gup` alias for `git pull --rebase`
 $ \gup update
 ```
 
+## Testing
+
+| Technique | Bug class caught here |
+|---|---|
+| [Unit tests](internal) | Wrong results of each package on Linux, macOS and Windows |
+| [End-to-end tests and snapshots](e2e/atago) | Changed output, prompts and exit codes of the real `gup` binary |
+| [Property-based tests](internal/goutil/property_test.go) | Version orderings and gup.json round trips that break on unlisted inputs |
+| [Differential tests](internal/goutil/differential_test.go) | Build information or Go version order that disagrees with the go command |
+| [Fuzzing](internal/config/property_test.go) | Panics and wrong rejections on malformed gup.json and `gup pin` arguments |
+| [Benchmarks](bench) | Slower `list`, `check` and `update` on large tool sets |
+
+The commands, files and CI jobs for each are on the [Testing page](https://nao1215.github.io/gup/testing/).
+
 ## Contributing
 First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
 Developer workflow, quality checklist, and tool management are documented in [CONTRIBUTING.md](./CONTRIBUTING.md).
