@@ -9,7 +9,7 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
-        - 'nao1215/setup-himorime@cae68ae0fcf303571b53dde1a73582fbc596857a'
+        - 'nao1215/setup-himorime@05b4d293796e34a46c59f1363e15841a18e83e92'
     '.github/workflows/build.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
@@ -229,9 +229,9 @@ dependencies:
         commit: 'sha1-5dca90fe652651408ccd1c2aee030767484482a9'
         owner_id: 22737008
         repo_id: 1286059375
-    'nao1215/setup-himorime@cae68ae0fcf303571b53dde1a73582fbc596857a':
-        ref: 'v0.2.0'
-        commit: 'sha1-cae68ae0fcf303571b53dde1a73582fbc596857a'
+    'nao1215/setup-himorime@05b4d293796e34a46c59f1363e15841a18e83e92':
+        ref: 'v0.2.1'
+        commit: 'sha1-05b4d293796e34a46c59f1363e15841a18e83e92'
         owner_id: 22737008
         repo_id: 1373972618
     'ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e':
