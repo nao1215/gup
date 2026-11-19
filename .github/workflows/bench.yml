@@ -7,6 +7,12 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run for the previous commit, so
+# superseded runs do not hold the account's shared job slots.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # gup is measured end to end with himorime, from bench/himorime.yaml.
 #
 # On a pull request, `himorime ci` checks the base of the pull request out
@@ -18,10 +24,29 @@ permissions:
 # and does not fail it. The comparison is written to the job summary.
 #
 # Started by hand, the job measures the ref it runs on without comparing.
+#
+# The suite is split over three jobs so the run takes as long as its slowest
+# part instead of the sum: "update 30" and "update 150" compile and install
+# modules for about four minutes each, and every other benchmark fits in the
+# third job. That job selects whatever the first two do not, from
+# `himorime list`, so a benchmark added to the suite is never left out.
+# Each job builds and measures the base and the head in interleaved rounds
+# on its own runner, as before.
 jobs:
   bench:
+    name: bench (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - name: update 30
+            filter: '^update 30$'
+          - name: update 150
+            filter: '^update 150$'
+          - name: the rest
+            filter: ''
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,15 +63,35 @@ jobs:
       # run by hand (make bench-docs); it must still be a valid suite.
       - name: Validate the comparison suite
         run: himorime validate bench/compare
+      - name: Select the benchmarks of this job
+        id: select
+        env:
+          FILTER: ${{ matrix.shard.filter }}
+        # The last job takes every benchmark the others do not; keep the
+        # names below in step with the filters of the matrix.
+        run: |
+          if [ -z "$FILTER" ]; then
+            FILTER=$(himorime list --format json bench | jq -r '
+              [.[].benchmark] | unique
+              | map(select(. != "update 30" and . != "update 150"))
+              | map("^" + gsub("(?<c>[.*+?()\\[\\]{}|^$\\\\])"; "\\\(.c)") + "$")
+              | join("|")')
+          fi
+          echo "Benchmarks: $FILTER"
+          echo "filter=$FILTER" >> "$GITHUB_OUTPUT"
       - name: Compare the base with the head
         if: github.event_name == 'pull_request'
-        run: himorime ci --output "$RUNNER_TEMP/himorime.json" --format json bench
+        env:
+          FILTER: ${{ steps.select.outputs.filter }}
+        run: himorime ci --filter "$FILTER" --output "$RUNNER_TEMP/himorime.json" --format json bench
       - name: Measure
         if: github.event_name != 'pull_request'
-        run: himorime run --output "$RUNNER_TEMP/himorime.json" --format json --summary "$GITHUB_STEP_SUMMARY" bench
+        env:
+          FILTER: ${{ steps.select.outputs.filter }}
+        run: himorime run --filter "$FILTER" --output "$RUNNER_TEMP/himorime.json" --format json --summary "$GITHUB_STEP_SUMMARY" bench
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: himorime-report
+          name: himorime-report-${{ strategy.job-index }}
           path: ${{ runner.temp }}/himorime.json
           retention-days: 7
