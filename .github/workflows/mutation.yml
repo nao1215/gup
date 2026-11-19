@@ -42,6 +42,13 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # gremlins v0.6.0 takes the added lines of each git diff hunk as one
+          # contiguous range starting after the leading context, so with the
+          # default 3 lines of context a second change in the same hunk is
+          # never mutated. Zero context makes every change its own hunk.
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: diff.context
+          GIT_CONFIG_VALUE_0: "0"
         # Run from the module root: gremlins compares git diff paths as given.
         run: gremlins unleash --diff "$BASE_SHA" --workers 2 --timeout-coefficient 10 --output mutation.json .
       - name: Mutate every package
