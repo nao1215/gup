@@ -15,7 +15,7 @@ No benchmark touches the network. `check` and `update` resolve and install synth
 
 `make bench-compare` checks main out into a temporary Git worktree, builds it and your working tree, and measures both in the same rounds, so a background job slows both revisions instead of one. `BASE=v1.9.2 make bench-compare` compares against another revision, and `himorime run --filter '^update' bench` measures the update benchmarks only.
 
-On a pull request, `.github/workflows/bench.yml` runs `himorime ci bench` the same way, with the base of the pull request as the base, on one runner. The job fails when a command is slower, uses more CPU time or more memory than the base beyond the tolerance in `himorime.yaml` with 95% confidence. A difference too close to call is reported as inconclusive and does not fail the job. The comparison is on the job summary page and the JSON report is kept as an artifact.
+On a pull request, `.github/workflows/bench.yml` runs `himorime ci bench` the same way, with the base of the pull request as the base. The suite is split over three jobs (`update 30`, `update 150` and everything else), each measuring both revisions on its own runner. A job fails when a command is slower, uses more CPU time or more memory than the base beyond the tolerance in `himorime.yaml` with 95% confidence. A difference too close to call is reported as inconclusive and does not fail the job. The comparison is on each job's summary page and the JSON reports are kept as artifacts.
 
 | Benchmark | Commands | Measures |
 |-----------|----------|----------|
