@@ -33,7 +33,7 @@ different question from the `gosec` linter golangci-lint already runs (insecure
 code gup writes), so both are kept.
 
 ```shell
-go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
 govulncheck ./...
 ```
 
@@ -51,11 +51,11 @@ needs no network access. The tests are plain-YAML specs run by
 
 The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 `gup remove` prompt, and golden-output snapshots), so an older atago will fail to
-parse those specs. CI pins v0.25.2 via setup-atago.
+parse those specs. CI pins v0.26.1 via setup-atago.
 
 ```shell
 # Install atago once, at the version CI pins, so local runs and CI agree
-go install github.com/nao1215/atago@v0.25.2
+go install github.com/nao1215/atago@v0.26.1
 
 # Run the specs classified for this operating system
 make e2e

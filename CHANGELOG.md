@@ -4,6 +4,10 @@
 
 * CI scans the repository with gosec and Trivy (dependency vulnerabilities, committed secrets and misconfigurations) on every pull request, and Trivy also runs daily. Workflow actions are recorded in `.github/workflows/actions.lock`, which CI verifies against the pinned commits.
 
+* Update github.com/gen2brain/beeep to v0.12.0, golang.org/x/mod to v0.43.0, golang.org/x/sys to v0.50.0 and golang.org/x/term to v0.48.0.
+
+* The gitleaks secret scan also runs on pushes to main, so a secret committed without a pull request is still scanned. CI uses atago v0.26.1 for the end-to-end tests, himorime v0.6.0 for the benchmarks and govulncheck v1.10.0.
+
 ## [v1.10.4](https://github.com/nao1215/gup/compare/v1.10.3...v1.10.4) (2026-11-09)
 
 ### Fixed
