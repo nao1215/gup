@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+* CI uses atago v0.26.3 (through setup-atago v0.1.5) for the end-to-end tests and himorime v0.6.1 (through setup-himorime v0.2.0) for the benchmarks. Mutation testing caps each mutant at 4 GiB of memory, so a mutant that allocates without bound fails as killed instead of taking the runner down.
+
 ## [v1.10.5](https://github.com/nao1215/gup/compare/v1.10.4...v1.10.5) (2026-11-19)
 
 ### Deprecated

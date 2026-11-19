@@ -51,11 +51,11 @@ needs no network access. The tests are plain-YAML specs run by
 
 The suite uses atago **v0.3.4+** features (a real-PTY step for the interactive
 `gup remove` prompt, and golden-output snapshots), so an older atago will fail to
-parse those specs. CI pins v0.26.2 via setup-atago.
+parse those specs. CI pins v0.26.3 via setup-atago.
 
 ```shell
 # Install atago once, at the version CI pins, so local runs and CI agree
-go install github.com/nao1215/atago@v0.26.2
+go install github.com/nao1215/atago@v0.26.3
 
 # Run the specs classified for this operating system
 make e2e
