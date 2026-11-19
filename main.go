@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/nao1215/gup/cmd"
+	"github.com/nao1215/gup/internal/cmd"
 	"github.com/nao1215/gup/internal/print"
 )
 

@@ -10,7 +10,7 @@ coverage:
   # excluded: it is E2E test infrastructure, not part of the gup binary. The
   # runner that builds gup and launches that suite is excluded for the same
   # reason, and cannot meaningfully cover itself: it is what runs the tests. The
-  # classification logic it depends on lives in e2e/osmatrix.go and IS measured,
+  # classification logic it depends on lives in e2e/internal/osmatrix/osmatrix.go and IS measured,
   # because that is ordinary code with ordinary tests.
   exclude:
     - "github.com/nao1215/gup/e2e/testproxy/main.go"

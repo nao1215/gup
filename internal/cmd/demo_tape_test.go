@@ -9,7 +9,7 @@ import (
 )
 
 // tapeDir holds the VHS scripts that render the GIFs README.md embeds.
-const tapeDir = "../doc/img"
+const tapeDir = "../../doc/img"
 
 // TestDemoTapeCommandsStillResolve requires every gup command line the tapes
 // type to still name a real subcommand whose flags and argument count are

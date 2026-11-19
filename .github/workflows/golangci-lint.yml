@@ -40,8 +40,8 @@ jobs:
   # A linter only sees the files that build for its GOOS. The job above is
   # the required check and stays as it is; this one covers the other
   # systems gup has code for, including the BSDs, which reach gup through
-  # cmd/bug_report_nobrowser.go and the !windows halves of cmd and
-  # internal/lockfile and were compiled by nothing until now.
+  # internal/cmd/bug_report_nobrowser.go and the !windows halves of
+  # internal/cmd and internal/lockfile and were compiled by nothing until now.
   # Cross-compiling costs seconds and the repository is public, so every
   # leg runs on every change.
   golangci-lint-cross:

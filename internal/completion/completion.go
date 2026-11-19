@@ -178,7 +178,7 @@ func (c completionFile) sync(cmd *cobra.Command) error {
 // removed and path keeps its previous contents. The parent directory is created
 // as needed. When path already exists its permissions are preserved; a new file
 // uses the restrictive 0600 mode os.CreateTemp applies. This mirrors the atomic
-// gup.json write in cmd/config_file.go. The rename replaces the destination on
+// gup.json write in internal/cmd/config_file.go. The rename replaces the destination on
 // Windows too: Go's os.Rename is MoveFileEx with MOVEFILE_REPLACE_EXISTING
 // there, so the PowerShell install gets the same all-or-nothing guarantee as the
 // POSIX shells.
@@ -186,7 +186,7 @@ func atomicWriteFile(path string, data []byte, what string) (err error) {
 	path = filepath.Clean(path)
 	// Reject an existing directory before staging any temp file, so a mistaken
 	// path cannot turn into a confusing rename failure (mirrors the #367 guard in
-	// cmd/config_file.go).
+	// internal/cmd/config_file.go).
 	if fileutil.IsDir(path) {
 		return fmt.Errorf("%s path %s is a directory, not a file", what, path)
 	}

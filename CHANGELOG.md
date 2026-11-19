@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Deprecated
+
+* The Go packages `github.com/nao1215/gup/cmd` and `github.com/nao1215/gup/e2e` are deprecated and will be removed in v2. gup is a command, not a library: the implementation moved to `internal/cmd` and `e2e/internal/osmatrix`, and the two packages now forward to it so that v1 importers keep building. Neither pkg.go.dev nor GitHub lists any importer. The `gup` command, its flags and its output are unchanged.
+
 ### Changed
 
 * CI scans the repository with gosec and Trivy (dependency vulnerabilities, committed secrets and misconfigurations) on every pull request, and Trivy also runs daily. Workflow actions are recorded in `.github/workflows/actions.lock`, which CI verifies against the pinned commits.

@@ -159,7 +159,7 @@ func writeManpageAtomically(outputPath string, src io.Reader, gzName string) (er
 	outputPath = resolvedPath
 	// Reject a directory destination before staging any temp file, so a mistaken
 	// path cannot replace a directory tree via the rename-replace flow (mirrors the
-	// guard in cmd/config_file.go).
+	// guard in config_file.go).
 	if fileutil.IsDir(outputPath) {
 		return fmt.Errorf("%s is a directory, not a file", outputPath)
 	}
