@@ -11,11 +11,18 @@ import (
 // Execute still runs gup and hands GOOS and OsExit to the implementation, as
 // it did before the implementation moved.
 func TestExecute_runsTheInternalCommandWithTheSeams(t *testing.T) { //nolint:paralleltest // replaces os.Args and package-level seams
+	prevGOOS, prevOsExit := GOOS, OsExit
+	prevInternalGOOS, prevInternalOsExit := internalcmd.GOOS, internalcmd.OsExit
+	args := os.Args
+	t.Cleanup(func() {
+		os.Args = args
+		GOOS, OsExit = prevGOOS, prevOsExit
+		internalcmd.GOOS, internalcmd.OsExit = prevInternalGOOS, prevInternalOsExit
+	})
+
 	exited := -1
 	OsExit = func(code int) { exited = code }
 	GOOS = "plan9"
-	args := os.Args
-	t.Cleanup(func() { os.Args = args })
 	os.Args = []string{"gup", "version"}
 
 	if err := Execute(); err != nil {
