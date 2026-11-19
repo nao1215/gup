@@ -1,5 +1,7 @@
 ## Unreleased
 
+## [v1.10.5](https://github.com/nao1215/gup/compare/v1.10.4...v1.10.5) (2026-11-19)
+
 ### Deprecated
 
 * The Go packages `github.com/nao1215/gup/cmd` and `github.com/nao1215/gup/e2e` are deprecated and will be removed in v2. gup is a command, not a library: the implementation moved to `internal/cmd` and `e2e/internal/osmatrix`, and the two packages now forward to it so that v1 importers keep building. Neither pkg.go.dev nor GitHub lists any importer. The `gup` command, its flags and its output are unchanged.
@@ -11,6 +13,8 @@
 * Update github.com/gen2brain/beeep to v0.12.0, golang.org/x/mod to v0.43.0, golang.org/x/sys to v0.50.0 and golang.org/x/term to v0.48.0.
 
 * The gitleaks secret scan also runs on pushes to main, so a secret committed without a pull request is still scanned. CI uses atago v0.26.2 for the end-to-end tests, himorime v0.6.0 for the benchmarks and govulncheck v1.10.0.
+
+* Tests compare gup's reading of build information with `go version -m` and its Go version order with `go/version.Compare`, and gremlins mutation testing runs on changed lines and weekly. CI caches the race and release snapshot builds separately, splits the benchmark over three jobs and cancels superseded pull request runs.
 
 ## [v1.10.4](https://github.com/nao1215/gup/compare/v1.10.3...v1.10.4) (2026-11-09)
 
