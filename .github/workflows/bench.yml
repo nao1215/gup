@@ -37,6 +37,10 @@ jobs:
     name: bench (${{ matrix.shard.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # setup-himorime posts the problems it finds as a PR comment.
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
