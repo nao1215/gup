@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -336,6 +337,8 @@ func TestIsBranchNotFound(t *testing.T) {
 		{"wrong branch name does not match", errors.New("go: unknown revision master"), string(UpdateChannelMain), false},
 		{"longer branch name is not a partial match", errors.New("go: unknown revision mainline"), string(UpdateChannelMain), false},
 		{"branch token followed by newline matches", errors.New("go: unknown revision main\n"), string(UpdateChannelMain), true},
+		{"message that is only the marker matches", errors.New("unknown revision main"), string(UpdateChannelMain), true},
+		{"later whole-token occurrence after a longer name matches", errors.New("unknown revision mainline\nunknown revision main"), string(UpdateChannelMain), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -343,6 +346,21 @@ func TestIsBranchNotFound(t *testing.T) {
 				t.Errorf("IsBranchNotFound(%v, %q) = %v, want %v", tt.err, tt.branch, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestIsBranchWordByte_matchesRegexpWordClass checks every byte against the
+// \w class of Go's regexp, whose \b the branch-name boundary follows: ASCII
+// letters, digits and underscore are part of the name, everything else ends it.
+func TestIsBranchWordByte_matchesRegexpWordClass(t *testing.T) {
+	t.Parallel()
+
+	word := regexp.MustCompile(`^\w$`)
+	for b := range 256 {
+		want := word.Match([]byte{byte(b)})
+		if got := isBranchWordByte(byte(b)); got != want {
+			t.Errorf("isBranchWordByte(%q) = %v, regexp \\w says %v", byte(b), got, want)
+		}
 	}
 }
 

@@ -1,0 +1,55 @@
+name: Mutation
+# Mutation testing rewrites one expression at a time and checks that a test
+# fails. It reruns the tests once per mutant, so it is too slow for every pull
+# request: the full run is weekly, and pull requests mutate only the lines
+# they change (gremlins --diff, run from the module root so the paths that
+# git diff prints match the files gremlins mutates).
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**.go'
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GREMLINS_VERSION: v0.6.0
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install gremlins
+        run: go install "github.com/go-gremlins/gremlins/cmd/gremlins@${GREMLINS_VERSION}"
+      - name: Mutate the lines this pull request changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # Run from the module root: gremlins compares git diff paths as given.
+        run: gremlins unleash --diff "$BASE_SHA" --workers 2 --timeout-coefficient 10 --output mutation.json .
+      - name: Mutate every package
+        if: github.event_name != 'pull_request'
+        run: gremlins unleash --workers 2 --timeout-coefficient 10 --output mutation.json .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mutation-report
+          path: mutation.json
+          if-no-files-found: ignore

@@ -72,6 +72,27 @@ go test ./internal/goutil -run agreesWith -rapid.checks=100000
 go test -run '^$' -fuzz '^FuzzParseConf$' -fuzztime 1m ./internal/config
 ```
 
+## Mutation testing
+
+[gremlins](https://github.com/go-gremlins/gremlins) rewrites one expression at
+a time and checks that some test fails. `.github/workflows/mutation.yml` mutates
+the lines a pull request changes and the whole module every week; the report is
+uploaded as the `mutation-report` artifact.
+
+```shell
+gremlins unleash --workers 2 --timeout-coefficient 10 .
+```
+
+Run it from a clean checkout: gremlins mutates every Go file under the
+directory, including the copies `go-licenses` leaves in the ignored
+`third_party_licenses/`.
+
+Baseline, measured on 2026-11-19 with gremlins v0.6.0 over the whole module:
+800 killed, 77 lived, 222 not covered, 4 timed out. Test efficacy, killed /
+(killed + lived), is 91.22%; mutator coverage is 79.80%. Lived mutants include
+equivalent ones, so the score is tracked against this baseline rather than held
+to 100%.
+
 ## Benchmarks
 
 [himorime](https://github.com/nao1215/himorime) measures the `gup` binary in
