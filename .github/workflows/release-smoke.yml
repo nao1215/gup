@@ -50,16 +50,18 @@ jobs:
 
       # The snapshot cross-compiles six targets, which no other job builds, so
       # it keeps its own cache key. Saved only from main; release.yml itself
-      # still builds from a clean cache.
+      # still builds from a clean cache. The key is the Go patch and go.sum,
+      # not the commit, and main saves only when that exact key is missing, so
+      # pushes to main do not pile up a new entry each.
       - name: Restore Go caches
+        id: go-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-release-smoke-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: go-${{ runner.os }}-release-smoke-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-release-smoke-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-
             go-${{ runner.os }}-release-smoke-${{ steps.go.outputs.go-version }}-
 
       # Without rpm the .rpm check degrades to a magic-number test, which is not
@@ -81,13 +83,13 @@ jobs:
         run: ./scripts/smoke_artifacts.sh dist
 
       - name: Save Go caches
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.go-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-release-smoke-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
       # Only what the per-OS jobs need: the archives and the manifests, not the
       # unpacked binaries GoReleaser also leaves in dist/.

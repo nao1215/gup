@@ -19,6 +19,10 @@ concurrency:
 # save the key first, so every race build here started cold (about 95 s of
 # compiling on Windows). Each leg keeps its own key instead, restored on every
 # run and saved only from main, so pull requests cannot evict or poison it.
+# The key is the Go patch and go.sum, not the commit: a per-commit key saved
+# nine new entries on every push to main and filled the repository's 10 GB
+# cache quota. main saves only when the exact key is missing, so each entry is
+# refreshed when go.sum or the Go patch changes.
 # The cache holds compiled packages only: -count=1 keeps go test from
 # replaying a previous run's results, so every leg runs every test.
 jobs:
@@ -62,27 +66,27 @@ jobs:
           echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
       - name: Restore Go caches
+        id: go-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ steps.gocache.outputs.build }}
             ${{ steps.gocache.outputs.mod }}
-          key: go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-
             go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
 
       - name: Save Go caches
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.go-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ steps.gocache.outputs.build }}
             ${{ steps.gocache.outputs.mod }}
-          key: go-${{ runner.os }}-unit-race-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
   # Latest Go: a separate, explicitly named job rather than a "1" entry hidden in
   # the matrix above, so a failure says whether gup broke on a version it
@@ -123,24 +127,24 @@ jobs:
       # The pinned 1.27 leg and this one may resolve to the same patch; the
       # "latest" part of the key keeps them from saving over each other.
       - name: Restore Go caches
+        id: go-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ steps.gocache.outputs.build }}
             ${{ steps.gocache.outputs.mod }}
-          key: go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-
             go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
 
       - name: Save Go caches
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.go-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ${{ steps.gocache.outputs.build }}
             ${{ steps.gocache.outputs.mod }}
-          key: go-${{ runner.os }}-unit-race-latest-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
+          key: ${{ steps.go-cache.outputs.cache-primary-key }}
