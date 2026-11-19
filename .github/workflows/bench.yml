@@ -74,7 +74,7 @@ jobs:
             FILTER=$(himorime list --format json bench | jq -r '
               [.[].benchmark] | unique
               | map(select(. != "update 30" and . != "update 150"))
-              | map("^" + gsub("(?<c>[.*+?()\\[\\]{}|^$\\\\])"; "\\\\\(.c)") + "$")
+              | map("^" + gsub("(?<c>[.*+?()\\[\\]{}|^$\\\\])"; "\\\(.c)") + "$")
               | join("|")')
           fi
           echo "Benchmarks: $FILTER"
