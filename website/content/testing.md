@@ -6,8 +6,7 @@ toc: true
 
 gup reads the build information of binaries it did not build, rewrites the
 files in your `$GOBIN`, and drives `go install` for every tool you have. Each
-technique below targets one way that can go wrong. The README lists the same
-techniques in one table; this page has the commands, files and CI jobs.
+technique below targets one way that can go wrong.
 
 ## Unit tests
 

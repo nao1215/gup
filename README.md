@@ -19,11 +19,19 @@
 
 ![sample](./doc/img/sample.gif)
 
-gup updates and manages the global Go command-line tools in your `$GOBIN`. `go install` places each program in `$GOBIN` (`$GOPATH/bin`) but never updates it again, keeps no manifest of what it installed, and offers no way to hold a tool at a version you depend on. gup manages that tool set: it brings the whole set up to date in parallel, can `pin` selected tools to exact versions, and adds the management commands `go install` lacks: `list`/`check` what is installed, `remove` binaries, `export`/`import` the set to reproduce it on another machine, and `migrate` it to a new `$GOBIN`. Runs on Windows, macOS, and Linux.
+`go install` puts a program in `$GOBIN` (`$GOPATH/bin`) and never updates it again. gup updates every binary there in parallel, pins the ones that must stay at a version, lists and checks what is installed, removes binaries, exports the set to `gup.json` so another machine can import it, and migrates it to a new `$GOBIN`. It runs on Windows, macOS, and Linux.
 
-Documentation: **https://nao1215.github.io/gup/**
+```shell
+go install github.com/nao1215/gup@latest
+gup check     # report what is out of date, install nothing
+gup update    # update everything under $GOBIN
+```
 
-## Supported OS (unit testing with GitHub Actions)
+Documentation: https://nao1215.github.io/gup/
+
+## Supported OS
+
+Unit tests run on GitHub Actions for:
 
 - Linux
 - Mac (macOS 13 Ventura or newer, the range Go 1.27 supports)
@@ -33,21 +41,20 @@ Documentation: **https://nao1215.github.io/gup/**
 Unit tests run on Go 1.26 and 1.27. Building from source needs Go 1.26 or newer. The release binaries are built with the latest Go 1.27 patch release, so on macOS they need macOS 13 Ventura or newer.
 
 ## How to install
-gup is packaged in homebrew-core, the winget community repository, the mise and aqua registries, nixpkgs, and the AUR, in addition to `go install` and the prebuilt packages on the release page.
+gup is in homebrew-core, winget, the mise and aqua registries, nixpkgs, and the AUR. You can also use `go install` or a prebuilt package from the release page.
 
 ### Use "go install"
-If you do not have the Go development environment installed on your system, please install it from the [official website](https://go.dev/doc/install).
+You need [Go](https://go.dev/doc/install) 1.26 or newer. On an older Go, use a prebuilt binary or a package below.
 ```
 go install github.com/nao1215/gup@latest
 ```
-Building from source needs Go 1.26 or newer. On an older Go, install a prebuilt release binary or a package (see below) instead.
 
 ### Use homebrew
-gup is in homebrew-core, so no tap is required:
+homebrew-core has gup, so no tap is needed:
 ```shell
 brew install gup
 ```
-The GoReleaser-built formula in `nao1215/tap` is still published as an alternative. It installs the prebuilt release binary instead of building from source:
+The tap `nao1215/tap` also has a GoReleaser-built formula that installs the prebuilt release binary:
 ```shell
 brew install nao1215/tap/gup
 ```
@@ -68,22 +75,22 @@ nix profile install nixpkgs#gogup
 ```
 
 ### Use aqua
-gup is registered in the [aqua](https://aquaproj.github.io/) standard registry. Add it to your `aqua.yaml`:
+gup is in the [aqua](https://aquaproj.github.io/) standard registry. Add it to your `aqua.yaml`:
 ```shell
 aqua g -i nao1215/gup
 ```
 
 ### Use the AUR (Arch Linux)
-Two community-maintained packages are available: [`gup`](https://aur.archlinux.org/packages/gup) builds from source, [`gup-bin`](https://aur.archlinux.org/packages/gup-bin) installs the release binary.
+There are two community packages: [`gup`](https://aur.archlinux.org/packages/gup) builds from source, and [`gup-bin`](https://aur.archlinux.org/packages/gup-bin) installs the release binary.
 ```shell
 paru -S gup      # or: yay -S gup
 paru -S gup-bin  # prebuilt binary
 ```
 
-### Install from Package or Binary
-[The release page](https://github.com/nao1215/gup/releases) contains packages in .deb, .rpm, and .apk formats for `amd64` and `arm64`, plus `.tar.gz` archives for Linux/macOS and `.zip` archives for Windows. gup command uses the go command internally, so the golang installation is required.
+### Install from a package or binary
+[The release page](https://github.com/nao1215/gup/releases) has .deb, .rpm, and .apk packages for `amd64` and `arm64`, plus `.tar.gz` archives for Linux/macOS and `.zip` archives for Windows. gup runs the go command, so Go must be installed either way.
 
-Download the package that matches your distribution and architecture, then:
+Download the package for your distribution and architecture, then:
 ```shell
 # Debian, Ubuntu
 $ sudo dpkg -i gup_1.8.1_linux_amd64.deb
@@ -97,13 +104,9 @@ $ sudo apk add --allow-untrusted gup_1.8.1_linux_amd64.apk
 Replace `1.8.1` with the release you downloaded and `amd64` with `arm64` where applicable. The packages also install the bash, fish, and zsh completion files.
 
 ## Verifying release integrity
-Every release ships supply-chain metadata so you can verify what you download:
+Each release has a `checksums.txt` signed with [cosign](https://github.com/sigstore/cosign) (keyless, bundle in `checksums.txt.sigstore.json`), an SPDX SBOM for each archive, and SLSA build provenance attested via GitHub OIDC and attached as `multiple.intoto.jsonl`.
 
-- Signed checksums: `checksums.txt` is signed with [cosign](https://github.com/sigstore/cosign) (keyless), producing `checksums.txt.sigstore.json`.
-- SBOM: an SPDX Software Bill of Materials is attached to each release archive.
-- Build provenance: SLSA build provenance is attested via GitHub OIDC, and is also attached to the release as `multiple.intoto.jsonl`.
-
-Verify the signed checksums (then check your archive against `checksums.txt`):
+Verify the signed checksums, then check your archive against `checksums.txt`:
 
 ```shell
 cosign verify-blob \
@@ -120,7 +123,7 @@ Verify the build provenance of a downloaded artifact with the GitHub CLI:
 gh attestation verify gup_<version>_<os>_<arch>.tar.gz --repo nao1215/gup
 ```
 
-Or download the `multiple.intoto.jsonl` release asset and verify the archive against it with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier), which checks the provenance signature against the Sigstore transparency log:
+Or download `multiple.intoto.jsonl` and check the archive with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier), which verifies the provenance signature against the Sigstore transparency log:
 
 ```shell
 slsa-verifier verify-artifact gup_<version>_<os>_<arch>.tar.gz \
@@ -131,19 +134,19 @@ slsa-verifier verify-artifact gup_<version>_<os>_<arch>.tar.gz \
 
 ## How to use
 ### Check the gup version
-Print the version with either the `version` subcommand or the top-level `--version`/`-V` flag.
+Use the `version` subcommand or the `--version`/`-V` flag.
 ```shell
 $ gup --version
 $ gup version
 ```
 
 ### Update all binaries
-`gup update` updates every binary under `$GOBIN`, in parallel.
+`gup update` updates every binary under `$GOBIN` in parallel.
 
 ![update](./doc/img/update.gif)
 
 ### Update the specified binary
-If you want to update only the specified binaries, you specify multiple command names separated by space.
+Name the binaries, separated by spaces.
 ```shell
 $ gup update subaru gup ubume
 update binary under $GOPATH/bin or $GOBIN
@@ -153,37 +156,34 @@ update binary under $GOPATH/bin or $GOBIN
 ```
 
 ### Exclude binaries during gup update
-If you don't want to update some binaries simply specify binaries which should not be updated separated using ',' without spaces as a delimiter.
-Also works in combination with --dry-run. A name that is not installed is ignored, so the same list can be shared between machines; if it looks like a typo of an installed binary, gup prints a "did you mean" warning.
+List the binaries to skip, separated by commas without spaces. It also works with `--dry-run`. A name that is not installed is ignored, so one list can be shared between machines; if it looks like a typo of an installed binary, gup prints a "did you mean" warning.
 ```shell
 $ gup update --exclude=gopls,golangci-lint    //--exclude or -e, this example will exclude 'gopls' and 'golangci-lint'
 ```
 
 ### Update binaries with @main, @master, or @latest
-If you want to control update source per binary, use the following options:
+Choose the update source per binary:
 - `--main` (`-m`): update by `@main` (falls back to `@master` only when the repository has no `main` branch)
 - `--master`: update by `@master`
 - `--latest`: update by `@latest`
 
-The `@main` → `@master` fallback applies only to a missing `main` branch. Build, network, authentication, timeout, and cancellation failures are reported as-is and never silently install `@master`.
+Only a missing `main` branch triggers the fallback to `@master`. Build, network, authentication, timeout, and cancellation failures are reported as they are.
 
-The selected channel is saved to `gup.json` and reused by future `gup update` runs.
+gup saves the channel to `gup.json` and reuses it on later `gup update` runs.
 ```shell
 $ gup update --main=gup,lazygit --master=sqly --latest=air
 ```
 
 ### Pin a tool to a specific version
 
-Use `pin` when a global tool must stay on a specific version, for example when it needs to match CI or a team-wide development environment.
+Pin a tool that must match CI or the rest of your team. `gup update` leaves it at that version and updates everything else.
 
 ```shell
 $ gup pin golangci-lint v1.62.0
 $ gup update
 ```
 
-`gup update` keeps a pinned tool at that version while the rest of the tool set updates.
-
-A pin must name one fixed version, so that `go install` can never resolve it to different code later. `gup pin` accepts a full version (`v1.62.0`), a prerelease (`v2.0.0-rc.1`), a `+incompatible` version of a v2+ module (`v2.0.0+incompatible`), or a pseudo-version to pin a commit (`v0.0.0-20240102150405-abcdef123456`). It rejects branch names, commit hashes, abbreviated versions such as `v1` or `v1.2`, and version queries such as `>=v1.2.0`, all of which the go command resolves when it runs. To pin a commit, use its pseudo-version: `go list -m <module>@<commit>` prints it. The check needs neither the network nor the go command, so a well-formed version that does not exist is only reported by `gup update`.
+The version must be one fixed version: a full version (`v1.62.0`), a prerelease (`v2.0.0-rc.1`), a `+incompatible` version of a v2+ module (`v2.0.0+incompatible`), or a pseudo-version (`v0.0.0-20240102150405-abcdef123456`). `go list -m <module>@<commit>` prints the pseudo-version of a commit. `gup pin` rejects branch names, commit hashes, abbreviated versions such as `v1` or `v1.2`, and queries such as `>=v1.2.0`, because the go command would resolve them again on every run. The check uses neither the network nor the go command, so a well-formed version that does not exist is reported later, by `gup update`.
 
 The pin is stored in `gup.json`:
 
@@ -207,14 +207,14 @@ To allow the tool to update again:
 $ gup unpin golangci-lint
 ```
 
-If a hand-edited `gup.json` holds a pin that is not one fixed version, every command that reads it (`update`, `import`, `check`, `pin`, ...) fails and names the file, the tool, and the value. gup never falls back to `@latest` or removes the pin on its own. Fix the entry by setting its `"version"` to a full version or a pseudo-version, or set its `"channel"` to `"latest"` to unpin it.
+If a hand-edited `gup.json` has a pin that is not one fixed version, every command that reads it (`update`, `import`, `check`, `pin`, ...) fails and names the file, the tool, and the value. gup does not fall back to `@latest` or drop the pin. Set the entry's `"version"` to a full version or a pseudo-version, or set its `"channel"` to `"latest"` to unpin it.
 
-### List up command name with package path and version under $GOPATH/bin
-list subcommand print command information under $GOPATH/bin or $GOBIN. The output information is the command name, package path, and command version.
+### List installed binaries
+`gup list` prints the name, package path, and version of each binary under $GOPATH/bin or $GOBIN.
 ![list](./doc/img/list.gif)
 
 ### Remove the specified binary
-If you want to remove a command under $GOPATH/bin or $GOBIN, use the remove subcommand. The remove subcommand asks if you want to remove it before removing it.
+`gup remove` deletes binaries under $GOPATH/bin or $GOBIN, asking before each one.
 ```shell
 $ gup remove subaru gal ubume
 gup:CHECK: remove /home/nao/.go/bin/subaru? [Y/n] Y
@@ -225,14 +225,14 @@ gup:CHECK: remove /home/nao/.go/bin/ubume? [Y/n] Y
 removed /home/nao/.go/bin/ubume
 ```
 
-If you want to force the removal, use the --force option.
+`--force` skips the question.
 ```shell
 $ gup remove --force gal
 removed /home/nao/.go/bin/gal
 ```
 
 ### Check if the binary is the latest version
-If you want to know if the binary is the latest version, use the check subcommand. check subcommand checks if the binary is the latest version and displays the name of the binary that needs to be updated.
+`gup check` reports which binaries have a newer version and prints the `gup update` command for them.
 ```shell
 $ gup check
 check binary under $GOPATH/bin or $GOBIN
@@ -245,7 +245,7 @@ If you want to update binaries, the following command.
            $ gup update fyne_demo gup mimixbox
 ```
 
-Like other subcommands, you can only check the specified binaries.
+You can also check only the binaries you name.
 ```shell
 $ gup check lazygit mimixbox
 check binary under $GOPATH/bin or $GOBIN
@@ -257,7 +257,7 @@ If you want to update binaries, the following command.
 ```
 
 ### Quiet output for large tool sets
-`check` and `update` print every binary by default, which is noisy when you have many tools installed. Pass `--quiet` (`-q`) to suppress the up-to-date lines and show only the binaries that were updated (or have an update available) plus failures, followed by a one-line summary. Errors are always written to STDERR, so they stay visible. When `--json` is also given, `--quiet` is ignored and the full JSON array is printed.
+`--quiet` (`-q`) hides the up-to-date lines from `check` and `update`. You see the binaries that were updated or have an update, the failures, and a one-line summary. Errors still go to STDERR. With `--json`, `--quiet` is ignored and the full array is printed.
 ```shell
 $ gup update --quiet
 github.com/nao1215/gup (v0.7.0 to v0.7.1)
@@ -272,7 +272,7 @@ gup: 1 update available, 8 up-to-date, 0 failed
 ```
 
 ### Machine-readable JSON output (for scripting / CI)
-`list`, `check`, and `update` accept `--json`, printing a JSON array instead of the human-readable output (which stays the default).
+`list`, `check`, and `update` print a JSON array with `--json`.
 
 ```shell
 $ gup check --json
@@ -293,8 +293,8 @@ $ gup check --json
 
 The fields are listed in the [reference](https://nao1215.github.io/gup/reference/#json-output-fields).
 
-### Failure diagnostics / next-step hints
-When `update` or `check` fails, gup turns the Go toolchain's cryptic output into a short, actionable next step printed on STDERR right after the error (and exposed as the `hint` field with `--json`):
+### Hints when an update fails
+When `update` or `check` fails, gup prints a next step on STDERR after the go command's error. With `--json`, the same text is in the `hint` field.
 
 ```shell
 $ gup update
@@ -303,9 +303,8 @@ go: gup.test/moved/cmd/tool@latest: module gup.test/moved@latest found (v1.1.0),
 gup:HINT : The module no longer provides this command at its import path. The project likely moved to a new major version (e.g. a `/v2` module path) or relocated the command; check its current install instructions and reinstall with the new path.
 ```
 
-### Export／Import subcommand
-Use export/import when you want to install the same Go binaries across multiple systems.
-`gup.json` records each tool's import path, version, and update channel. The schema and the lookup order are in the [reference](https://nao1215.github.io/gup/reference/#gupjson).
+### Export and import the tool set
+`gup export` writes each tool's import path, version, and update channel to `gup.json`, and `gup import` installs that set on another machine. The schema and the lookup order are in the [reference](https://nao1215.github.io/gup/reference/#gupjson).
 
 ```json
 {
@@ -336,7 +335,7 @@ Export /home/nao/.config/gup/gup.json
 $ gup import
 ```
 
-`export` can print config content to STDOUT by `--output`. `import` can read a specific file by `--file`.
+`export --output` prints the config to STDOUT, and `import --file` reads a given file.
 ```shell
 ※ Environments A (e.g. ubuntu)
 $ gup export --output > gup.json
@@ -351,11 +350,11 @@ $ gup import --file=gup.json
 gup migrate BEFORE_PATH AFTER_PATH [BINARY...]
 ```
 
-`gup migrate` reinstalls the Go binaries under `BEFORE_PATH` into `AFTER_PATH`, using the exact `import path@version` recorded in each binary's build info (it never silently upgrades to `@latest`). Internally it just sets `GOBIN` to `AFTER_PATH` and runs the normal `go install` path, so the binaries are rebuilt with the Go toolchain currently in use, or with the newer Go a binary was built with, as `update` does.
+`gup migrate` reinstalls the binaries under `BEFORE_PATH` into `AFTER_PATH` at the `import path@version` recorded in each binary's build info, so nothing moves to `@latest`. It sets `GOBIN` to `AFTER_PATH` and runs `go install`, so the binaries are rebuilt with the current Go toolchain, or with the newer Go a binary was built with, as `update` does.
 
 #### Why this is useful (e.g. with `mise`)
 
-When you manage Go with [`mise`](https://mise.jdx.dev/), updating Go can change the real path of `$GOBIN` per Go version. As a result, tools you installed under the previous `$GOBIN` are no longer visible to the new Go. `gup migrate` lets you reinstall the same Go tool set from the old `$GOBIN` into the new one:
+With [`mise`](https://mise.jdx.dev/), each Go version can have its own `$GOBIN`, so after a Go update the new Go no longer sees the tools in the old one. `gup migrate` reinstalls them into the new `$GOBIN`:
 
 ```shell
 # Reinstall every go-install tool from the old GOBIN into the new GOBIN
@@ -365,15 +364,10 @@ $ gup migrate ~/.local/share/mise/installs/go/1.24.0/bin ~/.local/share/mise/ins
 $ gup migrate /old/gobin /new/gobin gopls air
 ```
 
-`migrate` is add-only:
-
-- It never deletes or cleans up files in `AFTER_PATH`.
-- Binaries that already exist in `AFTER_PATH` are skipped by default. Use `--force` to reinstall over them.
-- `AFTER_PATH` is created automatically when it does not exist.
-- `BEFORE_PATH` and `AFTER_PATH` must be different directories.
+`migrate` only adds files. It never deletes anything in `AFTER_PATH`, skips binaries that already exist there unless you pass `--force`, and creates `AFTER_PATH` if it is missing. `BEFORE_PATH` and `AFTER_PATH` must be different directories.
 
 ### Generate man-pages (for linux, mac)
-man subcommand generates man-pages under /usr/share/man/man1 by default. If `MANPATH` is set, gup writes to the `man1` directory under each entry instead, creating it when it does not exist yet. An unwritable target exits with a clear error.
+`gup man` writes man pages to /usr/share/man/man1 by default. If `MANPATH` is set, gup writes to the `man1` directory under each entry instead and creates it if needed. An unwritable target exits with an error.
 ```shell
 $ sudo gup man
 Generate /usr/share/man/man1/gup-bug-report.1.gz
@@ -391,8 +385,7 @@ Generate /usr/share/man/man1/gup.1.gz
 ```
 
 ### Generate shell completion file (for bash, zsh, fish, PowerShell)
-`completion` prints completion scripts to STDOUT when you pass a shell name.
-`--install` sets completion up for you instead, for the shells of the platform you are on.
+`gup completion <shell>` prints a completion script to STDOUT. `--install` sets completion up for the shells of your platform.
 
 ```shell
 $ gup completion bash > gup.bash
@@ -407,7 +400,7 @@ $ gup completion --install
 `--install` needs `HOME` (or `USERPROFILE` on Windows) and is safe to re-run. On Windows it sets up PowerShell; see the [install page](https://nao1215.github.io/gup/install/#shell-completion) for the paths it writes.
 
 ### Desktop notification
-If you use gup with --notify option, gup command notify you on your desktop whether the update was successful or unsuccessful after the update was finished.
+With `--notify`, gup shows a desktop notification when the update finishes, saying whether it succeeded.
 ```shell
 $ gup update --notify
 ```
@@ -415,7 +408,7 @@ $ gup update --notify
 ![warning](./doc/img/notify_warning.png)
 
 ### Disable colorized output
-gup colorizes its output by default. To turn colors off, pass `--no-color` or set the `NO_COLOR` environment variable to a non-empty value (following the [NO_COLOR](https://no-color.org/) convention). This is useful when piping output, in CI logs, or with `NO_COLOR` set globally.
+Pass `--no-color`, or set `NO_COLOR` to a non-empty value as the [NO_COLOR](https://no-color.org/) convention describes.
 ```shell
 $ gup update --no-color
 $ NO_COLOR=1 gup update
@@ -423,7 +416,7 @@ $ NO_COLOR=1 gup update
 
 
 ## gup vs. `go tool`
-Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools scoped to a single project and recorded in that project's `go.mod`, so those tools exist only inside that module. gup manages the binaries installed system-wide under `$GOBIN`, the commands you run from any directory and keep alongside your dotfiles, optionally pinned to versions you depend on. Use `go tool` for per-project tooling and gup for your global toolbox.
+Go 1.24's [`go tool`](https://go.dev/doc/modules/managing-dependencies#tools) manages tools for one project, recorded in its `go.mod` and available only inside that module. gup manages the binaries under `$GOBIN` that you run from any directory. Use `go tool` for per-project tooling and gup for your global tools.
 
 ## Feature comparison
 
@@ -439,22 +432,22 @@ Go 1.24's built-in [`go tool`](https://go.dev/doc/modules/managing-dependencies#
 | `update` reinstalls up-to-date binaries | No | Yes | Yes |
 | `migrate --force` reinstalls when the target already exists | Yes | No | Manual |
 | Failure diagnostics / next-step hints | Yes | Yes | No |
-| `NO_COLOR` support | Yes | Yes | — |
+| `NO_COLOR` support | Yes | Yes | N/A |
 
-gup updates binaries in parallel; go-global-update and a `go install` loop update them one after another. How long each takes to update the same 30 binaries is measured end to end with [himorime](https://github.com/nao1215/himorime), and the latest figures, with the machine and the versions they were measured on, are in [bench/README.md](./bench/README.md#comparison-suite-comparehimorimeyaml).
+go-global-update and a `go install` loop update binaries one after another. [bench/README.md](./bench/README.md#comparison-suite-comparehimorimeyaml) has the time each takes to update the same 30 binaries, measured with [himorime](https://github.com/nao1215/himorime), with the machine and versions used.
 
 ## Integrations
-gup runs inside higher-level upgrade tools. Nothing extra is needed on the gup side.
+These upgrade tools run gup. gup needs no extra setup for them.
 
 - [Topgrade](https://github.com/topgrade-rs/topgrade) has run `gup update` in its Go step since v10.2.0. Binaries can be skipped with `gup_exclude` (v17.3.0 and later).
 - [Meta Package Manager](https://github.com/kdeldycke/meta-package-manager) lists, checks, removes, and upgrades the binaries gup manages. The support ships in its upcoming v8.0.0.
 
-The exit codes, `--json` fields and text output these tools and a number of dotfiles scripts rely on are pinned as end-to-end contracts in [e2e/atago/consumers.atago.yaml](./e2e/atago/consumers.atago.yaml), so a change that would break a caller fails CI first.
+[e2e/atago/consumers.atago.yaml](./e2e/atago/consumers.atago.yaml) tests the exit codes, `--json` fields, and text output that these tools and some dotfiles scripts depend on, so CI fails on a change that would break them.
 
 ## FAQ
 
 ### `gup` fails with `fatal: not a git repository`
-You are probably on oh-my-zsh, which ships a `gup` alias for `git pull --rebase` that shadows this command ([#16](https://github.com/nao1215/gup/issues/16), [#204](https://github.com/nao1215/gup/issues/204)). Remove or rename that alias, or run gup with a leading backslash to bypass it:
+oh-my-zsh has a `gup` alias for `git pull --rebase` that hides this command ([#16](https://github.com/nao1215/gup/issues/16), [#204](https://github.com/nao1215/gup/issues/204)). Remove or rename the alias, or bypass it with a leading backslash:
 ```shell
 $ \gup update
 ```
@@ -474,16 +467,10 @@ $ \gup update
 The commands, files and CI jobs for each are on the [Testing page](https://nao1215.github.io/gup/testing/).
 
 ## Contributing
-First off, thanks for taking the time to contribute! ❤️  See [CONTRIBUTING.md](./CONTRIBUTING.md) for more information.
-Developer workflow, quality checklist, and tool management are documented in [CONTRIBUTING.md](./CONTRIBUTING.md).
-Contributions are not only related to development. For example, GitHub Star motivates me to develop!
+Thanks for contributing. [CONTRIBUTING.md](./CONTRIBUTING.md) covers the developer workflow, the quality checklist, and tool management. A GitHub star also helps.
 
 ## Contact
-If you would like to send comments such as "find a bug" or "request for additional features" to the developer, please use one of the following contacts.
-
-- [GitHub Issue](https://github.com/nao1215/gup/issues)
-
-You can use the bug-report subcommand to send a bug report.
+Report bugs and request features on [GitHub Issues](https://github.com/nao1215/gup/issues). `gup bug-report` opens the issue page for you.
 ```
 $ gup bug-report
 ※ Open GitHub issue page by your default browser

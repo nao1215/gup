@@ -3,9 +3,9 @@
 Copyable one-liners for the Go tools in your `$GOBIN`. Every recipe runs as
 shown; swap the tool names for yours.
 
-`go install` drops a binary in `$GOBIN` and then forgets it. gup reads the build
-info stamped into each binary — import path, version, Go toolchain — so the set
-you already installed is the manifest, and there is nothing to declare first.
+`go install` drops a binary in `$GOBIN` and then forgets it. gup reads the
+import path, version, and Go toolchain stamped into each binary, so the binaries
+you already have are the manifest and there is nothing to declare first.
 
 ## Find a recipe by task
 
@@ -61,8 +61,8 @@ Just the names, for the next command in the pipe:
 gup list --json | jq -r '.[].name'
 ```
 
-A binary that was not installed by `go install` is reported, not hidden — it
-simply has no import path to reinstall from.
+A binary that was not installed by `go install` is still listed; it just has
+no import path to reinstall from.
 
 ## Find what is out of date
 
@@ -99,15 +99,14 @@ The names of everything with an update waiting:
 gup check --json | jq -r '.[] | select(.status == "update-available") | .name'
 ```
 
-A tool built with an older Go toolchain counts as out of date, because it is.
-To ignore that and compare versions only:
+A tool built with an older Go toolchain counts as out of date. To compare
+versions only:
 
 ```shell
 gup check --ignore-go-update
 ```
 
-`check` exits `0` even when it finds updates — finding them is the job, not a
-failure.
+`check` exits `0` when it finds updates.
 
 ## Update everything
 
@@ -160,9 +159,9 @@ gup update --exclude gopls,golangci-lint
 
 A name in `--exclude` that is not installed is ignored, so one exclude list can
 be shared between machines. When it looks like a typo of an installed binary,
-gup says so on STDERR (`--exclude 'lazygti' matches no installed binary; did you
-mean 'lazygit'?`), because a mistyped exclude would otherwise update the very
-tool it was meant to hold back.
+gup warns on STDERR (`--exclude 'lazygti' matches no installed binary; did you
+mean 'lazygit'?`), since a mistyped exclude would update the tool it was meant
+to hold back.
 
 `--exclude` combines with `--dry-run`, so you can confirm the skip list before
 anything is built:
@@ -221,8 +220,8 @@ gup update --latest air
 ```
 
 `--main` falls back to `@master` only when the repository has no `main` branch.
-A build failure on `@main` is reported as a build failure; it never silently
-installs `@master` instead.
+A build failure on `@main` is reported as a build failure and does not install
+`@master`.
 
 The channel is written to `gup.json` and reused by later runs, so you set it
 once:
@@ -265,9 +264,9 @@ gup import --file gup.json --dry-run
 
 ## Move to a new $GOBIN
 
-When a Go upgrade changes where `$GOBIN` points — this happens with
-[mise](https://mise.jdx.dev/) on every Go version — the old tools are still on
-disk, just invisible to the new toolchain. Reinstall them into the new
+When a Go upgrade changes where `$GOBIN` points, as
+[mise](https://mise.jdx.dev/) does on every Go version, the old tools are still
+on disk but the new toolchain does not see them. Reinstall them into the new
 directory, at the versions they already had:
 
 ```shell
@@ -289,8 +288,8 @@ gup migrate /old/gobin /new/gobin --dry-run
 gup migrate /old/gobin /new/gobin --force
 ```
 
-Local `devel` builds and binaries with no resolvable version are skipped rather
-than upgraded, so nothing you built by hand is quietly replaced.
+Local `devel` builds and binaries with no resolvable version are skipped, so
+nothing you built by hand is replaced.
 
 ## Remove a tool
 
@@ -311,8 +310,8 @@ Do not ask:
 gup remove --force gal
 ```
 
-With no terminal to ask on — a pipe, a CI job — `remove` fails fast instead of
-blocking forever on a prompt nobody can answer. Pass `--force` there.
+With no terminal to ask on, as in a pipe or a CI job, `remove` fails at once
+instead of waiting on a prompt nobody can answer. Pass `--force` there.
 
 ## Script it
 
@@ -373,16 +372,15 @@ gup update --json | jq -r '.[] | select(.hint) | "\(.name): \(.hint)"'
 Hints cover major-version moves, relocated commands, `replace` directives,
 binaries that never came from `go install`, missing branches and tags,
 unreachable or private repositories, permission and network errors, and a Go
-toolchain that is too old. When gup has nothing reliable to add, it says
-nothing.
+toolchain that is too old. When gup has no reliable hint, it prints none.
 
 A failure is per-package: the other tools in the run still update, and the
 process exits non-zero so CI notices.
 
 ## Completion and man pages
 
-Install completion for the shells of the platform you are on — bash, fish and zsh
-on Linux and macOS, PowerShell on Windows:
+Install completion for the shells of your platform: bash, fish and zsh on Linux
+and macOS, PowerShell on Windows:
 
 ```shell
 gup completion --install
@@ -402,8 +400,8 @@ gup completion fish > gup.fish
 gup completion powershell > gup.ps1
 ```
 
-Completion is not just subcommands: `gup update`, `gup remove`, and `gup pin`
-complete the binary names actually present in your `$GOBIN`.
+`gup update`, `gup remove`, and `gup pin` also complete the names of the
+binaries in your `$GOBIN`.
 
 Man pages, on Linux and macOS:
 
@@ -411,5 +409,5 @@ Man pages, on Linux and macOS:
 sudo gup man
 ```
 
-`man` honors `MANPATH` when it is set, and fails with a clear error instead of a
-stack trace when the target directory is not writable.
+`man` honors `MANPATH` when it is set, and prints an error when the target
+directory is not writable.
