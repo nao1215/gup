@@ -8,8 +8,8 @@ has to be on `PATH` whichever way you install gup itself.
 
 ## Supported Go versions
 
-Unit tests run on Go 1.26 and 1.27 across Linux, macOS, and Windows, with
-a separate job tracking the latest Go release. `go.mod` declares Go 1.26 as the
+Unit tests run on Go 1.26 and 1.27 on Linux, macOS, and Windows, and a
+separate job runs the latest Go release. `go.mod` declares Go 1.26 as the
 minimum, so building from source needs Go 1.26 or newer.
 
 The prebuilt release binaries are built with the latest Go 1.27 patch release.
@@ -34,9 +34,8 @@ gup is in homebrew-core, so Homebrew needs no tap:
 brew install gup
 ```
 
-The GoReleaser-built formula in `nao1215/tap` remains published as an
-alternative. It installs the prebuilt release binary rather than building from
-source:
+The tap `nao1215/tap` also has a GoReleaser-built formula that installs the
+prebuilt release binary:
 
 ```shell
 brew install nao1215/tap/gup
@@ -131,14 +130,14 @@ gup completion --install
 
 It writes `gup.completion.ps1` beside your PowerShell profile and adds one
 guarded dot-source line to the profile, inside a block marked
-`# setting for gup command (auto generate)`. The rest of your profile is left
-untouched, the profile is created if it does not exist, and re-running the
-command never duplicates the entry. gup uses `$PROFILE` when it is exported, and
+`# setting for gup command (auto generate)`. The rest of the profile stays as
+it was, a missing profile is created, and re-running the command never
+duplicates the entry. gup uses `$PROFILE` when it is exported, and
 otherwise wires up every profile that already exists under
 `Documents\PowerShell` (PowerShell 7) and `Documents\WindowsPowerShell`
 (Windows PowerShell 5.1), creating the PowerShell 7 one when neither does. Those
 paths resolve under `USERPROFILE`, falling back to `HOME`; with neither set the
-command fails with a message naming both rather than guessing.
+command fails and names both.
 
 See [Completion and man pages](/cookbook/#completion-and-man-pages).
 

@@ -79,26 +79,26 @@ gup fails and asks you to choose rather than picking one.
 }
 ```
 
-`schema_version` is `1` while nothing is pinned and `2` once anything is, so an
-environment with no pins keeps writing files older gup releases can read. gup
-reads both. A malformed file, an unknown `channel`, an unsupported
-`schema_version`, or a `pinned` entry with no concrete version is an error, not
-something to ignore — a saved channel is never quietly downgraded to `latest`.
+`schema_version` is `1` while nothing is pinned and `2` once anything is, so
+without pins gup keeps writing files that older releases can read. gup reads
+both. A malformed file, an unknown `channel`, an unsupported `schema_version`,
+or a `pinned` entry with no concrete version is an error; gup never downgrades
+a saved channel to `latest`.
 
 A `pinned` entry's `version` must name one fixed Go module version: a full
 version (`v1.62.0`), a prerelease (`v2.0.0-rc.1`), a `+incompatible` version of
 a v2+ module, or a pseudo-version (`v0.0.0-20240102150405-abcdef123456`) to pin
 a commit. Branch names, commit hashes, abbreviated versions such as `v1` or
 `v1.2`, and version queries such as `>=v1.2.0` are rejected by `gup pin` and by
-every command that reads the file, because the go command would resolve them to
-whatever they point at when it runs. The error names the file, the tool and the
+every command that reads the file, because the go command would resolve them
+again on every run. The error names the file, the tool and the
 value; fix it by setting that entry's `version` to one of the accepted forms, or
 its `channel` to `latest` to unpin it.
 
 ## Running two gup commands at once
 
-The commands that change state take a lock on each resource they write, so a
-second one refuses to start instead of interleaving:
+Commands that change state lock each resource they write, so a second command
+refuses to start instead of interleaving with the first:
 
 | Command | What it locks |
 |:--|:--|
@@ -109,67 +109,17 @@ second one refuses to start instead of interleaving:
 | `export`, `pin` | `$GOBIN` and the `gup.json` they write |
 | `unpin` | the `gup.json` it writes |
 
-The lock is the operating system's own — `flock` on Linux and macOS,
-`LockFileEx` on Windows — taken on a file gup keeps open for as long as it holds
-the resource. A lock the kernel owns is released the moment the process holding
-it ends, however it ends, so there is no such thing as a stale gup lock and never
-a file for you to delete.
+Without the lock, two `gup update` runs would both install and both write
+`gup.json`, which would then describe only the run that finished last, and
+`gup remove` could delete a binary that a concurrent `gup update` is
+reinstalling. `export`, `pin` and `migrate` also lock directories they only
+read, because their output is derived from what they read there. `unpin` only
+edits `gup.json`, so it does not wait on `$GOBIN`. A `$GOBIN` that does not
+exist yet is created so that it can be locked.
 
-The files it takes the lock on sit next to what they guard: `$GOBIN/.gup.lock`
-and `<gup.json>.lock`. `$GOBIN` and your config directory move independently, so
-a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other
-project, and two commands given the same `--file` may come from different config
-directories — a lock kept in the config directory would serialize neither.
-`.gup.lock` is dot-prefixed, so `gup list` never shows it, and `gup remove`
-refuses to delete it: it is gup's, not a tool you installed.
-
-A lock is scoped to the *file*, not to the path that names it. Two arguments
-that reach one directory — `gup migrate ~/go/bin ~/bin` where `~/bin` is a
-symlink to `~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive
-filesystems macOS and Windows use — take one lock rather than two, so gup never
-waits for itself. When a command locks several resources it takes them in the
-order the filesystem's own identities put them in, which is the one order every
-gup agrees on however each of them spelled the paths.
-
-The lock guarding a `gup.json` is its neighbor, named after it, so `--file` is
-resolved to the single name the operating system agrees the file has before the
-lock is derived from it. On Windows that matters twice over: NTFS answers to an
-8.3 alias like `GUP~1.JSO` as well as to the long name, and Win32 strips trailing
-dots and spaces, so `--file gup.json.` writes `gup.json`. Both used to produce a
-lock file of their own — `GUP~1.JSO.lock`, `gup.json..lock` — and two gups
-writing one config would each hold a lock the other could not see. A `gup.json`
-reached through a symlink is locked at the file the write lands on, for the same
-reason.
-
-A *hard* link is the one alias that cannot be resolved this way, because neither
-of two names for one file is more truly its own. gup refuses a `--file` whose
-file has a second name rather than locking it at a name that only sometimes means
-it:
-
-> can not lock /home/you/.config/gup/gup.json: the file has a second name (a hard link), so gup
-> can not tell which lock protects it: remove the extra name while no gup is running, or point
-> gup at a file that has only one
-
-It is also a file gup could not rewrite correctly anyway: the rewrite renames a
-temporary file over `gup.json`, which breaks the link, leaving the other name on
-the contents from before the command ran.
-
-A lock path that is a symlink is refused rather than followed: gup truncates its
-lock file to record who holds it, so writing through a link somebody put there
-would truncate a file that is not gup's. A lock path that is a *hard* link is
-refused for the same reason, and it has to be caught differently: a hard link is
-not a link the open can see through — the file it lands on is an ordinary file
-with two equally real names, so `.gup.lock` made a second name for a binary in
-`$GOBIN` would pass every check a symlink fails and get that file truncated. gup
-therefore refuses a lock file that has more than one name, because the ones it
-creates have exactly one:
-
-> can not open the gup lock file /home/you/go/bin/.gup.lock: the lock path is a hard link
-> to another file, and gup will not truncate a file it does not own: delete the lock file while no
-> gup is running, or point gup at a directory it owns
-
-When two gup commands do overlap, the second one exits non-zero after naming the
-process that is in the way:
+When two commands overlap, the second waits up to three seconds for the lock.
+If the first still holds it then, the second exits non-zero and names the
+process in the way:
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or
@@ -177,83 +127,91 @@ process that is in the way:
 > operating system, not by /home/you/go/bin/.gup.lock, so it is released the moment that
 > process ends and there is never a file to delete by hand
 
-Two `gup update` runs at once would both install and then both write
-`gup.json`, so the file would end up describing only whichever finished last;
-`gup remove` deleting a binary a concurrent `gup update` is reinstalling is the
-same collision with a worse result.
+Nothing that leaves state unchanged takes a lock: `--dry-run` runs,
+`export --output`, and the read-only commands (`list`, `check`, `version`,
+`completion`, `man`, `bug-report`). gup replaces `gup.json` with an atomic
+rename, so a reader sees either the previous complete file or the next one,
+even when the destination is read-only (it is replaced in place). `gup
+completion --install` and `gup man` write files without a lock: both write
+atomically and produce byte-identical content on every run.
 
-`export`, `pin` and `migrate` lock directories they never write to, because
-what they write is derived from what they read there: export describes `$GOBIN`,
-pin resolves its target against it, and migrate reinstalls the versions it read
-in `BEFORE_PATH`. A `gup remove` deleting a binary halfway through leaves a
-result describing a tool set that never existed. `unpin` only names an entry in
-`gup.json`, so it does not wait behind one. A `$GOBIN` that does not exist yet
-is created so that it can be locked — whether it exists is precisely what a
-concurrent `gup import` changes.
+### How the lock works
+
+The lock is the operating system's (`flock` on Linux and macOS, `LockFileEx` on
+Windows), taken on a file gup keeps open while it holds the resource. The kernel
+releases it when the process ends, however it ends, so a gup killed with
+`kill -9` or a machine that lost power leaves no stale lock, and an interrupted
+`gup update` can be followed by another one immediately. Ctrl-C does not
+release the lock early: the command unwinds and releases it on the way out, so
+the resource is not freed while binaries and `gup.json` are still being
+written.
+
+The lock files sit next to what they guard: `$GOBIN/.gup.lock` and
+`<gup.json>.lock`. A lock kept in the config directory would not work, because
+a per-project `XDG_CONFIG_HOME` still shares one `$GOBIN` with every other
+project, and two commands given the same `--file` may come from different
+config directories. `.gup.lock` is dot-prefixed, so `gup list` never shows it.
+
+Leave the lock files in place. Between commands they are empty and hold
+nothing. gup never deletes them, because deleting a file another gup has
+already opened would let two processes lock two different files at one path.
+For the same reason `gup remove .gup.lock` is refused, as is any other name for
+the same file: a hard link, a Windows spelling with a trailing dot, or an 8.3
+alias like `GUPLOC~1.LOC`.
+
+A lock belongs to a file, not to the path that names it. Two arguments that
+reach one directory (`gup migrate ~/go/bin ~/bin` where `~/bin` is a symlink to
+`~/go/bin`, or a `$GOBIN` spelled two ways on the case-insensitive filesystems
+of macOS and Windows) take one lock, so gup never waits for itself. When a
+command locks several resources, it takes them in the order of their filesystem
+identities, which every gup agrees on however it spelled the paths.
+
+For the same reason gup resolves `--file` to the file's one canonical name
+before deriving the lock from it. On Windows, NTFS also accepts an 8.3 alias
+like `GUP~1.JSO`, and Win32 strips trailing dots and spaces, so
+`--file gup.json.` writes `gup.json`; both once produced a lock file of their
+own (`GUP~1.JSO.lock`, `gup.json..lock`). A `gup.json` reached through a
+symlink is locked at the file the write lands on.
+
+A hard link has no canonical name, so gup refuses a `--file` with a second
+name. gup could not rewrite such a file correctly anyway: the rewrite renames a
+temporary file over `gup.json`, which leaves the other name on the old
+contents.
+
+> can not lock /home/you/.config/gup/gup.json: the file has a second name (a hard link), so gup
+> can not tell which lock protects it: remove the extra name while no gup is running, or point
+> gup at a file that has only one
+
+gup truncates its lock file to record who holds it, so it refuses a lock path
+that is a symlink, which could point at a file that is not gup's. A hard link
+passes every symlink check, so gup also refuses a lock file with more than one
+name; the files it creates have exactly one. Otherwise a `.gup.lock` made into
+a second name for a binary in `$GOBIN` would get that binary truncated.
+
+> can not open the gup lock file /home/you/go/bin/.gup.lock: the lock path is a hard link
+> to another file, and gup will not truncate a file it does not own: delete the lock file while no
+> gup is running, or point gup at a directory it owns
 
 If gup cannot work out what to lock, it stops instead of running unlocked. A
-directory it could not create — a parent that refuses it, a read-only filesystem,
-a full disk — is not the same as one that can never exist, and the command that
-would have run there is exactly the one another gup may be running at the same
-moment. A path that *cannot* be a directory, such as a regular file where
-`$GOBIN` or `AFTER_PATH` should be, is left to the command, which says so more
-clearly than a lock error could and writes nothing either way.
-
-`gup completion --install` and `gup man` write files and take no lock: both
-write atomically, and two runs of either produce byte-identical content, so a
-lock would only add a `.zshrc.lock` to your home directory.
-
-Nothing that changes no state is blocked. `--dry-run` runs and `export --output`
-take no lock, and neither do the read-only commands (`list`, `check`, `version`,
-`completion`, `man`, `bug-report`): gup replaces `gup.json` with an atomic
-rename, so a reader sees either the previous complete file or the next one -
-including when the destination is read-only, which is replaced in place rather
-than moved aside.
-
-### The lock files stay behind, and that is fine
-
-An empty `.gup.lock` in `$GOBIN`, or a `gup.json.lock` beside your config, is not
-a leftover to clean up. gup never deletes them, because deleting a file another
-gup may already have opened is precisely what would let two processes take a lock
-on two different files at one path. Between commands the file holds nothing: it
-is a name for the kernel to hang the next lock on, and it is emptied when the
-lock is dropped, so it never names a process that has already finished. There is
-nothing to do about one, and `gup remove .gup.lock` is refused for that reason
-— as is any other name reaching the same file: a hard link, a Windows spelling
-with a trailing dot, an 8.3 alias like `GUPLOC~1.LOC`. Deleting it would not
-release the lock, which lives on an open handle; it would free the *name*, and
-the next gup would create a fresh file there and lock that instead.
-
-Nothing wedges. A gup killed with `kill -9`, a machine that lost power
-mid-update, a lock file copied onto a shared home directory from another machine
-— none of them block anything, because none of them is holding a lock. If you
-interrupt a `gup update`, the next one runs immediately.
-
-Ctrl-C does not release the lock; the process holding it does, by ending.
-Releasing it from a signal handler would free the resource while the command is
-still installing binaries and rewriting `gup.json` on its way out. An interrupted
-`gup update` stops its work, unwinds, and releases on the way out; a command
-killed outright never gets that far, and the kernel drops the lock as it reaps
-the process.
+directory it could not create (a parent that refuses it, a read-only
+filesystem, a full disk) is treated as an error, because the command could run
+there while another gup does. A path that cannot be a directory, such as a
+regular file where `$GOBIN` or `AFTER_PATH` should be, is left to the command,
+which reports it and writes nothing.
 
 ### Where the lock does not reach
 
-Two situations are outside what this can promise. The first is a `$GOBIN` or a
-`gup.json` on a network filesystem — NFS, SMB, sshfs. `flock` and `LockFileEx`
-are the kernel's, and what a kernel does with them on a remote mount is up to
-the mount: some map them to a server-side lock, some keep them local to one
-machine, some ignore them. Two gups on one machine are still serialized; two on
-different machines sharing the mount may not be.
+On a network filesystem (NFS, SMB, sshfs), what `flock` and `LockFileEx` do is
+up to the mount: some map them to a server-side lock, some keep them local, some
+ignore them. Two gups on one machine are still serialized; two on different
+machines sharing the mount may not be.
 
-The second is deleting a lock file *while* gup runs. It does not stop the
-running command — its lock is on an open handle — but it frees the name, and the
-next gup creates a new file there and locks that instead, leaving two commands
-changing one `$GOBIN`. gup never deletes these files and refuses to let `gup
-remove` do it; nothing else should either.
+Deleting a lock file while gup runs does not stop the running command, whose
+lock is on an open handle, but it frees the name. The next gup then creates a
+new file there and locks it, and two commands change one `$GOBIN`.
 
-gup v1.8.1 and earlier take no lock at all. An older gup left on your `PATH` does
-not serialize against a current one, because it does not know there is anything
-to wait for.
+gup v1.8.1 and earlier take no lock, so an older gup on your `PATH` does not
+wait for a current one.
 
 ## JSON output fields
 
@@ -279,11 +237,11 @@ STDERR so STDOUT stays parseable.
 
 | Code | When |
 |:--|:--|
-| `0` | The command did its job — including `check` finding updates, `list`, `export`, and `check` or `update` without named binaries on an empty `$GOBIN`, `update --exclude` leaving nothing to update, and `import` of a `gup.json` with no packages |
+| `0` | The command did its job, including `check` finding updates, `list`, `export`, and `check` or `update` without named binaries on an empty `$GOBIN`, `update --exclude` leaving nothing to update, and `import` of a `gup.json` with no packages |
 | `1` | A usage error, a config error, or at least one package failed |
 
 Naming a binary that is not installed is a usage error, and gup suggests the
-closest installed name when there is one. `--exclude` is a filter, not a
-selection: a name it lists that is not installed is ignored (with a
+closest installed name when there is one. A name in `--exclude` that is not
+installed is ignored (with a
 "did you mean" warning on STDERR when it looks like a typo of an installed
-binary), and excluding everything is simply nothing to do.
+binary), and excluding everything leaves nothing to do.

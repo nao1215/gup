@@ -24,10 +24,10 @@ If you want to update binaries, run the following command.
            $ gup update gup
 ```
 
-Nothing to configure: the binaries already in `$GOBIN` carry the build info gup
-reads. `check` never installs anything.
+There is nothing to configure: gup reads the build info already stamped into
+the binaries in `$GOBIN`. `check` never installs anything.
 
-## Three things to try next
+## Next steps
 
 ```shell
 gup update                       # bring the whole set up to date, in parallel
@@ -38,9 +38,7 @@ gup export                       # write the set to gup.json for another machine
 The [cookbook](/cookbook/) has the rest: branch channels, `--json` for scripts,
 migrating to a new `$GOBIN` after a Go upgrade, and reading a failed update.
 
-## Why gup?
-
-Pick the tool that fits the job:
+## When to use gup
 
 | You want | Use |
 |:--|:--|
@@ -48,8 +46,8 @@ Pick the tool that fits the job:
 | A declarative, multi-language runtime and tool manager | [mise](https://mise.jdx.dev/), [aqua](https://aquaproj.github.io/) |
 | To update the Go binaries already in your `$GOBIN`, in parallel, with pins | gup |
 
-gup's emphasis is the toolbox you carry between projects: the commands you run
-from any directory and keep alongside your dotfiles.
+gup is for the tools you run from any directory and keep alongside your
+dotfiles.
 
 ## Install
 
@@ -62,8 +60,7 @@ Homebrew, winget, mise, nix, aqua, the AUR, and prebuilt packages are on the
 
 ## Integrations
 
-gup runs inside higher-level upgrade tools. Nothing extra is needed on the gup
-side.
+These upgrade tools run gup. gup needs no extra setup for them.
 
 - [Topgrade](https://github.com/topgrade-rs/topgrade) has run `gup update` in
   its Go step since v10.2.0. Binaries can be skipped with `gup_exclude`
