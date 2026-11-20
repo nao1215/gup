@@ -27,6 +27,8 @@ gup check     # report what is out of date, install nothing
 gup update    # update everything under $GOBIN
 ```
 
+`go install` puts gup in `$GOBIN` (by default `$GOPATH/bin`), which must be on your `PATH`.
+
 Documentation: https://nao1215.github.io/gup/
 
 ## Supported OS
@@ -325,6 +327,8 @@ gup:HINT : The module no longer provides this command at its import path. The pr
   ]
 }
 ```
+
+Copy `gup.json` to the other machine (or keep it in your dotfiles) before running `gup import` there.
 
 ```shell
 ※ Environments A (e.g. ubuntu)

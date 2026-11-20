@@ -117,8 +117,9 @@ read, because their output is derived from what they read there. `unpin` only
 edits `gup.json`, so it does not wait on `$GOBIN`. A `$GOBIN` that does not
 exist yet is created so that it can be locked.
 
-When two commands overlap, the second exits non-zero and names the process in
-the way:
+When two commands overlap, the second waits up to three seconds for the lock.
+If the first still holds it then, the second exits non-zero and names the
+process in the way:
 
 > another gup process is already running (pid 40321 on carbon, running "gup update",
 > since 2026-08-29T17:04:11+09:00). gup serializes commands that change your $GOBIN or

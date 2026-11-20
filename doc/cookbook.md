@@ -288,8 +288,9 @@ gup migrate /old/gobin /new/gobin --dry-run
 gup migrate /old/gobin /new/gobin --force
 ```
 
-Local `devel` builds and binaries with no resolvable version are skipped, so
-nothing you built by hand is replaced.
+Local `devel` builds and binaries with no resolvable version in the source
+directory are skipped. `--force` overwrites any binary of the same name in the
+destination, including one you built there by hand.
 
 ## Remove a tool
 
