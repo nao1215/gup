@@ -15,6 +15,7 @@
 [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/nao1215/gup/total)](https://github.com/nao1215/gup/releases)
 [![License](https://img.shields.io/github/license/nao1215/gup)](./LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nao1215/gup/badge)](https://scorecard.dev/viewer/?uri=github.com/nao1215/gup)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14989/badge)](https://www.bestpractices.dev/projects/14989)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 ![sample](./doc/img/sample.gif)
